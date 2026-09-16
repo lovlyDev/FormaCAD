@@ -3,6 +3,9 @@ dist/
 target/
 .cache/
 .venv/
+releases
+!docs/releases/
+!docs/releases/*.md
 test-results/
 playwright-report/
 *.log
