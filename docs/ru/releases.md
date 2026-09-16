@@ -1,0 +1,51 @@
+# Релизы и обновления
+[Документация](index.md) · [English](../en/releases.md)
+
+## Однократная настройка GitHub
+Репозиторий: [lovlyDev/FormaCAD](https://github.com/lovlyDev/FormaCAD). Загрузите исходники и включите Actions. Для анонимного скачивания обновлений репозиторий должен быть публичным; GitHub-токен в приложение не встраивается.
+
+В Settings → Secrets and variables → Actions добавьте:
+| Имя | Тип | Значение |
+| --- | --- | --- |
+| TAURI_SIGNING_PRIVATE_KEY | Secret | Полное содержимое приватного ключа обновлений |
+| TAURI_SIGNING_PRIVATE_KEY_PASSWORD | Secret | Пароль ключа, если задан |
+| TAURI_UPDATER_PUBLIC_KEY | Variable, необязательно | Публичный ключ; по умолчанию используется ключ из конфигурации |
+
+Первый локальный ключ создан в .secrets/updater.key, публичная часть записана в [tauri.conf.json](../../apps/desktop/src-tauri/tauri.conf.json). Приватный файл и журнал генерации исключены из Git. Сохраните резервную копию ключа отдельно. Его нельзя публиковать или генерировать заново для каждой версии: установленные приложения доверяют именно этому ключу.
+
+Для новой независимой линии распространения:
+~~~sh
+npm run tauri -w apps/desktop -- signer generate --ci -w ../../.secrets/updater.key
+~~~
+Не перезаписывайте ключ, которым уже подписывались выпущенные версии. [Документация Tauri updater](https://v2.tauri.app/plugin/updater/).
+
+## Выпуск версии
+~~~sh
+npm run version:set -- 1.0.0
+~~~
+Команда синхронизирует npm, lockfile, Cargo и Tauri. Добавьте описание в docs/releases/ВЕРСИЯ.md. Следующие релизы должны иметь больший номер. Закоммитьте исходники, отправьте их и создайте тег на том же коммите:
+~~~sh
+git tag v1.0.0
+git push origin main
+git push origin v1.0.0
+~~~
+Если основная ветка называется иначе, используйте её имя.
+
+[Release](../../.github/workflows/release.yml) запускает [Quality](../../.github/workflows/ci.yml), затем собирает Windows x64, Linux x64, macOS ARM64 и Intel. Создаются подписи обновлений, пакеты с уникальными именами, общий latest.json и SHA256SUMS. Релиз остаётся черновиком до загрузки всех файлов. Выпущенные версии не перезаписываются; перед повтором неудачного тега нужно разобраться с оставшимся черновиком.
+
+Ручной workflow [Build installers](../../.github/workflows/package.yml) создаёт скачиваемые артефакты Actions без публикации. Ключ подписи обновлений для него не нужен.
+
+## Поведение приложения
+Проверка выполняется при запуске и каждые шесть часов. Новая версия предлагает «Установить / Позже», когда нет активной операции или редактора. «Позже» откладывает окно, кнопка обновлений остаётся доступной. Перед установкой проверяется подпись пакета, сохраняются настройки и создаётся копия SQLite. Windows перезапускается через NSIS; macOS и AppImage — после замены приложения.
+
+DEB/RPM обновляются установкой нового пакета. Отсутствие первого релиза, сети или доступного GitHub не мешает запуску. Нумерация старых локальных превью предшествует GitHub-линейке: при переходе с превью с большим номером один раз установите 1.0.0 вручную. Каталоги данных не меняются.
+
+## Системные подписи
+Подпись обновления обязательна, но она не заменяет Apple Developer или Windows Authenticode.
+
+Для notarization macOS добавьте секреты APPLE_CERTIFICATE (P12 в base64), APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD (пароль приложения), APPLE_TEAM_ID. См. [подпись macOS](https://v2.tauri.app/distribute/sign/macos/). Без них пакеты не нотарифицированы и Gatekeeper может запросить отдельное разрешение.
+
+Windows собирается и без коммерческого сертификата; репутация SmartScreen не связана с проверкой подписи обновления. См. [подпись Windows](https://v2.tauri.app/distribute/sign/windows/).
+
+## Ориентиры
+Я использовал [матрицу релизов GitButler](https://github.com/gitbutlerapp/gitbutler/blob/master/.github/workflows/publish.yaml) как ориентир разделения пакетов и [CI OneCAD](https://github.com/andrejvysny/OneCAD/blob/master/.github/workflows/ci.yml) для нативных проверок. [Tauri Action](https://github.com/tauri-apps/tauri-action) описывает стандартные метаданные обновлений. В Forma манифесты объединяет один финальный job, чтобы избежать одновременной записи latest.json.

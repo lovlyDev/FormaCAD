@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "features": [
+    { "id": "SketchPlate", "operation": { "type": "rectangle", "width": 60, "depth": 40 } },
+    { "id": "Pad", "operation": { "type": "extrude", "sketch": "SketchPlate", "distance": 10 } },
+    { "id": "SketchHole", "operation": { "type": "circle", "radius": 5 } },
+    { "id": "Tool", "operation": { "type": "extrude", "sketch": "SketchHole", "distance": 10 } },
+    { "id": "Pocket", "operation": { "type": "boolean", "left": "Pad", "right": "Tool", "mode": "cut" } }
+  ],
+  "output": "Pocket"
+}
