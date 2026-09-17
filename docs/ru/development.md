@@ -46,7 +46,7 @@ python scripts/test_cad.py
 npm run package
 ~~~
 
-CAD-тестам нужен подготовленный Python. Для геометрических проверок из Rust задайте FORMA_TEST_PYTHON. Установщики собираются на целевой ОС; нужные машины предоставляет [GitHub workflow](../../.github/workflows/package.yml). Подписанные релизы описаны в [руководстве](releases.md).
+CAD-тестам нужен подготовленный Python. Для геометрических проверок из Rust задайте FORMA_TEST_PYTHON. Установщики собираются на целевой ОС; нужные машины предоставляет [GitHub workflow](../../.github/workflows/release.yml). Подписанные релизы описаны в [руководстве](releases.md).
 
 ## Изменения интерфейса
 Добавляйте строки в [en.json](../../apps/desktop/src/i18n/en.json) и [ru.json](../../apps/desktop/src/i18n/ru.json), включая подсказки, ошибки и accessibility. Используйте t(), локальное форматирование и цвета темы. Не переводите имена файлов, код, CAD ID и сообщения пользователя/AI. Проверяйте оба языка и обе темы. Скриншоты сохраняются в исключённом docs/verification/.

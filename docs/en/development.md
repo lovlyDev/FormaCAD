@@ -46,7 +46,7 @@ python scripts/test_cad.py
 npm run package
 ~~~
 
-CAD tests require the configured Python. Set FORMA_TEST_PYTHON for Rust geometry integration. Build installers on their target OS; [GitHub workflows](../../.github/workflows/package.yml) provide those machines. Signed releases follow the [release guide](releases.md).
+CAD tests require the configured Python. Set FORMA_TEST_PYTHON for Rust geometry integration. Build installers on their target OS; [GitHub workflows](../../.github/workflows/release.yml) provide those machines. Signed releases follow the [release guide](releases.md).
 
 ## Interface changes
 Add messages to both [en.json](../../apps/desktop/src/i18n/en.json) and [ru.json](../../apps/desktop/src/i18n/ru.json), including labels, errors and accessibility text. Use t(), local date/number formatting and theme colors. Preserve filenames, code, CAD IDs and user/AI messages. Check both languages and themes. Screenshots belong in ignored docs/verification/.

@@ -33,7 +33,7 @@ Use the actual default branch if it differs.
 
 [Release](../../.github/workflows/release.yml) runs [Quality](../../.github/workflows/ci.yml), then builds Windows x64, Linux x64, macOS ARM64 and Intel. Packages are signed for the updater, collected without filename collisions, and combined into latest.json and SHA256SUMS. The release stays a draft until every asset is uploaded. Existing releases are never overwritten; resolve an incomplete draft before rerunning its tag.
 
-The manual [Build installers](../../.github/workflows/package.yml) workflow produces downloadable Actions artifacts without publishing. It does not require update signing credentials.
+Ordinary commits, branch pushes and pull requests do not start checks, installer builds or publication. The only automatic trigger is pushing a new vX.Y.Z tag. Its version must match the application, checked before the matrix starts. Quality is called only by Release. Updating or deleting an existing tag does not publish a release. No manual GitHub Release creation is needed. Previously started workflows can be cancelled separately in Actions.
 
 ## Application behavior
 Forma checks at startup and every six hours. A newer release opens an Install / Later dialog when no operation or editor is active. Later defers that prompt; the update button remains available. Installation verifies the artifact signature, saves preferences and creates a SQLite backup before invoking the platform installer. Windows restarts through NSIS; macOS and AppImage relaunch after replacement.
