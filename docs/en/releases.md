@@ -21,13 +21,13 @@ Do not overwrite a key already used by released installations. [Tauri updater re
 
 ## Publish a version
 ~~~sh
-npm run version:set -- 1.0.0
+npm run version:set -- 1.1.0
 ~~~
 This synchronizes npm, the lockfile, Cargo and Tauri. Add release notes under docs/releases/VERSION.md. For subsequent releases choose a higher version. Commit the source, push it, then tag the matching commit:
 ~~~sh
-git tag v1.0.0
+git tag v1.1.0
 git push origin main
-git push origin v1.0.0
+git push origin v1.1.0
 ~~~
 Use the actual default branch if it differs.
 
@@ -39,6 +39,8 @@ Ordinary commits, branch pushes and pull requests do not start checks, installer
 Forma checks at startup and every six hours. A newer release opens an Install / Later dialog when no operation or editor is active. Later defers that prompt; the update button remains available. Installation verifies the artifact signature, saves preferences and creates a SQLite backup before invoking the platform installer. Windows restarts through NSIS; macOS and AppImage relaunch after replacement.
 
 Linux DEB/RPM installations use new packages rather than in-place self-update. A first release, offline connection or GitHub failure does not block starting the app. The local preview version line predates this GitHub numbering; install 1.0.0 manually once if moving from a higher-numbered local preview. Data paths stay unchanged.
+
+Version 1.0.0 can close at startup when an existing SQLite database contains a migration created with LF line endings. Install [1.1.0](../releases/1.1.0.md) manually if the app cannot stay open long enough to offer the update. The installer keeps the application data directory and existing projects.
 
 ## Platform signatures
 Updater signatures are required and are not an Apple Developer or Windows Authenticode signature.

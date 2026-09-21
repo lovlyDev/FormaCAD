@@ -43,7 +43,7 @@ test("light surfaces and WebGL switch together; dark appearance and camera survi
   await page.goto(`/#/project/${id}`);
   await page.reload();
   await expect(page.locator("canvas")).toBeVisible();
-  await expect.poll(async () => Math.max(...(await corner(page)).map((v, i) => Math.abs(v - [29, 32, 36][i])))).toBeLessThan(4);
+  await expect.poll(async () => Math.max(...(await corner(page)).map((v, i) => Math.abs(v - [32, 35, 38][i])))).toBeLessThan(4);
   const selectors = [".view-toolbar", ".segmented", ".render-select", ".composer", ".welcome-icon", ".document-tabs", ".model-bottom"];
   // Record existing dark styles so every selected surface must round-trip exactly.
   const surfaces = async () => page.evaluate((selectors) => selectors.flatMap(s => {
@@ -68,12 +68,12 @@ test("light surfaces and WebGL switch together; dark appearance and camera survi
     if (rgb.length === 4 && rgb[3] === 0) continue;
     expect(Math.min(...rgb.slice(0, 3)), surface.selector).toBeGreaterThan(210);
   }
-  await page.screenshot({path: "../../docs/verification/1.0.0-workspace-light.png"});
+  await page.screenshot({path: "../../docs/verification/1.1.0-workspace-light.png"});
   await theme(page, "Тёмная");
-  await expect.poll(async () => Math.max(...(await corner(page)).map((v, i) => Math.abs(v - [29, 32, 36][i])))).toBeLessThan(4);
+  await expect.poll(async () => Math.max(...(await corner(page)).map((v, i) => Math.abs(v - [32, 35, 38][i])))).toBeLessThan(4);
   await expect.poll(surfaces).toEqual(dark);
   expect(await page.locator("canvas").getAttribute("data-camera")).toEqual(camera);
-  await page.screenshot({path: "../../docs/verification/1.0.0-workspace-dark.png"});
+  await page.screenshot({path: "../../docs/verification/1.1.0-workspace-dark.png"});
   await theme(page, "Светлая");
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");

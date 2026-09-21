@@ -4,7 +4,7 @@
 
 Я создаю Forma как локальную CAD-среду, в которой ручное редактирование и AI работают с одной моделью. Приложение объединяет Rust-бэкенд, интерфейс React/Three.js и геометрический процесс Python/CadQuery.
 
-**Версия 1.0.0.** С неё начинается линейка GitHub-релизов. В [плане развития](docs/ru/roadmap.md) отделены доступные инструменты от будущих CAD-возможностей.
+**Версия 1.1.0.** В этом выпуске я обновил рабочее пространство и исправил запуск приложения с существующей базой проектов. Подробности — в [описании версии](docs/releases/1.1.0.md) и [плане развития](docs/ru/roadmap.md).
 
 ## Возможности
 
@@ -40,6 +40,7 @@ npm run desktop
 
 ```sh
 npm run check:version
+npm run check:migrations
 npm run check:i18n
 npm run check:docs
 npm run lint
@@ -58,4 +59,4 @@ npm run build
 
 ## Ссылки
 
-[Репозиторий](https://github.com/lovlyDev/FormaCAD) · [Задачи](https://github.com/lovlyDev/FormaCAD/issues) · [Релизы](https://github.com/lovlyDev/FormaCAD/releases) · [Сборки](https://github.com/lovlyDev/FormaCAD/actions) · [Изменения версии](docs/releases/1.0.0.md)
+[Репозиторий](https://github.com/lovlyDev/FormaCAD) · [Задачи](https://github.com/lovlyDev/FormaCAD/issues) · [Релизы](https://github.com/lovlyDev/FormaCAD/releases) · [Сборки](https://github.com/lovlyDev/FormaCAD/actions) · [Изменения версии](docs/releases/1.1.0.md)

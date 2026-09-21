@@ -2359,3 +2359,224 @@ a, .brand { color: var(--accent-text); }
 [data-theme="light"] .custom-checkbox:not([data-state="checked"]) { background: #fff; }
 [data-theme="light"] .modal-overlay { background: #33415533; }
 [data-theme="light"] .model-loading { background: #eef1f5cc; }
+
+/* Floating desktop workspace. The same surfaces are used in both themes. */
+:root {
+  --bg: #141516;
+  --panel: #1c1e20;
+  --panel2: #25282b;
+  --line: #32363a;
+  --text: #e5e7e9;
+  --muted: #a0a6ad;
+  --accent: #7c3aed;
+  --accent-text: #c4b5fd;
+  --hover: #2c3034;
+  --light-ink: #e5e7e9;
+  --light-secondary: #a0a6ad;
+  --light-surface: #202326;
+  --light-border: #383d42;
+  --light-hover-wash: #ffffff0d;
+  --light-accent-ink: #c4b5fd;
+  --light-accent-surface: #302640;
+  --light-accent-border: #68478e;
+  --light-success-ink: #a3c5af;
+  --light-success-surface: #25372c;
+  --light-success-border: #4e7158;
+  --light-danger-ink: #f0b5ae;
+  --light-danger-surface: #402927;
+  --light-danger-border: #80534d;
+  --island-shadow: 0 12px 32px #0002, 0 1px 2px #0003;
+}
+[data-theme="light"] {
+  --bg: #e9ecf0;
+  --panel: #fafbfc;
+  --panel2: #eef1f5;
+  --line: #d7dde3;
+  --text: #252b32;
+  --muted: #687480;
+  --accent: #7c3aed;
+  --accent-text: #7c3aed;
+  --hover: #e6ebf0;
+  --light-ink: #252b32;
+  --light-secondary: #687480;
+  --light-surface: #f5f7f9;
+  --light-border: #d1d9e0;
+  --light-hover-wash: #2637460b;
+  --light-accent-ink: #6d28d9;
+  --light-accent-surface: #ede9fe;
+  --light-accent-border: #c4b5fd;
+  --light-success-ink: #356847;
+  --light-success-surface: #e6f2e9;
+  --light-success-border: #a9cbb2;
+  --light-danger-ink: #9d413a;
+  --light-danger-surface: #fbece9;
+  --light-danger-border: #e2aaa4;
+  --island-shadow: 0 12px 28px #33415512, 0 1px 2px #33415510;
+}
+
+body { background: var(--bg); }
+.app-shell { background: var(--bg); }
+.topbar {
+  min-height: 52px;
+  height: 52px;
+  margin: 9px 10px 0;
+  padding: 0 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--island-shadow);
+}
+.brand { color: var(--text); font-size: 19px; letter-spacing: -.7px; }
+.brand-mark {
+  width: 31px;
+  height: 31px;
+  justify-content: center;
+  border: 1px solid var(--light-accent-border);
+  border-radius: 9px;
+  background: var(--light-accent-surface);
+  color: var(--light-accent-ink);
+}
+.brand-divider { margin-left: 6px; }
+.project-switch .custom-select { border-radius: 8px; }
+.command-button { padding: 6px 9px; border-radius: 8px; }
+.command-button:hover { background: var(--hover); color: var(--text); }
+.command-button kbd { border-radius: 5px; }
+.avatar { background: var(--light-accent-surface); color: var(--light-accent-ink); }
+
+.workspace { gap: 8px; padding: 8px 10px 0; }
+.left-panel, .center-panel, .chat-panel, .dashboard-nav, .dashboard-content {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: var(--island-shadow);
+  overflow: hidden;
+}
+.center-panel { background: var(--panel); }
+.left-panel, .chat-panel { min-height: 0; }
+.resize-handle {
+  width: 3px;
+  margin: 0 -5px;
+  background: transparent;
+  border-radius: 3px;
+  z-index: 12;
+}
+.resize-handle:hover { background: var(--accent); }
+.panel-heading, .chat-header { height: 48px; }
+.panel-heading { padding-inline: 17px 12px; }
+.panel-heading > span, .suggestions > span, .eyebrow, .template-heading > span {
+  letter-spacing: 1px;
+  font-size: 9px;
+}
+.project-title { padding: 10px 14px 18px; }
+.project-symbol { border-radius: 10px; }
+.panel-tabs { padding-inline: 11px; gap: 4px; border-bottom-color: var(--line); }
+.panel-tabs button { padding: 10px 11px; border-radius: 8px 8px 0 0; }
+.panel-tabs button.active { background: var(--light-accent-surface); color: var(--light-accent-ink); }
+.tree-row { border-radius: 7px; margin-inline: 5px; width: calc(100% - 10px); }
+.tree-row.selected, .body-row.selected { background: var(--light-accent-surface); color: var(--light-accent-ink); }
+.inspector { border-top: 1px solid var(--line); }
+.sidebar-bottom { background: var(--panel2); }
+
+.document-tabs {
+  min-height: 49px;
+  height: 49px;
+  padding: 5px 11px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+.document-tab {
+  height: 35px;
+  padding-inline: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel2);
+}
+.document-tab > svg { color: var(--light-accent-ink); }
+.revision-badge { border-radius: 6px; }
+.viewer-area {
+  margin: 0 9px 8px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--light-surface);
+}
+.viewport { background: var(--light-surface); }
+.view-toolbar, .segmented, .render-select {
+  background: var(--panel);
+  border: 1px solid var(--light-border);
+  border-radius: 10px;
+  box-shadow: var(--island-shadow);
+}
+.view-toolbar { padding: 5px; }
+.view-toolbar i { background: var(--line); }
+.segmented { border-radius: 9px; }
+.segmented button { border-radius: 6px; }
+.segmented button.active { background: var(--light-accent-surface); color: var(--light-accent-ink); }
+.render-select { overflow: hidden; }
+.model-bottom { height: 31px; min-height: 31px; background: var(--panel); border-top: 0; }
+
+.chat-header { background: var(--panel); padding-inline: 17px 12px; }
+.agent-picker { border-radius: 8px; background: var(--panel2); }
+.chat-scroll { padding: 20px 16px; }
+.welcome-icon { border-radius: 15px; }
+.suggestions > button { border-radius: 9px; background: var(--panel2); }
+.suggestions > button:hover { background: var(--hover); }
+.composer-wrap { padding: 11px 13px 13px; border-top: 1px solid var(--line); }
+.composer { border-radius: 12px; background: var(--panel2); box-shadow: none; }
+.composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--light-accent-surface); }
+.send-button { width: 30px; height: 30px; border-radius: 8px; }
+.message { border-radius: 12px; }
+.message.user { background: var(--light-accent-surface); border-color: var(--light-accent-border); }
+.message.assistant { background: var(--panel2); border-color: var(--line); }
+.message-label { color: var(--light-accent-ink); }
+.live-dot { background: var(--accent); }
+
+.statusbar {
+  height: 24px;
+  min-height: 24px;
+  margin: 4px 10px 7px;
+  padding-inline: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.dashboard { gap: 8px; padding: 8px 10px 0; }
+.dashboard-nav { width: 190px; padding: 16px 9px; flex-shrink: 0; }
+.dashboard-nav > div:first-child, .dashboard-nav > button { border-radius: 8px; }
+.dashboard-nav > div:first-child { background: var(--light-accent-surface); color: var(--light-accent-ink); }
+.dashboard-content { max-width: none; margin: 0; padding: 48px clamp(24px, 5%, 74px); }
+.dashboard-title h1 { color: var(--text); font-weight: 570; }
+.search-input { border: 1px solid var(--line); border-radius: 9px; padding: 0 10px; background: var(--panel2); }
+.project-grid { gap: 14px; }
+.new-project-card, .project-card, .template-grid > button { border-radius: 12px; background: var(--panel2); }
+.project-art { background-color: var(--light-surface); }
+.new-project-card > span { border-radius: 12px; }
+
+.button, .custom-select, input, select, textarea, .custom-number, .select-menu { border-radius: 9px; }
+.icon-button { border-radius: 7px; }
+.button.primary:hover { background: #9e5bf0; }
+.button.primary, .send-button, .custom-checkbox[data-state="checked"] { color: #fff; }
+.tooltip, .toast { border-radius: 10px; }
+.modal { border-radius: 16px; box-shadow: 0 24px 80px #0005; }
+.settings-layout > nav button, .health-row, .palette-list button { border-radius: 8px; }
+[data-theme="light"] .new-project-card,
+[data-theme="light"] .template-grid > button,
+[data-theme="light"] .composer,
+[data-theme="light"] .message.assistant { background: var(--panel2); color: var(--text); border-color: var(--line); }
+[data-theme="light"] .message.user { background: var(--light-accent-surface); color: var(--text); }
+[data-theme="light"] .segmented button.active,
+[data-theme="light"] .icon-button:hover { background: var(--light-accent-surface); }
+[data-theme="light"] .settings-layout > nav button.active,
+[data-theme="light"] .dashboard-nav button.active { background: var(--light-accent-surface); color: var(--light-accent-ink); }
+[data-theme="light"] .modal .custom-select { background: var(--panel2); color: var(--text); border-color: var(--line); }
+
+@media (max-width: 1150px) {
+  .dashboard-nav { width: 168px; }
+  .dashboard-content { padding: 38px 4%; }
+}
+@media (max-width: 850px) {
+  .workspace { gap: 7px; padding-inline: 7px; }
+  .topbar { margin-inline: 7px; }
+  .statusbar { margin-inline: 7px; }
+  .dashboard-nav { display: none; }
+}

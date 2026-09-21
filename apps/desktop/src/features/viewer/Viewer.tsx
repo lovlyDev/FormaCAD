@@ -356,7 +356,7 @@ export default function Viewer({
         gl={{ antialias: true, preserveDrawingBuffer: true }}
         onPointerMissed={() => useWorkspace.getState().setSelected(null)}
       >
-        <color attach="background" args={[light ? "#eef1f5" : "#1d2024"]} />
+        <color attach="background" args={[light ? "#f5f7f9" : "#202326"]} />
         <ambientLight intensity={1.5} />
         <hemisphereLight args={["#dbe5ff", "#4d4234", 2]} />
         <directionalLight
@@ -398,8 +398,8 @@ export default function Viewer({
             args={[2, 2]}
             cellSize={10}
             sectionSize={50}
-            cellColor={light ? "#d3d9e2" : "#34383d"}
-            sectionColor={light ? "#aab5c4" : "#44494f"}
+            cellColor={light ? "#dce3e9" : "#343a40"}
+            sectionColor={light ? "#b7c6d1" : "#48525a"}
             fadeDistance={550}
             fadeStrength={1.8}
             followCamera={false}

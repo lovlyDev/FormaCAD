@@ -4,7 +4,7 @@
 
 I’m building Forma as a local CAD workspace where manual editing and AI work on the same model. It combines a Rust desktop backend, a React/Three.js interface and a Python/CadQuery geometry worker.
 
-**Version 1.0.0.** This is the first GitHub release line. See the [roadmap](docs/en/roadmap.md) for the boundary between available and planned CAD features.
+**Version 1.1.0.** This release refreshes the desktop workspace and fixes startup with existing project databases. See the [release notes](docs/releases/1.1.0.md) and [roadmap](docs/en/roadmap.md).
 
 ## Features
 
@@ -40,6 +40,7 @@ Browser preview: `npm run dev`. The browser cannot execute local CLI tools or in
 
 ```sh
 npm run check:version
+npm run check:migrations
 npm run check:i18n
 npm run check:docs
 npm run lint
@@ -58,4 +59,4 @@ Update checks contact GitHub. AI requests go to the selected CLI provider when t
 
 ## Links
 
-[Repository](https://github.com/lovlyDev/FormaCAD) · [Issues](https://github.com/lovlyDev/FormaCAD/issues) · [Releases](https://github.com/lovlyDev/FormaCAD/releases) · [Actions](https://github.com/lovlyDev/FormaCAD/actions) · [Release notes](docs/releases/1.0.0.md)
+[Repository](https://github.com/lovlyDev/FormaCAD) · [Issues](https://github.com/lovlyDev/FormaCAD/issues) · [Releases](https://github.com/lovlyDev/FormaCAD/releases) · [Actions](https://github.com/lovlyDev/FormaCAD/actions) · [Release notes](docs/releases/1.1.0.md)
