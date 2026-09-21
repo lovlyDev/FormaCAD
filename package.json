@@ -1,0 +1,21 @@
+{
+  "name": "forma-cad",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/desktop"
+  ],
+  "scripts": {
+    "check:i18n": "node scripts/check-i18n.mjs",
+    "dev": "npm run dev -w apps/desktop",
+    "build": "npm run build -w apps/desktop",
+    "test": "npm run test -w apps/desktop",
+    "lint": "npm run lint -w apps/desktop",
+    "desktop": "npm run tauri -w apps/desktop -- dev",
+    "package": "npm run tauri -w apps/desktop -- build",
+    "test:e2e": "npm run test:e2e -w apps/desktop",
+    "check:version": "node scripts/version.mjs",
+    "version:set": "node scripts/version.mjs",
+    "check:docs": "node scripts/check-docs.mjs"
+  }
+}

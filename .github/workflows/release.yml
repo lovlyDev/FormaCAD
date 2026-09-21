@@ -1,0 +1,145 @@
+name: Release
+on:
+  push:
+    tags: ['v[0-9]*.[0-9]*.[0-9]*']
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    if: github.event_name == 'push' && github.ref_type == 'tag' && github.event.created == true && github.event.deleted == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/version.mjs
+  quality:
+    needs: validate
+    permissions:
+      contents: read
+      checks: write
+    uses: ./.github/workflows/ci.yml
+  build:
+    needs: quality
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2022
+            target: x86_64-pc-windows-msvc
+            platform: windows-x86_64
+            bundles: nsis
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            platform: linux-x86_64
+            bundles: appimage,deb,rpm
+          - os: macos-15
+            target: aarch64-apple-darwin
+            platform: darwin-aarch64
+            bundles: app,dmg
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            platform: darwin-x86_64
+            bundles: app,dmg
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libfuse2 rpm
+      - run: npm ci
+      - run: node scripts/version.mjs
+      - name: Configure signed updates
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_UPDATER_PUBLIC_KEY: ${{ vars.TAURI_UPDATER_PUBLIC_KEY }}
+        run: |
+          node -e "if (!process.env.TAURI_SIGNING_PRIVATE_KEY) throw new Error('Add TAURI_SIGNING_PRIVATE_KEY in GitHub Actions secrets')"
+          node scripts/configure-release.mjs
+      - name: Build signed installers
+        if: runner.os != 'macOS'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npm run tauri -w apps/desktop -- build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+      - name: Build signed macOS installers
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          FORMA_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          FORMA_APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          FORMA_APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          FORMA_APPLE_ID: ${{ secrets.APPLE_ID }}
+          FORMA_APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          FORMA_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [[ -n "$FORMA_APPLE_CERTIFICATE" ]]; then
+            if [[ -z "$FORMA_APPLE_CERTIFICATE_PASSWORD" ]]; then
+              echo 'APPLE_CERTIFICATE_PASSWORD is required when APPLE_CERTIFICATE is set.' >&2
+              exit 1
+            fi
+            export APPLE_CERTIFICATE="$FORMA_APPLE_CERTIFICATE"
+            export APPLE_CERTIFICATE_PASSWORD="$FORMA_APPLE_CERTIFICATE_PASSWORD"
+            if [[ -n "$FORMA_APPLE_SIGNING_IDENTITY" ]]; then
+              export APPLE_SIGNING_IDENTITY="$FORMA_APPLE_SIGNING_IDENTITY"
+            fi
+            if [[ -n "$FORMA_APPLE_ID" && -n "$FORMA_APPLE_PASSWORD" && -n "$FORMA_APPLE_TEAM_ID" ]]; then
+              export APPLE_ID="$FORMA_APPLE_ID"
+              export APPLE_PASSWORD="$FORMA_APPLE_PASSWORD"
+              export APPLE_TEAM_ID="$FORMA_APPLE_TEAM_ID"
+            fi
+          else
+            export APPLE_SIGNING_IDENTITY='-'
+          fi
+          npm run tauri -w apps/desktop -- build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+      - run: node scripts/release-artifacts.mjs collect ${{ matrix.platform }} ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.platform }}
+          path: .release-artifacts/${{ matrix.platform }}/
+          if-no-files-found: error
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: .release-artifacts
+          merge-multiple: true
+      - run: node scripts/release-artifacts.mjs merge
+      - name: Publish complete release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo 'Release already exists; refusing to overwrite it.'
+            exit 1
+          fi
+          VERSION="${RELEASE_TAG#v}"
+          gh release create "$RELEASE_TAG" --verify-tag --draft --title "Forma $VERSION" --notes-file "docs/releases/$VERSION.md"
+          gh release upload "$RELEASE_TAG" .release-artifacts/*
+          gh release edit "$RELEASE_TAG" --draft=false --latest
