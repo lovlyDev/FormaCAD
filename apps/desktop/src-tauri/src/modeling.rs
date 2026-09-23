@@ -165,12 +165,6 @@ pub async fn apply_program(
                 holes: 4,
             },
         });
-        project.messages.push(crate::models::Message {
-            id: uuid::Uuid::new_v4().to_string(),
-            role: "event".into(),
-            text: format!("Модель построена · Ревизия {}", project.revisions.len()),
-            created_at: now.clone(),
-        });
         project.current_revision = Some(job);
         project.updated_at = now;
         let pending = crate::artifacts::normalize(&mut project)?;

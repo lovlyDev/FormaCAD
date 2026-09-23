@@ -30,6 +30,8 @@ fn project() -> Project {
         units: "mm".into(),
         agent: "codex".into(),
         pinned: false,
+        thumbnail: None,
+        thumbnail_revision: None,
         created_at: r.created_at.clone(),
         updated_at: r.created_at.clone(),
         current_revision: Some(r.id.clone()),

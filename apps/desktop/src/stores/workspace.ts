@@ -1,4 +1,3 @@
-import { t } from "../i18n";
 import { create } from "zustand";
 import type { Project, Parameters, Revision } from "../types";
 import { defaults } from "../types";
@@ -61,17 +60,7 @@ export const useWorkspace = create<Workspace>((set, get) => ({
       currentRevision: rev.id,
       updatedAt: rev.createdAt,
       revisions: [...p.revisions, rev],
-      messages: [
-        ...p.messages,
-        {
-          id: crypto.randomUUID(),
-          role: "event",
-          text: t("Revision {{value0}} saved", {
-            value0: p.revisions.length + 1,
-          }),
-          createdAt: rev.createdAt,
-        },
-      ],
+      messages: p.messages,
     });
   },
 }));

@@ -1076,6 +1076,22 @@ dd > span {
   letter-spacing: 1.5px;
   color: var(--light-secondary, #7f8c95);
 }
+.project-art > img { width: 100%; height: 100%; object-fit: cover; }
+.project-art > .project-pinned {
+  top: 10px;
+  right: 10px;
+  bottom: auto;
+  left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 7px;
+  border: 1px solid var(--light-accent-border);
+  border-radius: 7px;
+  background: var(--light-accent-surface);
+  color: var(--light-accent-ink);
+  letter-spacing: 0;
+}
 .project-card-info {
   padding: 13px;
   display: flex;
@@ -1098,6 +1114,8 @@ dd > span {
 .project-card-info small span {
   margin: 0 4px;
 }
+.project-card-actions { display: flex; align-items: center; gap: 2px; }
+.button.danger { background: var(--light-danger-surface); color: var(--light-danger-ink); border-color: var(--light-danger-border); }
 .template-heading {
   margin-top: 42px;
 }
@@ -2569,6 +2587,24 @@ body { background: var(--bg); }
 [data-theme="light"] .settings-layout > nav button.active,
 [data-theme="light"] .dashboard-nav button.active { background: var(--light-accent-surface); color: var(--light-accent-ink); }
 [data-theme="light"] .modal .custom-select { background: var(--panel2); color: var(--text); border-color: var(--line); }
+
+.measure-result {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  width: min(320px, calc(100vw - 32px));
+  gap: 8px 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--island-shadow);
+  white-space: normal;
+}
+.measure-result > .custom-select { min-width: 0; width: 100%; }
+.measure-result > span { grid-column: 1 / -1; text-align: center; color: var(--muted); }
+.settings-layout .cad-python-action { margin-top: 20px; }
+.program-editor { min-height: 360px; max-height: 52vh; }
 
 @media (max-width: 1150px) {
   .dashboard-nav { width: 168px; }

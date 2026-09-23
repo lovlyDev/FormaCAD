@@ -4,7 +4,7 @@
 
 I’m building Forma as a local CAD workspace where manual editing and AI work on the same model. It combines a Rust desktop backend, a React/Three.js interface and a Python/CadQuery geometry worker.
 
-**Version 1.1.0.** This release refreshes the desktop workspace and fixes startup with existing project databases. See the [release notes](docs/releases/1.1.0.md) and [roadmap](docs/en/roadmap.md).
+**Version 1.2.0.** This release improves camera controls, local model editing and project cards with previews, pinning, renaming and complete deletion. See the [release notes](docs/releases/1.2.0.md) and [roadmap](docs/en/roadmap.md).
 
 ## Features
 
@@ -59,4 +59,4 @@ Update checks contact GitHub. AI requests go to the selected CLI provider when t
 
 ## Links
 
-[Repository](https://github.com/lovlyDev/FormaCAD) · [Issues](https://github.com/lovlyDev/FormaCAD/issues) · [Releases](https://github.com/lovlyDev/FormaCAD/releases) · [Actions](https://github.com/lovlyDev/FormaCAD/actions) · [Release notes](docs/releases/1.1.0.md)
+[Repository](https://github.com/lovlyDev/FormaCAD) · [Issues](https://github.com/lovlyDev/FormaCAD/issues) · [Releases](https://github.com/lovlyDev/FormaCAD/releases) · [Actions](https://github.com/lovlyDev/FormaCAD/actions) · [Release notes](docs/releases/1.2.0.md)

@@ -59,6 +59,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             projects::list_projects,
+            projects::save_project_thumbnail,
+            projects::delete_project,
             projects::interrupted_sessions,
             projects::acknowledge_recovery,
             projects::save_project,

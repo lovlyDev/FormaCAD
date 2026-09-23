@@ -10,7 +10,7 @@ import {
   Bounds,
   useBounds,
 } from "@react-three/drei";
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef, type RefObject } from "react";
 import * as THREE from "three";
 import {
   Box,
@@ -103,22 +103,26 @@ function CameraControl({
   reset,
   object,
   storageKey,
+  controlsRef,
+  appliedPreset,
 }: {
   preset: string;
   fit: number;
   reset: number;
   object: THREE.Group;
   storageKey: string;
+  controlsRef: RefObject<OrbitHandle | null>;
+  appliedPreset: RefObject<string>;
 }) {
   const bounds = useBounds();
   const camera = useThree((state) => state.camera);
-  const controls = useThree((state) => state.controls) as unknown as { target: THREE.Vector3; update: () => void } | undefined;
   const last = useRef<{ fit: number; reset: number; preset: string; camera: THREE.Camera } | null>(null);
   const api = useRef(bounds);
   useEffect(() => {
     api.current = bounds;
   }, [bounds]);
   useEffect(() => {
+    const controls = controlsRef.current;
     if (!controls) return;
     const previous = last.current;
     last.current = { fit, reset, preset, camera };
@@ -136,7 +140,8 @@ function CameraControl({
       controls.update();
       return;
     }
-    if (!previous || previous.fit !== fit) api.current.refresh(object).clip().fit();
+    if (!previous || previous.fit !== fit || previous.reset !== reset || previous.camera !== camera) api.current.refresh(object).clip().fit();
+    if (previous && previous.reset === reset) return;
     const positions: Record<string, [number, number, number]> = {
       iso: [180, 140, 180],
       top: [0, 260, 0.001],
@@ -144,7 +149,8 @@ function CameraControl({
       side: [260, 40, 0],
     };
     const framing = api.current.refresh(object).clip();
-    const { center, distance } = framing.getSize();
+    const { center } = framing.getSize();
+    const distance = Math.max(camera.position.distanceTo(center), 1);
     const direction = new THREE.Vector3(
       ...(positions[preset] ?? positions.iso),
     ).normalize();
@@ -152,24 +158,53 @@ function CameraControl({
       .moveTo(center.clone().addScaledVector(direction, distance))
       .lookAt({ target: center, up: [0, 1, 0] });
     if (camera instanceof THREE.OrthographicCamera) framing.fit();
-  }, [preset, object, reset, camera, controls, fit, storageKey]);
+  }, [preset, object, reset, camera, controlsRef, fit, storageKey]);
   useFrame(() => {
+    const controls = controlsRef.current;
     if (!controls || !last.current) return;
-    const snapshot = JSON.stringify({ position: camera.position.toArray(), quaternion: camera.quaternion.toArray(), up: camera.up.toArray(), target: controls.target.toArray(), zoom: (camera as THREE.PerspectiveCamera).zoom });
+    if (appliedPreset.current !== preset) {
+      const directions: Record<string, [number, number, number]> = {
+        iso: [1, 0.8, 1],
+        top: [0, 1, 0.00001],
+        front: [0, 0, 1],
+        side: [1, 0, 0],
+      };
+      const distance = Math.max(camera.position.distanceTo(controls.target), 1);
+      const direction = new THREE.Vector3(
+        ...(directions[preset] ?? directions.iso),
+      ).normalize();
+      const target = controls.target.clone();
+      api.current.refresh(object).clip();
+      camera.position.copy(target).addScaledVector(direction, distance);
+      camera.up.set(0, preset === "top" ? 0 : 1, preset === "top" ? -1 : 0);
+      camera.lookAt(target);
+      controls.update();
+      appliedPreset.current = preset;
+    }
+    const snapshot = JSON.stringify({
+      position: camera.position.toArray().map(roundCamera),
+      quaternion: camera.quaternion.toArray().map(roundCamera),
+      up: camera.up.toArray().map(roundCamera),
+      target: controls.target.toArray().map(roundCamera),
+      zoom: roundCamera((camera as THREE.PerspectiveCamera).zoom),
+    });
     if (localStorage.getItem(storageKey) !== snapshot) persist(storageKey, snapshot);
   });
   return null;
 }
 type CameraSnapshot = { position: number[]; quaternion: number[]; up: number[]; target: number[]; zoom: number };
+type OrbitHandle = { target: THREE.Vector3; update: () => void };
+const roundCamera = (value: number) => Math.round(value * 100_000) / 100_000;
 function validCamera(value: CameraSnapshot | null): value is CameraSnapshot {
   return !!value && [value.position, value.up, value.target].every(v => Array.isArray(v) && v.length === 3 && v.every(Number.isFinite)) && Array.isArray(value.quaternion) && value.quaternion.length === 4 && value.quaternion.every(Number.isFinite) && Number.isFinite(value.zoom) && value.zoom > 0;
 }
-function Capture({ onReady }: { onReady: (fn: () => string) => void }) {
+function Capture({ onReady, controlsRef }: { onReady: (fn: () => string) => void; controlsRef: RefObject<OrbitHandle | null> }) {
   const { gl, scene, camera } = useThree();
   useFrame(() => {
     if (import.meta.env.DEV)
       gl.domElement.dataset.camera = JSON.stringify({
         position: camera.position.toArray(),
+        target: controlsRef.current?.target.toArray() ?? [0, 0, 0],
         zoom: camera.zoom,
       });
     if (import.meta.env.DEV) {
@@ -219,6 +254,8 @@ export default function Viewer({
   const [measureKind, setMeasureKind] = useState<MeasureKind>("distance");
   const [points, setPoints] = useState<THREE.Vector3[]>([]);
   const [capture, setCapture] = useState<(() => string) | null>(null);
+  const controlsRef = useRef<OrbitHandle | null>(null);
+  const appliedPreset = useRef(preset);
   const selected = useWorkspace((s) => s.selected);
   const handleCapture = useCallback(
     (fn: () => string) => setCapture(() => fn),
@@ -390,6 +427,8 @@ export default function Viewer({
             fit={fit}
             reset={reset}
             object={object}
+            controlsRef={controlsRef}
+            appliedPreset={appliedPreset}
           />
         </Bounds>
         {grid && (
@@ -410,10 +449,13 @@ export default function Viewer({
           />
         )}
         <OrbitControls
+          ref={controlsRef as never}
           makeDefault
           enableZoom={false}
           enableDamping
           dampingFactor={0.12}
+          panSpeed={0.3}
+          screenSpacePanning
           minDistance={3}
           maxDistance={3500}
         />
@@ -426,7 +468,7 @@ export default function Viewer({
         </GizmoHelper>
         <SmoothZoom />
         <Playback object={object} playing={playing} reset={motionReset} storageKey={`${viewKey}.motionTime`} />
-        <Capture onReady={handleCapture} />
+        <Capture onReady={handleCapture} controlsRef={controlsRef} />
       </Canvas>
       {!object.children.length && (
         <div className="empty-scene">

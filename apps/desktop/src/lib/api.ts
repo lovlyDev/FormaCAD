@@ -39,6 +39,30 @@ export async function saveProject(project: Project): Promise<Project> {
   return project;
 }
 
+export async function saveProjectThumbnail(
+  id: string,
+  revisionId: string,
+  thumbnail: string,
+): Promise<Project> {
+  if (native) return invoke("save_project_thumbnail", { id, revisionId, thumbnail });
+  const project = (await listProjects()).find((item) => item.id === id);
+  if (!project) throw new Error("Project was not found");
+  if (project.currentRevision !== revisionId) return project;
+  return saveProject({ ...project, thumbnail, thumbnailRevision: revisionId });
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  if (native) await invoke("delete_project", { id });
+  else {
+    const projects = await listProjects();
+    if (!projects.some((project) => project.id === id)) throw new Error("Project was not found");
+    localStorage.setItem(key, JSON.stringify(projects.filter((project) => project.id !== id)));
+  }
+  for (const setting of Object.keys(localStorage)) {
+    if (setting.startsWith(`forma.ui.project.${id}.`)) localStorage.removeItem(setting);
+  }
+}
+
 export async function readProjectFile(
   projectId: string,
   name: string,

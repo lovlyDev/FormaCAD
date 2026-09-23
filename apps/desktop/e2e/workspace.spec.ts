@@ -337,6 +337,32 @@ test("quota has one actionable error card", async ({ page }) => {
 test("camera presets apply their intended direction", async ({ page }) => {
   await legacyProject(page);
   const canvas = page.locator("canvas");
+  const distance = async () => {
+    const camera = JSON.parse(
+      (await canvas.getAttribute("data-camera")) ?? "{}",
+    );
+    if (!camera.position || !camera.target) return 0;
+    return Math.hypot(
+      camera.position[0] - camera.target[0],
+      camera.position[1] - camera.target[1],
+      camera.position[2] - camera.target[2],
+    );
+  };
+  await expect.poll(distance).toBeGreaterThan(1);
+  let previousDistance = 0;
+  let stableSamples = 0;
+  await expect
+    .poll(
+      async () => {
+        const current = await distance();
+        stableSamples = Math.abs(current - previousDistance) < 0.01 ? stableSamples + 1 : 0;
+        previousDistance = current;
+        return stableSamples;
+      },
+      { intervals: [250], timeout: 10000 },
+    )
+    .toBeGreaterThanOrEqual(2);
+  const initialDistance = await distance();
   await page.getByRole("button", { name: "Top", exact: true }).click();
   await expect
     .poll(
@@ -344,13 +370,20 @@ test("camera presets apply their intended direction", async ({ page }) => {
         const camera = JSON.parse(
           (await canvas.getAttribute("data-camera")) ?? "{}",
         );
-        return camera.position
-          ? Math.abs(camera.position[0]) + Math.abs(camera.position[2])
+        return camera.position && camera.target
+          ? Math.abs(camera.position[0] - camera.target[0]) +
+              Math.abs(camera.position[2] - camera.target[2])
           : 1000;
       },
       { timeout: 15000 },
     )
     .toBeLessThan(0.1);
+  expect(Math.abs((await distance()) - initialDistance)).toBeLessThan(0.5);
+  for (const preset of ["Front", "Side", "Isometric"]) {
+    await page.getByRole("button", { name: preset, exact: true }).click();
+    await page.waitForTimeout(250);
+    expect(Math.abs((await distance()) - initialDistance)).toBeLessThan(0.5);
+  }
   await page.getByRole("button", { name: "Reset camera", exact: true }).click();
   await expect
     .poll(async () => {
@@ -360,6 +393,36 @@ test("camera presets apply their intended direction", async ({ page }) => {
       return camera.position?.[0] ?? 0;
     })
     .toBeGreaterThan(10);
+});
+
+test("project cards generate previews and support pin, rename, and deletion", async ({
+  page,
+}) => {
+  await legacyProject(page, "Project Alpha");
+  await page.goto("/");
+  await page.reload();
+
+  const card = page.locator(".project-card").filter({ hasText: "Project Alpha" });
+  await expect(card).toBeVisible();
+  await expect(card.locator(".project-art img")).toBeVisible({ timeout: 15000 });
+
+  await card.getByRole("button", { name: "Pin project", exact: true }).click();
+  await expect(card.locator(".project-pinned")).toBeVisible();
+  await expect(card.getByRole("button", { name: "Unpin project", exact: true })).toHaveAttribute("aria-pressed", "true");
+
+  await card.getByRole("button", { name: "Rename project", exact: true }).click();
+  await page.getByLabel("Project name", { exact: true }).fill("Project Beta");
+  await page.getByRole("button", { name: "Save name", exact: true }).click();
+  const renamed = page.locator(".project-card").filter({ hasText: "Project Beta" });
+  await expect(renamed).toBeVisible();
+
+  await renamed.getByRole("button", { name: "Delete project", exact: true }).click();
+  const confirm = page.getByLabel("Type Project Beta to confirm deletion", { exact: true });
+  await expect(page.getByRole("button", { name: "Delete permanently", exact: true })).toBeDisabled();
+  await confirm.fill("Project Beta");
+  await page.getByRole("button", { name: "Delete permanently", exact: true }).click();
+  await expect(renamed).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("forma.projects.v1") ?? "[]").length)).toBe(0);
 });
 
 test("viewport toolbars never overlap and body visibility toggles", async ({

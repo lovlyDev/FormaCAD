@@ -53,6 +53,8 @@ import {
   Sparkles,
   Square,
   Star,
+  Pencil,
+  Trash2,
   Undo2,
   X,
   SlidersHorizontal,
@@ -99,6 +101,8 @@ import {
   type ConfirmationSettings,
   listProjects,
   saveProject,
+  saveProjectThumbnail,
+  deleteProject,
   health,
   plan,
   native,
@@ -117,6 +121,7 @@ import {
   parameterSchema,
 } from "../lib/model";
 import { readFile, loadModel, exportMesh, download } from "../lib/files";
+import { renderThumbnail } from "../lib/thumbnail";
 const Viewer = lazy(() => import("../features/viewer/Viewer"));
 class ViewerBoundary extends Component<
   { children: ReactNode },
@@ -189,6 +194,13 @@ export default function App() {
   const stateKey = `forma.ui.project.${projectId ?? "home"}`;
   const [tab, setTab] = usePersistentState<"files" | "history">(`${stateKey}.tab`, "files");
   const [search, setSearch] = usePersistentState("forma.ui.search", "");
+  const [renameTarget, setRenameTarget] = useState<Project | null>(null);
+  const [renameName, setRenameName] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
+  const [deleteName, setDeleteName] = useState("");
+  const previewProjects = useRef<Project[]>([]);
+  const previewRunning = useRef(false);
+  const previewAttempted = useRef(new Set<string>());
   const [prompt, setPrompt] = usePersistentState(`${stateKey}.prompt`, "");
   const [pending, setPending] = useState<{
     title: string;
@@ -309,6 +321,40 @@ export default function App() {
     end.current?.scrollIntoView({ behavior: "smooth" });
   }, [liveEvents]);
   useEffect(() => () => disposeModel(model), [model]);
+  useEffect(() => {
+    if (projectId || !projects.data) return;
+    previewProjects.current = projects.data;
+    if (previewRunning.current) return;
+    previewRunning.current = true;
+    void (async () => {
+      while (true) {
+        const next = previewProjects.current.find((item) => {
+          const key = `${item.id}:${item.currentRevision}`;
+          return item.currentRevision && item.thumbnailRevision !== item.currentRevision && !previewAttempted.current.has(key);
+        });
+        if (!next || !next.currentRevision) break;
+        previewAttempted.current.add(`${next.id}:${next.currentRevision}`);
+        const revision = next.revisions.find((item) => item.id === next.currentRevision);
+        const file = next.files.find((item) => item.name === (revision?.preview ?? revision?.source));
+        let preview: THREE.Group | null = null;
+        try {
+          preview = file && /\.(stl|obj|glb|3mf)$/i.test(file.name)
+            ? await loadModel(file, next.id)
+            : buildModel(currentParameters(next));
+          const thumbnail = renderThumbnail(preview);
+          if (!thumbnail) continue;
+          const saved = await saveProjectThumbnail(next.id, next.currentRevision, thumbnail);
+          queryClient.setQueryData<Project[]>(["projects"], (current) =>
+            current?.map((item) => item.id === saved.id ? saved : item),
+          );
+        } catch (cause) {
+          console.warn("Project thumbnail could not be created", cause);
+        } finally {
+          if (preview) disposeModel(preview);
+        }
+      }
+    })().finally(() => { previewRunning.current = false; });
+  }, [projectId, projects.data, queryClient]);
   useEffect(
     () => () => {
       if (imported) disposeModel(imported);
@@ -832,13 +878,6 @@ export default function App() {
               <Settings2 size={17} />
               {t("Settings")}
             </button>
-            <div className="local-note">
-              <ShieldCheck size={17} />
-              <span>
-                {t("Designed to stay local")}
-                <small>{t("Your files. Your workspace.")}</small>
-              </span>
-            </div>
           </div>
           <div className="dashboard-content">
             <div className="eyebrow">{t("YOUR IDEAS, IN DIMENSIONS")}</div>
@@ -896,12 +935,22 @@ export default function App() {
                     ),
                   )
                   .map((p) => (
-                    <article className="project-card" key={p.id}>
+                    <motion.article
+                      layout="position"
+                      transition={{ layout: { type: "spring", stiffness: 290, damping: 28 } }}
+                      className="project-card"
+                      key={p.id}
+                    >
                       <button
                         className="project-art"
                         onClick={() => void openProject(p)}
                       >
-                        <Box size={72} strokeWidth={0.7} />
+                        {p.thumbnail && p.thumbnailRevision === p.currentRevision ? (
+                          <img src={p.thumbnail} alt={t("Preview of {{value0}}", { value0: p.name })} />
+                        ) : (
+                          <Box size={72} strokeWidth={0.7} />
+                        )}
+                        {p.pinned && <span className="project-pinned"><Star size={12} fill="currentColor" />{t("Pinned")}</span>}
                         <span>{currentParameters(p).kind.toUpperCase()}</span>
                       </button>
                       <div className="project-card-info">
@@ -912,30 +961,37 @@ export default function App() {
                             {quantity("revisions", p.revisions.length)}
                           </small>
                         </button>
-                        <IconButton
-                          label={
-                            p.pinned ? t("Unpin project") : t("Pin project")
-                          }
-                          active={p.pinned}
-                          onClick={() =>
-                            void saveProject({ ...p, pinned: !p.pinned })
-                              .then(refresh)
-                              .catch((e) => setError(errorText(e)))
-                          }
-                        >
-                          <Star
-                            size={15}
-                            fill={p.pinned ? "currentColor" : "none"}
-                          />
-                        </IconButton>
+                        <div className="project-card-actions">
+                          <IconButton
+                            label={p.pinned ? t("Unpin project") : t("Pin project")}
+                            aria-pressed={p.pinned}
+                            active={p.pinned}
+                            onClick={() => {
+                              const current = queryClient.getQueryData<Project[]>(["projects"]) ?? [];
+                              const latest = current.find((item) => item.id === p.id) ?? p;
+                              const next = { ...latest, pinned: !latest.pinned };
+                              queryClient.setQueryData<Project[]>(["projects"], current.map((item) => item.id === p.id ? next : item));
+                              void saveProject(next).then(refresh).catch((cause) => {
+                                queryClient.setQueryData(["projects"], current);
+                                setError(errorText(cause));
+                              });
+                            }}
+                          >
+                            <Star size={15} fill={p.pinned ? "currentColor" : "none"} />
+                          </IconButton>
+                          <IconButton label={t("Rename project")} onClick={() => { setRenameTarget(p); setRenameName(p.name); }}>
+                            <Pencil size={14} />
+                          </IconButton>
+                          <IconButton label={t("Delete project")} onClick={() => { setDeleteTarget(p); setDeleteName(""); }}>
+                            <Trash2 size={14} />
+                          </IconButton>
+                        </div>
                       </div>
-                    </article>
+                    </motion.article>
                   ))}
               </div>
             )}
             <div className="dashboard-footer">
-              <ShieldCheck size={15} />
-              {t("Your projects, stored locally.")}
               <span>FORMA / {appVersion}</span>
             </div>
           </div>
@@ -1316,11 +1372,6 @@ export default function App() {
                       {t("Thin walls may be difficult to print.")}
                     </div>
                   )}
-                </div>
-                <div className="sidebar-bottom">
-                  <ShieldCheck size={14} />
-                  <span>{t("Local workspace")}</span>
-                  <span className="status-dot" />
                 </div>
               </aside>
               <div
@@ -1717,9 +1768,6 @@ export default function App() {
           </>
         )}
         <span className="statusbar-spacer" />
-        <ShieldCheck size={11} />
-        <span>{t("Local workspace")}</span>
-        <span className="status-separator" />
         <span>v{appVersion}</span>
       </footer>
       <input
@@ -1790,6 +1838,58 @@ export default function App() {
         >
           {t("Copy filename")}
         </Button>
+      </Modal>
+      <Modal
+        open={!!renameTarget}
+        onClose={() => setRenameTarget(null)}
+        title={t("Rename project")}
+        description={t("The model and its history will keep their current files.")}
+      >
+        <form onSubmit={(event) => {
+          event.preventDefault();
+          if (!renameTarget || !renameName.trim()) return;
+          const latest = (queryClient.getQueryData<Project[]>(["projects"]) ?? []).find((item) => item.id === renameTarget.id) ?? renameTarget;
+          void saveProject({ ...latest, name: renameName.trim(), updatedAt: stamp() })
+            .then(() => { setRenameTarget(null); refresh(); setNotice(t("Project renamed")); })
+            .catch((cause) => setError(errorText(cause)));
+        }}>
+          <label>{t("Project name")}
+            <input autoFocus value={renameName} maxLength={80} onChange={(event) => setRenameName(event.target.value)} />
+          </label>
+          <div className="modal-actions">
+            <Button type="button" onClick={() => setRenameTarget(null)}>{t("Cancel")}</Button>
+            <Button className="primary" type="submit" disabled={!renameName.trim()}>{t("Save name")}</Button>
+          </div>
+        </form>
+      </Modal>
+      <Modal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        title={t("Delete project")}
+        description={t("This permanently deletes the project, its revisions, attachments and stored files.")}
+      >
+        <form onSubmit={(event) => {
+          event.preventDefault();
+          if (!deleteTarget || deleteName !== deleteTarget.name) return;
+          void deleteProject(deleteTarget.id)
+            .then(() => {
+              queryClient.setQueryData<Project[]>(["projects"], (current) => current?.filter((item) => item.id !== deleteTarget.id));
+              setDeleteTarget(null);
+              refresh();
+              setNotice(t("Project deleted"));
+            })
+            .catch((cause) => setError(errorText(cause)));
+        }}>
+          <label>{t("Type {{value0}} to confirm deletion", { value0: deleteTarget?.name ?? "" })}
+            <input autoFocus value={deleteName} onChange={(event) => setDeleteName(event.target.value)} />
+          </label>
+          <div className="modal-actions">
+            <Button type="button" onClick={() => setDeleteTarget(null)}>{t("Cancel")}</Button>
+            <Button className="danger" type="submit" disabled={deleteName !== deleteTarget?.name}>
+              <Trash2 size={14} />{t("Delete permanently")}
+            </Button>
+          </div>
+        </form>
       </Modal>
       <NewProjectDialog
         open={modal === "new"}
@@ -2092,16 +2192,6 @@ function NewProjectDialog({
             </Select>
           </label>
         </div>
-        <div className="info-note">
-          <ShieldCheck size={16} />
-          <span>
-            {native
-              ? t("Stored in your local application data directory.")
-              : t(
-                  "Stored in this browser. Use the desktop app for filesystem projects.",
-                )}
-          </span>
-        </div>
         <div className="modal-actions">
           <Button type="button" onClick={close}>
             {t("Cancel")}
@@ -2216,6 +2306,7 @@ function SettingsDialog({
               {native && page === "CAD environment" && (
                 <>
                   <Button
+                    className="cad-python-action"
                     disabled={configuring}
                     onClick={async () => {
                       setConfiguring(true);
@@ -2663,6 +2754,7 @@ function ProgramDialog({
           ? t("CAD features · миллиметры · параметры и зависимости")
           : t("CadQuery fallback · миллиметры · результат в переменной result")
       }
+      wide
     >
       <CadFeatureEditor
         source={draft}

@@ -34,6 +34,8 @@ export interface Project {
   units: "mm" | "cm" | "inch";
   agent: Agent;
   pinned: boolean;
+  thumbnail?: string;
+  thumbnailRevision?: string;
   createdAt: string;
   updatedAt: string;
   revisions: Revision[];

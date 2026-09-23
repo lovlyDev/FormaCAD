@@ -574,5 +574,19 @@
   "updates.details": "Technical details",
   "updates.later": "Later",
   "updates.install": "Install",
-  "updates.check": "Check for updates"
+  "updates.check": "Check for updates",
+  "Preview of {{value0}}": "Preview of {{value0}}",
+  "Pinned": "Pinned",
+  "Rename project": "Rename project",
+  "Delete project": "Delete project",
+  "The model and its history will keep their current files.": "The model and its history will keep their current files.",
+  "Project name": "Project name",
+  "Save name": "Save name",
+  "Project renamed": "Project renamed",
+  "This permanently deletes the project, its revisions, attachments and stored files.": "This permanently deletes the project, its revisions, attachments and stored files.",
+  "Type {{value0}} to confirm deletion": "Type {{value0}} to confirm deletion",
+  "Delete permanently": "Delete permanently",
+  "Project deleted": "Project deleted",
+  "Invalid project thumbnail": "The project preview is invalid.",
+  "An incomplete project deletion must be resolved first": "A previous project deletion was interrupted. Restart Forma and try again."
 }

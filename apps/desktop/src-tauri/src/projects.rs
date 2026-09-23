@@ -58,6 +58,102 @@ pub async fn list_projects(state: State<'_, AppState>) -> Result<Vec<Project>> {
     }
     Ok(result)
 }
+#[tauri::command]
+pub async fn save_project_thumbnail(
+    id: String,
+    revision_id: String,
+    thumbnail: String,
+    state: State<'_, AppState>,
+) -> Result<Project> {
+    crate::security::valid_id(&id)?;
+    crate::security::valid_id(&revision_id)?;
+    if !thumbnail.starts_with("data:image/jpeg;base64,") || thumbnail.len() > 300_000 {
+        return Err(AppError::Invalid("Invalid project thumbnail".into()));
+    }
+    let _lock = state.writes.lock().await;
+    let mut project = get(&state, &id).await?;
+    if project.current_revision.as_deref() != Some(&revision_id) {
+        return Ok(project);
+    }
+    project.thumbnail = Some(thumbnail);
+    project.thumbnail_revision = Some(revision_id);
+    persist(&state, project, Vec::new(), None).await
+}
+
+#[tauri::command]
+pub async fn delete_project(id: String, state: State<'_, AppState>) -> Result<()> {
+    crate::security::valid_id(&id)?;
+    let _lock = state.writes.lock().await;
+    if state.tasks.lock().await.contains_key(&id) {
+        return Err(AppError::Invalid(
+            "A project task is already running".into(),
+        ));
+    }
+    let project = get(&state, &id).await?;
+    let project_dir = crate::security::guarded(&state.root, Path::new(&id))?;
+    let staged = crate::security::guarded(&state.root, Path::new(&format!(".deleting-{id}")))?;
+    if staged.exists() {
+        return Err(AppError::Invalid(
+            "An incomplete project deletion must be resolved first".into(),
+        ));
+    }
+    let moved = project_dir.exists();
+    if moved {
+        std::fs::rename(&project_dir, &staged)?;
+    }
+    let deleted = async {
+        let mut tx = state.pool.begin().await?;
+        for table in ["permissions", "agent_sessions", "activities"] {
+            sqlx::query(&format!("DELETE FROM {table} WHERE project_id=?"))
+                .bind(&id)
+                .execute(&mut *tx)
+                .await?;
+        }
+        sqlx::query("DELETE FROM projects WHERE id=?")
+            .bind(&id)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok::<(), AppError>(())
+    }
+    .await;
+    if let Err(error) = deleted {
+        if moved {
+            std::fs::rename(&staged, &project_dir)?;
+        }
+        return Err(error);
+    }
+    state
+        .grants
+        .lock()
+        .await
+        .retain(|_, grant| grant.project_id != id);
+    if moved {
+        std::fs::remove_dir_all(&staged)?;
+    }
+    let remaining: Vec<String> = sqlx::query_scalar("SELECT payload FROM projects")
+        .fetch_all(&state.pool)
+        .await?;
+    let used: std::collections::HashSet<String> = remaining
+        .iter()
+        .filter_map(|raw| serde_json::from_str::<Project>(raw).ok())
+        .flat_map(|other| other.files.into_iter().filter_map(|file| file.sha256))
+        .collect();
+    for hash in project.files.iter().filter_map(|file| file.sha256.as_ref()) {
+        if used.contains(hash) {
+            continue;
+        }
+        let blob = crate::security::guarded(&state.root, Path::new(&format!(".blobs/{hash}")))?;
+        match std::fs::remove_file(blob) {
+            Ok(()) => (),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+            Err(error) => {
+                tracing::warn!(%error, %hash, "failed to remove unreferenced project blob");
+            }
+        }
+    }
+    Ok(())
+}
 pub fn validate_history(old: &Project, new: &Project) -> Result<bool> {
     if old.files.iter().any(|file| !new.files.contains(file)) {
         return Err(AppError::Invalid(

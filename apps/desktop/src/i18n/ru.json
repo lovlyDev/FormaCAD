@@ -574,5 +574,19 @@
   "updates.details": "Технические сведения",
   "updates.later": "Позже",
   "updates.install": "Установить",
-  "updates.check": "Проверить обновления"
+  "updates.check": "Проверить обновления",
+  "Preview of {{value0}}": "Предпросмотр проекта {{value0}}",
+  "Pinned": "Закреплён",
+  "Rename project": "Переименовать проект",
+  "Delete project": "Удалить проект",
+  "The model and its history will keep their current files.": "Модель, история и файлы проекта сохранятся.",
+  "Project name": "Название проекта",
+  "Save name": "Сохранить название",
+  "Project renamed": "Проект переименован",
+  "This permanently deletes the project, its revisions, attachments and stored files.": "Проект, все его ревизии, вложения и сохранённые файлы будут удалены без возможности восстановления.",
+  "Type {{value0}} to confirm deletion": "Введите {{value0}}, чтобы подтвердить удаление",
+  "Delete permanently": "Удалить навсегда",
+  "Project deleted": "Проект удалён",
+  "Invalid project thumbnail": "Предпросмотр проекта повреждён.",
+  "An incomplete project deletion must be resolved first": "Предыдущее удаление проекта было прервано. Перезапустите Forma и повторите попытку."
 }

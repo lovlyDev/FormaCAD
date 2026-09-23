@@ -131,6 +131,10 @@ pub struct Project {
     pub units: String,
     pub agent: String,
     pub pinned: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thumbnail: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thumbnail_revision: Option<String>,
     pub created_at: String,
     pub updated_at: String,
     pub revisions: Vec<Revision>,
@@ -182,6 +186,15 @@ impl Project {
             .is_some_and(|id| !ids.contains(id))
         {
             return Err(AppError::Invalid("Current revision does not exist".into()));
+        }
+        if self.thumbnail.as_ref().is_some_and(|value| {
+            !value.starts_with("data:image/jpeg;base64,") || value.len() > 300_000
+        }) || self
+            .thumbnail_revision
+            .as_ref()
+            .is_some_and(|id| !ids.contains(id))
+        {
+            return Err(AppError::Invalid("Invalid project thumbnail".into()));
         }
         let mut names = std::collections::HashSet::new();
         let mut total = 0;
