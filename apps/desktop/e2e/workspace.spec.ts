@@ -297,6 +297,7 @@ test("projection changes keep separate framing and right-drag panning stays pred
   const perspective = await camera();
   await page.getByRole("button", { name: "Toggle orthographic projection" }).click();
   await expect.poll(async () => (await camera()).zoom).toBeGreaterThan(1);
+  await page.waitForTimeout(350);
   const orthographic = await camera();
   const box = (await canvas.boundingBox())!;
   const startX = box.x + box.width * 0.5, startY = box.y + box.height * 0.5;
