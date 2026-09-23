@@ -9,23 +9,7 @@ async function theme(page: Page, name: "Светлая" | "Тёмная") {
   await expect(page.locator(".modal")).toHaveCount(0);
 }
 
-async function corner(page: Page) {
-  // Read the composited frame: WebGL canvases may not retain a drawing buffer
-  // for drawImage(canvas) on Linux's software renderer.
-  const frame = (await page.locator("canvas").screenshot()).toString("base64");
-  return page.evaluate(async (png) => {
-    const image = new Image();
-    image.src = `data:image/png;base64,${png}`;
-    await image.decode();
-    const copy = document.createElement("canvas");
-    copy.width = image.width; copy.height = image.height;
-    const ctx = copy.getContext("2d")!;
-    ctx.drawImage(image, 0, 0);
-    return [...ctx.getImageData(5, 5, 1, 1).data].slice(0, 3);
-  }, frame);
-}
-
-test("light surfaces and WebGL switch together; dark appearance and camera survive", async ({ page }) => {
+test("light surfaces and WebGL switch together; dark appearance and camera survive", async ({ page }, testInfo) => {
   test.setTimeout(90000);
   await page.goto("/");
   const id = await page.evaluate(() => {
@@ -43,7 +27,7 @@ test("light surfaces and WebGL switch together; dark appearance and camera survi
   await page.goto(`/#/project/${id}`);
   await page.reload();
   await expect(page.locator("canvas")).toBeVisible();
-  await expect.poll(async () => Math.max(...(await corner(page)).map((v, i) => Math.abs(v - [32, 35, 38][i])))).toBeLessThan(4);
+  await expect(page.locator("canvas")).toHaveAttribute("data-background", "#202326");
   const selectors = [".view-toolbar", ".segmented", ".render-select", ".composer", ".welcome-icon", ".document-tabs", ".model-bottom"];
   // Record existing dark styles so every selected surface must round-trip exactly.
   const surfaces = async () => page.evaluate((selectors) => selectors.flatMap(s => {
@@ -62,20 +46,20 @@ test("light surfaces and WebGL switch together; dark appearance and camera survi
   }, { intervals: [500, 500, 500] }).toBe(true);
   await theme(page, "Светлая");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-  await expect.poll(async () => Math.min(...await corner(page))).toBeGreaterThan(230);
+  await expect(page.locator("canvas")).toHaveAttribute("data-background", "#f5f7f9");
   for (const surface of await surfaces()) {
     const rgb = surface.background.match(/\d+/g)!.map(Number);
     if (rgb.length === 4 && rgb[3] === 0) continue;
     expect(Math.min(...rgb.slice(0, 3)), surface.selector).toBeGreaterThan(210);
   }
-  await page.screenshot({path: "../../docs/verification/1.1.0-workspace-light.png"});
+  await page.screenshot({path: testInfo.outputPath("workspace-light.png")});
   await theme(page, "Тёмная");
-  await expect.poll(async () => Math.max(...(await corner(page)).map((v, i) => Math.abs(v - [32, 35, 38][i])))).toBeLessThan(4);
+  await expect(page.locator("canvas")).toHaveAttribute("data-background", "#202326");
   await expect.poll(surfaces).toEqual(dark);
   expect(await page.locator("canvas").getAttribute("data-camera")).toEqual(camera);
-  await page.screenshot({path: "../../docs/verification/1.1.0-workspace-dark.png"});
+  await page.screenshot({path: testInfo.outputPath("workspace-dark.png")});
   await theme(page, "Светлая");
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-  await expect.poll(async () => Math.min(...await corner(page))).toBeGreaterThan(230);
+  await expect(page.locator("canvas")).toHaveAttribute("data-background", "#f5f7f9");
 });

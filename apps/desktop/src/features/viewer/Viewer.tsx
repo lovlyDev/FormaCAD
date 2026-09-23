@@ -201,12 +201,15 @@ function validCamera(value: CameraSnapshot | null): value is CameraSnapshot {
 function Capture({ onReady, controlsRef }: { onReady: (fn: () => string) => void; controlsRef: RefObject<OrbitHandle | null> }) {
   const { gl, scene, camera } = useThree();
   useFrame(() => {
-    if (import.meta.env.DEV)
+    if (import.meta.env.DEV) {
       gl.domElement.dataset.camera = JSON.stringify({
         position: camera.position.toArray(),
         target: controlsRef.current?.target.toArray() ?? [0, 0, 0],
         zoom: camera.zoom,
       });
+      gl.domElement.dataset.background = scene.background instanceof THREE.Color
+        ? `#${scene.background.getHexString()}` : "none";
+    }
     if (import.meta.env.DEV) {
       const motion: { name: string; speed: number; rotation: number[] }[] = [];
       scene.traverse((node) => {

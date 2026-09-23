@@ -8,7 +8,7 @@
 - [Roadmap and references](roadmap.md)
 - [Contributing](../../CONTRIBUTING.md)
 - [Security](../../SECURITY.md)
-- [Version 1.2.2](../releases/1.2.2.md)
+- [Version 1.2.3](../releases/1.2.3.md)
 - [Version 1.2.0](../releases/1.2.0.md)
 - [Version 1.1.0](../releases/1.1.0.md)
 - [Version 1.0.0](../releases/1.0.0.md)
