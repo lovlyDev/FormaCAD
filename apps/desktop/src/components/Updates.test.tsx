@@ -52,6 +52,27 @@ describe("signed update interaction",()=>{
     expect(mocks.order.filter(command => ["download","prepare_update","install","relaunch"].includes(command))).toEqual(["download","prepare_update","install","relaunch"]);
     expect(mocks.invoke).toHaveBeenCalledWith("prepare_update",expect.objectContaining({preferences:expect.objectContaining({"forma.ui.project.example.prompt":"\"draft\""})}));
   });
+  it("shows download progress and removes the bar during installation",async()=>{
+    let emit!: (event: unknown) => void;
+    let finish!: () => void;
+    mocks.download.mockImplementationOnce((onEvent: (event: unknown) => void) => new Promise<void>(resolve => {
+      emit = onEvent;
+      finish = resolve;
+    }));
+    view(); await open(); fireEvent.click(screen.getByRole("button",{name:"Install"}));
+    const bar = await screen.findByRole("progressbar",{name:"Downloading update"});
+    expect(bar).not.toHaveAttribute("aria-valuenow");
+    expect(bar).toHaveClass("indeterminate");
+    await act(async()=>emit({event:"Started",data:{contentLength:1000}}));
+    expect(bar).toHaveAttribute("aria-valuenow","0");
+    await act(async()=>emit({event:"Progress",data:{chunkLength:250}}));
+    expect(bar).toHaveAttribute("aria-valuenow","25");
+    expect(screen.getByText("25%")).toBeVisible();
+    expect(bar.querySelector(".update-progress-fill")).toHaveStyle({width:"25%"});
+    await act(async()=>finish());
+    await waitFor(()=>expect(mocks.install).toHaveBeenCalled());
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+  });
   it("a failed download never starts backup, installation or restart",async()=>{
     mocks.download.mockRejectedValueOnce(new Error("signature verification failed"));
     view(); await open(); fireEvent.click(screen.getByRole("button",{name:"Install"}));

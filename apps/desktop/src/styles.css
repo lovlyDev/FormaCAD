@@ -4,6 +4,14 @@
 .update-summary > div { display: grid; gap: 3px; min-width: 0; }
 .update-summary strong { color: var(--text); font-size: 13px; }
 .update-summary span:not(.update-summary-icon) { color: var(--muted); font-size: 11px; }
+.update-progress { display: grid; gap: 11px; padding: 15px 16px; margin: 0 0 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+.update-progress-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; color: var(--text); font-size: 12px; }
+.update-progress-heading strong { color: var(--light-accent-ink, #c4b5fd); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.update-progress-track { height: 10px; overflow: hidden; background: var(--light-accent-surface, #302640); border-radius: 999px; }
+.update-progress-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), #d47bdf); box-shadow: 0 0 12px #7c3aed66; transition: width 220ms ease-out; }
+.update-progress-track.indeterminate .update-progress-fill { width: 35%; animation: update-progress-wait 1.5s ease-in-out infinite; }
+@keyframes update-progress-wait { from { transform: translateX(-110%); } to { transform: translateX(290%); } }
+@media (prefers-reduced-motion: reduce) { .update-progress-fill { transition: none; } .update-progress-track.indeterminate .update-progress-fill { animation: none; } }
 .update-notes { max-height: min(47vh, 420px); overflow: auto; overflow-wrap: anywhere; padding: 20px 22px; margin: 0 0 14px; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; font-size: 12px; line-height: 1.7; }
 .update-notes > :first-child { margin-top: 0; }
 .update-notes > :last-child { margin-bottom: 0; }

@@ -568,6 +568,7 @@
   "updates.newVersion": "Forma {{version}} is available",
   "updates.installed": "Installed version: {{version}}",
   "updates.pleaseWait": "Please wait…",
+  "updates.downloadProgress": "Downloading update",
   "updates.progress": "Downloaded: {{percent}}%",
   "updates.preserve": "Projects, settings and workspace state are kept. Forma restarts after installation.",
   "updates.busy": "Finish the current operation and close other dialogs before updating.",

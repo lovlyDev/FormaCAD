@@ -21,14 +21,14 @@ npm run tauri -w apps/desktop -- signer generate --ci -w ../../.secrets/updater.
 
 ## Выпуск версии
 ~~~sh
-npm run version:set -- 1.2.5
+npm run version:set -- 1.2.6
 ~~~
 Команда синхронизирует npm, lockfile, Cargo и Tauri. Добавьте описание в docs/releases/ВЕРСИЯ.md. Следующие релизы должны иметь больший номер. Закоммитьте исходники, отправьте их и создайте тег на том же коммите:
 ~~~sh
 npm run check:version
-git tag v1.2.5
+git tag v1.2.6
 git push origin main
-git push origin v1.2.5
+git push origin v1.2.6
 ~~~
 Если основная ветка называется иначе, используйте её имя.
 

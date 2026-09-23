@@ -568,6 +568,7 @@
   "updates.newVersion": "Доступна Forma {{version}}",
   "updates.installed": "Установленная версия: {{version}}",
   "updates.pleaseWait": "Пожалуйста, подождите…",
+  "updates.downloadProgress": "Скачивание обновления",
   "updates.progress": "Загружено: {{percent}}%",
   "updates.preserve": "Проекты, настройки и состояние рабочего места сохраняются. После установки Forma перезапустится.",
   "updates.busy": "Завершите текущую операцию и закройте другие диалоги перед обновлением.",

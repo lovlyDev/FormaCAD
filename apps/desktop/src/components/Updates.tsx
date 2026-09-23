@@ -96,12 +96,18 @@ export function Updates({ blocked }: { blocked: boolean }) {
     setWorking(true);
     setDetails("");
     setStatus("updates.downloading");
+    setProgress(null);
     let total = 0, received = 0;
     try {
       await update.download(event => {
-        if (event.event === "Started") total = event.data.contentLength ?? 0;
+        if (event.event === "Started") {
+          total = event.data.contentLength ?? 0;
+          received = 0;
+          setProgress(total > 0 ? 0 : null);
+        }
         if (event.event === "Progress") received += event.data.chunkLength;
-        if (total) setProgress(Math.min(100, Math.round(received / total * 100)));
+        if (event.event === "Progress" && total > 0) setProgress(Math.min(100, Math.round(received / total * 100)));
+        if (event.event === "Finished") setProgress(100);
       }, { timeout: 120000 });
       if (blockedRef.current) { setStatus("updates.busy"); return; }
       setStatus("updates.backup");
@@ -129,7 +135,18 @@ export function Updates({ blocked }: { blocked: boolean }) {
         </div>
       </div>
       {update?.body && <ReleaseNotes body={update.body} releaseVersion={update.version} onOpenError={error => setDetails(String(error))} />}
-      {working && <p>{progress === null ? t("updates.pleaseWait") : t("updates.progress", {percent: number(progress, 0)})}</p>}
+      {working && status === "updates.downloading" && <div className="update-progress">
+        <div className="update-progress-heading">
+          <span>{t("updates.downloadProgress")}</span>
+          <strong>{progress === null ? t("updates.pleaseWait") : `${number(progress, 0)}%`}</strong>
+        </div>
+        <div className={`update-progress-track${progress === null ? " indeterminate" : ""}`}
+          role="progressbar" aria-label={t("updates.downloadProgress")}
+          aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress ?? undefined}
+          aria-valuetext={progress === null ? t("updates.pleaseWait") : t("updates.progress", {percent: number(progress, 0)})}>
+          <div className="update-progress-fill" style={progress === null ? undefined : {width: `${progress}%`}} />
+        </div>
+      </div>}
       {update && <p className="field-hint">{t("updates.preserve")}</p>}
       {blocked && <p className="field-hint">{t("updates.busy")}</p>}
       {details && <details className="update-details"><summary>{t("updates.details")}</summary><pre>{details}</pre></details>}
