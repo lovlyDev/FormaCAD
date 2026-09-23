@@ -289,6 +289,35 @@ test("viewport clicks and tools preserve camera zoom", async ({ page }) => {
   expect(after.zoom).toBe(before.zoom);
 });
 
+test("projection changes keep separate framing and right-drag panning stays predictable", async ({ page }) => {
+  await legacyProject(page, "Camera regression");
+  const canvas = page.locator("canvas");
+  const camera = async () => JSON.parse((await canvas.getAttribute("data-camera")) ?? "{}");
+  await expect.poll(async () => (await camera()).position?.length ?? 0).toBe(3);
+  const perspective = await camera();
+  await page.getByRole("button", { name: "Toggle orthographic projection" }).click();
+  await expect.poll(async () => (await camera()).zoom).toBeGreaterThan(1);
+  const orthographic = await camera();
+  const box = (await canvas.boundingBox())!;
+  const startX = box.x + box.width * 0.5, startY = box.y + box.height * 0.5;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down({ button: "right" });
+  await page.mouse.move(startX + 80, startY, { steps: 8 });
+  await page.mouse.up({ button: "right" });
+  await page.waitForTimeout(100);
+  const panned = await camera();
+  const shift = Math.hypot(...panned.target.map((v: number, i: number) => v - orthographic.target[i]));
+  expect(shift).toBeGreaterThan(0.1);
+  expect(shift).toBeLessThan(100);
+  await page.waitForTimeout(250);
+  const settled = await camera();
+  expect(Math.hypot(...settled.target.map((v: number, i: number) => v - panned.target[i]))).toBeLessThan(0.01);
+  await page.getByRole("button", { name: "Toggle orthographic projection" }).click();
+  await expect.poll(async () => (await camera()).zoom).toBe(perspective.zoom);
+  await page.getByRole("button", { name: "Toggle orthographic projection" }).click();
+  await expect.poll(async () => (await camera()).zoom).toBeCloseTo(orthographic.zoom, 2);
+});
+
 test("new projects are empty without a template selector", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "New project", exact: true }).click();
@@ -417,12 +446,36 @@ test("project cards generate previews and support pin, rename, and deletion", as
   await expect(renamed).toBeVisible();
 
   await renamed.getByRole("button", { name: "Delete project", exact: true }).click();
-  const confirm = page.getByLabel("Type Project Beta to confirm deletion", { exact: true });
+  await expect(page.locator(".delete-project-name")).toHaveText("Project Beta");
+  const confirm = page.getByLabel("To confirm deletion, enter this project name exactly:", { exact: true });
+  await expect(confirm).toBeEmpty();
   await expect(page.getByRole("button", { name: "Delete permanently", exact: true })).toBeDisabled();
   await confirm.fill("Project Beta");
   await page.getByRole("button", { name: "Delete permanently", exact: true }).click();
   await expect(renamed).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("forma.projects.v1") ?? "[]").length)).toBe(0);
+});
+
+test("pin animation reaches the first project slot without a leftover transform", async ({ page }) => {
+  await legacyProject(page, "First card");
+  await page.evaluate(() => {
+    const projects = JSON.parse(localStorage.getItem("forma.projects.v1")!);
+    projects.push({ ...projects[0], id: crypto.randomUUID(), name: "Second card", revisions: [], currentRevision: "" });
+    localStorage.setItem("forma.projects.v1", JSON.stringify(projects));
+  });
+  await page.goto("/");
+  await page.reload();
+  const first = page.locator(".project-card").filter({ hasText: "First card" });
+  const second = page.locator(".project-card").filter({ hasText: "Second card" });
+  const firstSlot = await first.boundingBox();
+  const secondSlot = await second.boundingBox();
+  expect(firstSlot).not.toBeNull();
+  expect(secondSlot!.x).toBeGreaterThan(firstSlot!.x);
+  await second.getByRole("button", { name: "Pin project", exact: true }).click();
+  await expect(second.locator(".project-pinned")).toBeVisible();
+  await expect.poll(async () => (await second.boundingBox())!.x, { timeout: 3000 }).toBeCloseTo(firstSlot!.x, 0);
+  await expect(second).toHaveCSS("transform", "none");
+  expect((await first.boundingBox())!.x).toBeCloseTo(secondSlot!.x, 0);
 });
 
 test("viewport toolbars never overlap and body visibility toggles", async ({

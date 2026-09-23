@@ -3,14 +3,16 @@ import * as Tooltip from "@radix-ui/react-tooltip";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Updates } from "./Updates";
 
-const mocks = vi.hoisted(() => ({invoke:vi.fn(), check:vi.fn(), relaunch:vi.fn(), download:vi.fn(), install:vi.fn(), close:vi.fn(), order:[] as string[]}));
+const mocks = vi.hoisted(() => ({invoke:vi.fn(), check:vi.fn(), relaunch:vi.fn(), openUrl:vi.fn(), download:vi.fn(), install:vi.fn(), close:vi.fn(), order:[] as string[]}));
 afterEach(cleanup);
 vi.mock("@tauri-apps/api/core", () => ({isTauri:()=>true,invoke:mocks.invoke}));
 vi.mock("@tauri-apps/plugin-updater", () => ({check:mocks.check}));
 vi.mock("@tauri-apps/plugin-process", () => ({relaunch:mocks.relaunch}));
+vi.mock("@tauri-apps/plugin-opener", () => ({openUrl:mocks.openUrl}));
 function view(blocked=false) {return render(<Tooltip.Provider><Updates blocked={blocked}/></Tooltip.Provider>);}
 beforeEach(() => {
   vi.clearAllMocks(); mocks.order.length=0;
+  mocks.openUrl.mockResolvedValue(undefined);
   mocks.invoke.mockImplementation(async (cmd:string) => {
     mocks.order.push(cmd);
     if(cmd === "update_support") return {configured:true,supported:true};
@@ -25,6 +27,18 @@ async function open() {
   await screen.findByText("Forma 1.0.1 is available");
 }
 describe("signed update interaction",()=>{
+  it("renders release Markdown and resolves documentation links safely",async()=>{
+    mocks.check.mockResolvedValueOnce({version:"1.2.1",body:"# Changes\n\nA **clearer** dialog.\n\n- First item\n- Second item\n\n[Guide](../en/data.md) [Unsafe](javascript:alert(1))",download:mocks.download,install:mocks.install,close:mocks.close});
+    view(); fireEvent.click(screen.getByRole("button",{name:"Updates"}));
+    expect(await screen.findByRole("heading",{name:"Changes"})).toBeVisible();
+    expect(screen.getByText("clearer").tagName).toBe("STRONG");
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    expect(screen.getByRole("link",{name:"Guide"})).toHaveAttribute("href","https://github.com/lovlyDev/FormaCAD/blob/v1.2.1/docs/en/data.md");
+    expect(screen.getByRole("link",{name:"Guide"})).toHaveAttribute("target","_blank");
+    fireEvent.click(screen.getByRole("link",{name:"Guide"}));
+    expect(mocks.openUrl).toHaveBeenCalledWith("https://github.com/lovlyDev/FormaCAD/blob/v1.2.1/docs/en/data.md");
+    expect(screen.queryByRole("link",{name:"Unsafe"})).not.toBeInTheDocument();
+  });
   it("Later does not download or install",async()=>{
     view(); await open();
     fireEvent.click(screen.getByRole("button",{name:"Later"}));

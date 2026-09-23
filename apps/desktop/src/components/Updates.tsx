@@ -2,11 +2,42 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { Download } from "lucide-react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Button, IconButton, Modal } from "./ui";
 import { t, number } from "../i18n";
 import { flushPreferences, preferences } from "../lib/persistence";
 import { version } from "../../package.json";
+
+const releaseNotesBase = (releaseVersion: string) =>
+  `https://github.com/lovlyDev/FormaCAD/blob/v${encodeURIComponent(releaseVersion)}/docs/releases/${encodeURIComponent(releaseVersion)}.md`;
+
+function releaseNotesUrl(url: string, releaseVersion: string): string {
+  try {
+    const resolved = new URL(url, releaseNotesBase(releaseVersion));
+    return ["https:", "http:", "mailto:"].includes(resolved.protocol) ? resolved.href : "";
+  } catch {
+    return "";
+  }
+}
+
+function ReleaseNotes({ body, releaseVersion, onOpenError }: { body: string; releaseVersion: string; onOpenError: (error: unknown) => void }) {
+  return <div className="update-notes" aria-label={t("updates.releaseNotes")}>
+    <Markdown remarkPlugins={[remarkGfm]} urlTransform={url => releaseNotesUrl(url, releaseVersion)}
+      components={{ a: ({node: _node, href, children, ...props}) => href
+        ? <a {...props} href={href} target="_blank" rel="noopener noreferrer" onClick={event => {
+            if (isTauri()) {
+              event.preventDefault();
+              void openUrl(href).catch(onOpenError);
+            }
+          }}>{children}</a>
+        : <span>{children}</span> }}>
+      {body}
+    </Markdown>
+  </div>;
+}
 
 export function Updates({ blocked }: { blocked: boolean }) {
   const [open, setOpen] = useState(false);
@@ -90,14 +121,18 @@ export function Updates({ blocked }: { blocked: boolean }) {
 
   return <>
     <IconButton label={update ? t("updates.newVersion", {version: update.version}) : t("updates.title")} active={!!update} onClick={() => {setOpen(true); if (!update) void checkNow(true);}}><Download size={17}/></IconButton>
-    <Modal open={open} onClose={() => { if (!working) setOpen(false); }} title={t("updates.title")} description={t("updates.installed", {version})}>
-      <p role="status">{t(status)}</p>
-      {update && <p className="field-hint">{t("updates.newVersion", {version: update.version})}</p>}
-      {update?.body && <pre className="update-notes">{update.body}</pre>}
+    <Modal open={open} wide onClose={() => { if (!working) setOpen(false); }} title={t("updates.title")} description={t("updates.installed", {version})}>
+      <div className="update-summary" role="status">
+        <span className="update-summary-icon"><Download size={18}/></span>
+        <div><strong>{update ? t("updates.newVersion", {version: update.version}) : t(status)}</strong>
+          {update && <span>{t(status)}</span>}
+        </div>
+      </div>
+      {update?.body && <ReleaseNotes body={update.body} releaseVersion={update.version} onOpenError={error => setDetails(String(error))} />}
       {working && <p>{progress === null ? t("updates.pleaseWait") : t("updates.progress", {percent: number(progress, 0)})}</p>}
       {update && <p className="field-hint">{t("updates.preserve")}</p>}
       {blocked && <p className="field-hint">{t("updates.busy")}</p>}
-      {details && <details><summary>{t("updates.details")}</summary><pre className="update-notes">{details}</pre></details>}
+      {details && <details className="update-details"><summary>{t("updates.details")}</summary><pre>{details}</pre></details>}
       <div className="modal-actions">
         <Button disabled={working} onClick={() => setOpen(false)}>{t("updates.later")}</Button>
         {update ? <Button className="primary" disabled={working || blocked || checking} onClick={() => void install()}>{t("updates.install")}</Button> : <Button disabled={checking || working} onClick={() => void checkNow(true)}>{t("updates.check")}</Button>}

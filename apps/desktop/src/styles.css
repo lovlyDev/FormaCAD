@@ -1,5 +1,42 @@
 @import "tailwindcss";
-.update-notes { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; font: inherit; margin: 14px 0; color: var(--text); }
+.update-summary { display: flex; align-items: center; gap: 13px; padding: 15px; margin: 0 0 14px; background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; }
+.update-summary-icon { display: grid; place-items: center; width: 38px; height: 38px; flex: none; color: var(--light-accent-ink, #b791f5); background: var(--light-accent-surface, #352647); border-radius: 10px; }
+.update-summary > div { display: grid; gap: 3px; min-width: 0; }
+.update-summary strong { color: var(--text); font-size: 13px; }
+.update-summary span:not(.update-summary-icon) { color: var(--muted); font-size: 11px; }
+.update-notes { max-height: min(47vh, 420px); overflow: auto; overflow-wrap: anywhere; padding: 20px 22px; margin: 0 0 14px; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; font-size: 12px; line-height: 1.7; }
+.update-notes > :first-child { margin-top: 0; }
+.update-notes > :last-child { margin-bottom: 0; }
+.update-notes h1, .update-notes h2, .update-notes h3, .update-notes h4 { color: var(--text); line-height: 1.3; font-weight: 650; letter-spacing: normal; margin: 20px 0 9px; }
+.update-notes h1 { font-size: 19px; }
+.modal .update-notes h2 { font-size: 15px; }
+.update-notes h3 { font-size: 13px; }
+.update-notes h4 { font-size: 12px; }
+.update-notes p, .update-notes ul, .update-notes ol, .update-notes pre, .update-notes blockquote, .update-notes table { margin: 0 0 12px; }
+.update-notes ul, .update-notes ol { padding-left: 22px; }
+.update-notes ul { list-style: disc; }
+.update-notes ol { list-style: decimal; }
+.update-notes li { padding-left: 3px; margin: 3px 0; }
+.update-notes li > p { margin: 0; }
+.update-notes li input[type="checkbox"] { width: auto; margin-right: 6px; }
+.update-notes strong { font-weight: 650; }
+.update-notes a { color: var(--light-accent-ink, #b791f5); text-decoration: underline; text-underline-offset: 3px; }
+.update-notes a:hover { opacity: .8; }
+.update-notes a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.update-notes blockquote { padding: 4px 0 4px 15px; border-left: 3px solid var(--accent); color: var(--muted); }
+.update-notes blockquote > :last-child { margin-bottom: 0; }
+.update-notes code, .update-notes pre { font-family: Consolas, "SFMono-Regular", monospace; font-size: 11px; }
+.update-notes code { padding: 2px 4px; background: var(--bg); border-radius: 4px; }
+.update-notes pre { padding: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+.update-notes pre code { padding: 0; background: none; }
+.update-notes hr { margin: 18px 0; border: 0; border-top: 1px solid var(--line); }
+.update-notes table { width: 100%; border-collapse: collapse; display: block; overflow-x: auto; }
+.update-notes th, .update-notes td { padding: 7px 9px; border: 1px solid var(--line); text-align: left; }
+.update-notes img { max-width: 100%; height: auto; }
+.update-details { color: var(--muted); font-size: 11px; }
+.update-details summary { cursor: pointer; }
+.update-details pre { max-height: 120px; overflow: auto; overflow-wrap: anywhere; white-space: pre-wrap; }
+.delete-project-name { display: block; width: fit-content; max-width: 100%; padding: 7px 10px; margin: 9px 0 2px; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; font-size: 12px; overflow-wrap: anywhere; user-select: text; }
 @theme {
   --font-sans: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
 }
@@ -1054,6 +1091,7 @@ dd > span {
   overflow: hidden;
   background: var(--panel);
 }
+.project-card.is-pinned { border-color: var(--light-accent-border, #69438e); }
 .project-art {
   height: 158px;
   width: 100%;
@@ -1850,7 +1888,6 @@ dd > span {
 button,
 input,
 textarea,
-.project-card,
 .tree-row {
   transition:
     background-color 160ms ease,
@@ -1860,6 +1897,7 @@ textarea,
     opacity 160ms ease,
     transform 160ms ease;
 }
+.project-card { transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease; }
 button:active:not(:disabled) {
   transform: translateY(1px);
 }
@@ -2163,9 +2201,7 @@ button:focus-visible {
 .tree-row:hover {
   background: var(--light-hover-wash, #ffffff07);
 }
-.project-card:hover {
-  transform: translateY(-2px);
-}
+.project-card:hover { box-shadow: 0 8px 22px #0002; }
 @keyframes panel-in {
   from {
     opacity: 0;

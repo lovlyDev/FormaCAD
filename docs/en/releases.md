@@ -21,13 +21,13 @@ Do not overwrite a key already used by released installations. [Tauri updater re
 
 ## Publish a version
 ~~~sh
-npm run version:set -- 1.2.0
+npm run version:set -- 1.2.2
 ~~~
 This synchronizes npm, the lockfile, Cargo and Tauri. Add release notes under docs/releases/VERSION.md. For subsequent releases choose a higher version. Commit the source, push it, then tag the matching commit:
 ~~~sh
-git tag v1.2.0
+git tag v1.2.2
 git push origin main
-git push origin v1.2.0
+git push origin v1.2.2
 ~~~
 Use the actual default branch if it differs.
 

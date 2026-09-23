@@ -937,8 +937,8 @@ export default function App() {
                   .map((p) => (
                     <motion.article
                       layout="position"
-                      transition={{ layout: { type: "spring", stiffness: 290, damping: 28 } }}
-                      className="project-card"
+                      transition={{ layout: { duration: 0.42, ease: [0.22, 1, 0.36, 1] } }}
+                      className={`project-card${p.pinned ? " is-pinned" : ""}`}
                       key={p.id}
                     >
                       <button
@@ -1880,9 +1880,10 @@ export default function App() {
             })
             .catch((cause) => setError(errorText(cause)));
         }}>
-          <label>{t("Type {{value0}} to confirm deletion", { value0: deleteTarget?.name ?? "" })}
-            <input autoFocus value={deleteName} onChange={(event) => setDeleteName(event.target.value)} />
-          </label>
+          <label htmlFor="delete-project-confirm">{t("Enter the exact project name below to confirm deletion")}</label>
+          <strong className="delete-project-name">{deleteTarget?.name}</strong>
+          <input id="delete-project-confirm" autoFocus autoComplete="off" placeholder={t("Enter project name")}
+            value={deleteName} onChange={(event) => setDeleteName(event.target.value)} />
           <div className="modal-actions">
             <Button type="button" onClick={() => setDeleteTarget(null)}>{t("Cancel")}</Button>
             <Button className="danger" type="submit" disabled={deleteName !== deleteTarget?.name}>

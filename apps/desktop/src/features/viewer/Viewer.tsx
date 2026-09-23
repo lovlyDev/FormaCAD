@@ -407,7 +407,7 @@ export default function Viewer({
           color="#c6d9ff"
           intensity={2}
         />
-        <Bounds margin={1.8}>
+        <Bounds margin={1.8} maxDuration={0.001}>
           <Model
             object={object}
             mode={mode}
@@ -422,7 +422,7 @@ export default function Viewer({
             }}
           />
           <CameraControl
-            storageKey={`${viewKey}.camera`}
+            storageKey={`${viewKey}.camera${ortho ? ".orthographic" : ""}`}
             preset={preset}
             fit={fit}
             reset={reset}
@@ -452,8 +452,8 @@ export default function Viewer({
           ref={controlsRef as never}
           makeDefault
           enableZoom={false}
-          enableDamping
-          dampingFactor={0.12}
+          enableDamping={false}
+          mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }}
           panSpeed={0.3}
           screenSpacePanning
           minDistance={3}
