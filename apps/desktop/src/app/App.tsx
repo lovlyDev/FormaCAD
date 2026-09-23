@@ -214,6 +214,7 @@ export default function App() {
   const [liveEvents, setLiveEvents] = useState<
     { kind: string; text: string; createdAt: string }[]
   >([]);
+  const [chatBusy, setChatBusy] = useState(false);
   const liveRef = useRef<{ kind: string; text: string; createdAt: string }[]>(
     [],
   );
@@ -594,6 +595,7 @@ export default function App() {
         setPrompt("");
         liveRef.current = [];
         setLiveEvents([]);
+        setChatBusy(true);
         setBusy(true, t("Connecting to CLI"));
         try {
           await update({
@@ -640,6 +642,7 @@ export default function App() {
           });
           liveRef.current = [];
           setLiveEvents([]);
+          setChatBusy(false);
           if (!result.program) return;
           setBusy(false);
           await ask(
@@ -717,6 +720,7 @@ export default function App() {
               ],
             });
         } finally {
+          setChatBusy(false);
           setBusy(false);
           setLiveEvents([]);
           liveRef.current = [];
@@ -1638,7 +1642,7 @@ export default function App() {
                   </motion.div>
                 ))
               )}
-              {busy && liveEvents.length > 0 && (
+              {chatBusy && liveEvents.length > 0 && (
                 <div className="live-feed" aria-live="polite">
                   {liveEvents.map((event, index) => (
                     <div key={index} className={`live-event ${event.kind}`}>
@@ -1652,7 +1656,7 @@ export default function App() {
                   ))}
                 </div>
               )}
-              {busy && (
+              {chatBusy && (
                 <div className="task-timeline">
                   <LoaderCircle size={16} className="spin" />
                   <div>
@@ -1755,7 +1759,7 @@ export default function App() {
         <span className="status-dot" />
         <span>
           {busy
-            ? t("Agent working")
+            ? chatBusy ? t("Agent working") : systemText(useWorkspace.getState().stage)
             : native
               ? t("Local workspace ready")
               : t("Browser workspace · desktop required for AI")}
@@ -1880,10 +1884,10 @@ export default function App() {
             })
             .catch((cause) => setError(errorText(cause)));
         }}>
-          <label htmlFor="delete-project-confirm">{t("Enter the exact project name below to confirm deletion")}</label>
-          <strong className="delete-project-name">{deleteTarget?.name}</strong>
-          <input id="delete-project-confirm" autoFocus autoComplete="off" placeholder={t("Enter project name")}
-            value={deleteName} onChange={(event) => setDeleteName(event.target.value)} />
+          <label>
+            {t("delete.confirmBefore")} <strong className="delete-project-name">{deleteTarget?.name}</strong>{t("delete.confirmAfter")}
+            <input autoFocus autoComplete="off" value={deleteName} onChange={(event) => setDeleteName(event.target.value)} />
+          </label>
           <div className="modal-actions">
             <Button type="button" onClick={() => setDeleteTarget(null)}>{t("Cancel")}</Button>
             <Button className="danger" type="submit" disabled={deleteName !== deleteTarget?.name}>

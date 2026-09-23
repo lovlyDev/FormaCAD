@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("Russian is default; language and theme persist without changing project content", async ({
   page,
-}) => {
+}, testInfo) => {
   await page.goto("/");
   await expect(page.locator("html")).toHaveAttribute("lang", "ru");
   await expect(
@@ -13,7 +13,7 @@ test("Russian is default; language and theme persist without changing project co
     "rgb(124, 58, 237)",
   );
   await page.screenshot({
-    path: "../../docs/verification/1.1.0-dashboard-ru.png",
+    path: testInfo.outputPath("dashboard-ru.png"),
   });
   await page
     .getByRole("button", { name: "Настройки", exact: true })
@@ -22,7 +22,7 @@ test("Russian is default; language and theme persist without changing project co
   await page.getByRole("button", { name: "Внешний вид", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Язык" })).toBeVisible();
   await page.screenshot({
-    path: "../../docs/verification/1.1.0-settings-ru.png",
+    path: testInfo.outputPath("settings-ru.png"),
   });
   await page.getByRole("combobox", { name: "Язык" }).click();
   await page.getByRole("option", { name: "English", exact: true }).click();
@@ -36,7 +36,7 @@ test("Russian is default; language and theme persist without changing project co
   await page.getByRole("option", { name: "Light", exact: true }).click();
   await expect(page.locator(".select-menu")).toHaveCount(0);
   await page.screenshot({
-    path: "../../docs/verification/1.1.0-settings-en-light.png",
+    path: testInfo.outputPath("settings-en-light.png"),
   });
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
@@ -48,7 +48,7 @@ test("Russian is default; language and theme persist without changing project co
 
 test("Russian workspace translates features, tooltips and confirmations but preserves model IDs", async ({
   page,
-}) => {
+}, testInfo) => {
   await page.goto("/");
   const id = await page.evaluate(() => {
     const id = crypto.randomUUID(),
@@ -117,7 +117,7 @@ test("Russian workspace translates features, tooltips and confirmations but pres
     page.getByRole("button", { name: "Вписать модель", exact: true }),
   ).toBeVisible();
   await page.screenshot({
-    path: "../../docs/verification/1.1.0-workspace-ru.png",
+    path: testInfo.outputPath("workspace-ru.png"),
   });
   await page
     .getByRole("button", { name: "model.cad.json", exact: true })
@@ -131,7 +131,7 @@ test("Russian workspace translates features, tooltips and confirmations but pres
   expect(document.features[0].operation.width).toBe(80);
   expect(document.features[1].operation.sketch).toBe("Sketch001");
   await page.screenshot({
-    path: "../../docs/verification/1.1.0-features-ru.png",
+    path: testInfo.outputPath("features-ru.png"),
   });
   await page
     .getByRole("button", { name: "Закрыть диалог", exact: true })

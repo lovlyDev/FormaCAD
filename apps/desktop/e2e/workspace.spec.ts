@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
 });
 test("typed feature editor preserves references when changing a dimension", async ({
   page,
-}) => {
+}, testInfo) => {
   await legacyProject(page, "Typed plate");
   await page.evaluate(() => {
     const projects = JSON.parse(localStorage.getItem("forma.projects.v1")!);
@@ -42,7 +42,7 @@ test("typed feature editor preserves references when changing a dimension", asyn
   expect(source.features[0].operation.width).toBe(80);
   expect(source.features[1].operation.sketch).toBe("SketchPlate");
   await page.screenshot({
-    path: "../../docs/verification/cad-feature-editor.png",
+    path: testInfo.outputPath("cad-feature-editor.png"),
   });
 });
 async function legacyProject(page: Page, name = "Precision bracket") {
@@ -94,9 +94,23 @@ async function legacyProject(page: Page, name = "Precision bracket") {
   await expect(page.locator("canvas")).toBeVisible();
 }
 
+test("local geometry work does not appear as an agent chat task", async ({ page }) => {
+  await legacyProject(page);
+  await page.evaluate(async () => {
+    const path = performance.getEntriesByType("resource")
+      .map((entry) => entry.name)
+      .find((url) => url.includes("/src/stores/workspace.ts")) ?? "/src/stores/workspace.ts";
+    const { useWorkspace } = await import(path);
+    useWorkspace.getState().setBusy(true, "Building geometry");
+  });
+  await expect(page.locator(".task-timeline")).toHaveCount(0);
+  await expect(page.locator(".statusbar")).toContainText("Building geometry");
+  await expect(page.locator(".statusbar")).not.toContainText("Agent working");
+});
+
 test("create, edit with approval, restore, export, persist", async ({
   page,
-}) => {
+}, testInfo) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await legacyProject(page);
@@ -137,7 +151,7 @@ test("create, edit with approval, restore, export, persist", async ({
   await page.reload();
   await expect(page.locator(".revision-badge")).toHaveText("Revision 3");
   await expect(page.locator("canvas")).toBeVisible();
-  await page.screenshot({ path: "test-results/workspace.png" });
+  await page.screenshot({ path: testInfo.outputPath("workspace.png") });
   expect(errors).toEqual([]);
   await page.getByRole("button", { name: "forma", exact: true }).click();
   await expect(
@@ -163,7 +177,7 @@ test("browser AI fails clearly without claiming to generate", async ({
 
 test("custom controls, folders and persisted confirmation policy", async ({
   page,
-}) => {
+}, testInfo) => {
   await legacyProject(page);
   await page.getByRole("button", { name: "workspace", exact: true }).click();
   await expect(
@@ -218,7 +232,7 @@ test("custom controls, folders and persisted confirmation policy", async ({
   await expect(
     page.getByRole("checkbox", { name: "Edit models and project files" }),
   ).toBeChecked();
-  await page.screenshot({ path: "test-results/custom-confirmations.png" });
+  await page.screenshot({ path: testInfo.outputPath("custom-confirmations.png") });
 });
 
 test("agent and CAD settings show distinct tools", async ({ page }) => {
@@ -336,7 +350,7 @@ test("new projects are empty without a template selector", async ({ page }) => {
   await expect(page.locator(".revision-badge")).toHaveText("No revisions");
 });
 
-test("quota has one actionable error card", async ({ page }) => {
+test("quota has one actionable error card", async ({ page }, testInfo) => {
   await legacyProject(page);
   await page.evaluate(() => {
     const all = JSON.parse(localStorage.getItem("forma.projects.v1")!);
@@ -361,7 +375,7 @@ test("quota has one actionable error card", async ({ page }) => {
   ).toHaveCount(0);
   await expect(page.locator("canvas")).toBeVisible();
   await page.waitForTimeout(1200);
-  await page.screenshot({ path: "test-results/quota-message.png" });
+  await page.screenshot({ path: testInfo.outputPath("quota-message.png") });
 });
 
 test("camera presets apply their intended direction", async ({ page }) => {
@@ -448,7 +462,7 @@ test("project cards generate previews and support pin, rename, and deletion", as
 
   await renamed.getByRole("button", { name: "Delete project", exact: true }).click();
   await expect(page.locator(".delete-project-name")).toHaveText("Project Beta");
-  const confirm = page.getByLabel("To confirm deletion, enter this project name exactly:", { exact: true });
+  const confirm = page.getByLabel("Type Project Beta to confirm deletion", { exact: true });
   await expect(confirm).toBeEmpty();
   await expect(page.getByRole("button", { name: "Delete permanently", exact: true })).toBeDisabled();
   await confirm.fill("Project Beta");

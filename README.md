@@ -4,7 +4,7 @@
 
 I’m building Forma as a local CAD workspace where manual editing and AI work on the same model. It combines a Rust desktop backend, a React/Three.js interface and a Python/CadQuery geometry worker.
 
-**Version 1.2.3.** This release improves Markdown release notes and links in the update dialog, clarifies project deletion, and fixes project pinning and camera controls. See the [release notes](docs/releases/1.2.3.md) and [roadmap](docs/en/roadmap.md).
+**Version 1.2.4.** I restored the compact project deletion dialog, highlighted the exact name to enter, and removed local geometry progress from the agent chat. See the [release notes](docs/releases/1.2.4.md) and [roadmap](docs/en/roadmap.md).
 
 ## Features
 
@@ -59,4 +59,4 @@ Update checks contact GitHub. AI requests go to the selected CLI provider when t
 
 ## Links
 
-[Repository](https://github.com/lovlyDev/FormaCAD) · [Issues](https://github.com/lovlyDev/FormaCAD/issues) · [Releases](https://github.com/lovlyDev/FormaCAD/releases) · [Actions](https://github.com/lovlyDev/FormaCAD/actions) · [Release notes](docs/releases/1.2.3.md)
+[Repository](https://github.com/lovlyDev/FormaCAD) · [Issues](https://github.com/lovlyDev/FormaCAD/issues) · [Releases](https://github.com/lovlyDev/FormaCAD/releases) · [Actions](https://github.com/lovlyDev/FormaCAD/actions) · [Release notes](docs/releases/1.2.4.md)

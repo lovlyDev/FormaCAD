@@ -36,7 +36,7 @@
 .update-details { color: var(--muted); font-size: 11px; }
 .update-details summary { cursor: pointer; }
 .update-details pre { max-height: 120px; overflow: auto; overflow-wrap: anywhere; white-space: pre-wrap; }
-.delete-project-name { display: block; width: fit-content; max-width: 100%; padding: 7px 10px; margin: 9px 0 2px; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; font-size: 12px; overflow-wrap: anywhere; user-select: text; }
+.delete-project-name { font-weight: 700; }
 @theme {
   --font-sans: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
 }
