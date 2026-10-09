@@ -55,7 +55,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.97.1
         with:
           components: rustfmt, clippy
       - name: Linux webview libraries
@@ -67,6 +67,9 @@ jobs:
       - run: cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml --check
       - run: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
       - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
+        # macOS /var temp aliases are symlinks; fixtures require a real root.
+        env:
+          TMPDIR: ${{ runner.temp }}
   native-cad:
     if: github.event_name == 'workflow_dispatch' && inputs.nativeCad
     strategy:
@@ -76,7 +79,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.97.1
         with:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
@@ -96,6 +99,7 @@ jobs:
         shell: bash
         env:
           FORMA_NATIVE_TEST_ONLY: '1'
+          TMPDIR: ${{ runner.temp }}
         run: bash scripts/build-native-unix.sh '${{ matrix.target }}' 'app'
       - name: Prepare Windows OpenCascade
         if: runner.os == 'Windows'
@@ -116,7 +120,7 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.97.1
         with:
           targets: x86_64-pc-windows-msvc
       - shell: pwsh
