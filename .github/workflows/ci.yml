@@ -45,6 +45,9 @@ jobs:
           name: browser-test-results
           path: apps/desktop/test-results
   native:
+    # macOS /var temp aliases are symlinks; security tests require a real root.
+    env:
+      TMPDIR: ${{ runner.temp }}
     strategy:
       fail-fast: false
       matrix:
@@ -69,6 +72,8 @@ jobs:
       - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
   native-cad:
     if: github.event_name == 'workflow_dispatch' && inputs.nativeCad
+    env:
+      TMPDIR: ${{ runner.temp }}
     strategy:
       fail-fast: false
       matrix:

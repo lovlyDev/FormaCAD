@@ -33,6 +33,8 @@ The override applies to this clone; other projects' global toolchains need not c
 
 Upgrade Rust in a separately owned task: agree on the new fixed version in both workflows and this guide, run rustfmt, strict Clippy for all targets, locked Rust tests, and native CAD checks in a prepared environment. Newer Clippy releases can introduce additional warnings; fix their causes while preserving strict checks, and verify CI results before merging.
 
+CI Rust tests use `runner.temp` as `TMPDIR`: macOS's system temporary path can traverse the `/var` symlink. This selects a real root for test projects while retaining the application's symlink rejection and its negative tests. For local macOS runs, `TMPDIR` can point to an existing checked directory without symlinks; do not disable safe-path validation to accommodate a test environment.
+
 ## CAD environment
 Use Python 3.12 and [requirements-cad.txt](../../requirements-cad.txt):
 ~~~sh
