@@ -1,0 +1,39 @@
+.edge-fillet-editor {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  margin-bottom: 18px;
+}
+.edge-fillet-editor > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 16px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+.edge-fillet-editor > .editor-disclosure-body > div { padding: 0 16px 16px; }
+.edge-fillet-editor p { display: flex; gap: 7px; font-size: 11px; color: var(--muted); line-height: 1.5; }
+.edge-fillet-controls { display: flex; align-items: end; gap: 12px; margin: 12px 0; }
+.edge-fillet-controls label { display: grid; gap: 5px; flex: 1; min-width: 0; margin: 0 !important; font-size: 11px; }
+.edge-fillet-controls input,
+.edge-fillet-controls button { box-sizing: border-box; height: 32px; min-height: 32px; margin: 0; padding: 0 12px; }
+.edge-fillet-controls button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  color: var(--text);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+.edge-fillet-controls button:hover:not(:disabled) { border-color: var(--accent); }
+.edge-fillet-controls button:disabled { opacity: .4; cursor: default; }
+.edge-fillet-editor small { color: var(--muted); font-size: 10px; }
+.edge-fillet-editor summary::marker { content: ""; }
+@media (prefers-reduced-motion: reduce) { .edge-fillet-controls button { transition: none; } }

@@ -1,0 +1,276 @@
+{
+  "schemaVersion": 2,
+  "revisionId": "disc_example",
+  "parameters": [
+    {
+      "id": "thickness",
+      "name": "Толщина диска",
+      "valueMm": 8
+    },
+    {
+      "id": "hole_radius",
+      "name": "Радиус центрального отверстия",
+      "valueMm": 4
+    }
+  ],
+  "features": [
+    {
+      "id": "polygon_profile",
+      "name": "Профиль 20-гранного диска",
+      "operation": {
+        "type": "sketch2d",
+        "plane": "xy",
+        "originMm": [
+          0,
+          0,
+          0
+        ],
+        "points": [
+          {
+            "id": "p_0",
+            "xMm": 30.0,
+            "yMm": 0.0
+          },
+          {
+            "id": "p_1",
+            "xMm": 28.531695488854606,
+            "yMm": 9.270509831248422
+          },
+          {
+            "id": "p_2",
+            "xMm": 24.270509831248425,
+            "yMm": 17.633557568774194
+          },
+          {
+            "id": "p_3",
+            "xMm": 17.633557568774194,
+            "yMm": 24.270509831248425
+          },
+          {
+            "id": "p_4",
+            "xMm": 9.270509831248424,
+            "yMm": 28.531695488854606
+          },
+          {
+            "id": "p_5",
+            "xMm": 1.83697019872103e-15,
+            "yMm": 30.0
+          },
+          {
+            "id": "p_6",
+            "xMm": -9.27050983124842,
+            "yMm": 28.53169548885461
+          },
+          {
+            "id": "p_7",
+            "xMm": -17.63355756877419,
+            "yMm": 24.270509831248425
+          },
+          {
+            "id": "p_8",
+            "xMm": -24.27050983124842,
+            "yMm": 17.633557568774197
+          },
+          {
+            "id": "p_9",
+            "xMm": -28.531695488854606,
+            "yMm": 9.270509831248425
+          },
+          {
+            "id": "p_10",
+            "xMm": -30.0,
+            "yMm": 3.67394039744206e-15
+          },
+          {
+            "id": "p_11",
+            "xMm": -28.531695488854613,
+            "yMm": -9.270509831248408
+          },
+          {
+            "id": "p_12",
+            "xMm": -24.270509831248425,
+            "yMm": -17.63355756877419
+          },
+          {
+            "id": "p_13",
+            "xMm": -17.633557568774197,
+            "yMm": -24.27050983124842
+          },
+          {
+            "id": "p_14",
+            "xMm": -9.270509831248427,
+            "yMm": -28.531695488854606
+          },
+          {
+            "id": "p_15",
+            "xMm": -5.510910596163089e-15,
+            "yMm": -30.0
+          },
+          {
+            "id": "p_16",
+            "xMm": 9.270509831248416,
+            "yMm": -28.53169548885461
+          },
+          {
+            "id": "p_17",
+            "xMm": 17.633557568774187,
+            "yMm": -24.270509831248425
+          },
+          {
+            "id": "p_18",
+            "xMm": 24.27050983124842,
+            "yMm": -17.6335575687742
+          },
+          {
+            "id": "p_19",
+            "xMm": 28.531695488854606,
+            "yMm": -9.27050983124843
+          }
+        ],
+        "lines": [
+          {
+            "id": "edge_0",
+            "startPointId": "p_0",
+            "endPointId": "p_1"
+          },
+          {
+            "id": "edge_1",
+            "startPointId": "p_1",
+            "endPointId": "p_2"
+          },
+          {
+            "id": "edge_2",
+            "startPointId": "p_2",
+            "endPointId": "p_3"
+          },
+          {
+            "id": "edge_3",
+            "startPointId": "p_3",
+            "endPointId": "p_4"
+          },
+          {
+            "id": "edge_4",
+            "startPointId": "p_4",
+            "endPointId": "p_5"
+          },
+          {
+            "id": "edge_5",
+            "startPointId": "p_5",
+            "endPointId": "p_6"
+          },
+          {
+            "id": "edge_6",
+            "startPointId": "p_6",
+            "endPointId": "p_7"
+          },
+          {
+            "id": "edge_7",
+            "startPointId": "p_7",
+            "endPointId": "p_8"
+          },
+          {
+            "id": "edge_8",
+            "startPointId": "p_8",
+            "endPointId": "p_9"
+          },
+          {
+            "id": "edge_9",
+            "startPointId": "p_9",
+            "endPointId": "p_10"
+          },
+          {
+            "id": "edge_10",
+            "startPointId": "p_10",
+            "endPointId": "p_11"
+          },
+          {
+            "id": "edge_11",
+            "startPointId": "p_11",
+            "endPointId": "p_12"
+          },
+          {
+            "id": "edge_12",
+            "startPointId": "p_12",
+            "endPointId": "p_13"
+          },
+          {
+            "id": "edge_13",
+            "startPointId": "p_13",
+            "endPointId": "p_14"
+          },
+          {
+            "id": "edge_14",
+            "startPointId": "p_14",
+            "endPointId": "p_15"
+          },
+          {
+            "id": "edge_15",
+            "startPointId": "p_15",
+            "endPointId": "p_16"
+          },
+          {
+            "id": "edge_16",
+            "startPointId": "p_16",
+            "endPointId": "p_17"
+          },
+          {
+            "id": "edge_17",
+            "startPointId": "p_17",
+            "endPointId": "p_18"
+          },
+          {
+            "id": "edge_18",
+            "startPointId": "p_18",
+            "endPointId": "p_19"
+          },
+          {
+            "id": "edge_19",
+            "startPointId": "p_19",
+            "endPointId": "p_0"
+          }
+        ],
+        "constraints": []
+      }
+    },
+    {
+      "id": "disk_solid",
+      "name": "Заготовка диска",
+      "operation": {
+        "type": "extrude",
+        "sketchId": "polygon_profile",
+        "distance": {
+          "kind": "parameter",
+          "parameterId": "thickness"
+        }
+      }
+    },
+    {
+      "id": "center_hole",
+      "name": "Центральное отверстие",
+      "operation": {
+        "type": "hole",
+        "bodyFeatureId": "disk_solid",
+        "centerMm": [
+          0,
+          0
+        ],
+        "startZMm": 0,
+        "radius": {
+          "kind": "parameter",
+          "parameterId": "hole_radius"
+        },
+        "depth": {
+          "kind": "parameter",
+          "parameterId": "thickness"
+        }
+      }
+    }
+  ],
+  "bodies": [
+    {
+      "id": "disc_body",
+      "name": "20-гранный диск",
+      "sourceFeatureId": "center_hole"
+    }
+  ]
+}

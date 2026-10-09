@@ -1,0 +1,4 @@
+.locked-pan-anchor { position:fixed; width:14px; height:14px; margin:-7px 0 0 -7px; border:1px solid var(--accent-text); border-radius:50%; background:var(--panel); z-index:10000; pointer-events:none; box-shadow:0 0 0 2px var(--panel); }
+.locked-pan-anchor::before,.locked-pan-anchor::after { content:""; position:absolute; background:var(--accent-text); }
+.locked-pan-anchor::before { width:1px; height:8px; top:2px; left:6px; }
+.locked-pan-anchor::after { height:1px; width:8px; left:2px; top:6px; }

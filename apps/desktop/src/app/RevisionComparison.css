@@ -1,0 +1,10 @@
+.revision-comparison { padding: 12px 14px; border-top: 1px solid var(--line); background: var(--panel); color: var(--text); }
+.revision-comparison h3 { margin: 0 0 10px; font-size: 12px; }
+.revision-comparison p { margin: 6px 0; font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.revision-diff-metrics { margin: 0 0 10px; display: grid; gap: 5px; }
+.revision-diff-metric { display: grid; gap: 3px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); }
+.revision-diff-metric dt { color: var(--muted); font-size: 10px; }
+.revision-diff-metric dd { margin: 0; font-size: 11px; font-variant-numeric: tabular-nums; }
+.revision-diff-metric strong { float: right; color: var(--accent); }
+.revision-diff-structure { border-top: 1px solid var(--line); padding-top: 6px; }
+.revision-diff-structure strong { color: var(--text); }

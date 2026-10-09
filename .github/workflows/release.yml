@@ -58,9 +58,15 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/desktop/src-tauri -> target
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .local/occt-build
+            .local/occt-install-unix-${{ matrix.target }}
+          key: occt-V8_0_1-${{ matrix.target }}-${{ runner.os == 'macOS' && 'v2' || 'v1' }}
       - name: Linux dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libfuse2 rpm
+        run: sudo apt-get update && sudo apt-get install -y cmake g++ make libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libfuse2 rpm
       - run: npm ci
       - run: node scripts/version.mjs
       - name: Configure signed updates
@@ -70,13 +76,27 @@ jobs:
         run: |
           node -e "if (!process.env.TAURI_SIGNING_PRIVATE_KEY) throw new Error('Add TAURI_SIGNING_PRIVATE_KEY in GitHub Actions secrets')"
           node scripts/configure-release.mjs
-      - name: Build signed installers
-        if: runner.os != 'macOS'
+      - name: Prepare Windows OpenCascade
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          .\scripts\check-windows-toolchain.ps1
+          .\scripts\build-occt-windows.ps1
+      - name: Build signed Windows installer with native CAD
+        if: runner.os == 'Windows'
+        shell: pwsh
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: npm run tauri -w apps/desktop -- build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
-      - name: Build signed macOS installers
+        run: .\scripts\build-native-windows.ps1 -OcctRoot '.local\occt-build' -TargetTriple '${{ matrix.target }}'
+      - name: Build signed Linux installers with native CAD
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: bash scripts/build-native-unix.sh '${{ matrix.target }}' '${{ matrix.bundles }}'
+      - name: Build signed macOS installers with native CAD
         if: runner.os == 'macOS'
         shell: bash
         env:
@@ -107,7 +127,7 @@ jobs:
           else
             export APPLE_SIGNING_IDENTITY='-'
           fi
-          npm run tauri -w apps/desktop -- build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+          bash scripts/build-native-unix.sh '${{ matrix.target }}' '${{ matrix.bundles }}'
       - run: node scripts/release-artifacts.mjs collect ${{ matrix.platform }} ${{ matrix.target }}
       - uses: actions/upload-artifact@v4
         with:

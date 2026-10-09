@@ -1,0 +1,7 @@
+.modal.wide.project-folder-modal { width: min(680px, 94vw); }
+.project-folder-review { display: grid; gap: 14px; }
+.project-folder-heading { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--text); }
+.project-folder-heading > span { margin-left: auto; font-size: 11px; color: var(--muted); }
+.project-folder-source { display: grid; gap: 7px; font-size: 12px; color: var(--muted); }
+.project-folder-source code { padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); color: var(--text); overflow-wrap: anywhere; }
+.project-folder-review p { margin: 0; }

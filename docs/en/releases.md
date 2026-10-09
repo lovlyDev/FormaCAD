@@ -1,6 +1,8 @@
 # Releases and updates
 [Documentation](index.md) · [Русский](../ru/releases.md)
 
+Preparation and publication of the consolidated **1.2.6** release are authorized. The new Windows package is locally verified and updater-signed; Verify source, versions and the local artifact first, then publish that exact commit. This does not claim 2.0 readiness; see [status](status.md).
+
 ## One-time GitHub setup
 Repository: [lovlyDev/FormaCAD](https://github.com/lovlyDev/FormaCAD). Upload source files and enable Actions. The repository must be public for anonymous update downloads; no GitHub access token is embedded in the app.
 
@@ -19,27 +21,33 @@ npm run tauri -w apps/desktop -- signer generate --ci -w ../../.secrets/updater.
 ~~~
 Do not overwrite a key already used by released installations. [Tauri updater reference](https://v2.tauri.app/plugin/updater/).
 
-## Publish a version
+## Publish the verified consolidated release
 ~~~sh
 npm run version:set -- 1.2.6
 ~~~
-This synchronizes npm, the lockfile, Cargo and Tauri. Add release notes under docs/releases/VERSION.md. For subsequent releases choose a higher version. Commit the source, push it, then tag the matching commit:
+Run this procedure only against the verified release source and artifact. The command synchronizes npm, the lockfile, Cargo and Tauri. Prepare detailed bilingual feature documentation and `docs/releases/1.2.6.md`, run all checks, and build a local Windows installer. Publication is authorized; the commit and tag must identify the verified source:
 ~~~sh
 npm run check:version
 git tag v1.2.6
 git push origin main
 git push origin v1.2.6
 ~~~
-Use the actual default branch if it differs.
+Use the actual default branch if it differs. Do not tag or upload an unverified build.
 
-[Release](../../.github/workflows/release.yml) runs [Quality](../../.github/workflows/ci.yml), then builds Windows x64, Linux x64, macOS ARM64 and Intel. Packages are signed for the updater, collected without filename collisions, and combined into latest.json and SHA256SUMS. The release stays a draft until every asset is uploaded. Existing releases are never overwritten; resolve an incomplete draft before rerunning its tag.
+[Release](../../.github/workflows/release.yml) runs [Quality](../../.github/workflows/ci.yml), then builds native CAD packages for Windows x64, Linux x64, macOS ARM64 and Intel. Windows uses [its OCCT build](../../scripts/build-occt-windows.ps1); macOS and Linux use [a pinned static OCCT build](../../scripts/build-native-unix.sh). Each worker must pass a geometry and checksum [smoke check](../../scripts/check-native-unix.py) before packaging. Packages are signed for the updater, collected without filename collisions, and combined into latest.json and SHA256SUMS. The release stays a draft until every asset is uploaded. Existing releases are never overwritten; resolve an incomplete draft before rerunning its tag.
 
-Ordinary commits, branch pushes and pull requests do not start checks, installer builds or publication. The only automatic trigger is pushing a new vX.Y.Z tag. Its version must match the application, checked before the matrix starts. Quality can also be run manually from Actions to verify a commit without producing installers. Updating or deleting an existing tag does not publish a release. No manual GitHub Release creation is needed. Previously started workflows can be cancelled separately in Actions.
+Quality checks run automatically for pull requests targeting `main` and pushes to `main`; they do not publish packages. Quality also supports manual Actions runs and calls from the release workflow. Installer packaging and automatic publication remain tag-triggered: only a newly created `vX.Y.Z` tag starts the Release workflow, whose version must match the application. Manual Quality runs can include the native matrix; `nativeCadMatrix` selects `{ "os", "target" }` entries. Updating or deleting an existing tag does not publish a release. Separately authorized manual publication of a verified Windows package is described below.
+
+## Current Windows 1.2.6 route and the automated matrix
+
+The current consolidated release uses a separate Windows route: build the local EXE from the verified commit, check its packaged worker and DLLs, calculate SHA-256, sign it with the existing updater key, then manually upload the verified EXE, signature and metadata to the authorized release. The local EXE and updater signature are verified; the release owner handles manual upload/publication. See [artifact evidence](status.md). This Windows-only route does not establish verified macOS/Linux packages or a completed four-platform matrix.
+
+The Release workflow above remains the route for a future automated matrix triggered by a new tag. It builds platforms, signs updater artifacts and merges metadata. Manually uploading the current Windows package does not prove that matrix passed and does not install anything on the user computer.
 
 ## Application behavior
 Forma checks at startup and every six hours. A newer release opens an Install / Later dialog when no operation or editor is active. Later defers that prompt; the update button remains available. Installation verifies the artifact signature, saves preferences and creates a SQLite backup before invoking the platform installer. Windows restarts through NSIS; macOS and AppImage relaunch after replacement.
 
-Linux DEB/RPM installations use new packages rather than in-place self-update. A first release, offline connection or GitHub failure does not block starting the app. The local preview version line predates this GitHub numbering; install 1.0.0 manually once if moving from a higher-numbered local preview. Data paths stay unchanged.
+Linux DEB/RPM installations use new packages rather than in-place self-update. A missing release, offline connection or GitHub failure does not block startup. To move to the consolidated release manually, use the verified 1.2.6 installer after publication. The application identity and data paths remain unchanged; back up the data directory before installation.
 
 Version 1.0.0 can close at startup when an existing SQLite database contains a migration created with LF line endings. Install [1.1.0](../releases/1.1.0.md) manually if the app cannot stay open long enough to offer the update. The installer keeps the application data directory and existing projects.
 

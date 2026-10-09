@@ -1,15 +1,20 @@
+#[cfg(not(feature = "native-occt"))]
+use crate::processes::{self, CommandSpec};
 use crate::{
     core::{AppError, AppState, Result},
     models::{Project, ProjectFile, Revision},
-    processes::{self, CommandSpec},
 };
+#[cfg(not(feature = "native-occt"))]
 use sha2::{Digest, Sha256};
+#[cfg(not(feature = "native-occt"))]
+use std::time::Duration;
 use std::{
     path::Path,
     sync::{atomic::AtomicBool, Arc},
-    time::Duration,
 };
 use tauri::State;
+#[cfg(feature = "native-occt")]
+mod import_document;
 
 #[tauri::command]
 pub async fn convert_step(
@@ -18,6 +23,7 @@ pub async fn convert_step(
     state: State<'_, AppState>,
     app: tauri::AppHandle,
 ) -> Result<Project> {
+    let _access = crate::project_access::ensure_write(&state, &project_id)?;
     let original = crate::projects::get(&state, &project_id).await?;
     let file = original
         .files
@@ -43,46 +49,67 @@ pub async fn convert_step(
         tasks.insert(project_id.clone(), cancel.clone());
     }
     let result = async {
+        let cad_permit = state
+            .cad_tasks
+            .acquire(&project_id, "step_import", cancel.clone())
+            .await?;
         let bytes = crate::artifacts::read(&state, &project_id, file)?;
         let job = uuid::Uuid::new_v4().to_string();
-        let mut digest = Sha256::new();
-        digest.update(&bytes);
-        digest.update(include_bytes!("../scripts/convert_step.py"));
-        let cache_key = format!("{:x}", digest.finalize());
+        #[cfg(feature = "native-occt")]
         let cwd = crate::security::guarded(
             &state.root,
-            Path::new(&format!("{project_id}/cache/step-{cache_key}")),
+            Path::new(&format!("{project_id}/cache/step-{job}")),
         )?;
+        #[cfg(not(feature = "native-occt"))]
+        let cwd = {
+            let mut digest = Sha256::new();
+            digest.update(&bytes);
+            digest.update(include_bytes!("../scripts/convert_step.py"));
+            let cache_key = format!("{:x}", digest.finalize());
+            crate::security::guarded(
+                &state.root,
+                Path::new(&format!("{project_id}/cache/step-{cache_key}")),
+            )?
+        };
         std::fs::create_dir_all(&cwd)?;
         crate::artifacts::immutable_write(&cwd, Path::new("source.step"), &bytes)?;
         let output = crate::security::guarded(&cwd, Path::new("preview.glb"))?;
-        let completed = crate::security::guarded(&cwd, Path::new("complete"))?;
-        if !completed.is_file() || !output.is_file() {
-            let python = processes::python(&state.root).ok_or_else(|| {
-                AppError::Invalid("Install the local CadQuery environment first".into())
-            })?;
-            processes::run(
-                &CommandSpec {
-                    executable: python,
-                    args: vec![
-                        "-I".into(),
-                        "-c".into(),
-                        include_str!("../scripts/convert_step.py").into(),
-                    ],
-                    cwd: cwd.clone(),
-                },
-                r#"{"source":"source.step","output":"preview.glb"}"#,
-                cancel,
-                Duration::from_secs(120),
-            )
-            .await?;
-            // Mark complete only after a successful worker exit, never reuse partial output.
-            crate::artifacts::immutable_write(&cwd, Path::new("complete"), b"1")?;
+        #[cfg(feature = "native-occt")]
+        crate::native::worker::import_step(&cwd, cancel.clone()).await?;
+        #[cfg(not(feature = "native-occt"))]
+        {
+            let completed = crate::security::guarded(&cwd, Path::new("complete"))?;
+            if !completed.is_file() || !output.is_file() {
+                let python = processes::python(&state.root).ok_or_else(|| {
+                    AppError::Invalid("Install the local CadQuery environment first".into())
+                })?;
+                processes::run(
+                    &CommandSpec {
+                        executable: python,
+                        args: vec![
+                            "-I".into(),
+                            "-c".into(),
+                            include_str!("../scripts/convert_step.py").into(),
+                        ],
+                        cwd: cwd.clone(),
+                    },
+                    r#"{"source":"source.step","output":"preview.glb"}"#,
+                    cancel.clone(),
+                    Duration::from_secs(120),
+                )
+                .await?;
+                // Mark complete only after a successful worker exit, never reuse partial output.
+                crate::artifacts::immutable_write(&cwd, Path::new("complete"), b"1")?;
+            }
         }
         if std::fs::metadata(&output)?.len() > crate::artifacts::MAX_FILE_BYTES as u64 {
             return Err(AppError::Invalid("Converted preview exceeds 40 MB".into()));
         }
         let preview = std::fs::read(output)?;
+        drop(cad_permit);
+        if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+            return Err(AppError::Invalid("CAD_TASK_CANCELLED".into()));
+        }
         let _lock = state.writes.lock().await;
         let mut project = crate::projects::get(&state, &project_id).await?;
         if project.current_revision != original.current_revision || project.files != original.files
@@ -100,8 +127,12 @@ pub async fn convert_step(
             sha256: None,
         });
         let now = chrono::Utc::now().to_rfc3339();
+        #[cfg(feature = "native-occt")]
+        let imported_program = Some(import_document::source(&job, &name, &bytes)?);
+        #[cfg(not(feature = "native-occt"))]
+        let imported_program = None;
         project.revisions.push(Revision {
-            program: None,
+            program: imported_program,
             program_base: None,
             id: job.clone(),
             parent: project.current_revision.clone(),
@@ -122,6 +153,9 @@ pub async fn convert_step(
         project.current_revision = Some(job);
         project.updated_at = now;
         let pending = crate::artifacts::normalize(&mut project)?;
+        if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+            return Err(AppError::Invalid("CAD_TASK_CANCELLED".into()));
+        }
         crate::projects::persist(&state, project, pending, Some(&app)).await
     }
     .await;

@@ -1,16 +1,39 @@
+import { candidateSourceStatus } from "../features/agents/candidateSource";
+import { captureApply, assertApplyBase } from "../features/model-apply/capturedApply";
+import { useModelApply } from "../features/model-apply/useModelApply";
+import { useCommittedScene } from "../features/model-apply/useCommittedScene";
+import { useRevisionEvents } from "../features/model-apply/useRevisionEvents";
+import { ModelHistoryControls } from "../features/project-history/ModelHistoryControls";
+import { useProjectAccess } from "../features/project-access/useProjectAccess";
+import { ProjectAccessNotice } from "../features/project-access/ProjectAccessNotice";
+import { CadTaskIndicator } from "../features/cad-tasks/CadTaskIndicator";
+import { useHistoryAction } from "../features/project-history/useHistoryAction";
+import { revisionHistoryLabel } from "../features/project-history/revisionHistoryLabel";
+import { ActionReviewDialog, type PendingAction } from "./dialogs/ActionReviewDialog";
+import type { CandidateReviewData } from "../features/agents/review/CandidateReview";
+import { readTypedCadDocument } from "../lib/typedCadDocument";
+import { prepareProjectImport } from "../features/import/projectImport";
+import { CommandPalette } from "./dialogs/CommandPalette";
+import { Dashboard } from "./Dashboard";
+import { SelectionModelProperties } from "../features/reference-measurements/SelectionModelProperties";
+import { NewProjectDialog } from "./dialogs/NewProjectDialog";
+import { SettingsDialog } from "./dialogs/SettingsDialog";
+import { ParametersDialog } from "./dialogs/ParametersDialog";
+import { ExportDialog } from "./dialogs/ExportDialog";
+import { ProgramDialog } from "./dialogs/ProgramDialog";
+import { MessageText } from "../features/agents/MessageText";
+import { RevisionComparison } from "./RevisionComparison";
+import { agentPermissionPreview } from "../features/agents/permissionPreview";
 import {
   t,
   useLocale,
   quantity,
   fixedNumber,
-  setLocale,
   getLocale,
   systemText,
   errorText,
   rawError,
 } from "../i18n";
-import { CadFeatureEditor } from "../components/CadFeatureEditor";
-import { applyTheme } from "../lib/theme";
 import { usePersistentState } from "../lib/persistence";
 import { Updates } from "../components/Updates";
 import { version as appVersion } from "../../package.json";
@@ -41,7 +64,6 @@ import {
   FileBox,
   FileImage,
   Folder,
-  FolderOpen,
   History,
   LoaderCircle,
   PanelLeftClose,
@@ -49,22 +71,15 @@ import {
   Plus,
   Search,
   Settings2,
-  ShieldCheck,
   Sparkles,
   Square,
-  Star,
-  Pencil,
   Trash2,
   Undo2,
   X,
   SlidersHorizontal,
-  Check,
-  RefreshCw,
   Copy,
-  Cpu,
   AlertCircle,
   GitBranch,
-  LayoutGrid,
   Eye,
   EyeOff,
 } from "lucide-react";
@@ -73,34 +88,25 @@ import {
   IconButton,
   Modal,
   Select,
-  Checkbox,
-  NumberInput,
   TreeFolder,
 } from "../components/ui";
 import {
-  defaults,
   type Project,
   type Parameters,
-  type Agent,
   type ProjectFile,
 } from "../types";
-import {
-  useWorkspace,
-  currentParameters,
-  newProject,
-} from "../stores/workspace";
+import { useWorkspace, currentParameters } from "../stores/workspace";
 import {
   readProjectFile,
   interruptedSessions,
   acknowledgeRecovery,
   convertStep,
-  permissionAudit,
   confirmationSettings,
-  saveConfirmationSettings,
   needsConfirmation,
-  type ConfirmationSettings,
   listProjects,
   saveProject,
+  exportProjectBundle,
+  importProjectBundle,
   saveProjectThumbnail,
   deleteProject,
   health,
@@ -108,20 +114,17 @@ import {
   native,
   cancelTask,
   exportStep,
-  applyProgram,
-  chooseCadPython,
   saveMesh,
   requestNativePermission,
   resolveNativePermission,
 } from "../lib/api";
-import {
-  buildModel,
-  inspectModel,
-  disposeModel,
-  parameterSchema,
-} from "../lib/model";
+import { buildModel, inspectModel, disposeModel } from "../lib/model";
 import { readFile, loadModel, exportMesh, download } from "../lib/files";
 import { renderThumbnail } from "../lib/thumbnail";
+import { bodyLabel } from "../features/viewer/bodyLabel";
+import { faceAreaMm2 } from "../features/viewer/faceSelection";
+import { edgeLengthMm, edgeRadiusMm } from "../features/viewer/edgeSelection";
+import { exportBodies } from "../features/viewer/exportBodies";
 const Viewer = lazy(() => import("../features/viewer/Viewer"));
 class ViewerBoundary extends Component<
   { children: ReactNode },
@@ -147,14 +150,10 @@ class ViewerBoundary extends Component<
   }
 }
 const stamp = () => new Date().toISOString();
-const bodyLabel = (object: THREE.Object3D) =>
-  typeof object.userData.formaLabel === "string"
-    ? t(object.userData.formaLabel)
-    : object.name;
 const legacyMotionPrompt = (text: string) =>
   text.startsWith("Добавь анимацию движения к текущей сборке.");
 const revisionPrompt = (text: string) =>
-  legacyMotionPrompt(text) ? t("Настроено движение сборки") : text;
+  revisionHistoryLabel(text) ?? (legacyMotionPrompt(text) ? t("Настроено движение сборки") : text);
 const date = (v: string) =>
   new Date(v).toLocaleDateString(getLocale(), {
     month: "short",
@@ -165,6 +164,8 @@ export default function App() {
   const nav = useNavigate();
   const { projectId } = useParams();
   const queryClient = useQueryClient();
+  const applyModel = useModelApply();
+  useRevisionEvents();
   const {
     project,
     setProject,
@@ -175,8 +176,12 @@ export default function App() {
     error,
     setError,
     selected,
+    selectedFace,
+    selectedEdge,
     setSelected,
   } = useWorkspace();
+  const projectAccess = useProjectAccess(project?.id, setError);
+  const editingBlocked = busy || !projectAccess.writable;
   const projects = useQuery({ queryKey: ["projects"], queryFn: listProjects });
   const recovery = useQuery({
     queryKey: ["recovery"],
@@ -192,7 +197,10 @@ export default function App() {
     "new" | "settings" | "export" | "palette" | "parameters" | null
   >(null);
   const stateKey = `forma.ui.project.${projectId ?? "home"}`;
-  const [tab, setTab] = usePersistentState<"files" | "history">(`${stateKey}.tab`, "files");
+  const [tab, setTab] = usePersistentState<"files" | "history">(
+    `${stateKey}.tab`,
+    "files",
+  );
   const [search, setSearch] = usePersistentState("forma.ui.search", "");
   const [renameTarget, setRenameTarget] = useState<Project | null>(null);
   const [renameName, setRenameName] = useState("");
@@ -202,14 +210,11 @@ export default function App() {
   const previewRunning = useRef(false);
   const previewAttempted = useRef(new Set<string>());
   const [prompt, setPrompt] = usePersistentState(`${stateKey}.prompt`, "");
-  const [pending, setPending] = useState<{
-    title: string;
-    description: string;
-    detail: string;
-    run: () => Promise<void>;
-    id?: string;
-  } | null>(null);
-  const [attachments, setAttachments] = usePersistentState<ProjectFile[]>(`${stateKey}.attachments`, []);
+  const [pending, setPending] = useState<PendingAction | null>(null);
+  const [attachments, setAttachments] = usePersistentState<ProjectFile[]>(
+    `${stateKey}.attachments`,
+    [],
+  );
   const [notice, setNotice] = useState("");
   const [liveEvents, setLiveEvents] = useState<
     { kind: string; text: string; createdAt: string }[]
@@ -222,10 +227,18 @@ export default function App() {
     Project["exports"][number] | null
   >(null);
   const [leftOpen, setLeftOpen] = usePersistentState("forma.ui.leftOpen", true);
-  const [leftWidth, setLeftWidth] = usePersistentState("forma.ui.leftWidth", 238);
-  const [rightWidth, setRightWidth] = usePersistentState("forma.ui.rightWidth", 350);
-  const [compare, setCompare] = usePersistentState<string | null>(`${stateKey}.compare`, null);
-  const [imported, setImported] = useState<THREE.Group | null>(null);
+  const [leftWidth, setLeftWidth] = usePersistentState(
+    "forma.ui.leftWidth",
+    238,
+  );
+  const [rightWidth, setRightWidth] = usePersistentState(
+    "forma.ui.rightWidth",
+    350,
+  );
+  const [compare, setCompare] = usePersistentState<string | null>(
+    `${stateKey}.compare`,
+    null,
+  );
   const fileInput = useRef<HTMLInputElement>(null);
   const chatInput = useRef<HTMLTextAreaElement>(null);
   const end = useRef<HTMLDivElement>(null);
@@ -233,7 +246,9 @@ export default function App() {
   const revision = project?.revisions.find(
     (r) => r.id === project.currentRevision,
   );
-  const [loadingModel, setLoadingModel] = useState(false);
+  const committedScene = useCommittedScene(project, revision);
+  const loadingModel = committedScene.loading;
+  const emptyScene = useMemo(() => new THREE.Group(), []);
   const generatedFiles = new Set(
     project?.revisions
       .flatMap((r) => [r.preview, r.program ? r.source : undefined])
@@ -247,15 +262,54 @@ export default function App() {
     ) ?? [];
   const geometryKey = JSON.stringify(parameters);
   const model = useMemo(
-    () => buildModel(JSON.parse(geometryKey) as Parameters),
-    [geometryKey],
+    () => committedScene.hasFile ? new THREE.Group() : buildModel(JSON.parse(geometryKey) as Parameters),
+    [geometryKey, committedScene.hasFile],
   );
-  const object = imported ?? model;
+  const object = committedScene.object ?? (committedScene.hasFile ? emptyScene : model);
+  const displayedRevision = committedScene.hasFile
+    ? project?.revisions.find(item => committedScene.object && item.id === committedScene.displayed?.revisionId)
+    : revision;
+  const retainedLabel = displayedRevision && displayedRevision.id !== revision?.id
+    ? t("Displayed model and properties: revision {{value0}}.", { value0: project!.revisions.findIndex(item => item.id === displayedRevision.id) + 1 })
+    : null;
   const selectedBody = selected ? object.getObjectByName(selected) : undefined;
-  const selectedLabel = selectedBody ? bodyLabel(selectedBody) : selected;
+  const selectedBodyLabel = selectedBody ? bodyLabel(selectedBody) : selected;
+  const selectedLabel =
+    selectedEdge && selectedEdge.revisionId === project?.currentRevision
+      ? t("{{value0}} · CAD edge {{value1}}", {
+          value0: selectedBodyLabel ?? selectedEdge.bodyId,
+          value1: selectedEdge.edgeOrdinal,
+        })
+      : selectedFace && selectedFace.revisionId === project?.currentRevision
+        ? t("{{value0}} · CAD face {{value1}}", {
+            value0: selectedBodyLabel ?? selectedFace.bodyId,
+            value1: selectedFace.faceOrdinal,
+          })
+        : selectedBodyLabel;
+  const selectedFaceAreaMm2 =
+    selectedFace &&
+    selectedFace.revisionId === project?.currentRevision &&
+    selectedBody instanceof THREE.Mesh
+      ? faceAreaMm2(selectedBody, selectedFace.faceOrdinal)
+      : null;
+  const selectedEdgeLengthMm =
+    selectedEdge &&
+    selectedEdge.revisionId === project?.currentRevision &&
+    selectedBody instanceof THREE.Mesh
+      ? edgeLengthMm(selectedBody, selectedEdge.edgeOrdinal)
+      : null;
+  const selectedEdgeRadiusMm =
+    selectedEdge &&
+    selectedEdge.revisionId === project?.currentRevision &&
+    selectedBody instanceof THREE.Mesh
+      ? edgeRadiusMm(selectedBody, selectedEdge.edgeOrdinal)
+      : null;
   const stats = useMemo(() => inspectModel(object), [object]);
   const [before, setBefore] = useState<THREE.Group | null>(null);
-  const [hiddenBodies, setHiddenBodies] = usePersistentState<string[]>(`${stateKey}.hiddenBodies`, []);
+  const [hiddenBodies, setHiddenBodies] = usePersistentState<string[]>(
+    `${stateKey}.hiddenBodies`,
+    [],
+  );
   const bodies = useMemo(() => {
     const result: THREE.Mesh[] = [];
     object.traverse((node) => {
@@ -331,22 +385,35 @@ export default function App() {
       while (true) {
         const next = previewProjects.current.find((item) => {
           const key = `${item.id}:${item.currentRevision}`;
-          return item.currentRevision && item.thumbnailRevision !== item.currentRevision && !previewAttempted.current.has(key);
+          return (
+            item.currentRevision &&
+            item.thumbnailRevision !== item.currentRevision &&
+            !previewAttempted.current.has(key)
+          );
         });
         if (!next || !next.currentRevision) break;
         previewAttempted.current.add(`${next.id}:${next.currentRevision}`);
-        const revision = next.revisions.find((item) => item.id === next.currentRevision);
-        const file = next.files.find((item) => item.name === (revision?.preview ?? revision?.source));
+        const revision = next.revisions.find(
+          (item) => item.id === next.currentRevision,
+        );
+        const file = next.files.find(
+          (item) => item.name === (revision?.preview ?? revision?.source),
+        );
         let preview: THREE.Group | null = null;
         try {
-          preview = file && /\.(stl|obj|glb|3mf)$/i.test(file.name)
-            ? await loadModel(file, next.id)
-            : buildModel(currentParameters(next));
+          preview =
+            file && /\.(stl|obj|glb|3mf)$/i.test(file.name)
+              ? await loadModel(file, next.id)
+              : buildModel(currentParameters(next));
           const thumbnail = renderThumbnail(preview);
           if (!thumbnail) continue;
-          const saved = await saveProjectThumbnail(next.id, next.currentRevision, thumbnail);
+          const saved = await saveProjectThumbnail(
+            next.id,
+            next.currentRevision,
+            thumbnail,
+          );
           queryClient.setQueryData<Project[]>(["projects"], (current) =>
-            current?.map((item) => item.id === saved.id ? saved : item),
+            current?.map((item) => (item.id === saved.id ? saved : item)),
           );
         } catch (cause) {
           console.warn("Project thumbnail could not be created", cause);
@@ -354,14 +421,10 @@ export default function App() {
           if (preview) disposeModel(preview);
         }
       }
-    })().finally(() => { previewRunning.current = false; });
+    })().finally(() => {
+      previewRunning.current = false;
+    });
   }, [projectId, projects.data, queryClient]);
-  useEffect(
-    () => () => {
-      if (imported) disposeModel(imported);
-    },
-    [imported],
-  );
   useEffect(
     () => () => {
       if (before) disposeModel(before);
@@ -381,30 +444,6 @@ export default function App() {
     }
   }, [projectId, projects.data, setProject, nav]);
   useEffect(() => {
-    let active = true;
-    setImported(null);
-    const file = project?.files.find(
-      (f) => f.name === (revision?.preview ?? revision?.source),
-    );
-    if (file) {
-      setLoadingModel(true);
-      loadModel(file, project?.id)
-        .then((m) => {
-          if (active) setImported(m);
-          else disposeModel(m);
-        })
-        .catch((e) => {
-          if (active) setError(errorText(e));
-        })
-        .finally(() => {
-          if (active) setLoadingModel(false);
-        });
-    }
-    return () => {
-      active = false;
-    };
-  }, [project?.id, revision?.id, revision?.source]);
-  useEffect(() => {
     end.current?.scrollIntoView({ behavior: "smooth" });
   }, [project?.messages.length, busy]);
   useEffect(() => {
@@ -416,9 +455,6 @@ export default function App() {
   useEffect(() => {
     const f = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
-      const input =
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement;
       if (e.key === "k") {
         e.preventDefault();
         setModal("palette");
@@ -437,24 +473,6 @@ export default function App() {
       } else if (e.key === "E" || (e.key === "e" && e.shiftKey)) {
         e.preventDefault();
         setModal("export");
-      } else if (e.key === "z" && !input && project && !busy) {
-        e.preventDefault();
-        const parent = project.revisions.find((r) => r.id === revision?.parent);
-        if (parent)
-          ask(
-            t("Restore previous revision"),
-            t("Create a new revision from the previous model."),
-            parent.prompt,
-            () =>
-              revise(
-                parent.parameters,
-                t("Restored: {{value0}}", { value0: parent.prompt }),
-                parent.source,
-                parent.preview,
-                parent.program,
-                parent.programBase,
-              ),
-          );
       }
     };
     window.addEventListener("keydown", f);
@@ -462,27 +480,31 @@ export default function App() {
   });
   function refresh() {
     void queryClient.invalidateQueries({ queryKey: ["projects"] });
+    void queryClient.invalidateQueries({ queryKey: ["model-history"] });
   }
+  const historyAction = useHistoryAction(ask, refresh);
   async function ask(
     title: string,
     description: string,
     detail: string,
     run: () => Promise<void>,
     action = "modify_project",
+    targetProjectId = project?.id,
+    review?: CandidateReviewData,
   ) {
     try {
-      if (!needsConfirmation(await confirmationSettings(), action)) {
+      if (!review && !needsConfirmation(await confirmationSettings(), action)) {
         await run();
         refresh();
         return;
       }
       const id =
-        native && project
-          ? await requestNativePermission(project.id, action, detail)
+        native && targetProjectId && !review
+          ? await requestNativePermission(targetProjectId, action, detail)
           : undefined;
-      setPending({ title, description, detail, run, id });
+      setPending({ title, description, detail, run, id, review, targetProjectId });
     } catch (e) {
-      setError(errorText(e));
+      if (!targetProjectId || useWorkspace.getState().project?.id === targetProjectId) setError(errorText(e));
     }
   }
   async function approve(allow: boolean) {
@@ -490,11 +512,17 @@ export default function App() {
     if (!p) return;
     setPending(null);
     try {
-      if (p.id) await resolveNativePermission(p.id, allow);
+      if (allow && p.review && candidateSourceStatus(useWorkspace.getState().project, p.review.base) !== "valid")
+        throw new Error(t("Модель изменилась во время ответа. Повторите запрос."));
+      // Review can take longer than a grant's five-minute lifetime. Request only at the decision.
+      const permissionId = p.review && native && (!allow || needsConfirmation(await confirmationSettings(), "modify_project"))
+        ? await requestNativePermission(p.review.base.id, "modify_project", p.detail)
+        : p.id;
+      if (permissionId) await resolveNativePermission(permissionId, allow);
       if (allow) await p.run();
       else setNotice(t("Action denied. No model changes were made."));
     } catch (e) {
-      setError(errorText(e));
+      if (!p.targetProjectId || useWorkspace.getState().project?.id === p.targetProjectId) setError(errorText(e));
     } finally {
       refresh();
     }
@@ -503,6 +531,13 @@ export default function App() {
     if (busy) return;
     setProject(p);
     nav(`/project/${p.id}`);
+  }
+  async function importStepIntoScene(p: Project, name: string) {
+    await ask(t("Import STEP model"), t("Run the local CAD converter and create a new revision with a 3D preview."), name, async () => {
+      setBusy(true, t("Converting STEP"));
+      try { setProject(await convertStep(p.id, name)); refresh(); }
+      finally { setBusy(false); }
+    }, "convert_file", p.id);
   }
   async function importFiles(files: FileList | null) {
     if (!files?.length) return;
@@ -522,43 +557,14 @@ export default function App() {
         async () => {
           const p = useWorkspace.getState().project;
           if (!p) return;
-          const merged = [...p.files];
-          for (const f of importedFiles) {
-            if (merged.some((x) => x.name === f.name))
-              throw new Error(
-                t(
-                  "A file named {{value0}} already exists. Rename it before importing.",
-                  { value0: f.name },
-                ),
-              );
-            merged.push(f);
-          }
-          const mesh = importedFiles.find((f) =>
-            /\.(stl|obj|glb|3mf)$/i.test(f.name),
-          );
-          if (mesh) {
-            const test = await loadModel(mesh);
-            disposeModel(test);
-            const importedRevision = {
-              id: crypto.randomUUID(),
-              parent: p.currentRevision,
-              createdAt: stamp(),
-              parameters: { ...defaults, kind: "blank" as const },
-              prompt: t("Imported {{value0}}", { value0: mesh.name }),
-              source: mesh.name,
-            };
-            await update({
-              ...p,
-              files: merged,
-              updatedAt: stamp(),
-              revisions: [...p.revisions, importedRevision],
-              currentRevision: importedRevision.id,
-            });
-          } else {
-            await update({ ...p, files: merged, updatedAt: stamp() });
+          const imported = await prepareProjectImport(p, importedFiles);
+          await update(imported.project);
+          if (!imported.hasMesh) {
             setAttachments((a) => [...a, ...importedFiles]);
-            setNotice(t("Files added to project attachments."));
+            if (native && imported.step) await importStepIntoScene(useWorkspace.getState().project ?? imported.project, imported.step.name);
+            else setNotice(t("Files added to project attachments."));
           }
+
         },
       );
     } catch (e) {
@@ -579,18 +585,20 @@ export default function App() {
     chatInput.current?.focus();
   }
   async function send(request = prompt) {
-    if (!project || busy || !request.trim()) return;
+    if (!project || editingBlocked || !request.trim()) return;
     const text = request.trim();
     const p = project;
+    let agentPreview: { description: string; detail: string };
+    try {
+      agentPreview = await agentPermissionPreview(p, text);
+    } catch (cause) {
+      if (useWorkspace.getState().project?.id === p.id) setError(errorText(cause));
+      return;
+    }
     await ask(
       t("Connect to your AI agent"),
-      t(
-        "The local CLI sends your request and current model source using your existing login.",
-      ),
-      t(
-        "{{value0}} · {{value1}}\n\n{{value2}}\n\nThe agent writes CAD source for this request.",
-        { value0: p.agent, value1: p.name, value2: text },
-      ),
+      agentPreview.description,
+      agentPreview.detail,
       async () => {
         setPrompt("");
         liveRef.current = [];
@@ -614,10 +622,15 @@ export default function App() {
             p,
             text,
             attachments.map((file) => file.name),
+            selectedEdge?.revisionId === p.currentRevision
+              ? selectedEdge
+              : selectedFace?.revisionId === p.currentRevision
+                ? selectedFace
+                : null,
           );
           setAttachments([]);
           const latest = useWorkspace.getState().project;
-          if (!latest) throw new Error(t("Project closed during the request"));
+          if (!latest || candidateSourceStatus(latest, p) === "projectChanged") throw new Error(t("Project closed during the request"));
           await update({
             ...latest,
             messages: [
@@ -653,32 +666,16 @@ export default function App() {
               setBusy(true, t("Построение и проверка геометрии"));
               try {
                 const current = useWorkspace.getState().project;
-                if (!current)
+                if (!current || candidateSourceStatus(current, p) === "projectChanged")
                   throw new Error(t("Project closed during the request"));
-                if (current.currentRevision !== p.currentRevision)
+                if (candidateSourceStatus(current, p) !== "valid")
                   throw new Error(
                     t("Модель изменилась во время ответа. Повторите запрос."),
                   );
-                const built = await applyProgram(
-                  current,
-                  result.program!,
-                  text,
-                );
-                await update({
-                  ...built,
-                  messages: [
-                    ...built.messages,
-                    {
-                      id: crypto.randomUUID(),
-                      role: "assistant",
-                      text: result.message,
-                      createdAt: stamp(),
-                    },
-                  ],
-                });
+                await applyModel(captureApply(p, result.program!, text), { reviewPlan: result.reviewPlan, assistantMessage: result.message });
               } catch (error) {
                 const current = useWorkspace.getState().project;
-                if (current)
+                if (current?.id === p.id)
                   await update({
                     ...current,
                     messages: [
@@ -695,10 +692,13 @@ export default function App() {
                 setBusy(false);
               }
             },
+            "modify_project",
+            p.id,
+            native && readTypedCadDocument(result.program) ? { base: p, source: result.program, reviewPlan: result.reviewPlan } : undefined,
           );
         } catch (e) {
           const latest = useWorkspace.getState().project;
-          if (latest)
+          if (latest?.id === p.id)
             await update({
               ...latest,
               messages: [
@@ -767,7 +767,7 @@ export default function App() {
           <div className="recovery-row" key={item.id}>
             <span>
               {projects.data?.find((p) => p.id === item.projectId)?.name ??
-                      t("Проект")}
+                t("Проект")}
               <small>
                 {new Date(item.createdAt).toLocaleString(getLocale())}
               </small>
@@ -815,7 +815,7 @@ export default function App() {
                 );
                 if (next) void openProject(next);
               }}
-              disabled={busy}
+              disabled={editingBlocked}
             >
               {(projects.data ?? [project]).map((p) => (
                 <option key={p.id} value={p.id}>
@@ -834,6 +834,8 @@ export default function App() {
           </span>
         )}
         <div className="topbar-actions">
+          {project && <CadTaskIndicator projectId={project.id} onError={setError} />}
+          {project && <ModelHistoryControls project={project} blocked={editingBlocked || !!pending || !!modal || loadingModel} onAction={historyAction} />}
           <Updates blocked={busy || !!pending || !!modal || loadingModel} />
           <button
             className="command-button"
@@ -867,139 +869,53 @@ export default function App() {
           )}
         </div>
       </header>
+      {project && <ProjectAccessNotice projectId={project.id} {...projectAccess} onCopy={copy => { refresh(); void openProject(copy); }} onError={setError} />}
       {!project ? (
-        <main className="dashboard">
-          <div className="dashboard-nav">
-            <div>
-              <LayoutGrid size={17} />
-              {t("All projects")}
-            </div>
-            <button onClick={() => setModal("settings")}>
-              <Cpu size={17} />
-              {t("AI agents")}
-            </button>
-            <button onClick={() => setModal("settings")}>
-              <Settings2 size={17} />
-              {t("Settings")}
-            </button>
-          </div>
-          <div className="dashboard-content">
-            <div className="eyebrow">{t("YOUR IDEAS, IN DIMENSIONS")}</div>
-            <div className="dashboard-title">
-              <div>
-                <h1>{t("A place to make things.")}</h1>
-                <p>{t("Give your next idea a little more shape.")}</p>
-              </div>
-              <Button onClick={() => fileInput.current?.click()}>
-                <FolderOpen size={15} />
-                {t("Import model")}
-              </Button>
-            </div>
-            <div className="section-heading">
-              <h2>{t("Projects")}</h2>
-              <div className="search-input">
-                <Search size={14} />
-                <input
-                  aria-label={t("Search projects")}
-                  placeholder={t("Find a project…")}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-            </div>
-            {projects.isLoading ? (
-              <div className="empty-state">
-                <LoaderCircle className="spin" />
-                {t("Loading projects…")}
-              </div>
-            ) : projects.error ? (
-              <div className="error-inline">{errorText(projects.error)}</div>
-            ) : (
-              <div className="project-grid">
-                <button
-                  className="new-project-card"
-                  onClick={() => setModal("new")}
-                >
-                  <span>
-                    <Plus size={24} />
-                  </span>
-                  <strong>{t("Create a project")}</strong>
-                  <small>{t("From a thought to a tangible thing")}</small>
-                </button>
-                {[...(projects.data ?? [])]
-                  .sort((a, b) => Number(b.pinned) - Number(a.pinned))
-                  .filter((p) =>
-                    [
-                      p.name,
-                      ...p.files.map((f) => f.name),
-                      ...p.messages.map((m) => m.text),
-                      ...p.revisions.map((r) => r.prompt),
-                    ].some((text) =>
-                      text.toLowerCase().includes(search.toLowerCase()),
-                    ),
-                  )
-                  .map((p) => (
-                    <motion.article
-                      layout="position"
-                      transition={{ layout: { duration: 0.42, ease: [0.22, 1, 0.36, 1] } }}
-                      className={`project-card${p.pinned ? " is-pinned" : ""}`}
-                      key={p.id}
-                    >
-                      <button
-                        className="project-art"
-                        onClick={() => void openProject(p)}
-                      >
-                        {p.thumbnail && p.thumbnailRevision === p.currentRevision ? (
-                          <img src={p.thumbnail} alt={t("Preview of {{value0}}", { value0: p.name })} />
-                        ) : (
-                          <Box size={72} strokeWidth={0.7} />
-                        )}
-                        {p.pinned && <span className="project-pinned"><Star size={12} fill="currentColor" />{t("Pinned")}</span>}
-                        <span>{currentParameters(p).kind.toUpperCase()}</span>
-                      </button>
-                      <div className="project-card-info">
-                        <button onClick={() => void openProject(p)}>
-                          <strong>{p.name}</strong>
-                          <small>
-                            {date(p.updatedAt)} <span>·</span>{" "}
-                            {quantity("revisions", p.revisions.length)}
-                          </small>
-                        </button>
-                        <div className="project-card-actions">
-                          <IconButton
-                            label={p.pinned ? t("Unpin project") : t("Pin project")}
-                            aria-pressed={p.pinned}
-                            active={p.pinned}
-                            onClick={() => {
-                              const current = queryClient.getQueryData<Project[]>(["projects"]) ?? [];
-                              const latest = current.find((item) => item.id === p.id) ?? p;
-                              const next = { ...latest, pinned: !latest.pinned };
-                              queryClient.setQueryData<Project[]>(["projects"], current.map((item) => item.id === p.id ? next : item));
-                              void saveProject(next).then(refresh).catch((cause) => {
-                                queryClient.setQueryData(["projects"], current);
-                                setError(errorText(cause));
-                              });
-                            }}
-                          >
-                            <Star size={15} fill={p.pinned ? "currentColor" : "none"} />
-                          </IconButton>
-                          <IconButton label={t("Rename project")} onClick={() => { setRenameTarget(p); setRenameName(p.name); }}>
-                            <Pencil size={14} />
-                          </IconButton>
-                          <IconButton label={t("Delete project")} onClick={() => { setDeleteTarget(p); setDeleteName(""); }}>
-                            <Trash2 size={14} />
-                          </IconButton>
-                        </div>
-                      </div>
-                    </motion.article>
-                  ))}
-              </div>
-            )}
-            <div className="dashboard-footer">
-              <span>FORMA / {appVersion}</span>
-            </div>
-          </div>
-        </main>
+        <Dashboard
+          projects={projects.data ?? []}
+          loading={projects.isLoading}
+          error={projects.error}
+          search={search}
+          onSearch={setSearch}
+          onSettings={() => setModal("settings")}
+          onImport={() => fileInput.current?.click()}
+          onImportBundle={() =>
+            void importProjectBundle()
+              .then((item) => {
+                if (item) {
+                  refresh();
+                  setNotice(t("Project bundle imported"));
+                  void openProject(item);
+                }
+              })
+              .catch((cause) => setError(errorText(cause)))
+          }
+          onExportBundle={(item, redactConversation) =>
+            void ask(
+              t("Export project bundle"),
+              t("Save a portable copy of this project."),
+              item.name,
+              async () => {
+                const path = await exportProjectBundle(item.id, redactConversation);
+                if (path) setNotice(t("Project bundle exported"));
+              },
+              "export_file",
+              item.id,
+            )
+          }
+          onNew={() => setModal("new")}
+          onOpen={(item) => void openProject(item)}
+          onRename={(item) => {
+            setRenameTarget(item);
+            setRenameName(item.name);
+          }}
+          onDelete={(item) => {
+            setDeleteTarget(item);
+            setDeleteName("");
+          }}
+          onRefresh={refresh}
+          onError={setError}
+        />
       ) : (
         <div
           className="workspace"
@@ -1038,7 +954,7 @@ export default function App() {
                   </div>
                   <IconButton
                     label={t("Duplicate project")}
-                    disabled={busy}
+                    disabled={editingBlocked}
                     onClick={() =>
                       void ask(
                         t("Duplicate project"),
@@ -1088,13 +1004,17 @@ export default function App() {
                         <span>{t("MODEL TREE")}</span>
                         <IconButton
                           label={t("Edit model parameters")}
-                          disabled={busy}
+                          disabled={editingBlocked}
                           onClick={() => setModal("parameters")}
                         >
                           <SlidersHorizontal size={13} />
                         </IconButton>
                       </div>
-                      <TreeFolder folderId="assembly" title={t("Assembly")} count={stats.bodies}>
+                      <TreeFolder
+                        folderId="assembly"
+                        title={t("Assembly")}
+                        count={stats.bodies}
+                      >
                         {bodies.map((o, i) => (
                           <div
                             key={o.uuid}
@@ -1113,7 +1033,8 @@ export default function App() {
                               onClick={() =>
                                 setHiddenBodies((current) => {
                                   const next = new Set(current);
-                                  if (next.has(`${i}:${o.name}`)) next.delete(`${i}:${o.name}`);
+                                  if (next.has(`${i}:${o.name}`))
+                                    next.delete(`${i}:${o.name}`);
                                   else next.add(`${i}:${o.name}`);
                                   return [...next];
                                 })
@@ -1132,7 +1053,7 @@ export default function App() {
                         <span>{t("PROJECT FILES")}</span>
                         <IconButton
                           label={t("Import files")}
-                          disabled={busy}
+                          disabled={editingBlocked}
                           onClick={() => fileInput.current?.click()}
                         >
                           <Plus size={14} />
@@ -1154,7 +1075,8 @@ export default function App() {
                         )}
                       </TreeFolder>
                       <TreeFolder
-                        folderId="attachments" title={t("attachments")}
+                        folderId="attachments"
+                        title={t("attachments")}
                         count={referenceFiles.length}
                       >
                         {referenceFiles.map((f) => (
@@ -1207,7 +1129,8 @@ export default function App() {
                         ))}
                       </TreeFolder>
                       <TreeFolder
-                        folderId="revisions" title={t("Revisions")}
+                        folderId="revisions"
+                        title={t("Revisions")}
                         count={project.revisions.length}
                         initial={false}
                       >
@@ -1235,7 +1158,8 @@ export default function App() {
                         ))}
                       </TreeFolder>
                       <TreeFolder
-                        folderId="exports" title={t("exports")}
+                        folderId="exports"
+                        title={t("exports")}
                         count={project.exports.length}
                       >
                         {project.exports.map((e, i) => (
@@ -1309,7 +1233,7 @@ export default function App() {
                               {t("Restore")}
                             </button>
                             <button
-                              disabled={busy}
+                              disabled={editingBlocked}
                               onClick={() =>
                                 setCompare(compare === r.id ? null : r.id)
                               }
@@ -1324,59 +1248,25 @@ export default function App() {
                     </div>
                   )}
                 </div>
-                <div className="inspector">
-                  <div className="inspector-title">
-                    <Box size={13} />
-                    <span>{selectedLabel || t("Model properties")}</span>
-                    <button onClick={() => setModal("parameters")}>
-                      <SlidersHorizontal size={13} />
-                    </button>
-                  </div>
-                  <dl>
-                    <div>
-                      <dt>{t("Dimensions")}</dt>
-                      <dd>
-                        {stats.size
-                          .map((n) =>
-                            fixedNumber(
-                              n /
-                                (project.units === "inch"
-                                  ? 25.4
-                                  : project.units === "cm"
-                                    ? 10
-                                    : 1),
-                              1,
-                            ),
-                          )
-                          .join(" × ")}{" "}
-                        <span>{t(project.units)}</span>
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>{t("Bodies")}</dt>
-                      <dd>{stats.bodies}</dd>
-                    </div>
-                    <div>
-                      <dt>{t("Triangles")}</dt>
-                      <dd>{stats.triangles.toLocaleString(getLocale())}</dd>
-                    </div>
-                    <div>
-                      <dt>{t("Surface area¹")}</dt>
-                      <dd>
-                        {fixedNumber(stats.area / 100, 1)} {t("cm²")}
-                      </dd>
-                    </div>
-                  </dl>
-                  <small>
-                    {t("¹ Mesh estimate; overlapping faces included.")}
-                  </small>
-                  {parameters.thickness < 1 && (
-                    <div className="thin-warning">
-                      <AlertCircle size={13} />
-                      {t("Thin walls may be difficult to print.")}
-                    </div>
-                  )}
-                </div>
+                <SelectionModelProperties
+                  selectedBodyId={selected}
+                  sceneToken={committedScene.selectionScene.token}
+                  interactive={committedScene.interactive && !compare}
+                  hostAvailable={native && !!agentEnvironment.data?.some(item => item.name === "OpenCascade kernel" && item.available)}
+                  project={project}
+                  revision={displayedRevision}
+                  selectedLabel={selectedLabel ?? null}
+                  selectedFace={selectedFace}
+                  selectedFaceAreaMm2={selectedFaceAreaMm2}
+                  selectedEdge={selectedEdge}
+                  selectedEdgeLengthMm={selectedEdgeLengthMm}
+                  selectedEdgeRadiusMm={selectedEdgeRadiusMm}
+                  stats={stats}
+                  thickness={displayedRevision?.parameters.thickness ?? parameters.thickness}
+                  onEditParameters={() => setModal("parameters")}
+                />
+                {compare && project.currentRevision && compare !== project.currentRevision &&
+                  <RevisionComparison project={project} fromRevisionId={compare} toRevisionId={project.currentRevision} />}
               </aside>
               <div
                 role="separator"
@@ -1422,7 +1312,7 @@ export default function App() {
                   : t("No revisions")}
               </span>
             </div>
-            <div className={`viewer-area ${before ? "comparison" : ""}`}>
+            <div className={`viewer-area ${before ? "comparison" : ""}`} data-displayed-revision={committedScene.displayed?.revisionId ?? ""} data-target-revision={revision?.id ?? ""} data-scene-phase={committedScene.phase}>
               <ViewerBoundary key={project.id}>
                 <Suspense
                   fallback={
@@ -1441,6 +1331,7 @@ export default function App() {
                   )}
                   <Viewer
                     object={object}
+                    interactive={!committedScene.hasFile || committedScene.interactive}
                     onScreenshot={(data) => void captureScreenshot(data)}
                   />
                 </Suspense>
@@ -1449,8 +1340,10 @@ export default function App() {
                 <div className="model-loading">
                   <LoaderCircle className="spin" />
                   {t("Reading geometry…")}
+                  {retainedLabel && <small>{retainedLabel}</small>}
                 </div>
               )}
+              {committedScene.failed && <div className="model-loading" role="alert"><AlertCircle size={16} /><span>{t("The committed preview could not be loaded. The previous valid model is shown when available.")}</span>{retainedLabel && <small>{retainedLabel}</small>}<small>{errorText(committedScene.cause)}</small><Button onClick={committedScene.retry}>{t("Retry preview loading")}</Button></div>}
             </div>
             <div className="model-bottom">
               <span>
@@ -1663,7 +1556,8 @@ export default function App() {
                     <strong>{systemText(useWorkspace.getState().stage)}</strong>
                     <p>
                       {systemText(
-                        liveEvents.at(-1)?.text ?? t("Starting a local session…"),
+                        liveEvents.at(-1)?.text ??
+                          t("Starting a local session…"),
                       )}
                     </p>
                   </div>
@@ -1728,7 +1622,7 @@ export default function App() {
                 <div className="composer-actions">
                   <IconButton
                     label={t("Attach a file")}
-                    disabled={busy}
+                    disabled={editingBlocked}
                     onClick={() => fileInput.current?.click()}
                   >
                     <Paperclip size={16} />
@@ -1737,7 +1631,7 @@ export default function App() {
                   <button
                     className="send-button"
                     aria-label={t("Send prompt")}
-                    disabled={!prompt.trim() || busy}
+                    disabled={!prompt.trim() || editingBlocked}
                     onClick={() => void send()}
                   >
                     {busy ? (
@@ -1759,7 +1653,9 @@ export default function App() {
         <span className="status-dot" />
         <span>
           {busy
-            ? chatBusy ? t("Agent working") : systemText(useWorkspace.getState().stage)
+            ? chatBusy
+              ? t("Agent working")
+              : systemText(useWorkspace.getState().stage)
             : native
               ? t("Local workspace ready")
               : t("Browser workspace · desktop required for AI")}
@@ -1800,25 +1696,7 @@ export default function App() {
           {systemText(notice)}
         </div>
       )}
-      <Modal
-        open={!!pending}
-        onClose={() => void approve(false)}
-        title={systemText(pending?.title ?? t("Review action"))}
-        description={systemText(pending?.description ?? "")}
-      >
-        <div className="permission-detail">
-          <ShieldCheck size={20} />
-          <pre>{pending?.detail}</pre>
-        </div>
-
-        <div className="modal-actions">
-          <Button onClick={() => void approve(false)}>{t("Deny")}</Button>
-          <Button className="primary" onClick={() => void approve(true)}>
-            <Check size={15} />
-            {t("Allow once")}
-          </Button>
-        </div>
-      </Modal>
+      <ActionReviewDialog pending={pending} onDecision={allow => void approve(allow)} />
       <Modal
         open={!!exportInfo}
         onClose={() => setExportInfo(null)}
@@ -1847,22 +1725,51 @@ export default function App() {
         open={!!renameTarget}
         onClose={() => setRenameTarget(null)}
         title={t("Rename project")}
-        description={t("The model and its history will keep their current files.")}
+        description={t(
+          "The model and its history will keep their current files.",
+        )}
       >
-        <form onSubmit={(event) => {
-          event.preventDefault();
-          if (!renameTarget || !renameName.trim()) return;
-          const latest = (queryClient.getQueryData<Project[]>(["projects"]) ?? []).find((item) => item.id === renameTarget.id) ?? renameTarget;
-          void saveProject({ ...latest, name: renameName.trim(), updatedAt: stamp() })
-            .then(() => { setRenameTarget(null); refresh(); setNotice(t("Project renamed")); })
-            .catch((cause) => setError(errorText(cause)));
-        }}>
-          <label>{t("Project name")}
-            <input autoFocus value={renameName} maxLength={80} onChange={(event) => setRenameName(event.target.value)} />
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!renameTarget || !renameName.trim()) return;
+            const latest =
+              (queryClient.getQueryData<Project[]>(["projects"]) ?? []).find(
+                (item) => item.id === renameTarget.id,
+              ) ?? renameTarget;
+            void saveProject({
+              ...latest,
+              name: renameName.trim(),
+              updatedAt: stamp(),
+            })
+              .then(() => {
+                setRenameTarget(null);
+                refresh();
+                setNotice(t("Project renamed"));
+              })
+              .catch((cause) => setError(errorText(cause)));
+          }}
+        >
+          <label>
+            {t("Project name")}
+            <input
+              autoFocus
+              value={renameName}
+              maxLength={80}
+              onChange={(event) => setRenameName(event.target.value)}
+            />
           </label>
           <div className="modal-actions">
-            <Button type="button" onClick={() => setRenameTarget(null)}>{t("Cancel")}</Button>
-            <Button className="primary" type="submit" disabled={!renameName.trim()}>{t("Save name")}</Button>
+            <Button type="button" onClick={() => setRenameTarget(null)}>
+              {t("Cancel")}
+            </Button>
+            <Button
+              className="primary"
+              type="submit"
+              disabled={!renameName.trim()}
+            >
+              {t("Save name")}
+            </Button>
           </div>
         </form>
       </Modal>
@@ -1870,60 +1777,68 @@ export default function App() {
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         title={t("Delete project")}
-        description={t("This permanently deletes the project, its revisions, attachments and stored files.")}
+        description={t(
+          "This permanently deletes the project, its revisions, attachments and stored files.",
+        )}
       >
-        <form onSubmit={(event) => {
-          event.preventDefault();
-          if (!deleteTarget || deleteName !== deleteTarget.name) return;
-          void deleteProject(deleteTarget.id)
-            .then(() => {
-              queryClient.setQueryData<Project[]>(["projects"], (current) => current?.filter((item) => item.id !== deleteTarget.id));
-              setDeleteTarget(null);
-              refresh();
-              setNotice(t("Project deleted"));
-            })
-            .catch((cause) => setError(errorText(cause)));
-        }}>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!deleteTarget || deleteName !== deleteTarget.name) return;
+            void deleteProject(deleteTarget.id)
+              .then(() => {
+                queryClient.setQueryData<Project[]>(["projects"], (current) =>
+                  current?.filter((item) => item.id !== deleteTarget.id),
+                );
+                setDeleteTarget(null);
+                refresh();
+                setNotice(t("Project deleted"));
+              })
+              .catch((cause) => setError(errorText(cause)));
+          }}
+        >
           <label>
-            {t("delete.confirmBefore")} <strong className="delete-project-name">{deleteTarget?.name}</strong>{t("delete.confirmAfter")}
-            <input autoFocus autoComplete="off" value={deleteName} onChange={(event) => setDeleteName(event.target.value)} />
+            {t("delete.confirmBefore")}{" "}
+            <strong className="delete-project-name">
+              {deleteTarget?.name}
+            </strong>
+            {t("delete.confirmAfter")}
+            <input
+              autoFocus
+              autoComplete="off"
+              value={deleteName}
+              onChange={(event) => setDeleteName(event.target.value)}
+            />
           </label>
           <div className="modal-actions">
-            <Button type="button" onClick={() => setDeleteTarget(null)}>{t("Cancel")}</Button>
-            <Button className="danger" type="submit" disabled={deleteName !== deleteTarget?.name}>
-              <Trash2 size={14} />{t("Delete permanently")}
+            <Button type="button" onClick={() => setDeleteTarget(null)}>
+              {t("Cancel")}
+            </Button>
+            <Button
+              className="danger"
+              type="submit"
+              disabled={deleteName !== deleteTarget?.name}
+            >
+              <Trash2 size={14} />
+              {t("Delete permanently")}
             </Button>
           </div>
         </form>
       </Modal>
       <NewProjectDialog
+        importNames={attachments.map(file => file.name)}
         open={modal === "new"}
         close={() => setModal(null)}
         onCreate={async (p) => {
           try {
-            if (attachments.length) {
-              p.files = attachments;
-              const mesh = attachments.find((f) =>
-                /\.(stl|obj|glb|3mf)$/i.test(f.name),
-              );
-              if (mesh) {
-                const check = await loadModel(mesh);
-                disposeModel(check);
-                const r = {
-                  id: crypto.randomUUID(),
-                  parent: null,
-                  createdAt: stamp(),
-                  parameters: { ...defaults, kind: "blank" as const },
-                  prompt: t("Imported {{value0}}", { value0: mesh.name }),
-                  source: mesh.name,
-                };
-                p.revisions = [r];
-                p.currentRevision = r.id;
-              }
-            }
-            await openProject(await saveProject(p));
+            if (attachments.length) p = (await prepareProjectImport(p, attachments)).project;
+            const saved = await saveProject(p);
+            await openProject(saved);
             setModal(null);
+            setAttachments([]);
             refresh();
+            const step = native && attachments.find(f => /\.st(e)?p$/i.test(f.name));
+            if (step) await importStepIntoScene(saved, step.name);
           } catch (e) {
             setError(errorText(e));
           }
@@ -1942,31 +1857,28 @@ export default function App() {
           open={modal === "parameters"}
           close={() => setModal(null)}
           source={revision?.program ?? ""}
-          disabled={busy}
+          importedSource={revision?.source}
+          disabled={editingBlocked}
+          nativeCadAvailable={agentEnvironment.data?.some((item) => item.name === "OpenCascade kernel" && item.available) ?? false}
+          nativeCadChecked={!!agentEnvironment.data}
           onApply={(program) => {
+            const base = useWorkspace.getState().project;
+            if (!base) return;
+            const captured = captureApply(base, program, t("Изменён исходный код модели"));
             setModal(null);
             void ask(
               t("Построить модель"),
               t("Проверить геометрию и сохранить ревизию."),
               program,
               async () => {
-                const current = useWorkspace.getState().project;
-                if (!current) return;
+                assertApplyBase(useWorkspace.getState().project, captured);
                 setBusy(true, t("Построение геометрии"));
                 try {
-                  useWorkspace
-                    .getState()
-                    .setProject(
-                      await applyProgram(
-                        current,
-                        program,
-                        t("Изменён исходный код модели"),
-                      ),
-                    );
+                  await applyModel(captured);
                 } finally {
                   setBusy(false);
                 }
-              },
+              }, "modify_project", base.id,
             );
           }}
         />
@@ -1975,7 +1887,7 @@ export default function App() {
           open={modal === "parameters"}
           close={() => setModal(null)}
           parameters={parameters}
-          disabled={busy}
+          disabled={editingBlocked}
           onApply={(p) => {
             setModal(null);
             void ask(
@@ -2002,7 +1914,8 @@ export default function App() {
         open={modal === "export"}
         close={() => setModal(null)}
         hasModel={!!object.children.length}
-        onExport={async (format) => {
+        bodies={exportBodies(revision?.program)}
+        onExport={async (format, bodyId) => {
           setModal(null);
           await ask(
             t("Export model"),
@@ -2019,10 +1932,11 @@ export default function App() {
                   throw new Error(
                     t("STEP export of imported meshes is not supported."),
                   );
-                const path = await exportStep(project.id, parameters);
+                const path = await exportStep(project.id, parameters, bodyId);
+                if (!path) { setNotice(t("Export cancelled")); return; }
                 setNotice(t("STEP exported to {{value0}}", { value0: path }));
               } else {
-                const blob = await exportMesh(object, format);
+                const blob = await exportMesh(object, format, bodyId);
                 if (native) {
                   const path = await saveMesh(project.id, name, blob);
                   if (!path) {
@@ -2041,754 +1955,29 @@ export default function App() {
           );
         }}
       />
-      <Modal
+      <CommandPalette
         open={modal === "palette"}
-        onClose={() => setModal(null)}
-        title={t("Command palette")}
-        description={t("Find a project or jump to an action.")}
-      >
-        <div className="palette-search">
-          <Search size={17} />
-          <input
-            autoFocus
-            placeholder={t("Search commands and projects…")}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <kbd>ESC</kbd>
-        </div>
-        <div className="palette-list">
-          {[
-            {
-              label: t("New project"),
-              shortcut: "Ctrl N",
-              run: () => setModal("new"),
-            },
-            {
-              label: t("Import model"),
-              shortcut: "Ctrl O",
-              run: () => {
-                setModal(null);
-                fileInput.current?.click();
-              },
-            },
-            {
-              label: t("Export model"),
-              shortcut: "Ctrl Shift E",
-              run: () => setModal("export"),
-            },
-            {
-              label: t("Edit model parameters"),
-              shortcut: "",
-              run: () => setModal("parameters"),
-            },
-            {
-              label: t("Ask AI"),
-              shortcut: "Ctrl Enter",
-              run: () => {
-                setModal(null);
-                chatInput.current?.focus();
-              },
-            },
-            {
-              label: t("Open settings"),
-              shortcut: "",
-              run: () => setModal("settings"),
-            },
-          ]
-            .filter((c) => c.label.toLowerCase().includes(search.toLowerCase()))
-            .map((c) => (
-              <button key={c.label} onClick={c.run}>
-                <Command size={15} />
-                {c.label}
-                <kbd>{c.shortcut}</kbd>
-              </button>
-            ))}
-          {projects.data
-            ?.filter((p) =>
-              [
-                p.name,
-                ...p.files.map((f) => f.name),
-                ...p.messages.map((m) => m.text),
-                ...p.revisions.map((r) => r.prompt),
-              ].some((text) =>
-                text.toLowerCase().includes(search.toLowerCase()),
-              ),
-            )
-            .map((p) => (
-              <button
-                key={p.id}
-                onClick={() => {
-                  void openProject(p);
-                  setModal(null);
-                }}
-              >
-                <Folder size={15} />
-                {p.name}
-                <ArrowUpRight size={13} />
-              </button>
-            ))}
-        </div>
-      </Modal>
+        close={() => setModal(null)}
+        search={search}
+        onSearch={setSearch}
+        projects={projects.data ?? []}
+        onProject={(item) => {
+          void openProject(item);
+          setModal(null);
+        }}
+        onNew={() => setModal("new")}
+        onImport={() => {
+          setModal(null);
+          fileInput.current?.click();
+        }}
+        onExport={() => setModal("export")}
+        onParameters={() => setModal("parameters")}
+        onAsk={() => {
+          setModal(null);
+          chatInput.current?.focus();
+        }}
+        onSettings={() => setModal("settings")}
+      />
     </div>
-  );
-}
-function NewProjectDialog({
-  open,
-  close,
-  onCreate,
-}: {
-  open: boolean;
-  close: () => void;
-  onCreate: (p: Project) => Promise<void>;
-}) {
-  const [name, setName] = useState(t("Untitled part"));
-  const [units, setUnits] = useState<Project["units"]>("mm");
-  const [agent, setAgent] = useState<Agent>("codex");
-  const [saving, setSaving] = useState(false);
-  return (
-    <Modal
-      open={open}
-      onClose={close}
-      title={t("Make room for an idea")}
-      description={t("Start with an empty workspace.")}
-    >
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!name.trim() || saving) return;
-          setSaving(true);
-          void onCreate(newProject(name, "blank", units, agent)).finally(() =>
-            setSaving(false),
-          );
-        }}
-      >
-        <label>
-          {t("Project name")}
-          <input
-            required
-            maxLength={80}
-            autoFocus
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-        </label>
-        <div className="form-row">
-          <label>
-            {t("Display units")}
-            <Select
-              value={units}
-              onChange={(e) => setUnits(e.target.value as Project["units"])}
-            >
-              <option value="mm">{t("Millimeters")}</option>
-              <option value="cm">{t("Centimeters")}</option>
-              <option value="inch">{t("Inches")}</option>
-            </Select>
-          </label>
-          <label>
-            {t("AI agent")}
-            <Select
-              value={agent}
-              onChange={(e) => setAgent(e.target.value as Agent)}
-            >
-              <option value="codex">OpenAI Codex</option>
-              <option value="claude">Claude Code</option>
-              <option value="custom">{t("Custom CLI")}</option>
-            </Select>
-          </label>
-        </div>
-        <div className="modal-actions">
-          <Button type="button" onClick={close}>
-            {t("Cancel")}
-          </Button>
-          <Button
-            className="primary"
-            type="submit"
-            disabled={saving || !name.trim()}
-          >
-            {saving ? (
-              <LoaderCircle className="spin" size={15} />
-            ) : (
-              <Plus size={15} />
-            )}
-            {t("Create project")}
-          </Button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-function SettingsDialog({
-  open,
-  close,
-  project,
-  onAgent,
-}: {
-  open: boolean;
-  close: () => void;
-  project: Project | null;
-  onAgent: (a: Agent) => Promise<void>;
-}) {
-  const system = useQuery({
-    queryKey: ["health"],
-    queryFn: health,
-    enabled: open,
-    staleTime: 30000,
-  });
-  const [page, setPage] = usePersistentState("forma.ui.settingsPage", "AI agents");
-  const [configuring, setConfiguring] = useState(false);
-  const [configurationError, setConfigurationError] = useState("");
-  const audit = useQuery({
-    queryKey: ["permission-audit"],
-    queryFn: permissionAudit,
-    enabled: open && page === "Permissions",
-    staleTime: 0,
-  });
-  return (
-    <Modal
-      open={open}
-      onClose={close}
-      title={t("Settings")}
-      description={t("Application preferences")}
-      wide
-    >
-      <div className="settings-layout">
-        <nav>
-          {[
-            "AI agents",
-            "CAD environment",
-            "Permissions",
-            "Appearance",
-            "Privacy",
-          ].map((s) => (
-            <button
-              className={page === s ? "active" : ""}
-              onClick={() => setPage(s)}
-              key={s}
-            >
-              {t(s)}
-            </button>
-          ))}
-        </nav>
-        <section>
-          {page === "AI agents" || page === "CAD environment" ? (
-            <>
-              <div className="settings-section-title">
-                <h3>{t(page)}</h3>
-                <IconButton
-                  label={t("Refresh environment")}
-                  onClick={() => void system.refetch()}
-                >
-                  <RefreshCw size={14} />
-                </IconButton>
-              </div>
-              {system.isFetching && <LoaderCircle size={17} className="spin" />}
-              {system.error && (
-                <p className="error-inline">{errorText(system.error)}</p>
-              )}
-              {system.data
-                ?.filter((h) =>
-                  page === "AI agents"
-                    ? /codex|claude|desktop runtime/i.test(h.name)
-                    : !/codex|claude|desktop runtime/i.test(h.name),
-                )
-                .map((h) => (
-                  <div className="health-row" key={h.name}>
-                    <span
-                      className={`health-icon ${h.available ? "connected" : ""}`}
-                    >
-                      {h.available ? <Check size={15} /> : <Cpu size={15} />}
-                    </span>
-                    <div>
-                      <strong>{t(h.name)}</strong>
-                      <small>{systemText(h.detail)}</small>
-                    </div>
-                    <span>
-                      {h.available ? t("Detected") : t("Unavailable")}
-                    </span>
-                  </div>
-                ))}
-              {native && page === "CAD environment" && (
-                <>
-                  <Button
-                    className="cad-python-action"
-                    disabled={configuring}
-                    onClick={async () => {
-                      setConfiguring(true);
-                      setConfigurationError("");
-                      try {
-                        await chooseCadPython();
-                        await system.refetch();
-                      } catch (error) {
-                        setConfigurationError(errorText(error));
-                      } finally {
-                        setConfiguring(false);
-                      }
-                    }}
-                  >
-                    {configuring
-                      ? t("Проверка CadQuery…")
-                      : t("Выбрать Python с CadQuery")}
-                  </Button>
-                  {configurationError && (
-                    <p className="error-inline">{configurationError}</p>
-                  )}
-                </>
-              )}
-              {project && page === "AI agents" && (
-                <label>
-                  {t("Project agent")}
-                  <Select
-                    value={project.agent}
-                    onChange={(e) => void onAgent(e.target.value as Agent)}
-                  >
-                    <option value="codex">OpenAI Codex</option>
-                    <option value="claude">Claude Code</option>
-                    <option value="custom">
-                      {t("Custom CLI (not configured)")}
-                    </option>
-                  </Select>
-                </label>
-              )}
-              <p className="field-hint">
-                {page === "AI agents"
-                  ? t("Uses your existing CLI login.")
-                  : t("Python and CadQuery power STEP import and export.")}
-              </p>
-            </>
-          ) : page === "Permissions" ? (
-            <>
-              <ConfirmationControls />
-              <div className="settings-section-title">
-                <h3>{t("Recent decisions")}</h3>
-                <IconButton
-                  label={t("Refresh audit log")}
-                  onClick={() => void audit.refetch()}
-                >
-                  <RefreshCw size={14} />
-                </IconButton>
-              </div>
-              {audit.isFetching && <LoaderCircle className="spin" size={16} />}
-              {audit.error && (
-                <p className="error-inline">{errorText(audit.error)}</p>
-              )}
-              {!native && (
-                <p>
-                  {t("The permission journal is available in the desktop app.")}
-                </p>
-              )}
-              {native && audit.data?.length === 0 && (
-                <p>{t("No permission requests recorded.")}</p>
-              )}
-              <div style={{ maxHeight: 320, overflowY: "auto" }}>
-                {audit.data?.map((entry) => (
-                  <div className="health-row" key={entry.id}>
-                    <ShieldCheck size={16} />
-                    <div>
-                      <strong>
-                        {t(entry.action)} · {t(entry.decision)}
-                      </strong>
-                      <small>{systemText(entry.detail)}</small>
-                      <small>
-                        {new Date(entry.createdAt).toLocaleString(getLocale())}{" "}
-                        · {entry.projectId.slice(0, 8)}
-                      </small>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <p className="field-hint">
-                {t(
-                  "Latest 100 recorded decisions. An allowed decision does not mean the operation completed. Grants expire and cannot be reused.",
-                )}
-              </p>
-            </>
-          ) : page === "Appearance" ? (
-            <>
-              <label>
-                {t("Language")}
-                <Select
-                  aria-label={t("Language")}
-                  value={getLocale()}
-                  onChange={(event) =>
-                    setLocale(event.target.value as "en" | "ru")
-                  }
-                >
-                  <option value="ru">Русский</option>
-                  <option value="en">English</option>
-                </Select>
-              </label>
-              <h3>{t("Appearance")}</h3>
-              <label>
-                {t("Theme")}
-                <Select
-                  defaultValue={localStorage.getItem("forma.theme") ?? "dark"}
-                  onChange={(e) => {
-                    applyTheme(e.target.value);
-                  }}
-                >
-                  <option value="dark">{t("Dark")}</option>
-                  <option value="light">{t("Light")}</option>
-                </Select>
-              </label>
-              <p>
-                {t(
-                  "The 3D viewport and controls follow the selected theme.",
-                )}
-              </p>
-            </>
-          ) : (
-            <>
-              <ShieldCheck size={28} />
-              <h3>{t("Your work stays yours.")}</h3>
-              <p>
-                {t(
-                  "No developer backend and no analytics. Projects are saved locally. AI prompts go to your selected agent’s provider only when you approve a connection.",
-                )}
-              </p>
-              <p>
-                {t(
-                  "Browser projects remain in browser storage. Clear site data only after exporting your work.",
-                )}
-              </p>
-            </>
-          )}
-        </section>
-      </div>
-    </Modal>
-  );
-}
-function ParametersDialog({
-  open,
-  close,
-  parameters,
-  onApply,
-  disabled,
-}: {
-  open: boolean;
-  close: () => void;
-  parameters: Parameters;
-  onApply: (p: Parameters) => void;
-  disabled: boolean;
-}) {
-  const draftKey = useWorkspace(s => `forma.ui.project.${s.project?.id ?? "home"}.parameters.${s.project?.currentRevision ?? "new"}`);
-  const [draft, setDraft] = usePersistentState(draftKey, parameters);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    if (open) {
-      setError("");
-    }
-  }, [open, parameters]);
-  return (
-    <Modal
-      open={open}
-      onClose={close}
-      title={t("Model parameters")}
-      description={t(
-        "Dimensions are stored in millimeters. Changes create a new revision.",
-      )}
-    >
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          const result = parameterSchema.safeParse(draft);
-          if (!result.success) {
-            setError(t("Invalid parameter value."));
-            return;
-          }
-          onApply(result.data);
-        }}
-      >
-        <div className="parameter-grid">
-          {(
-            [
-              "width",
-              "depth",
-              "height",
-              "thickness",
-              "holeDiameter",
-              "holes",
-            ] as const
-          ).map((key) => (
-            <label key={key}>
-              {
-                {
-                  width: t("Width"),
-                  depth: t("Depth"),
-                  height: t("Height"),
-                  thickness: t("Wall thickness"),
-                  holeDiameter: t("Hole diameter"),
-                  holes: t("Number of holes"),
-                }[key]
-              }
-              <div className="number-field">
-                <NumberInput
-                  disabled={disabled}
-                  aria-label={t(key)}
-                  type="number"
-                  step={key === "holes" ? 1 : 0.1}
-                  value={draft[key]}
-                  onChange={(e) =>
-                    setDraft({ ...draft, [key]: e.target.valueAsNumber })
-                  }
-                />
-                <span>{key === "holes" ? "" : t("mm")}</span>
-              </div>
-            </label>
-          ))}
-        </div>
-        {disabled && (
-          <p className="field-hint">
-            {t(
-              "Imported meshes are inspected and exported as geometry. Parametric edits apply to native templates.",
-            )}
-          </p>
-        )}
-        {error && (
-          <p className="error-inline" role="alert">
-            {errorText(error)}
-          </p>
-        )}
-        <div className="modal-actions">
-          <Button type="button" onClick={close}>
-            {t("Cancel")}
-          </Button>
-          <Button disabled={disabled} className="primary" type="submit">
-            {t("Review changes")}
-            <ArrowUpRight size={14} />
-          </Button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-function ExportDialog({
-  open,
-  close,
-  onExport,
-  hasModel,
-}: {
-  open: boolean;
-  close: () => void;
-  onExport: (s: string) => Promise<void>;
-  hasModel: boolean;
-}) {
-  const [format, setFormat] = usePersistentState("forma.ui.exportFormat", "stl");
-  return (
-    <Modal
-      open={open}
-      onClose={close}
-      title={t("Ready for the next step")}
-      description={t("Choose an export format.")}
-    >
-      <label>
-        {t("File format")}
-        <Select value={format} onChange={(e) => setFormat(e.target.value)}>
-          <option value="stl">{t("STL — 3D printing mesh")}</option>
-          <option value="3mf">{t("3MF — 3D printing assembly")}</option>
-          <option value="glb">{t("GLB — portable 3D model")}</option>
-          <option value="obj">{t("OBJ — polygon mesh")}</option>
-          <option value="step" disabled={!native}>
-            {t("STEP — solid CAD (desktop + CadQuery)")}
-          </option>
-        </Select>
-      </label>
-      <div className="export-spec">
-        <span>
-          {t("Units")}
-          <strong>{t("Millimeters")}</strong>
-        </span>
-        <span>
-          {t("Geometry")}
-          <strong>
-            {format === "step" ? t("Exact solid") : t("Current mesh")}
-          </strong>
-        </span>
-      </div>
-      <p className="field-hint">
-        {t(
-          "STL and OBJ are unitless formats; exported coordinates are in millimeters. Export does not alter your project.",
-        )}
-      </p>
-      <div className="modal-actions">
-        <Button onClick={close}>{t("Cancel")}</Button>
-        <Button
-          className="primary"
-          disabled={!hasModel}
-          onClick={() => void onExport(format)}
-        >
-          <Download size={15} />
-          {t("Export")} {format.toUpperCase()}
-        </Button>
-      </div>
-    </Modal>
-  );
-}
-
-function ConfirmationControls() {
-  const query = useQuery({
-    queryKey: ["confirmations"],
-    queryFn: confirmationSettings,
-  });
-  const client = useQueryClient();
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
-  const value = query.data;
-  async function save(next: ConfirmationSettings) {
-    setSaving(true);
-    try {
-      await saveConfirmationSettings(next);
-      client.setQueryData(["confirmations"], next);
-      setError("");
-    } catch (error) {
-      setError(errorText(error));
-    } finally {
-      setSaving(false);
-    }
-  }
-  if (!value)
-    return (
-      <p>{query.error ? errorText(query.error) : t("Loading settings…")}</p>
-    );
-  return (
-    <fieldset disabled={saving} className="confirmation-controls">
-      <h3>{t("Confirmations")}</h3>
-      <Select
-        aria-label={t("Confirmation mode")}
-        value={value.mode}
-        onChange={(e) =>
-          void save({
-            mode: e.target.value as ConfirmationSettings["mode"],
-            overrides: {},
-          })
-        }
-      >
-        <option value="all">{t("Confirm everything")}</option>
-        <option value="cli">{t("Only CLI and dependencies")}</option>
-        <option value="none">{t("No confirmations")}</option>
-      </Select>
-      <p className="field-hint">{t("Customize individual actions below.")}</p>
-      {Object.entries({
-        run_agent: "Connect to CLI agent",
-        modify_project: "Edit models and project files",
-        convert_file: "Convert CAD files",
-        export_file: "Export files",
-        install_dependency: "Install dependencies",
-      }).map(([action, label]) => (
-        <Checkbox
-          key={action}
-          checked={needsConfirmation(value, action)}
-          onChange={(checked) =>
-            void save({
-              ...value,
-              overrides: { ...value.overrides, [action]: checked },
-            })
-          }
-        >
-          {t(label)}
-        </Checkbox>
-      ))}
-      {error && <p className="error-inline">{errorText(error)}</p>}
-    </fieldset>
-  );
-}
-
-function MessageText({ text, error }: { text: string; error: boolean }) {
-  const quota = error && /usage limit|rate limit|quota/i.test(text);
-  const retry = text.match(/try again at ([^.\n]+)/i)?.[1];
-  if (quota)
-    return (
-      <div className="quota-message">
-        <strong>{t("Лимит AI исчерпан")}</strong>
-        <p>
-          {retry
-            ? t("Codex предлагает повторить запрос в {{value0}}.", {
-                value0: retry,
-              })
-            : t("Провайдер временно не принимает новые запросы.")}
-        </p>
-        <p>{t("Модель и история сохранены.")}</p>
-        <a
-          href="https://chatgpt.com/codex/settings/usage"
-          target="_blank"
-          rel="noreferrer"
-        >
-          {t("Лимиты и кредиты ↗")}
-        </a>
-        <details>
-          <summary>{t("Сообщение CLI")}</summary>
-          <p>{text}</p>
-        </details>
-      </div>
-    );
-  if (error && text.trimStart().startsWith("{"))
-    return (
-      <div>
-        <p>{errorText(text)}</p>
-        <details>
-          <summary>{t("Technical details")}</summary>
-          <pre>{text}</pre>
-        </details>
-      </div>
-    );
-  return <p>{error ? errorText(text) : text}</p>;
-}
-
-function ProgramDialog({
-  open,
-  close,
-  source,
-  disabled,
-  onApply,
-}: {
-  open: boolean;
-  close: () => void;
-  source: string;
-  disabled: boolean;
-  onApply: (source: string) => void;
-}) {
-  const draftKey = useWorkspace(s => `forma.ui.project.${s.project?.id ?? "home"}.source.${s.project?.currentRevision ?? "new"}`);
-  const [draft, setDraft] = usePersistentState(draftKey, source);
-  return (
-    <Modal
-      open={open}
-      onClose={close}
-      title={t("Исходный код модели")}
-      description={
-        draft.trimStart().startsWith("{")
-          ? t("CAD features · миллиметры · параметры и зависимости")
-          : t("CadQuery fallback · миллиметры · результат в переменной result")
-      }
-      wide
-    >
-      <CadFeatureEditor
-        source={draft}
-        disabled={disabled}
-        onChange={setDraft}
-      />
-      <textarea
-        className="program-editor"
-        aria-label={t("CAD source")}
-        value={draft}
-        spellCheck={false}
-        onChange={(event) => setDraft(event.target.value)}
-        disabled={disabled}
-      />
-      {!source && (
-        <p className="field-hint">
-          {t("Опишите деталь в чате или напишите программу построения.")}
-        </p>
-      )}
-      <div className="modal-actions">
-        <Button onClick={close}>{t("Закрыть")}</Button>
-        <Button
-          className="primary"
-          disabled={disabled || !draft.trim() || !native}
-          onClick={() => onApply(draft)}
-        >
-          {t("Построить")}
-        </Button>
-      </div>
-    </Modal>
   );
 }

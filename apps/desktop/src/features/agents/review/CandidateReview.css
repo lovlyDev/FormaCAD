@@ -1,0 +1,24 @@
+.candidate-review-note,.candidate-muted { color:var(--muted);font-size:11px;line-height:1.6; }
+.candidate-review-note { margin:0 0 16px; }
+.candidate-review-modal[data-state="closed"] { pointer-events:none; }
+.candidate-review-layout { display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:24px;align-items:start; }
+.candidate-review-layout>.candidate-geometry { position:sticky;top:0; }
+.candidate-view-actions,.candidate-view-actions>div { display:flex;align-items:center;gap:7px; }
+.candidate-view-actions { margin:16px 0 10px;justify-content:space-between;flex-wrap:wrap; }
+.candidate-view-actions .button { min-height:32px;padding:6px 10px;font-size:11px; }
+.candidate-view-actions [aria-pressed=true] { background:var(--light-accent-surface);color:var(--accent-text);border-color:var(--light-accent-border); }
+.candidate-changes { min-width:0; }
+.candidate-parameter-changes { padding:0 16px 16px; }
+.candidate-change { display:grid;gap:5px;padding:12px 0;border-top:1px solid var(--line);font-size:12px; }
+.candidate-change strong,.candidate-change code { overflow-wrap:anywhere; }
+.candidate-change code { color:var(--muted);font-size:10px; }
+.candidate-change>span,.candidate-feature-changes { color:var(--accent-text); }
+.candidate-feature-changes { margin-left:40px;font-size:11px;line-height:1.6; }
+.typed-feature-tree .candidate-section-title { margin:20px 0 14px; }
+.candidate-body-change { padding:13px 14px;border:1px solid var(--line);border-radius:10px;background:var(--panel);margin:8px 0; }
+.candidate-changes .model-editor-source pre,.candidate-error-detail { margin:0;padding:14px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:240px;overflow-y:auto;font-family:Consolas,monospace;font-size:11px;line-height:1.7;background:var(--bg);border-top:1px solid var(--line); }
+.candidate-review-error { display:flex;align-items:start;gap:8px;color:var(--light-danger-ink);font-size:12px; }
+.candidate-review-error svg { flex-shrink:0; }
+.candidate-properties-title { font-size:12px;margin:18px 0 0; }
+@media(max-width:950px) { .candidate-review-layout { grid-template-columns:1fr;gap:18px; }.candidate-review-layout>.candidate-geometry { position:static; } }
+@media(prefers-reduced-motion:reduce) { .candidate-review-modal .preview-spinner { animation:none; } }

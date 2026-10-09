@@ -108,6 +108,28 @@ test("local geometry work does not appear as an agent chat task", async ({ page 
   await expect(page.locator(".statusbar")).not.toContainText("Agent working");
 });
 
+test("typed sketch editor changes workplane and length without losing feature IDs", async ({ page }) => {
+  await legacyProject(page, "Sketch workspace");
+  await page.evaluate(async () => {
+    const { createStarterSketch } = await import("/src/lib/sketchDocument.ts");
+    const projects = JSON.parse(localStorage.getItem("forma.projects.v1")!);
+    projects[0].revisions[0].program = createStarterSketch();
+    localStorage.setItem("forma.projects.v1", JSON.stringify(projects));
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "Edit model parameters", exact: true }).click();
+  await page.getByText("Edit 2D sketch", { exact: true }).click();
+  await expect(page.getByRole("img", { name: "Sketch preview" })).toBeVisible();
+  await page.getByLabel("Sketch plane").selectOption("xz");
+  await page.getByRole("button", { name: "Length", exact: true }).first().click();
+  await page.getByLabel("Length in mm").fill("50");
+  const source = JSON.parse(await page.getByLabel("CAD source").inputValue());
+  expect(source.features[0].operation.plane).toBe("xz");
+  expect(source.features[0].operation.constraints.find((item: { kind: string }) => item.kind === "length").distance.mm).toBe(50);
+  expect(source.features[1].operation.sketchId).toBe("sketch_1");
+  expect(source.bodies[0].sourceFeatureId).toBe("pad_1");
+});
+
 test("create, edit with approval, restore, export, persist", async ({
   page,
 }, testInfo) => {
@@ -290,7 +312,7 @@ test("viewport clicks and tools preserve camera zoom", async ({ page }) => {
     .toBeGreaterThanOrEqual(3);
   const before = JSON.parse((await canvas.getAttribute("data-camera")) ?? "{}");
   await page
-    .getByRole("button", { name: "Select object", exact: true })
+    .getByRole("button", { name: "Select body", exact: true })
     .click();
   await canvas.click({ position: { x: 40, y: 240 } });
   await page.waitForTimeout(1000);

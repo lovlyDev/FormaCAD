@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 2,
+  "revisionId": "construction_example",
+  "parameters": [
+    {
+      "id": "width",
+      "name": "Width",
+      "valueMm": 20
+    },
+    {
+      "id": "diagonal_length",
+      "name": "Diagonal",
+      "valueMm": 36.05551275463989
+    }
+  ],
+  "features": [
+    {
+      "id": "profile",
+      "name": "Profile",
+      "operation": {
+        "type": "sketch2d",
+        "plane": "xz",
+        "originMm": [
+          0,
+          7,
+          0
+        ],
+        "points": [
+          {
+            "id": "a",
+            "xMm": 0,
+            "yMm": 0
+          },
+          {
+            "id": "b",
+            "xMm": 20,
+            "yMm": 0
+          },
+          {
+            "id": "c",
+            "xMm": 20,
+            "yMm": 10
+          },
+          {
+            "id": "d",
+            "xMm": 0,
+            "yMm": 10
+          }
+        ],
+        "lines": [
+          {
+            "id": "diagonal",
+            "startPointId": "a",
+            "endPointId": "c",
+            "construction": true
+          },
+          {
+            "id": "ab",
+            "startPointId": "a",
+            "endPointId": "b"
+          },
+          {
+            "id": "bc",
+            "startPointId": "b",
+            "endPointId": "c"
+          },
+          {
+            "id": "cd",
+            "startPointId": "c",
+            "endPointId": "d"
+          },
+          {
+            "id": "da",
+            "startPointId": "d",
+            "endPointId": "a"
+          }
+        ],
+        "constraints": [
+          {
+            "id": "anchor",
+            "kind": "fixed",
+            "pointId": "a",
+            "xMm": 0,
+            "yMm": 0
+          },
+          {
+            "id": "horizontalab",
+            "kind": "horizontal",
+            "lineId": "ab"
+          },
+          {
+            "id": "verticalbc",
+            "kind": "vertical",
+            "lineId": "bc"
+          },
+          {
+            "id": "horizontalcd",
+            "kind": "horizontal",
+            "lineId": "cd"
+          },
+          {
+            "id": "verticalda",
+            "kind": "vertical",
+            "lineId": "da"
+          },
+          {
+            "id": "width_dimension",
+            "kind": "length",
+            "lineId": "ab",
+            "distance": {
+              "kind": "parameter",
+              "parameterId": "width"
+            }
+          },
+          {
+            "id": "diagonal_dimension",
+            "kind": "length",
+            "lineId": "diagonal",
+            "distance": {
+              "kind": "parameter",
+              "parameterId": "diagonal_length"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "pad",
+      "name": "Pad",
+      "operation": {
+        "type": "extrude",
+        "sketchId": "profile",
+        "distance": {
+          "kind": "literal",
+          "mm": 5
+        }
+      }
+    }
+  ],
+  "bodies": [
+    {
+      "id": "body",
+      "name": "Body",
+      "sourceFeatureId": "pad"
+    }
+  ]
+}

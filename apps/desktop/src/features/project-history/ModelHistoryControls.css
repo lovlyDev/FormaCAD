@@ -1,0 +1,3 @@
+.model-history-controls { display:flex;align-items:center;gap:3px; }
+.model-history-controls .icon-button:disabled { opacity:.4;cursor:default; }
+.model-history-error { color:var(--light-danger-ink);font-size:10px;max-width:130px; }

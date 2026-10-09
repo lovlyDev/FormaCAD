@@ -116,10 +116,13 @@ export function errorText(error: unknown): string {
       const id =
         "featureId" in value && typeof value.featureId === "string"
           ? value.featureId
+          : "targetId" in value && typeof value.targetId === "string"
+          ? value.targetId
           : "";
       const code =
         "code" in value && typeof value.code === "string" ? value.code : "";
-      return `${[id, code].filter(Boolean).join(" · ")}${id || code ? ": " : ""}${systemText(value.message)}`;
+      const message = catalogs[locale][code] ? t(code) : systemText(value.message);
+      return `${[id, code].filter(Boolean).join(" · ")}${id || code ? ": " : ""}${message}`;
     }
   } catch {
     /* Plain diagnostics remain readable. */

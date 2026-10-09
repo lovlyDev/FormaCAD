@@ -1,0 +1,4 @@
+.project-access-notice { display: flex; align-items: center; gap: 10px; padding: 10px 14px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 10px; color: var(--text); background: var(--panel2); font-size: 12px; animation: fade-in 200ms ease-out; }
+.project-access-notice > svg { flex-shrink: 0; color: var(--accent-text); }
+.project-access-notice > div { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+@media(max-width: 800px) { .project-access-notice { flex-wrap: wrap; }.project-access-notice > div { margin-left: 0; } }

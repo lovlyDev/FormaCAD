@@ -1,0 +1,82 @@
+name: Задача разработки / Development task
+description: Закрепить задачу, владельца файлов и критерии проверки до запуска AI-агента.
+title: "[Task] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Одна задача — один ответственный человек. Перед началом проверьте открытые Issues/PR и согласуйте пересечения файлов. Этот шаблон не создаёт автоматическую блокировку и не назначает GitHub assignee: назначение подтверждает человек.
+  - type: input
+    id: owner
+    attributes:
+      label: Ответственный человек / Human owner
+      description: GitHub login; назначьте этого человека также в поле Assignees после создания Issue.
+      placeholder: "@owner"
+    validations:
+      required: true
+  - type: input
+    id: branch
+    attributes:
+      label: Ветка и исходный коммит / Branch and base
+      placeholder: "task/123-owner-short-name; base SHA"
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: Цель и критерии приёмки / Goal and acceptance
+      description: Наблюдаемое поведение и проверки, по которым другой человек примет результат.
+    validations:
+      required: true
+  - type: textarea
+    id: ownership
+    attributes:
+      label: Мои файлы и границы / Owned paths and exclusions
+      description: Явные пути/модули, чужие владельцы и исключения. Укажите владельца i18n, lockfile, миграций и общих версий, если они затронуты.
+      placeholder: |
+        Мои пути:
+        Чужие пути и владельцы:
+        Общие файлы и назначенный владелец:
+        Вне задачи:
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Зависимости и контракт API / Dependencies and API
+      description: Связанные Issues, согласованный контракт и порядок интеграции. Если зависимостей нет, напишите «нет».
+    validations:
+      required: true
+  - type: input
+    id: reviewers
+    attributes:
+      label: Проверяющий и ответственный за релиз / Reviewer and release owner
+      placeholder: "Reviewer @person2; release owner @person1"
+    validations:
+      required: true
+  - type: dropdown
+    id: state
+    attributes:
+      label: Состояние / State
+      options:
+        - Ожидает назначения / Unclaimed
+        - Закреплена / Claimed
+        - Работа / Working
+        - Проверка / Review
+        - Заблокирована / Blocked
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Проверки и передача / Evidence and handoff
+      description: Обновляйте реальными командами/результатами, SHA, ограничениями и следующим владельцем. Планируемые проверки отделяйте от выполненных; не вставляйте токены, пользовательские модели или личные журналы.
+  - type: checkboxes
+    id: coordination
+    attributes:
+      label: Согласование / Coordination
+      options:
+        - label: Проверены открытые Issues/PR; пересечения задач и файлов согласованы с владельцами.
+          required: true
+        - label: Прочитаны AGENTS.md и руководство docs/ru/collaboration.md; публикация и релиз выполняются назначенным человеком.
+          required: true

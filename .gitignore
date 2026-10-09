@@ -35,3 +35,8 @@ scripts/native-*.mjs
 scripts/repair-motion-duplicates.mjs
 apps/desktop/src-tauri/icons/android/
 apps/desktop/src-tauri/icons/ios/
+
+# Private local working files
+.local/
+apps/desktop/src-tauri/binaries/
+apps/desktop/src-tauri/resources/occt/

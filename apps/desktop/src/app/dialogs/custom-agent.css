@@ -1,0 +1,48 @@
+.custom-agent-settings {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.custom-agent-settings label {
+  display: block;
+  margin-top: 12px;
+  color: var(--text);
+}
+
+.custom-agent-settings input,
+.custom-agent-settings textarea {
+  width: 100%;
+  margin-top: 7px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  background: var(--panel2);
+  font: inherit;
+}
+
+.custom-agent-settings textarea {
+  resize: vertical;
+  font-family: Consolas, "SFMono-Regular", monospace;
+}
+
+.custom-agent-path {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+}
+
+.custom-agent-path input {
+  min-width: 0;
+  flex: 1;
+}
+
+.custom-agent-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 11px;
+}

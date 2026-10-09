@@ -1,3 +1,4 @@
+import { restoreCadTopology, preserveCadTopology, hasCadTopology } from "./cadTopologyTransport";
 import * as THREE from "three";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
@@ -5,6 +6,9 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { ThreeMFLoader } from "three/examples/jsm/loaders/3MFLoader.js";
 import type { ProjectFile } from "../types";
 import { native, readProjectFile } from "./api";
+import { isolateExportBody } from "./isolateExportBody";
+import { stripViewerOverlays } from "../features/viewer/stripViewerOverlays";
+import { restoreExportAppearance } from "../features/viewer/appearance/bodyAppearance";
 export async function readFile(file: File): Promise<ProjectFile> {
   if (file.size > 40 * 1024 * 1024)
     throw new Error("This import is limited to 40 MB. Use a smaller mesh.");
@@ -95,6 +99,7 @@ export async function loadModel(
   let count = 0;
   group.traverse((o) => {
     if (o instanceof THREE.Mesh) {
+      restoreCadTopology(o);
       count += o.geometry.getAttribute("position")?.count ?? 0;
       if (!o.geometry.getAttribute("normal")) o.geometry.computeVertexNormals();
       o.material = new THREE.MeshStandardMaterial({
@@ -105,6 +110,7 @@ export async function loadModel(
       if (!o.name) o.name = `Body ${++count}`;
     }
   });
+  group.userData.formaNativeCadPreview = hasCadTopology(group);
   if (!count) throw new Error("The file does not contain readable geometry.");
   const bounds = new THREE.Box3().setFromObject(group);
   if (
@@ -122,32 +128,38 @@ export async function loadModel(
 export async function exportMesh(
   object: THREE.Group,
   format: string,
+  bodyId: string | null = null,
 ): Promise<Blob> {
   object.updateMatrixWorld(true);
+  const exportObject = bodyId ? isolateExportBody(object, bodyId) : object.clone(true);
+  restoreExportAppearance(exportObject);
+  stripViewerOverlays(exportObject);
+  exportObject.updateMatrixWorld(true);
   if (format === "3mf") {
     const { encodeThreeMf } = await import("./threeMf");
-    return new Blob([new Uint8Array(encodeThreeMf(object))], { type: "model/3mf" });
+    return new Blob([new Uint8Array(encodeThreeMf(exportObject))], { type: "model/3mf" });
   }
   if (format === "stl") {
     const { STLExporter } =
       await import("three/examples/jsm/exporters/STLExporter.js");
-    return new Blob([new STLExporter().parse(object)], { type: "model/stl" });
+    return new Blob([new STLExporter().parse(exportObject)], { type: "model/stl" });
   }
   if (format === "obj") {
     const { OBJExporter } =
       await import("three/examples/jsm/exporters/OBJExporter.js");
-    return new Blob([new OBJExporter().parse(object)], { type: "text/plain" });
+    return new Blob([new OBJExporter().parse(exportObject)], { type: "text/plain" });
   }
   if (format === "glb") {
     const { GLTFExporter } =
       await import("three/examples/jsm/exporters/GLTFExporter.js");
-    const exported = object.clone(true);
+    const exported = exportObject.clone(true);
     exported.scale.multiplyScalar(0.001);
     exported.position.multiplyScalar(0.001);
     exported.updateMatrixWorld(true);
     const lines: THREE.Object3D[] = [];
     exported.traverse((o) => {
       if (o instanceof THREE.LineSegments) lines.push(o);
+      if (o instanceof THREE.Mesh) preserveCadTopology(o);
     });
     lines.forEach((o) => o.removeFromParent());
     const result = await new GLTFExporter().parseAsync(exported, {
@@ -159,6 +171,7 @@ export async function exportMesh(
   }
   throw new Error("This export format needs the native CAD kernel.");
 }
+
 export function download(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

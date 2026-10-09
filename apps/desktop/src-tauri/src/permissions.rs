@@ -153,6 +153,11 @@ pub async fn resolve_permission(id: String, allow: bool, state: State<'_, AppSta
     Ok(())
 }
 pub async fn consume(state: &AppState, project_id: &str, action: &str) -> Result<()> {
+    let _access = if matches!(action, "modify_project" | "run_agent" | "convert_file") {
+        Some(crate::project_access::ensure_write(state, project_id)?)
+    } else {
+        None
+    };
     if !settings(state).await?.required(action) {
         sqlx::query("INSERT INTO permissions(id,project_id,action,detail,decision,created_at) VALUES(?,?,?,?,?,?)").bind(uuid::Uuid::new_v4().to_string()).bind(project_id).bind(action).bind("Confirmation disabled in settings").bind("automatic").bind(chrono::Utc::now().to_rfc3339()).execute(&state.pool).await?;
         return Ok(());

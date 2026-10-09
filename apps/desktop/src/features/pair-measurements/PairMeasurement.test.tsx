@@ -1,0 +1,24 @@
+import { StrictMode } from "react";
+import { act,cleanup,fireEvent,render,screen,waitFor } from "@testing-library/react";
+import { afterEach,expect,it,vi } from "vitest";
+import { useWorkspace } from "../../stores/workspace";
+import { t } from "../../i18n";
+import { PairMeasurement } from "./PairMeasurement";
+import { pairTestContext,pairTestReport } from "./pairTestContext";
+import type { PairCapture } from "./pairCapture";
+const mock=vi.hoisted(()=>({measure:vi.fn()}));vi.mock("./pairApi",()=>({measurePair:mock.measure}));
+afterEach(()=>{cleanup();useWorkspace.getState().setProject(null);mock.measure.mockReset();});
+it("requires explicit actual selection captures and formats verified distance and witnesses in project units",async()=>{
+ const context=pairTestContext();act(()=>{useWorkspace.getState().setProject(context.project);useWorkspace.getState().setSelectedFace(context.face);});
+ mock.measure.mockImplementation(async(capture:PairCapture)=>pairTestReport(capture));
+ const view=render(<StrictMode><PairMeasurement bodyId="body" sceneToken={context.sceneToken} interactive hostAvailable/></StrictMode>);
+ fireEvent.click(screen.getByText(t("Exact pair measurements")));
+ const measure=screen.getByRole("button",{name:t("Measure captured pair")});expect(measure).toBeDisabled();
+ fireEvent.click(screen.getByRole("button",{name:t("Capture first selection")}));
+ act(()=>useWorkspace.getState().setSelectedFace(context.second));fireEvent.click(screen.getByRole("button",{name:t("Capture second selection")}));
+ expect(measure).toBeEnabled();fireEvent.click(measure);await waitFor(()=>expect(screen.getByText(`10 ${t("mm")}`)).toBeInTheDocument());
+ expect(mock.measure).toHaveBeenCalledTimes(1);expect(mock.measure.mock.calls[0][0].request.query.first).toMatchObject({role:"box-face:zmax"});
+ act(()=>useWorkspace.getState().setProject({...context.project,units:"cm"}));await waitFor(()=>expect(screen.getByText(`1 ${t("cm")}`)).toBeInTheDocument());
+ view.rerender(<StrictMode><PairMeasurement bodyId="body" sceneToken="replacement-object-uuid" interactive hostAvailable/></StrictMode>);
+ expect(screen.getByRole("button",{name:t("Capture first selection")})).toBeDisabled();expect(measure).toBeDisabled();expect(screen.queryByText(`1 ${t("cm")}`)).not.toBeInTheDocument();
+});

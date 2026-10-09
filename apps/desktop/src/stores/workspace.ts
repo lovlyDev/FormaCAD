@@ -3,14 +3,20 @@ import type { Project, Parameters, Revision } from "../types";
 import { defaults } from "../types";
 import { saveProject } from "../lib/api";
 import { persist, readState } from "../lib/persistence";
+import type { FaceSelection } from "../features/viewer/faceSelection";
+import type { EdgeSelection } from "../features/viewer/edgeSelection";
 interface Workspace {
   project: Project | null;
   selected: string | null;
+  selectedFace: FaceSelection | null;
+  selectedEdge: EdgeSelection | null;
   busy: boolean;
   stage: string;
   error: string | null;
   setProject: (p: Project | null) => void;
   setSelected: (s: string | null) => void;
+  setSelectedFace: (selection: FaceSelection | null) => void;
+  setSelectedEdge: (selection: EdgeSelection | null) => void;
   setBusy: (b: boolean, stage?: string) => void;
   setError: (e: string | null) => void;
   update: (p: Project) => Promise<void>;
@@ -26,20 +32,49 @@ interface Workspace {
 export const useWorkspace = create<Workspace>((set, get) => ({
   project: null,
   selected: null,
+  selectedFace: null,
+  selectedEdge: null,
   busy: false,
   stage: "Ready",
   error: null,
-  setProject: (project) => set({ project, selected: project ? readState(`forma.ui.project.${project.id}.selected`, null) : null, error: null }),
+  setProject: (project) => {
+    const current = get();
+    const same = !!project && project.id === current.project?.id && project.currentRevision === current.project.currentRevision;
+    set({
+      project,
+      selected: same ? current.selected : project
+        ? readState(`forma.ui.project.${project.id}.selected`, null)
+        : null,
+      selectedFace: same ? current.selectedFace : null,
+      selectedEdge: same ? current.selectedEdge : null,
+      error: null,
+    });
+  },
   setSelected: (selected) => {
     const id = get().project?.id;
-    if (id) persist(`forma.ui.project.${id}.selected`, JSON.stringify(selected));
-    set({ selected });
+    if (id)
+      persist(`forma.ui.project.${id}.selected`, JSON.stringify(selected));
+    set({ selected, selectedFace: null, selectedEdge: null });
   },
+  setSelectedFace: (selectedFace) => set({ selectedFace, selectedEdge: null }),
+  setSelectedEdge: (selectedEdge) => set({ selectedEdge, selectedFace: null }),
   setBusy: (busy, stage = "Ready") => set({ busy, stage }),
   setError: (error) => set({ error }),
   update: async (project) => {
     const saved = await saveProject(project);
-    set({ project: saved });
+    // A delayed metadata save must not switch the user back to its original project.
+    if (get().project?.id !== saved.id) return;
+    set({
+      project: saved,
+      selectedFace:
+        saved.id === get().project?.id && saved.currentRevision === get().project?.currentRevision
+          ? get().selectedFace
+          : null,
+      selectedEdge:
+        saved.id === get().project?.id && saved.currentRevision === get().project?.currentRevision
+          ? get().selectedEdge
+          : null,
+    });
   },
   revise: async (parameters, prompt, source, preview, program, programBase) => {
     const p = get().project;

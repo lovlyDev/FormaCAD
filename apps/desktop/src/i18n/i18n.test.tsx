@@ -58,6 +58,13 @@ it("localizes historical events in either language and keeps feature diagnostics
   });
   expect(errorText(error)).toContain("Pocket001 · GEOMETRY_BUILD_FAILED");
   expect(errorText(error)).toContain("Операция должна создавать");
+  const sketchError = JSON.stringify({
+    code: "SKETCH_CONSTRAINT_CONFLICT",
+    targetId: "profile",
+    message: "Sketch constraints conflict",
+  });
+  expect(errorText(sketchError)).toContain("profile · SKETCH_CONSTRAINT_CONFLICT");
+  expect(errorText(sketchError)).toContain("Связи эскиза противоречат");
   setLocale("en");
   expect(systemText("Ревизия 3 сохранена")).toBe("Revision 3 saved");
 });

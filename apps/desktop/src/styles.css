@@ -458,25 +458,6 @@ kbd {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.inspector {
-  border-top: 1px solid var(--line);
-  padding: 16px 17px 14px;
-}
-.inspector-title {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 11px;
-  font-weight: 550;
-  margin-bottom: 17px;
-}
-.inspector-title > svg {
-  color: var(--light-secondary, #858d95);
-}
-.inspector-title button {
-  margin-left: auto;
-  color: var(--muted);
-}
 dl {
   margin: 0;
 }
@@ -499,10 +480,6 @@ dd {
 dd > span {
   color: var(--muted);
   font-size: 9px;
-}
-.inspector > small {
-  font-size: 8px;
-  color: var(--light-secondary, #626a74);
 }
 .thin-warning {
   display: flex;
@@ -1099,6 +1076,7 @@ dd > span {
   overflow: hidden;
   background: var(--panel);
 }
+.dashboard-import-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .project-card.is-pinned { border-color: var(--light-accent-border, #69438e); }
 .project-art {
   height: 158px;
@@ -2660,3 +2638,5 @@ body { background: var(--bg); }
   .statusbar { margin-inline: 7px; }
   .dashboard-nav { display: none; }
 }
+
+.render-select{padding-left:0;gap:0}

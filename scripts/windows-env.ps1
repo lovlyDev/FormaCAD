@@ -17,7 +17,16 @@ foreach ($installation in $installations) {
 }
 if (!$selectedTools) { throw 'No complete x64 C++ toolchain found.' }
 $sdkRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10'
-$sdkVersion = (Get-ChildItem -LiteralPath (Join-Path $sdkRoot 'Lib') -Directory | Sort-Object Name -Descending | Select-Object -First 1).Name
+$sdkVersion = $null
+foreach ($candidate in (Get-ChildItem -LiteralPath (Join-Path $sdkRoot 'Lib') -Directory | Sort-Object Name -Descending)) {
+    if ((Test-Path -LiteralPath (Join-Path $candidate.FullName 'um\x64\kernel32.lib') -PathType Leaf) -and
+        (Test-Path -LiteralPath (Join-Path $candidate.FullName 'ucrt\x64\ucrt.lib') -PathType Leaf) -and
+        (Test-Path -LiteralPath (Join-Path $sdkRoot "Include\$($candidate.Name)\um\Windows.h") -PathType Leaf)) {
+        $sdkVersion = $candidate.Name
+        break
+    }
+}
+if (-not $sdkVersion) { throw 'No complete x64 Windows SDK was found.' }
 $env:LIB = "$selectedTools\lib\x64;$sdkRoot\Lib\$sdkVersion\ucrt\x64;$sdkRoot\Lib\$sdkVersion\um\x64"
 $env:INCLUDE = "$selectedTools\include;$sdkRoot\Include\$sdkVersion\ucrt;$sdkRoot\Include\$sdkVersion\shared;$sdkRoot\Include\$sdkVersion\um;$sdkRoot\Include\$sdkVersion\winrt"
 $env:PATH = "$selectedTools\bin\Hostx64\x64;$sdkRoot\bin\$sdkVersion\x64;$env:PATH"
@@ -29,3 +38,4 @@ $env:CC = Join-Path $selectedTools 'bin\Hostx64\x64\cl.exe'
 $env:CXX = $env:CC
 $env:CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER = Join-Path $selectedTools 'bin\Hostx64\x64\link.exe'
 Write-Host "Using C++ toolchain: $selectedTools"
+Write-Host "Using Windows SDK: $sdkVersion"

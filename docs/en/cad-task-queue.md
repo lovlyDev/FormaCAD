@@ -1,0 +1,15 @@
+# Heavy CAD task queue
+
+[Documentation](index.md) · [Русский](../ru/cad-task-queue.md) · [Project access](project-access.md)
+
+The application executes one heavy CAD process at a time across its projects. `AppState.cad_tasks` owns a Tokio semaphore with one permit. Other geometry jobs wait in the FIFO semaphore queue. External Codex/Claude/custom CLI planning does not occupy the geometry slot; each subsequent AI geometry-validation attempt acquires its own slot and releases it before another correction request.
+
+Host boundaries acquire a permit for model application, native/legacy STEP conversion, exact draft preview, selected-body/native and legacy STEP generation, exact saved-model inspection, AI BREP validation and model sectioning. Cached geometry reads, mesh export, bundle creation and sketch-only constraint analysis do not start heavy CAD workers and do not acquire a permit. Low-level worker functions accept explicit executable paths for isolated tests and do not reacquire the gate; nested acquisition is prohibited.
+
+`cad_task_status` returns transient `{taskId, projectId, kind, state}` entries with states `queued` and `running`. `cancel_cad_task(taskId)` sets the job's shared cancellation flag. Existing `cancel_task(projectId)` also cancels that project's queued/running CAD jobs. Jobs use kinds `model_build`, `step_import`, `model_preview`, `step_export`, `inspection`, `ai_validation` and `section`. UI labels and errors are translated separately from these identifiers.
+
+Queued cancellation is checked before acquiring, while waiting with a 25 ms polling interval, and again before changing to running. A cancelled waiter does not start a worker or commit a revision. A scoped registration cleans up its entry if the awaiting future is dropped. The acquired permit is retained through the worker and its output validation, then returned through RAII on success or error. Model application/conversion check cancellation again immediately before persistence. Once a revision has durably committed, cancellation does not undo it. Active workers continue to use the existing process cancellation and 120-second worker timeout; there is no new automatic AI restart. Queue state is transient and is not saved to project folders or SQLite.
+
+Exact inspection and exports use application-level temporary folders outside source projects, including read-only projects. Session ownership still determines mutation rights; the CAD semaphore does not replace permissions, project task reservations or storage locks. This gate is per application instance, not a machine-wide distributed scheduler. Full task-history views, priorities and persistent jobs are outside this module.
+
+Validation uses `src/cad_tasks/tests.rs` for preset cancellation and aborted-waiter cleanup, plus `tests/native_cad_queue.rs` with actual bundled CAD workers: two projects execute sequentially; cancellation of a waiting project starts no worker directory and preserves a saved-state sentinel. Final test execution is recorded in release verification, rather than assumed from implementation.

@@ -189,7 +189,7 @@ export function inspectModel(object: THREE.Object3D) {
     ab = new THREE.Vector3(),
     ac = new THREE.Vector3();
   object.traverse((o) => {
-    if (!(o instanceof THREE.Mesh)) return;
+    if (!(o instanceof THREE.Mesh) || o.userData.formaSelectionOverlay) return;
     bodies++;
     const g = o.geometry as THREE.BufferGeometry;
     const pos = g.getAttribute("position");
@@ -214,11 +214,15 @@ export function inspectModel(object: THREE.Object3D) {
   };
 }
 export function disposeModel(object: THREE.Object3D) {
+  const geometries = new Set<THREE.BufferGeometry>();
+  const materials = new Set<THREE.Material>();
   object.traverse((o) => {
     if (o instanceof THREE.Mesh) {
-      o.geometry.dispose();
+      geometries.add(o.geometry);
       const mats = Array.isArray(o.material) ? o.material : [o.material];
-      mats.forEach((m) => m.dispose());
+      mats.forEach((m) => materials.add(m));
     }
   });
+  geometries.forEach(geometry => geometry.dispose());
+  materials.forEach(material => material.dispose());
 }

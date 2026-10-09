@@ -1,20 +1,16 @@
 import { t } from "../i18n";
 import { usePersistentState } from "../lib/persistence";
 import { useWorkspace } from "../stores/workspace";
-import * as Dialog from "@radix-ui/react-dialog";
 import * as Tooltip from "@radix-ui/react-tooltip";
-import { X, Check, ChevronDown, ChevronRight, Minus, Plus } from "lucide-react";
+export const TooltipProvider = Tooltip.Provider;
+import { Check, ChevronRight, Minus, Plus } from "lucide-react";
 import {
-  Children,
-  isValidElement,
   useId,
   type ReactNode,
   type ButtonHTMLAttributes,
-  type SelectHTMLAttributes,
   type ChangeEvent,
   type InputHTMLAttributes,
 } from "react";
-import * as SelectPrimitive from "@radix-ui/react-select";
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -56,129 +52,27 @@ export function IconButton({
     </Tooltip.Root>
   );
 }
-export function Modal({
-  open,
-  onClose,
-  title,
-  description,
-  children,
-  wide = false,
-}: {
-  open: boolean;
-  onClose: () => void;
-  title: string;
-  description: string;
-  children: ReactNode;
-  wide?: boolean;
-}) {
-  return (
-    <Dialog.Root
-      open={open}
-      onOpenChange={(v) => {
-        if (!v) onClose();
-      }}
-    >
-      <Dialog.Portal>
-        <Dialog.Overlay className="modal-overlay" />
-        <Dialog.Content className={cn("modal", wide && "wide")}>
-          <Dialog.Title>{title}</Dialog.Title>
-          <Dialog.Description>{description}</Dialog.Description>
-          <Dialog.Close className="modal-close" aria-label={t("Close dialog")}>
-            <X size={18} />
-          </Dialog.Close>
-          {children}
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  );
-}
+export { Modal } from "./ui/Modal";
 
-export function Select({
-  children,
-  value,
-  defaultValue,
-  onChange,
-  disabled,
-  id,
-  ...props
-}: SelectHTMLAttributes<HTMLSelectElement>) {
-  const autoId = useId();
-  return (
-    <SelectPrimitive.Root
-      value={value === undefined ? undefined : String(value)}
-      defaultValue={
-        defaultValue === undefined ? undefined : String(defaultValue)
-      }
-      disabled={disabled}
-      onValueChange={(value) =>
-        onChange?.({
-          target: { value },
-          currentTarget: { value },
-        } as ChangeEvent<HTMLSelectElement>)
-      }
-    >
-      <SelectPrimitive.Trigger
-        id={id ?? autoId}
-        className="custom-select"
-        aria-label={props["aria-label"]}
-      >
-        <SelectPrimitive.Value />
-        <SelectPrimitive.Icon>
-          <ChevronDown size={14} />
-        </SelectPrimitive.Icon>
-      </SelectPrimitive.Trigger>
-      <SelectPrimitive.Portal>
-        <SelectPrimitive.Content
-          className="select-menu"
-          position="popper"
-          sideOffset={5}
-          collisionPadding={10}
-        >
-          <SelectPrimitive.Viewport>
-            {Children.toArray(children).map((child) => {
-              if (
-                !isValidElement<{
-                  value: string;
-                  children: ReactNode;
-                  disabled?: boolean;
-                }>(child)
-              )
-                return null;
-              return (
-                <SelectPrimitive.Item
-                  className="select-option"
-                  key={child.props.value}
-                  value={String(child.props.value)}
-                  disabled={child.props.disabled}
-                >
-                  <SelectPrimitive.ItemText>
-                    {child.props.children}
-                  </SelectPrimitive.ItemText>
-                  <SelectPrimitive.ItemIndicator>
-                    <Check size={14} />
-                  </SelectPrimitive.ItemIndicator>
-                </SelectPrimitive.Item>
-              );
-            })}
-          </SelectPrimitive.Viewport>
-        </SelectPrimitive.Content>
-      </SelectPrimitive.Portal>
-    </SelectPrimitive.Root>
-  );
-}
+export { Select } from "./ui/Select";
 export function Checkbox({
   checked,
   onChange,
   children,
+  disabled=false,
 }: {
+  disabled?: boolean;
   checked: boolean;
   onChange: (checked: boolean) => void;
   children: ReactNode;
 }) {
+  const id=useId();
   return (
-    <label className="checkbox-row">
+    <label className="checkbox-row" htmlFor={id}>
       <CheckboxPrimitive.Root
         className="custom-checkbox"
+        id={id}
+        disabled={disabled}
         checked={checked}
         onCheckedChange={(value) => onChange(value === true)}
       >

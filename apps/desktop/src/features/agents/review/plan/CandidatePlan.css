@@ -1,0 +1,14 @@
+.candidate-plan { margin-top: 0; margin-bottom: 14px; }
+.candidate-plan-content { display: grid; gap: 14px; padding: 12px 14px 16px; font-size: 12px; }
+.candidate-plan-content h4 { margin: 0 0 7px; font-size: 12px; color: var(--text); }
+.candidate-plan-content p, .candidate-plan-note { font-size: 11px; color: var(--muted); line-height: 1.6; }
+.candidate-plan-content ul { margin: 0; padding-left: 18px; }
+.candidate-plan-content li { margin: 5px 0; overflow-wrap: anywhere; }
+.candidate-plan-content dl { margin: 0; }.candidate-plan-content dl > div { display: flex; gap: 12px; justify-content: space-between; }
+.candidate-plan-content dt code { margin-left: 8px; color: var(--muted); }.candidate-plan-content dd { margin: 0; white-space: nowrap; }
+.candidate-plan-ids { display: flex; gap: 8px; flex-wrap: wrap; color: var(--muted); }
+.candidate-plan-content .candidate-plan-checks { list-style: none; padding: 0; }
+.candidate-plan-checks li { display: flex; align-items: center; gap: 7px; }.candidate-plan-checks li > svg { flex-shrink: 0; }
+.candidate-plan-checks li[data-check-state="failed"] { color: var(--light-danger-ink); }
+.candidate-plan-checks li[data-check-state="passed"] > svg { color: var(--accent-text); }
+.candidate-plan-checks small { margin-left: auto; color: var(--muted); white-space: nowrap; }

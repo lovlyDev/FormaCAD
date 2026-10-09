@@ -1,5 +1,6 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { getLocale } from "../i18n";
+import { getLocale, t } from "../i18n";
+import { reviewPlanSchema, type ReviewPlan } from "../features/agents/review/plan/reviewPlan";
 import type { Project, Health, Parameters } from "../types";
 import { cadDocumentSchema, type CadDocument } from "./cadDocument";
 export const native = isTauri();
@@ -38,13 +39,23 @@ export async function saveProject(project: Project): Promise<Project> {
   );
   return project;
 }
+export async function exportProjectBundle(
+  projectId: string,
+  redactConversation = false,
+): Promise<string | null> {
+  return invoke("export_project_bundle", { projectId, locale: getLocale(), redactConversation });
+}
+export async function importProjectBundle(): Promise<Project | null> {
+  return invoke("import_project_bundle");
+}
 
 export async function saveProjectThumbnail(
   id: string,
   revisionId: string,
   thumbnail: string,
 ): Promise<Project> {
-  if (native) return invoke("save_project_thumbnail", { id, revisionId, thumbnail });
+  if (native)
+    return invoke("save_project_thumbnail", { id, revisionId, thumbnail });
   const project = (await listProjects()).find((item) => item.id === id);
   if (!project) throw new Error("Project was not found");
   if (project.currentRevision !== revisionId) return project;
@@ -55,11 +66,16 @@ export async function deleteProject(id: string): Promise<void> {
   if (native) await invoke("delete_project", { id });
   else {
     const projects = await listProjects();
-    if (!projects.some((project) => project.id === id)) throw new Error("Project was not found");
-    localStorage.setItem(key, JSON.stringify(projects.filter((project) => project.id !== id)));
+    if (!projects.some((project) => project.id === id))
+      throw new Error("Project was not found");
+    localStorage.setItem(
+      key,
+      JSON.stringify(projects.filter((project) => project.id !== id)),
+    );
   }
   for (const setting of Object.keys(localStorage)) {
-    if (setting.startsWith(`forma.ui.project.${id}.`)) localStorage.removeItem(setting);
+    if (setting.startsWith(`forma.ui.project.${id}.`))
+      localStorage.removeItem(setting);
   }
 }
 
@@ -93,16 +109,28 @@ export async function plan(
   project: Project,
   prompt: string,
   attachmentNames: string[] = [],
-): Promise<{ message: string; program: string | null }> {
+  selection:
+    | import("../features/viewer/faceSelection").FaceSelection
+    | import("../features/viewer/edgeSelection").EdgeSelection
+    | null = null,
+): Promise<{ message: string; program: string | null; reviewPlan?: import("../features/agents/review/plan/reviewPlan").ReviewPlan | null }> {
   if (!native)
     throw new Error(
       "Local AI agents are available in the desktop app. You can edit model parameters here.",
     );
-  return invoke("plan_model", {
+  const result = await invoke<{ message: string; program: string | null; reviewPlan?: unknown }>("plan_model", {
     projectId: project.id,
     prompt,
     attachmentNames,
+    selection,
   });
+  let reviewPlan: ReviewPlan | null = null;
+  if (result.reviewPlan !== undefined && result.reviewPlan !== null) {
+    const parsed = reviewPlanSchema.safeParse(result.reviewPlan);
+    if (!parsed.success) throw new Error(t("AI review plan is invalid."));
+    reviewPlan = parsed.data;
+  }
+  return { ...result, reviewPlan };
 }
 export async function cancelTask(projectId: string) {
   if (native) await invoke("cancel_task", { projectId });
@@ -117,8 +145,12 @@ export async function requestNativePermission(
 export async function resolveNativePermission(id: string, allow: boolean) {
   return invoke("resolve_permission", { id, allow });
 }
-export async function exportStep(projectId: string, parameters: Parameters) {
-  return invoke<string>("export_step", { projectId, parameters });
+export async function exportStep(
+  projectId: string,
+  parameters: Parameters,
+  bodyId: string | null,
+) {
+  return invoke<string | null>("export_step", { projectId, parameters, bodyId, locale: getLocale() });
 }
 
 export async function saveMesh(
@@ -181,15 +213,17 @@ export function needsConfirmation(
 }
 
 export async function applyProgram(
-  project: Project,
+  project: Pick<Project, "id" | "currentRevision">,
   program: string,
   prompt: string,
+  reviewPlan?: import("../features/agents/review/plan/reviewPlan").ReviewPlan | null,
 ): Promise<Project> {
   return invoke("apply_program", {
     projectId: project.id,
     program,
     prompt,
     expectedRevision: project.currentRevision,
+    reviewPlan: reviewPlan ?? null,
   });
 }
 
@@ -207,4 +241,19 @@ export async function applyCadDocument(
 
 export async function chooseCadPython(): Promise<string | null> {
   return invoke("choose_cad_python", { locale: getLocale() });
+}
+
+export interface CustomAgentConfig {
+  executable: string;
+  args: string[];
+}
+
+export async function getCustomAgentConfig(): Promise<CustomAgentConfig | null> {
+  return native ? invoke("get_custom_agent_config") : null;
+}
+
+export async function setCustomAgentConfig(
+  config: CustomAgentConfig | null,
+): Promise<void> {
+  if (native) await invoke("set_custom_agent_config", { config });
 }

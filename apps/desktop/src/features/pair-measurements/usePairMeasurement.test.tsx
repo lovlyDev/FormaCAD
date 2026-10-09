@@ -1,0 +1,40 @@
+import { StrictMode,type ReactNode } from "react";
+import { act,cleanup,renderHook } from "@testing-library/react";
+import { afterEach,expect,it,vi } from "vitest";
+import { usePairSlots } from "./usePairSlots";
+import { usePairMeasurement } from "./usePairMeasurement";
+import { capturePairScope } from "./pairCapture";
+import { pairTestContext,pairTestReport } from "./pairTestContext";
+import type { PairCapture } from "./pairCapture";
+import type { PairReport } from "./pairSchema";
+const mock=vi.hoisted(()=>({measure:vi.fn()}));vi.mock("./pairApi",()=>({measurePair:mock.measure}));
+afterEach(()=>{cleanup();mock.measure.mockReset();});
+const strict=({children}:{children:ReactNode})=><StrictMode>{children}</StrictMode>;
+it("captures real selections separately, uses one unfinished request and hides on displayed UUID replacement",async()=>{
+ const initial=pairTestContext();let finish:(value:PairReport)=>void=()=>{};
+ mock.measure.mockImplementation(()=>new Promise<PairReport>(resolve=>{finish=resolve;}));
+ const view=renderHook(props=>{const slots=usePairSlots(props.project,props.bodyId,props.sceneToken,props.interactive,props.edge,props.face);return{slots,measurement:usePairMeasurement(slots.scope,slots.first,slots.second,"minimumDistance")};},{initialProps:initial,wrapper:strict});
+ act(()=>view.result.current.slots.captureFirst());expect(view.result.current.slots.first).toEqual(initial.face.topologyRef);expect(view.result.current.slots.second).toBeNull();
+ view.rerender({...initial,face:initial.second});act(()=>view.result.current.slots.captureSecond());expect(view.result.current.slots.first).toEqual(initial.face.topologyRef);
+ act(()=>{void view.result.current.measurement.request();});const captured=mock.measure.mock.calls[0][0] as PairCapture;
+ act(()=>{void view.result.current.measurement.request();});expect(mock.measure).toHaveBeenCalledTimes(1);
+ view.rerender({...initial,sceneToken:"real-object-uuid-b"});expect(view.result.current.slots.first).toBeNull();expect(view.result.current.slots.current).toBeNull();act(()=>view.result.current.slots.captureFirst());expect(view.result.current.slots.first).toBeNull();expect(view.result.current.measurement.report).toBeNull();expect(view.result.current.measurement.working).toBe(true);
+ await act(async()=>{finish(pairTestReport(captured));});expect(view.result.current.measurement.report).toBeNull();expect(view.result.current.measurement.working).toBe(false);
+});
+it("rejects wrong body or stale scene interactivity and releases late unmounted work",async()=>{
+ const initial=pairTestContext();const view=renderHook(props=>usePairSlots(props.project,props.bodyId,props.sceneToken,props.interactive,props.edge,props.face),{initialProps:initial,wrapper:strict});
+ view.rerender({...initial,face:{...initial.face,bodyId:"foreign-body"}});expect(view.result.current.current).toBeNull();
+ view.rerender({...initial,interactive:false});act(()=>view.result.current.captureFirst());expect(view.result.current.first).toBeNull();
+ view.unmount();
+});
+it("Stop waiting blocks concurrent calls until completion and never adopts after true unmount in StrictMode",async()=>{
+ const context=pairTestContext(),scope=capturePairScope(context.project,context.bodyId,context.sceneToken,true)!;
+ let finish:(value:PairReport)=>void=()=>{};mock.measure.mockImplementation(()=>new Promise<PairReport>(resolve=>{finish=resolve;}));
+ const view=renderHook(()=>usePairMeasurement(scope,context.face.topologyRef!,context.second.topologyRef!,"minimumDistance"),{wrapper:strict});
+ act(()=>{void view.result.current.request();});const capture=mock.measure.mock.calls[0][0] as PairCapture;
+ act(()=>view.result.current.stopWaiting());expect(view.result.current.phase).toBe("idle");expect(view.result.current.working).toBe(true);
+ act(()=>{void view.result.current.request();});expect(mock.measure).toHaveBeenCalledTimes(1);
+ await act(async()=>{finish(pairTestReport(capture));});expect(view.result.current.report).toBeNull();expect(view.result.current.working).toBe(false);
+ act(()=>{void view.result.current.request();});expect(mock.measure).toHaveBeenCalledTimes(2);view.unmount();
+ await act(async()=>{await Promise.resolve();finish(pairTestReport(capture));});expect(mock.measure).toHaveBeenCalledTimes(2);
+});

@@ -49,4 +49,6 @@ npm run package
 CAD tests require the configured Python. Set FORMA_TEST_PYTHON for Rust geometry integration. Build installers on their target OS; [GitHub workflows](../../.github/workflows/release.yml) provide those machines. Signed releases follow the [release guide](releases.md).
 
 ## Interface changes
+Windows native packaging uses the Cargo-built worker binary. The native Windows Tauri configuration does not additionally declare the staged copy as externalBin: both routes previously installed the same worker name, making file order significant. Verify the generated NSIS script contains exactly one worker File instruction, then smoke-test that exact binary with the bundled DLLs and record its SHA-256. Staged fixtures are not proof of which worker the installer contains. Preserve older versioned installers; do not install the new one as part of local verification.
+
 Add messages to both [en.json](../../apps/desktop/src/i18n/en.json) and [ru.json](../../apps/desktop/src/i18n/ru.json), including labels, errors and accessibility text. Use t(), local date/number formatting and theme colors. Preserve filenames, code, CAD IDs and user/AI messages. Check both languages and themes. Screenshots belong in ignored docs/verification/.

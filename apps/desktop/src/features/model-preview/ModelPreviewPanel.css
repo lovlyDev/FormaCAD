@@ -1,0 +1,20 @@
+.model-preview-panel { border:1px solid var(--line); border-radius:14px; padding:18px; background:var(--panel2); min-width:0; color:var(--text); }
+.model-preview-panel>header { display:flex; align-items:center; gap:9px; font-size:13px; }
+.preview-readonly { margin-left:auto; font-size:10px; padding:4px 7px; border:1px solid var(--line); border-radius:5px; color:var(--muted); }
+.model-preview-description { font-size:11px; line-height:1.6; color:var(--muted); margin:12px 0; }
+.model-preview-actions { display:flex; gap:7px; }
+.model-preview-actions button { display:flex; align-items:center; gap:7px; padding:8px 10px; border:1px solid var(--line); border-radius:7px; color:var(--text); background:var(--panel); cursor:pointer; }
+.model-preview-actions button:disabled { opacity:.45; cursor:default; }
+.model-preview-panel .model-preview-auto { display:flex; align-items:center; gap:8px; margin:12px 0; font-size:11px; }
+.model-preview-panel .model-preview-auto>input { margin:0; width:14px; height:14px; accent-color:var(--accent); }
+.model-preview-stage { height:260px; overflow:hidden; border:1px solid var(--line); border-radius:10px; background:var(--bg); }
+.model-preview-canvas { width:100%; height:100%; }
+.model-preview-empty { height:100%; display:flex; flex-direction:column; gap:14px; align-items:center; justify-content:center; padding:20px; color:var(--muted); text-align:center; font-size:12px; line-height:1.6; }
+.model-preview-status { display:flex; align-items:flex-start; gap:8px; color:var(--muted); font-size:11px; line-height:1.6; padding-top:13px; }
+.model-preview-status svg { flex-shrink:0; margin-top:2px; }
+.model-preview-metrics { margin:16px 0 0; display:grid; gap:10px; font-size:11px; }
+.model-preview-metrics>div { display:flex; justify-content:space-between; gap:12px; }
+.model-preview-metrics dt { color:var(--muted); }.model-preview-metrics dd { margin:0; font-variant-numeric:tabular-nums; text-align:right; }
+.model-preview-error { margin-top:12px; font-size:11px; }.model-preview-error code { display:block; white-space:pre-wrap; overflow-wrap:anywhere; padding-top:8px; }
+.preview-spinner { animation:preview-spin 1s linear infinite; }@keyframes preview-spin { to { transform:rotate(360deg); } }
+@media(prefers-reduced-motion:reduce) { .preview-spinner { animation:none; } }

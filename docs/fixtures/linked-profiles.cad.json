@@ -1,0 +1,369 @@
+{
+  "schemaVersion": 2,
+  "revisionId": "draft",
+  "parameters": [
+    {
+      "id": "width",
+      "name": "width",
+      "valueMm": 40
+    },
+    {
+      "id": "depth",
+      "name": "depth",
+      "valueMm": 20
+    },
+    {
+      "id": "base_height",
+      "name": "base_height",
+      "valueMm": 10
+    },
+    {
+      "id": "triangle_height",
+      "name": "triangle_height",
+      "valueMm": 10
+    }
+  ],
+  "features": [
+    {
+      "id": "base_sketch",
+      "name": "base_sketch",
+      "operation": {
+        "type": "sketch2d",
+        "plane": "xy",
+        "originMm": [
+          0,
+          0,
+          0
+        ],
+        "points": [
+          {
+            "id": "a",
+            "xMm": -20,
+            "yMm": -10
+          },
+          {
+            "id": "b",
+            "xMm": 20,
+            "yMm": -10
+          },
+          {
+            "id": "c",
+            "xMm": 20,
+            "yMm": 10
+          },
+          {
+            "id": "d",
+            "xMm": -20,
+            "yMm": 10
+          }
+        ],
+        "lines": [
+          {
+            "id": "line_1",
+            "startPointId": "a",
+            "endPointId": "b"
+          },
+          {
+            "id": "line_2",
+            "startPointId": "b",
+            "endPointId": "c"
+          },
+          {
+            "id": "line_3",
+            "startPointId": "c",
+            "endPointId": "d"
+          },
+          {
+            "id": "line_4",
+            "startPointId": "d",
+            "endPointId": "a"
+          }
+        ],
+        "constraints": [],
+        "bindings": [
+          {
+            "id": "a_x",
+            "target": "point",
+            "pointId": "a",
+            "axis": "x",
+            "value": {
+              "kind": "parameter",
+              "parameterId": "width",
+              "scale": -0.5,
+              "offsetMm": 0
+            }
+          },
+          {
+            "id": "a_y",
+            "target": "point",
+            "pointId": "a",
+            "axis": "y",
+            "value": {
+              "kind": "parameter",
+              "parameterId": "depth",
+              "scale": -0.5,
+              "offsetMm": 0
+            }
+          },
+          {
+            "id": "b_x",
+            "target": "point",
+            "pointId": "b",
+            "axis": "x",
+            "value": {
+              "kind": "parameter",
+              "parameterId": "width",
+              "scale": 0.5,
+              "offsetMm": 0
+            }
+          },
+          {
+            "id": "b_y",
+            "target": "point",
+            "pointId": "b",
+            "axis": "y",
+            "value": {
+              "kind": "parameter",
+              "parameterId": "depth",
+              "scale": -0.5,
+              "offsetMm": 0
+            }
+          },
+          {
+            "id": "c_x",
+            "target": "point",
+            "pointId": "c",
+            "axis": "x",
+            "value": {
+              "kind": "parameter",
+              "parameterId": "width",
+              "scale": 0.5,
+              "offsetMm": 0
+            }
+          },
+          {
+            "id": "c_y",
+            "target": "point",
+            "pointId": "c",
+            "axis": "y",
+            "value": {
+              "kind": "parameter",
+              "parameterId": "depth",
+              "scale": 0.5,
+              "offsetMm": 0
+            }
+          },
+          {
+            "id": "d_x",
+            "target": "point",
+            "pointId": "d",
+            "axis": "x",
+            "value": {
+              "kind": "parameter",
+              "parameterId": "width",
+              "scale": -0.5,
+              "offsetMm": 0
+            }
+          },
+          {
+            "id": "d_y",
+            "target": "point",
+            "pointId": "d",
+            "axis": "y",
+            "value": {
+              "kind": "parameter",
+              "parameterId": "depth",
+              "scale": 0.5,
+              "offsetMm": 0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "base_extrude",
+      "name": "base_extrude",
+      "operation": {
+        "type": "extrude",
+        "sketchId": "base_sketch",
+        "distance": {
+          "kind": "parameter",
+          "parameterId": "base_height"
+        }
+      }
+    },
+    {
+      "id": "triangle_sketch",
+      "name": "triangle_sketch",
+      "operation": {
+        "type": "sketch2d",
+        "plane": "yz",
+        "originMm": [
+          -20,
+          0,
+          10
+        ],
+        "points": [
+          {
+            "id": "left",
+            "xMm": -10,
+            "yMm": 0
+          },
+          {
+            "id": "right",
+            "xMm": 10,
+            "yMm": 0
+          },
+          {
+            "id": "ridge",
+            "xMm": 0,
+            "yMm": 10
+          }
+        ],
+        "lines": [
+          {
+            "id": "line_1",
+            "startPointId": "left",
+            "endPointId": "right"
+          },
+          {
+            "id": "line_2",
+            "startPointId": "right",
+            "endPointId": "ridge"
+          },
+          {
+            "id": "line_3",
+            "startPointId": "ridge",
+            "endPointId": "left"
+          }
+        ],
+        "constraints": [],
+        "bindings": [
+          {
+            "id": "left_x",
+            "target": "point",
+            "pointId": "left",
+            "axis": "x",
+            "value": {
+              "kind": "parameter",
+              "parameterId": "depth",
+              "scale": -0.5,
+              "offsetMm": 0
+            }
+          },
+          {
+            "id": "left_y",
+            "target": "point",
+            "pointId": "left",
+            "axis": "y",
+            "value": {
+              "kind": "parameter",
+              "parameterId": "triangle_height",
+              "scale": 0,
+              "offsetMm": 0
+            }
+          },
+          {
+            "id": "right_x",
+            "target": "point",
+            "pointId": "right",
+            "axis": "x",
+            "value": {
+              "kind": "parameter",
+              "parameterId": "depth",
+              "scale": 0.5,
+              "offsetMm": 0
+            }
+          },
+          {
+            "id": "right_y",
+            "target": "point",
+            "pointId": "right",
+            "axis": "y",
+            "value": {
+              "kind": "parameter",
+              "parameterId": "triangle_height",
+              "scale": 0,
+              "offsetMm": 0
+            }
+          },
+          {
+            "id": "ridge_x",
+            "target": "point",
+            "pointId": "ridge",
+            "axis": "x",
+            "value": {
+              "kind": "parameter",
+              "parameterId": "depth",
+              "scale": 0,
+              "offsetMm": 0
+            }
+          },
+          {
+            "id": "ridge_y",
+            "target": "point",
+            "pointId": "ridge",
+            "axis": "y",
+            "value": {
+              "kind": "parameter",
+              "parameterId": "triangle_height",
+              "scale": 1,
+              "offsetMm": 0
+            }
+          },
+          {
+            "id": "origin_x",
+            "target": "origin",
+            "axis": "x",
+            "value": {
+              "kind": "parameter",
+              "parameterId": "width",
+              "scale": -0.5,
+              "offsetMm": 0
+            }
+          },
+          {
+            "id": "origin_z",
+            "target": "origin",
+            "axis": "z",
+            "value": {
+              "kind": "parameter",
+              "parameterId": "base_height",
+              "scale": 1,
+              "offsetMm": 0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "triangle_extrude",
+      "name": "triangle_extrude",
+      "operation": {
+        "type": "extrude",
+        "sketchId": "triangle_sketch",
+        "distance": {
+          "kind": "parameter",
+          "parameterId": "width"
+        }
+      }
+    },
+    {
+      "id": "joined",
+      "name": "joined",
+      "operation": {
+        "type": "boolean",
+        "leftFeatureId": "base_extrude",
+        "rightFeatureId": "triangle_extrude",
+        "mode": "union"
+      }
+    }
+  ],
+  "bodies": [
+    {
+      "id": "body",
+      "name": "Linked profiles",
+      "sourceFeatureId": "joined"
+    }
+  ]
+}

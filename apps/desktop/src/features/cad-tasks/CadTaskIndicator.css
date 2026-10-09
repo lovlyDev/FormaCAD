@@ -1,0 +1,4 @@
+.cad-task-indicator { display: flex; align-items: center; gap: 6px; padding: 2px 5px 2px 8px; border: 1px solid var(--line); border-radius: 8px; font-size: 10px; color: var(--muted); background: var(--panel2); }
+.cad-task-indicator > svg { color: var(--accent-text); flex-shrink: 0; }
+.cad-task-indicator .icon-button { width: 24px; height: 24px; }
+@media(max-width: 900px) { .cad-task-indicator > span { display: none; } }

@@ -28,6 +28,8 @@ impl Serialize for AppError {
 }
 pub type Result<T> = std::result::Result<T, AppError>;
 pub struct AppState {
+    pub cad_tasks: crate::cad_tasks::CadTaskGate,
+    pub project_access: crate::project_access::AccessRegistry,
     pub root: PathBuf,
     pub pool: SqlitePool,
     pub grants: Mutex<HashMap<String, Grant>>,

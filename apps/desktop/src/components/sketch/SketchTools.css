@@ -1,0 +1,11 @@
+.sketch-editor .sketch-tool-card{margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);min-width:0}
+.sketch-tool-card h4{display:flex;align-items:center;gap:7px;margin:0 0 10px;font-size:12px;color:var(--text)}
+.sketch-editor .sketch-editor-construction-add,.sketch-editor .sketch-editor-coincident{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;align-items:end;gap:12px}
+.sketch-editor .sketch-editor-profile-add{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:end;gap:10px}
+.sketch-editor .sketch-tool-card label{display:flex;flex-direction:column;align-items:stretch;gap:7px;margin:0;min-width:0;line-height:1.45}
+.sketch-editor .sketch-tool-card .custom-select,.sketch-editor .sketch-tool-card input{width:100%;min-width:0;height:32px;min-height:32px;box-sizing:border-box}
+.sketch-editor .sketch-tool-card button{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;box-sizing:border-box;padding:7px 10px}
+.sketch-editor .sketch-editor-construction-row,.sketch-editor .sketch-editor-profile-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;padding-top:10px;margin-top:10px;border-top:1px solid var(--line)}
+.sketch-editor-construction-row span{overflow-wrap:anywhere}.sketch-editor-profile-add>button{grid-column:1/-1;justify-self:start}
+@media(max-width:900px){.sketch-editor .sketch-editor-construction-add,.sketch-editor .sketch-editor-coincident{grid-template-columns:repeat(2,minmax(0,1fr))}.sketch-editor-construction-add>button,.sketch-editor-coincident>button{grid-column:1/-1;justify-self:start}.sketch-editor .sketch-editor-profile-add{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:500px){.sketch-editor .sketch-editor-construction-add,.sketch-editor .sketch-editor-coincident,.sketch-editor .sketch-editor-profile-add{grid-template-columns:minmax(0,1fr)}.sketch-editor .sketch-editor-construction-row{grid-template-columns:minmax(0,1fr)}}

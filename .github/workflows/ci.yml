@@ -1,7 +1,24 @@
 name: Quality
 on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
   workflow_call:
   workflow_dispatch:
+    inputs:
+      nativeCad:
+        description: Build and test the native CAD worker on every desktop platform
+        type: boolean
+        default: true
+      nativeCadMatrix:
+        description: JSON array of native CAD platforms to test (leave unchanged for all)
+        type: string
+        default: '[{"os":"windows-2022","target":"x86_64-pc-windows-msvc"},{"os":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu"},{"os":"macos-15","target":"aarch64-apple-darwin"},{"os":"macos-15-intel","target":"x86_64-apple-darwin"}]'
+      windowsSdkProbe:
+        description: Check the Windows Rust linker before building OCCT
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -50,6 +67,60 @@ jobs:
       - run: cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml --check
       - run: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
       - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
+  native-cad:
+    if: github.event_name == 'workflow_dispatch' && inputs.nativeCad
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.nativeCadMatrix || '[{"os":"windows-2022","target":"x86_64-pc-windows-msvc"},{"os":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu"},{"os":"macos-15","target":"aarch64-apple-darwin"},{"os":"macos-15-intel","target":"x86_64-apple-darwin"}]') }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .local/occt-build
+            .local/occt-install-unix-${{ matrix.target }}
+          key: occt-V8_0_1-${{ matrix.target }}-${{ runner.os == 'macOS' && 'v2' || 'v1' }}
+      - name: Linux webview dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y cmake g++ make libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - name: Native CAD smoke on macOS and Linux
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          FORMA_NATIVE_TEST_ONLY: '1'
+        run: bash scripts/build-native-unix.sh '${{ matrix.target }}' 'app'
+      - name: Prepare Windows OpenCascade
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          .\scripts\check-windows-toolchain.ps1
+          .\scripts\build-occt-windows.ps1
+      - name: Native CAD smoke on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          . .\scripts\windows-env.ps1
+          $env:FORMA_OCCT_ROOT = (Resolve-Path '.local\occt-build').Path
+          $env:PATH = "$(Join-Path $env:FORMA_OCCT_ROOT 'win64/vc14/bin');$env:PATH"
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --target '${{ matrix.target }}' --features native-occt --lib --test native_worker
+  windows-sdk-probe:
+    if: github.event_name == 'workflow_dispatch' && inputs.windowsSdkProbe
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - shell: pwsh
+        run: .\scripts\check-windows-toolchain.ps1
   cad:
     runs-on: ubuntu-latest
     steps:

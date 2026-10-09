@@ -1,0 +1,9 @@
+{
+  "bundle": {
+    "resources": {
+      "resources/occt/*.dll": "",
+      "resources/occt/LICENSE_LGPL_21.txt": "licenses/occt",
+      "resources/occt/OCCT_LGPL_EXCEPTION.txt": "licenses/occt"
+    }
+  }
+}

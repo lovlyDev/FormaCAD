@@ -8,6 +8,7 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
 };
+mod reader;
 
 pub const MAX_FILE_BYTES: usize = 40 * 1024 * 1024;
 pub fn digest(bytes: &[u8]) -> String {
@@ -182,7 +183,7 @@ pub fn read(state: &AppState, project_id: &str, file: &ProjectFile) -> Result<Ve
             extension(&file.name)?
         )),
     )?;
-    let bytes = std::fs::read(path)?;
+    let bytes = reader::read(&path, file.size)?;
     if digest(&bytes) != *hash {
         return Err(AppError::Invalid(
             "Project file failed its integrity check".into(),

@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 2,
+  "revisionId": "profile_holes",
+  "parameters": [],
+  "features": [
+    {
+      "id": "profile",
+      "name": "Profile",
+      "operation": {
+        "type": "sketch2d",
+        "plane": "xy",
+        "originMm": [
+          0,
+          0,
+          0
+        ],
+        "points": [
+          {
+            "id": "outer_0",
+            "xMm": 0,
+            "yMm": 0
+          },
+          {
+            "id": "outer_1",
+            "xMm": 40,
+            "yMm": 0
+          },
+          {
+            "id": "outer_2",
+            "xMm": 40,
+            "yMm": 30
+          },
+          {
+            "id": "outer_3",
+            "xMm": 0,
+            "yMm": 30
+          },
+          {
+            "id": "hole_a_0",
+            "xMm": 4,
+            "yMm": 4
+          },
+          {
+            "id": "hole_a_1",
+            "xMm": 12,
+            "yMm": 4
+          },
+          {
+            "id": "hole_a_2",
+            "xMm": 12,
+            "yMm": 10
+          },
+          {
+            "id": "hole_a_3",
+            "xMm": 4,
+            "yMm": 10
+          },
+          {
+            "id": "hole_b_0",
+            "xMm": 20,
+            "yMm": 12
+          },
+          {
+            "id": "hole_b_1",
+            "xMm": 28,
+            "yMm": 12
+          },
+          {
+            "id": "hole_b_2",
+            "xMm": 28,
+            "yMm": 18
+          },
+          {
+            "id": "hole_b_3",
+            "xMm": 20,
+            "yMm": 18
+          }
+        ],
+        "lines": [
+          {
+            "id": "outer_line_0",
+            "startPointId": "outer_0",
+            "endPointId": "outer_1"
+          },
+          {
+            "id": "outer_line_1",
+            "startPointId": "outer_1",
+            "endPointId": "outer_2"
+          },
+          {
+            "id": "outer_line_2",
+            "startPointId": "outer_2",
+            "endPointId": "outer_3"
+          },
+          {
+            "id": "outer_line_3",
+            "startPointId": "outer_3",
+            "endPointId": "outer_0"
+          },
+          {
+            "id": "hole_a_line_0",
+            "startPointId": "hole_a_0",
+            "endPointId": "hole_a_1"
+          },
+          {
+            "id": "hole_a_line_1",
+            "startPointId": "hole_a_1",
+            "endPointId": "hole_a_2"
+          },
+          {
+            "id": "hole_a_line_2",
+            "startPointId": "hole_a_2",
+            "endPointId": "hole_a_3"
+          },
+          {
+            "id": "hole_a_line_3",
+            "startPointId": "hole_a_3",
+            "endPointId": "hole_a_0"
+          },
+          {
+            "id": "hole_b_line_0",
+            "startPointId": "hole_b_0",
+            "endPointId": "hole_b_1"
+          },
+          {
+            "id": "hole_b_line_1",
+            "startPointId": "hole_b_1",
+            "endPointId": "hole_b_2"
+          },
+          {
+            "id": "hole_b_line_2",
+            "startPointId": "hole_b_2",
+            "endPointId": "hole_b_3"
+          },
+          {
+            "id": "hole_b_line_3",
+            "startPointId": "hole_b_3",
+            "endPointId": "hole_b_0"
+          }
+        ],
+        "constraints": []
+      }
+    },
+    {
+      "id": "pad",
+      "name": "Pad",
+      "operation": {
+        "type": "extrude",
+        "sketchId": "profile",
+        "distance": {
+          "kind": "literal",
+          "mm": 5
+        }
+      }
+    }
+  ],
+  "bodies": [
+    {
+      "id": "body",
+      "name": "Body",
+      "sourceFeatureId": "pad"
+    }
+  ]
+}

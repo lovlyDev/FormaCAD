@@ -1,0 +1,33 @@
+.inspector {
+  border-top: 1px solid var(--line);
+  padding: 16px 17px 14px;
+}
+
+.inspector-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 550;
+  margin-bottom: 17px;
+}
+
+.inspector-title > svg {
+  color: var(--light-secondary, #858d95);
+}
+
+.inspector-title button {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.inspector > small {
+  display: block;
+  font-size: 8px;
+  line-height: 1.6;
+  color: var(--light-secondary, #626a74);
+}
+
+.inspector > small + small {
+  margin-top: 4px;
+}

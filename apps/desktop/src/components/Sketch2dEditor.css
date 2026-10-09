@@ -1,0 +1,46 @@
+.sketch-editor { margin-top: 9px; border-top: 1px solid var(--line); padding-top: 8px; color: var(--text); }
+.sketch-editor summary { cursor: pointer; color: var(--accent); font-size: 12px; font-weight: 600; }
+.sketch-editor-plane, .sketch-editor-points > div, .sketch-editor-lines > div, .sketch-editor-constraints > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.sketch-editor label { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+.sketch-editor input, .sketch-editor select { width: 72px; min-width: 0; padding: 5px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); }
+.sketch-editor select { width: 64px; }
+.sketch-editor button { padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--panel); font-size: 11px; cursor: pointer; }
+.sketch-editor button:hover:not(:disabled) { border-color: var(--accent); }
+.sketch-editor button:disabled { opacity: .5; cursor: default; }
+.sketch-editor-canvas { display: block; width: 100%; height: 200px; margin-top: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); touch-action: none; }
+.sketch-editor-canvas line { stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.sketch-editor-canvas line.sketch-editor-axis { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 4 4; opacity: .55; }
+.sketch-editor-canvas circle { fill: var(--accent); stroke: var(--panel); stroke-width: 1.5; vector-effect: non-scaling-stroke; cursor: grab; }
+.sketch-editor-canvas circle:active { cursor: grabbing; }
+.sketch-editor-hint { color: var(--muted); font-size: 11px; margin: 6px 0; }
+.sketch-editor-points, .sketch-editor-lines, .sketch-editor-constraints { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--line); }
+.sketch-editor-points strong, .sketch-editor-lines strong { min-width: 75px; font-size: 11px; }
+.sketch-editor-constraints > div { justify-content: space-between; }
+
+.sketch-editor-canvas line.sketch-editor-construction { stroke: var(--muted); stroke-dasharray: 7 4; }
+.sketch-editor-construction-tools { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--line); }
+.sketch-editor-construction-add, .sketch-editor-construction-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.sketch-editor-construction-tools select { width: 110px; }
+.sketch-editor-construction-row { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+
+.sketch-editor-profile-tools { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--line); }
+.sketch-editor-profile-add, .sketch-editor-profile-row, .sketch-editor-coincident { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.sketch-editor-profile-row, .sketch-editor-profile-tools small { color: var(--muted); font-size: 11px; }
+.sketch-editor-coincident select, .sketch-editor-constraints select { width: 120px; }
+.sketch-diagnostics { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); font-size: 11px; }
+.sketch-diagnostics p { margin: 0; color: var(--muted); }
+.sketch-diagnostics small { width: 100%; color: var(--muted); }
+.sketch-diagnostics input[type=checkbox] { width: auto; }
+.sketch-constraint-unsatisfied { outline: 1px solid var(--light-danger-ink); border-radius: 5px; padding: 5px; }
+
+.sketch-canvas-toolbar{display:flex;justify-content:flex-end;margin:8px 0}.sketch-canvas-toolbar button{display:flex;align-items:center;gap:6px;color:var(--muted);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 9px;font-size:11px;cursor:pointer}.sketch-editor-canvas{touch-action:none}.sketch-editor-canvas[data-dragging="true"]{cursor:grabbing}
+
+.sketch-editor-canvas line.sketch-solved-outline{stroke:var(--text);stroke-dasharray:6 4;stroke-width:1.5;opacity:.8;pointer-events:none}.sketch-shape-warning{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--text);background:var(--panel2);border:1px solid var(--line);padding:9px;border-radius:7px}
+
+.sketch-editor-canvas circle[data-bound="true"]{cursor:default;fill:var(--text);opacity:.75}
+
+.typed-feature-tree .sketch-editor>summary{display:flex;align-items:center;gap:10px;margin-left:0;min-height:30px;list-style:none}.sketch-editor>summary::-webkit-details-marker{display:none}.sketch-editor[data-expanded="true"]>summary .sketch-disclosure-chevron{transform:rotate(90deg)}.sketch-editor>summary .sketch-disclosure-chevron{transition:transform 260ms cubic-bezier(.2,.8,.2,1)}.modal .sketch-editor label{margin:0}.sketch-editor-plane{align-items:end}.sketch-editor-plane label{flex-direction:column;align-items:stretch}.sketch-editor-points>div{align-items:end}@media(max-width:500px){.typed-feature-tree .sketch-editor>summary{margin-left:0}}
+
+.sketch-disclosure-icon{display:inline-flex;align-items:center;justify-content:center;gap:2px;width:30px;flex-shrink:0}.sketch-disclosure-icon svg{flex-shrink:0}
+
+.modal .sketch-editor label>.custom-select{margin-top:0}

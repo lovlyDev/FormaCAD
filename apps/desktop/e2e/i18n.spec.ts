@@ -110,7 +110,10 @@ test("Russian workspace translates features, tooltips and confirmations but pres
     );
     return id;
   });
+  await page.reload();
+  await expect(page.getByText("My part.step", { exact: true })).toBeVisible();
   await page.goto(`/#/project/${id}`);
+  await expect(page.locator("canvas")).toBeVisible();
   await page.reload();
   await expect(page.locator("canvas")).toBeVisible();
   await expect(

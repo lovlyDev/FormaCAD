@@ -1,3 +1,4 @@
+import { PersistentDetails } from "../features/model-editor/editorPreferences";
 import { t } from "../i18n";
 import { dependencies, readCadDocument } from "../lib/cadDocument";
 
@@ -16,7 +17,7 @@ export function CadFeatureEditor({
   return (
     <div aria-label={t("CAD features")}>
       {doc.features.map((feature, index) => (
-        <details key={feature.id}>
+        <PersistentDetails key={feature.id} stateId={`legacy.${feature.id}`}>
           <summary>
             {feature.id} · {t(feature.operation.type)}
             {doc.output === feature.id ? ` · ${t("Output")}` : ""}
@@ -60,7 +61,7 @@ export function CadFeatureEditor({
                 />
               </label>
             ))}
-        </details>
+        </PersistentDetails>
       ))}
     </div>
   );

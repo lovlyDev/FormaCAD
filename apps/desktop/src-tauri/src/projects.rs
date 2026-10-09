@@ -3,7 +3,13 @@ use crate::{
     models::Project,
 };
 use std::path::Path;
-use tauri::{Emitter, State};
+use tauri::State;
+mod events;
+mod mirrors;
+mod persistence;
+pub use persistence::{
+    import_folder, import_folder_checked, persist, persist_imported_project, persist_with_history,
+};
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InterruptedSession {
@@ -42,7 +48,7 @@ pub async fn get(state: &AppState, id: &str) -> Result<Project> {
         &json.ok_or_else(|| AppError::Invalid("Project was not found".into()))?,
     )?;
     p.validate()?;
-    Ok(p)
+    crate::project_storage_v2::reconcile(state, p).await
 }
 #[tauri::command]
 pub async fn list_projects(state: State<'_, AppState>) -> Result<Vec<Project>> {
@@ -54,7 +60,7 @@ pub async fn list_projects(state: State<'_, AppState>) -> Result<Vec<Project>> {
     for raw in rows {
         let p: Project = serde_json::from_str(&raw)?;
         p.validate()?;
-        result.push(p);
+        result.push(crate::project_storage_v2::reconcile(&state, p).await?);
     }
     Ok(result)
 }
@@ -84,6 +90,7 @@ pub async fn save_project_thumbnail(
 pub async fn delete_project(id: String, state: State<'_, AppState>) -> Result<()> {
     crate::security::valid_id(&id)?;
     let _lock = state.writes.lock().await;
+    let _access = crate::project_access::ensure_write(&state, &id)?;
     if state.tasks.lock().await.contains_key(&id) {
         return Err(AppError::Invalid(
             "A project task is already running".into(),
@@ -98,6 +105,13 @@ pub async fn delete_project(id: String, state: State<'_, AppState>) -> Result<()
         ));
     }
     let moved = project_dir.exists();
+    let _storage_lock = if moved {
+        Some(crate::project_storage_v2::ProjectLock::acquire(
+            &project_dir,
+        )?)
+    } else {
+        None
+    };
     if moved {
         std::fs::rename(&project_dir, &staged)?;
     }
@@ -131,6 +145,7 @@ pub async fn delete_project(id: String, state: State<'_, AppState>) -> Result<()
     if moved {
         std::fs::remove_dir_all(&staged)?;
     }
+    state.project_access.release(&id)?;
     let remaining: Vec<String> = sqlx::query_scalar("SELECT payload FROM projects")
         .fetch_all(&state.pool)
         .await?;
@@ -224,62 +239,4 @@ pub async fn save_project(
         }
     }
     persist(&state, project, pending, Some(&app)).await
-}
-pub async fn persist(
-    state: &AppState,
-    project: Project,
-    pending: Vec<(String, Vec<u8>)>,
-    app: Option<&tauri::AppHandle>,
-) -> Result<Project> {
-    project.validate()?;
-    let root = crate::security::guarded(&state.root, Path::new(&project.id))?;
-    std::fs::create_dir_all(&root)?;
-    for folder in [
-        "workspace",
-        "output",
-        "cache",
-        "revisions",
-        "attachments",
-        "metadata",
-    ] {
-        let dir = crate::security::guarded(&root, Path::new(folder))?;
-        std::fs::create_dir_all(dir)?;
-    }
-    crate::artifacts::materialize(state, &project, &pending)?;
-    for revision in &project.revisions {
-        let bytes = serde_json::to_vec_pretty(revision)?;
-        crate::artifacts::immutable_write(
-            &root,
-            Path::new(&format!("revisions/{}.json", revision.id)),
-            &bytes,
-        )?;
-    }
-    let raw = serde_json::to_string(&project)?;
-    // SQLite is authoritative. JSON is a recoverable sidecar, never used to overwrite DB state.
-    sqlx::query("INSERT INTO projects(id,name,payload,updated_at) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,payload=excluded.payload,updated_at=excluded.updated_at").bind(&project.id).bind(&project.name).bind(&raw).bind(&project.updated_at).execute(&state.pool).await?;
-    let json = crate::security::guarded(&root, Path::new("project.json"))?;
-    let temp = crate::security::guarded(&root, Path::new("metadata/project.json.tmp"))?;
-    if let Err(e) = std::fs::write(&temp, &raw).and_then(|_| std::fs::rename(&temp, &json)) {
-        tracing::warn!(%e,"Project JSON mirror failed; SQLite copy is committed");
-    }
-    if let Some(current) = project
-        .revisions
-        .iter()
-        .find(|r| Some(&r.id) == project.current_revision.as_ref())
-    {
-        if let Some(program) = &current.program {
-            let file = crate::security::guarded(&root, Path::new("workspace/model.py"))?;
-            if let Err(error) = std::fs::write(file, program) {
-                tracing::warn!(%error,"Could not mirror current CAD source");
-            }
-        }
-        let file = crate::security::guarded(&root, Path::new("workspace/model.parameters.json"))?;
-        if let Err(error) = std::fs::write(file, serde_json::to_vec_pretty(&current.parameters)?) {
-            tracing::warn!(%error,"Could not mirror current parameters");
-        }
-    }
-    if let Some(app) = app {
-        let _ = app.emit("project://revision-created", &project.id);
-    }
-    Ok(project)
 }

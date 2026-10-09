@@ -1,0 +1,15 @@
+.selection-model-properties{margin-top:auto;min-height:0;max-height:65%;overflow:auto;flex-shrink:0;scrollbar-gutter:stable}
+.reference-measurement-content{padding:14px;display:grid;gap:12px;color:var(--text)}
+.reference-measurement-controls{display:flex;align-items:end;flex-wrap:wrap;gap:8px}
+.reference-measurement-controls label{display:grid;gap:6px;flex:1;min-width:160px;font-size:11px;color:var(--muted);margin:0}
+.reference-measurement-controls button,.reference-measurement-controls [role="combobox"]{height:32px;min-height:32px;box-sizing:border-box}
+.reference-measurement-controls button{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 10px;font-size:11px}
+.reference-measurement-content p{margin:0;display:flex;align-items:center;gap:7px;font-size:11px;line-height:1.5;color:var(--muted)}
+.reference-measurement-content dl{margin:0;display:grid;gap:8px}
+.reference-measurement-content dl>div{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;font-size:11px;line-height:1.5}
+.reference-measurement-content dd{margin:0;text-align:right;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.reference-measurement-provenance{flex-wrap:wrap}.reference-measurement-provenance small{flex-basis:100%;overflow-wrap:anywhere}
+.reference-measurement-error{display:flex;align-items:start;gap:7px;color:var(--light-danger-ink);font-size:11px;line-height:1.5}
+.reference-measurement-previous{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel2)}
+.reference-measurement-diagnostic{font-size:11px;color:var(--muted)}.reference-measurement-diagnostic pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:160px;overflow:auto}
+@media(max-width:520px){.reference-measurement-controls label{flex-basis:100%}.reference-measurement-content dl>div{grid-template-columns:1fr}.reference-measurement-content dd{text-align:left}}
