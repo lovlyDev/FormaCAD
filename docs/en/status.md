@@ -10,6 +10,9 @@ Five read routes use consistent snapshots and revalidate sources: history, attac
 
 [Windows EXE1.3.0](https://github.com/lovlyDev/FormaCAD/releases/download/v1.3.0/Forma_1.3.0_x64-setup.exe) · [GitHub release](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.3.0).
 
+
+Publication of1.3.0 is confirmed: downloaded EXE,signature and updater metadata match the local files; both Ed25519 signatures verify. [GitHub Quality](https://github.com/lovlyDev/FormaCAD/actions/runs/38170203431) succeeded for source commit `0eecb136338f772b1fe773cf5e9e6f67b2d1c0d1`. CI:37 browserPASS/35skipped without native fixtures; local full suite72PASS. The release comes from the task branch; [PR#1](https://github.com/lovlyDev/FormaCAD/pull/1) remains unmerged and main stays at1.2.6 until another human's review.
+
 ## Consolidated release 1.2.6
 
 All current improvements are consolidated into **1.2.6**. The new Windows installer is built, verified and updater-signed. macOS/Linux packages for this release are not verified; see [release notes](../releases/1.2.6.md).

@@ -10,6 +10,9 @@ Windows-установщик 1.3.0 собран и проверен: 19 027 793 
 
 [Windows EXE1.3.0](https://github.com/lovlyDev/FormaCAD/releases/download/v1.3.0/Forma_1.3.0_x64-setup.exe) · [GitHub-релиз](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.3.0).
 
+
+Публикация 1.3.0 подтверждена: скачанные EXE, подпись и updater metadata совпали с локальными файлами; обе Ed25519-подписи проверены. [GitHub Quality](https://github.com/lovlyDev/FormaCAD/actions/runs/38170203431) исходного коммита `0eecb136338f772b1fe773cf5e9e6f67b2d1c0d1` завершился success. CI:37 браузерных PASS/35 пропусков без нативных fixtures; локально полный набор72PASS. Новая версия опубликована из задачной ветки; [PR№1](https://github.com/lovlyDev/FormaCAD/pull/1) не слит, main остаётся на1.2.6 до проверки другим человеком.
+
 ## Объединённый релиз 1.2.6
 
 Все текущие улучшения объединены в **1.2.6**. Новый Windows-установщик собран, проверен и подписан для updater. Пакеты macOS/Linux для этого выпуска не проверены; см. [заметку релиза](../releases/1.2.6.md).

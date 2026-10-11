@@ -1,7 +1,7 @@
 # Releases and updates
 [Documentation](index.md) · [Русский](../ru/releases.md)
 
-A single assigned release owner publishes after verifying the exact source commit and artifacts. The user has authorized publication of **1.3.0 after all checks**; the new installer is not yet confirmed ready. Installation on the user's computer is not authorized. **1.2.6** remains the previously verified and published Windows release. Full 2.0 is unfinished; see [status](status.md).
+A single assigned release owner publishes after verifying the exact source commit and artifacts. **1.3.0 was published on 11 October 2026** after verification under the user's explicit instruction: [release](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.3.0). The Windows EXE and signature are verified and its source commit passed GitHub Quality. Installation on the user's computer is not authorized. **1.2.6** remains the previously verified and published Windows release. Full 2.0 is unfinished; see [status](status.md).
 
 ## One-time GitHub setup
 Repository: [lovlyDev/FormaCAD](https://github.com/lovlyDev/FormaCAD). Upload source files and enable Actions. The repository must be public for anonymous update downloads; no GitHub access token is embedded in the app.
@@ -24,6 +24,8 @@ Do not overwrite a key already used by released installations. [Tauri updater re
 ## Packaged OCCT licenses
 
 The native Windows and Unix configurations give each file a complete destination: `licenses/occt/LICENSE_LGPL_21.txt` and `licenses/occt/OCCT_LGPL_EXCEPTION.txt`. Mapping both individual files to the same path caused a filename collision in the NSIS archive; the 1.3.0 sources correct it. Licenses belong to the package and do not affect user databases. Extract the Windows EXE without running the installer; require both uniquely named licenses and compare their SHA-256 hashes with `resources/occt`. Compare the extracted app, worker and 25 DLLs with build outputs and check geometry using the extracted worker. Updating the Unix configuration does not establish macOS/Linux package validation.
+
+Tauri changes exactly `__TAURI_BUNDLE_TYPE_VAR_UNK` to `__TAURI_BUNDLE_TYPE_VAR_NSS` in the packaged app, then restores the build output. Compare the extracted app's full SHA-256 with the expected result of that sole replacement; reject every other difference. [Primary Tauri source](https://github.com/tauri-apps/tauri/blob/dev/crates/tauri-bundler/src/bundle.rs).
 
 ## Two-PC handoff and source review
 
