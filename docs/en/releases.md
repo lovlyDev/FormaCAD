@@ -29,11 +29,11 @@ Tauri changes exactly `__TAURI_BUNDLE_TYPE_VAR_UNK` to `__TAURI_BUNDLE_TYPE_VAR_
 
 ## Two-PC handoff and source review
 
-Follow the [collaboration guide](collaboration.md) and [AGENTS.md](../../AGENTS.md). By default, one active owner implements a task on one PC; the other person reviews it or receives an explicit handoff. Each person uses a separate clone. Do not switch an occupied branch, reset someone else's changes or transfer a personal database through Git.
+Follow the [collaboration guide](collaboration.md) and [AGENTS.md](../../AGENTS.md). By default, one active owner implements a task on one PC; the other person may read it or receive an explicit handoff; project head lovlyDev handles acceptance. Each person uses a separate clone. Do not switch an occupied branch, reset someone else's changes or transfer a personal database through Git.
 
 Record the owner, task branch, base and final SHA, allowed files, actual checks, limits and next owner in the Issue and PR. A second-PC handoff transfers a reviewable commit, not assumptions from another chat. Uncommitted files remain on their original PC. The recipient confirms ownership before editing; the previous owner stops writing to the transferred area. The assigned integrator owns shared versions, lockfiles, migration numbers and release metadata.
 
-Another person reviews the PR against the exact SHA before merging. Agent summaries support review but do not replace it. Only the integrator merges changes and records the final release SHA. If source changes after verification, repeat affected checks; the artifact must correspond to the final commit. Direct pushes to the default branch are not a substitute for a PR and review.
+Project head lovlyDev reviews the PR against the exact SHA and decides whether to merge; a second reviewer is optional. Agent summaries support review but do not replace it. Only the integrator merges changes and records the final release SHA. If source changes after verification, repeat affected checks; the artifact must correspond to the final commit. Direct pushes to the default branch are not a substitute for a PR and review.
 
 ## Prepare a new release
 

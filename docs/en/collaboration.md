@@ -8,15 +8,15 @@ This is a development workflow, not simultaneous editing of a CAD project. Keep 
 
 ## Recommended mode: take turns
 
-For this team, the repository owner is **lovlyDev** and the friend's account is **wenlixxq**. These names identify the handoff participants; invitation and write access must be checked separately. This guide does not establish that access has already been granted. The other participant reviews the work, while turn and release ownership are assigned explicitly.
+For this team, the repository owner is **lovlyDev** and the friend's account is **wenlixxq**. These names identify the handoff participants; invitation and write access must be checked separately. This guide does not establish that access has already been granted. Project head lovlyDev reviews the result and decides whether to merge, regardless of who implemented it. A second reviewer is optional; turn and release ownership are assigned explicitly.
 
 Both people may fetch and push changes, but editing ownership is handed over explicitly: person A first, then person B. While A works, B may read and review but does not begin another write task in the shared code. The active person's local subagents may work within the claimed task and separate file ownership; a second PC does not automatically gain editing rights. GitHub does not enforce this queue: the humans confirm the handoff in the Issue or their agreed channel.
 
 1. A claims the Issue, branch and paths and records the base SHA. B confirms that they are currently reading/reviewing only.
 2. A implements the task, reviews the diff, runs applicable checks, pushes small commits to the task branch and opens a PR. Push authority covers the agreed task; release publication is assigned separately.
-3. B reviews the PR. If changes are needed, A retains the turn. After the agreed review, the designated integrator merges the PR. Unverified work is not handed over as a finished `main`.
+3. Project head lovlyDev reviews the PR and decides whether to merge. If changes are needed, A retains the turn. After the agreed review, the designated integrator merges the PR. Unverified work is not handed over as a finished `main`.
 4. A says: “Turn handed to B; Issue #…, merged PR …; main SHA …; checks …; limits …; next scope …; version/release owner …”. A stops editing until the next confirmed turn. Pushing a branch alone does not release the task.
-5. B confirms the handoff, checks their clone is clean, gets current `main` and creates the next Issue's branch. After B's PR and review, the roles switch back.
+5. B confirms the handoff, checks their clone is clean, gets current `main` and creates the next Issue's branch. After B's PR, acceptance by the project head and confirmed handoff, development returns to A.
 
 On each PC, check the working tree **before** fetch/pull. With uncommitted changes, do not switch branches or pull over them; first preserve the work with its owner. For a clean tree and a confirmed turn:
 
@@ -51,7 +51,7 @@ Dependencies and API: <related Issue, agreed contract>
 Excluded work: <other owner's modules, versions, releases>
 State: claimed / working / review / merged / blocked
 Evidence and handoff: <commands, results, limits, next step>
-Reviewer: Boris
+Project head / acceptance: lovlyDev
 Release owner: Anna
 ```
 
@@ -130,7 +130,7 @@ After the human authorizes remote publication, push the task branch and open a P
 git push -u origin task/123-anna-section-ui
 ```
 
-The repository's [PR template](../../.github/pull_request_template.md) provides those handoff fields. The PR should link its Issue and describe the concrete before/after behavior, changed scope, actual checks and remaining limits. Another human reviews the code and runs or examines meaningful checks before merging. Avoid relying solely on an AI's “done” message. The templates do not create Issues, send comments, change permissions or enforce reviews on their own.
+The repository's [PR template](../../.github/pull_request_template.md) provides those handoff fields. The PR should link its Issue and describe the concrete before/after behavior, changed scope, actual checks and remaining limits. Project head lovlyDev reviews the result and decides whether to merge. They may check the code and behavior themselves or optionally appoint a reviewer; a second human reviewer is not required. Avoid relying solely on an AI's “done” message. The templates do not create Issues, send comments, change permissions or enforce reviews on their own.
 
 Use the checks applicable to the change from [Development](development.md), including documentation, i18n and migration checks when relevant. [Quality](../../.github/workflows/ci.yml) runs automatically for PRs targeting `main` and pushes to `main`; manual dispatch and reusable workflow calls are also supported. The native-CAD matrix runs only on manual dispatch with its native option. Check the actual job results and arrange that additional native run when needed; do not treat a PR with missing or skipped required checks as passing.
 

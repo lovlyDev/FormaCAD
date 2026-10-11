@@ -4,9 +4,9 @@
 
 Each person uses a separate FormaCAD clone and AI session. First confirm whose turn it is, claim an Issue and appoint the release owner. Your friend then pastes the prompt below, replacing the angle-bracket fields. Repository reading and local development do not require access to the other person's private chat.
 
-The friend's account is **wenlixxq** and the repository owner is **lovlyDev**. Before the first push, verify that `wenlixxq` has received and accepted an invitation with the required access; this document does not confirm that it was granted. The prompt assumes the friend's confirmed turn; reverse owner/reviewer roles for the return turn.
+The friend's account is **wenlixxq** and the repository owner is **lovlyDev**. Before the first push, verify that `wenlixxq` has received and accepted an invitation with the required access; this document does not confirm that it was granted. The prompt assumes the friend's confirmed turn; change the implementer for the return turn; project head and acceptance owner remain lovlyDev.
 
-The prompt authorizes pushing the **assigned task branch** after checks, creating a PR and updating its Issue. Merging requires another human's review; tags, releases and installation have separate authority. The current release owner's authorization does not grant every future session permanent publication rights. Do not include secrets or user models.
+The prompt authorizes pushing the **assigned task branch** after checks, creating a PR and updating its Issue. Project head lovlyDev reviews the result and decides whether to merge; no second reviewer is required; tags, releases and installation have separate authority. The current release owner's authorization does not grant every future session permanent publication rights. Do not include secrets or user models.
 
 ```text
 You are working on FormaCAD, a local AI-native CAD platform, in my separate clone.
@@ -20,7 +20,7 @@ Owned files/modules: <explicit paths>.
 Other owners and paths: <names and paths>.
 Agreed API and dependencies: <contract / related Issues>.
 This turn's goal and acceptance: <observable behavior and checks>.
-Human reviewer: lovlyDev.
+Project head and acceptance owner: lovlyDev (on both turns).
 Version/build/release integrator: <name / login>.
 Release-publication authority this turn: <not authorized / explicit separate instruction>.
 
@@ -88,7 +88,7 @@ NAS acceptance, pure reads as external-folder authority or source build as ready
 branch to origin, creating its Issue-linked PR and updating its Issue with evidence.
 Inspect diffs before git add and stage explicit paths. Exclude .local, private
 handoffs, user databases/CAD files, tokens, keys and build caches. Do not push directly
-to main. Do not merge before confirmed review by another human. Do not tag, publish
+to main. Project head lovlyDev reviews the result and decides whether to merge; do not require another reviewer. Naming the acceptance owner does not establish completed review or authorize merging. Do not tag, publish
 a release or install without a separate explicit instruction. If appointed this
 turn's integrator, synchronize npm/workspace/lockfile/Cargo/Tauri versions after
 acceptance, build a NEW Windows EXE and check its existence, version, hash/contents
