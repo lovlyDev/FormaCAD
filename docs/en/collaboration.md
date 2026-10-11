@@ -6,6 +6,33 @@ Two people can work on Forma from two PCs, each with their own ChatGPT/Codex ses
 
 This is a development workflow, not simultaneous editing of a CAD project. Keep application databases, personal models and credentials out of Git. Use the application's checked transfer workflow described in [Projects](projects.md) when transferring a model. The workflow does not declare full 2.0 readiness or configure branch protection automatically.
 
+## Recommended mode: take turns
+
+For this team, the repository owner is **lovlyDev** and the friend's account is **wenlixxq**. These names identify the handoff participants; invitation and write access must be checked separately. This guide does not establish that access has already been granted. The other participant reviews the work, while turn and release ownership are assigned explicitly.
+
+Both people may fetch and push changes, but editing ownership is handed over explicitly: person A first, then person B. While A works, B may read and review but does not begin another write task in the shared code. The active person's local subagents may work within the claimed task and separate file ownership; a second PC does not automatically gain editing rights. GitHub does not enforce this queue: the humans confirm the handoff in the Issue or their agreed channel.
+
+1. A claims the Issue, branch and paths and records the base SHA. B confirms that they are currently reading/reviewing only.
+2. A implements the task, reviews the diff, runs applicable checks, pushes small commits to the task branch and opens a PR. Push authority covers the agreed task; release publication is assigned separately.
+3. B reviews the PR. If changes are needed, A retains the turn. After the agreed review, the designated integrator merges the PR. Unverified work is not handed over as a finished `main`.
+4. A says: “Turn handed to B; Issue #…, merged PR …; main SHA …; checks …; limits …; next scope …; version/release owner …”. A stops editing until the next confirmed turn. Pushing a branch alone does not release the task.
+5. B confirms the handoff, checks their clone is clean, gets current `main` and creates the next Issue's branch. After B's PR and review, the roles switch back.
+
+On each PC, check the working tree **before** fetch/pull. With uncommitted changes, do not switch branches or pull over them; first preserve the work with its owner. For a clean tree and a confirmed turn:
+
+```powershell
+git status --short
+git fetch origin
+git switch main
+git pull --ff-only origin main
+git rev-parse HEAD
+git switch -c task/456-friend-next-step
+```
+
+Compare the SHA with the handoff. Divergence makes `pull --ff-only` stop: agree on a resolution rather than replacing it with reset/force. If the PR has not merged, explicitly hand over its branch and SHA, not “main”. In that case confirm a new owner of the same task and continue that branch normally; do not run two authors concurrently or rewrite published history.
+
+Assign one version/release integrator for every turn. Completed application changes require synchronized versions and a newly checked Windows EXE under AGENTS.md. Declare full 2.0 only after the complete acceptance gate in the [shared architecture plan](../architecture-2.0.md), and publish only through the assigned release owner. The [complete starter prompt for your friend's AI](collaboration-ai-prompt.md) includes these boundaries and source references. Chat memory and `.local` are not transferred by pull.
+
 ## Assign work before starting an agent
 
 Create one GitHub Issue for each independently reviewable task. Assign one human owner, and record the branch, starting commit, permitted files/modules, expected behavior, exclusions and acceptance checks. A comment such as “Claimed by Anna; branch task/123-anna-section-ui; owns section controls and their tests; backend owned by Boris” makes responsibility visible. The second person reads open Issues and PRs before claiming another task.

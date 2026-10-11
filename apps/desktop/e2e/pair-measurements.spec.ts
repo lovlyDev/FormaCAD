@@ -1,16 +1,12 @@
 import { expect,test,type Page } from "@playwright/test";
 import { pairMeasurementFixture } from "./pairMeasurementFixture";
+import { pickPairViewport as pick } from "./pairViewportPick";
 const fixture=pairMeasurementFixture();
 test.afterEach(async({page},info)=>{if(info.status!==info.expectedStatus){const probe=await page.evaluate(()=>({candidates:(window as any).__applyHarness?.candidates?.(),selectedEdge:(window as any).__applyHarness?.selectedEdge?.(),selectedFace:(window as any).__applyHarness?.selectedFace?.()})).catch(error=>({error:String(error)}));await info.attach("actual-pair-picking-probe",{body:JSON.stringify(probe),contentType:"application/json"});}});
 const words={ru:{title:"Точные измерения между элементами",edge:"Выбрать CAD-ребро",face:"Выбрать CAD-грань",first:"Сохранить первый выбор",second:"Сохранить второй выбор",measure:"Измерить выбранную пару",normal:"Угол внешних нормалей граней (0–180°)",acute:"Острый угол прямых рёбер (0–90°)"},en:{title:"Exact pair measurements",edge:"Select CAD edge",face:"Select CAD face",first:"Capture first selection",second:"Capture second selection",measure:"Measure captured pair",normal:"Outward face-normal angle (0–180°)",acute:"Acute straight-edge angle (0–90°)"}};
 async function mount(page:Page,locale:"ru"|"en"){
  await page.route(/\/src\/main\.tsx(?:\?.*)?$/,route=>route.fulfill({contentType:"application/javascript",body:"export {};"}));await page.addInitScript(locale=>localStorage.setItem("forma.locale",locale),locale);await page.goto("/");await page.evaluate(async fixture=>{const{mountPairMeasurementHarness}=await import("/e2e/pairMeasurementHarness.tsx");await mountPairMeasurementHarness(fixture);},fixture!);
  await expect(page.locator(".viewer-area")).toHaveAttribute("data-scene-phase","ready");const panel=page.locator(".pair-measurement");await panel.locator("summary").click();return panel;
-}
-async function pick(page:Page,type:"edges"|"faces",role:string){
- await expect.poll(()=>page.evaluate(({type,role})=>(window as any).__applyHarness.candidates()?.[type].find((item:any)=>item.reference?.role===role)??null,{type,role})).not.toBeNull();
- const target=await page.evaluate(({type,role})=>(window as any).__applyHarness.candidates()[type].find((item:any)=>item.reference?.role===role),{type,role});await page.mouse.click(target.x,target.y);
- await expect.poll(()=>page.evaluate(type=>type==="edges"?(window as any).__applyHarness.selectedEdge()?.topologyRef:(window as any).__applyHarness.selectedFace()?.topologyRef,type)).toEqual(target.reference);
 }
 async function availablePair(page:Page,kind:string){
  await expect.poll(()=>page.evaluate(kind=>{const harness=(window as any).__applyHarness,candidates=harness.candidates();return harness.pairQueries.find((query:any)=>query.kind===kind&&[query.first,query.second].every(ref=>candidates[ref.kind==="edge"?"edges":"faces"].some((item:any)=>item.reference?.role===ref.role)))??null;},kind)).not.toBeNull();
