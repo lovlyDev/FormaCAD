@@ -25,7 +25,7 @@ body:
     id: goal
     attributes:
       label: Цель и критерии приёмки / Goal and acceptance
-      description: Наблюдаемое поведение и проверки, по которым другой человек примет результат.
+      description: Наблюдаемое поведение и проверки, по которым глава проекта lovlyDev примет результат.
     validations:
       required: true
   - type: textarea
@@ -50,8 +50,8 @@ body:
   - type: input
     id: reviewers
     attributes:
-      label: Проверяющий и ответственный за релиз / Reviewer and release owner
-      placeholder: "Reviewer @person2; release owner @person1"
+      label: Глава проекта и ответственный за релиз / Acceptance owner and release owner
+      placeholder: "Acceptance: lovlyDev; release owner @assigned-person"
     validations:
       required: true
   - type: dropdown

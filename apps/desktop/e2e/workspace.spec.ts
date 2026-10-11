@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { selectValue } from "./customSelect";
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     if (!localStorage.getItem("forma.locale"))
@@ -120,7 +121,7 @@ test("typed sketch editor changes workplane and length without losing feature ID
   await page.getByRole("button", { name: "Edit model parameters", exact: true }).click();
   await page.getByText("Edit 2D sketch", { exact: true }).click();
   await expect(page.getByRole("img", { name: "Sketch preview" })).toBeVisible();
-  await page.getByLabel("Sketch plane").selectOption("xz");
+  await selectValue(page, page.getByLabel("Sketch plane"), "xz");
   await page.getByRole("button", { name: "Length", exact: true }).first().click();
   await page.getByLabel("Length in mm").fill("50");
   const source = JSON.parse(await page.getByLabel("CAD source").inputValue());

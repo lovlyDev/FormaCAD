@@ -10,6 +10,8 @@ use std::{
         Arc,
     },
 };
+#[path = "capture.rs"]
+mod capture;
 
 pub async fn section_with_executable(
     state: &AppState,
@@ -23,33 +25,8 @@ pub async fn section_with_executable(
         AppError::Invalid(serde_json::json!({"code":e.code,"message":e.detail}).to_string())
     })?;
     crate::security::valid_id(project_id)?;
-    let project = crate::projects::get(state, project_id).await?;
-    if project.current_revision.as_deref() != Some(expected_revision) {
-        return Err(stale());
-    }
-    let revision = project
-        .revisions
-        .iter()
-        .find(|r| r.id == expected_revision)
-        .ok_or_else(stale)?;
-    let source = revision.source.as_ref().ok_or_else(|| {
-        super::failure(
-            "ASSET_MISSING",
-            "Current revision has no exact CAD source for section",
-        )
-    })?;
-    let file = project
-        .files
-        .iter()
-        .find(|f| &f.name == source)
-        .ok_or_else(|| {
-            super::failure("ASSET_MISSING", "CAD section source attachment is missing")
-        })?;
-    let hash = file
-        .sha256
-        .clone()
-        .filter(|h| crate::artifacts::valid_digest(h))
-        .ok_or_else(|| super::failure("ASSET_INVALID", "CAD section source checksum is missing"))?;
+    let captured = capture::capture(state, project_id, expected_revision).await?;
+    let hash = captured.hash.clone();
     let _permit = state
         .cad_tasks
         .acquire(project_id, "section", cancel.clone())
@@ -57,14 +34,7 @@ pub async fn section_with_executable(
     if cancel.load(Ordering::Relaxed) {
         return Err(super::failure("SECTION_CANCELLED", "CAD section cancelled"));
     }
-    if crate::projects::get(state, project_id)
-        .await?
-        .current_revision
-        .as_deref()
-        != Some(expected_revision)
-    {
-        return Err(stale());
-    }
+    capture::recheck(state, &captured).await?;
     let workspace = Workspace::create(&state.root, project_id)?;
     let document = Document {
         schema_version: 2,
@@ -85,7 +55,13 @@ pub async fn section_with_executable(
             source_feature_id: "section_source".into(),
         }],
     };
-    crate::native::assets::stage_project_assets(state, &project, &document, &workspace.path)?;
+    crate::native::assets::stage_project_assets(
+        state,
+        &captured.snapshot.project,
+        &document,
+        &workspace.path,
+    )?;
+    capture::recheck(state, &captured).await?;
     let report = crate::native::section::section_with_executable(
         &workspace.path,
         &hash,
@@ -97,13 +73,9 @@ pub async fn section_with_executable(
     if cancel.load(Ordering::Relaxed) {
         return Err(super::failure("SECTION_CANCELLED", "CAD section cancelled"));
     }
-    if crate::projects::get(state, project_id)
-        .await?
-        .current_revision
-        .as_deref()
-        != Some(expected_revision)
-    {
-        return Err(stale());
+    capture::recheck(state, &captured).await?;
+    if cancel.load(Ordering::Relaxed) {
+        return Err(super::failure("SECTION_CANCELLED", "CAD section cancelled"));
     }
     Ok(report)
 }

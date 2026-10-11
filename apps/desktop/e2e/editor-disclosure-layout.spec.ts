@@ -1,4 +1,15 @@
 import { expect,test } from "@playwright/test";
+import type { Locator,Page } from "@playwright/test";
+// Geometry has already been measured: avoid a second locator screenshot scroll.
+async function screenshotVisibleRow(page:Page,row:Locator,path:string){
+ const box=await row.boundingBox(),viewport=page.viewportSize();
+ expect(box).not.toBeNull();expect(viewport).not.toBeNull();
+ expect(box!.width).toBeGreaterThan(0);expect(box!.height).toBeGreaterThan(0);
+ expect(box!.x).toBeGreaterThanOrEqual(0);expect(box!.y).toBeGreaterThanOrEqual(0);
+ expect(box!.x+box!.width).toBeLessThanOrEqual(viewport!.width);
+ expect(box!.y+box!.height).toBeLessThanOrEqual(viewport!.height);
+ await page.screenshot({path,clip:box!});
+}
 for(const locale of ["ru","en"] as const)test(`editor sections animate real heights and align controls in ${locale}`,async({page},info)=>{
  test.setTimeout(150000);
  await page.addInitScript(locale=>localStorage.setItem("forma.locale",locale),locale);await page.goto("/");
@@ -11,7 +22,7 @@ for(const locale of ["ru","en"] as const)test(`editor sections animate real heig
  const reversed=await sketch.evaluate(async details=>{const body=details.querySelector(":scope>.editor-disclosure-body") as HTMLElement,summary=details.querySelector("summary") as HTMLElement;summary.click();await new Promise(resolve=>setTimeout(resolve,70));const before=body.getBoundingClientRect().height;summary.click();await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));const after=body.getBoundingClientRect().height;await new Promise(resolve=>setTimeout(resolve,350));return {before,after,full:body.scrollHeight,final:body.getBoundingClientRect().height,expanded:details.getAttribute("data-expanded")};});expect(reversed.expanded).toBe("true");expect(Math.abs(reversed.after-reversed.before)).toBeLessThan(reversed.full*.15);expect(Math.abs(reversed.final-reversed.full)).toBeLessThan(2);
  const name=await page.locator(".typed-feature-name").first().boundingBox(),label=await sketch.locator("summary>span").last().boundingBox();expect(Math.abs(name!.x-label!.x)).toBeLessThan(2);
  for(const theme of ["dark","light"]){await page.evaluate(async theme=>{const {applyTheme}=await import("/src/lib/theme.ts");applyTheme(theme);},theme);
-  for(const selector of [".sketch-editor-construction-add",".sketch-editor-coincident",".sketch-link-add"]){const row=sketch.locator(selector);await row.scrollIntoViewIfNeeded();const button=await row.locator(":scope > button").boundingBox();const fields=await row.locator("label [role=combobox]").all();for(const field of fields){const box=await field.boundingBox();expect(box!.height).toBe(32);expect(button!.height).toBe(32);expect(Math.abs(box!.y+box!.height-button!.y-button!.height)).toBeLessThan(2);expect(Math.abs(box!.y-button!.y)).toBeLessThan(2);}await row.screenshot({path:info.outputPath(`${selector.slice(1)}-${locale}-${theme}.png`)});}
+  for(const selector of [".sketch-editor-construction-add",".sketch-editor-coincident",".sketch-link-add"]){const row=sketch.locator(selector);await row.scrollIntoViewIfNeeded();const button=await row.locator(":scope > button").boundingBox();const fields=await row.locator("label [role=combobox]").all();for(const field of fields){const box=await field.boundingBox();expect(box!.height).toBe(32);expect(button!.height).toBe(32);expect(Math.abs(box!.y+box!.height-button!.y-button!.height)).toBeLessThan(2);expect(Math.abs(box!.y-button!.y)).toBeLessThan(2);}await screenshotVisibleRow(page,row,info.outputPath(`${selector.slice(1)}-${locale}-${theme}.png`));}
  }
  await page.emulateMedia({reducedMotion:"reduce"});await sketch.locator("summary").focus();await page.keyboard.press("Enter");await expect(sketch).not.toHaveAttribute("open","");await page.keyboard.press("Enter");await expect(sketch).toHaveAttribute("open","");expect(await sketch.locator(":scope>.editor-disclosure-body").evaluate(el=>el.getAnimations().length)).toBe(0);
  await page.setViewportSize({width:700,height:850});await sketch.locator(".sketch-link-add").scrollIntoViewIfNeeded();await sketch.locator(".sketch-links").screenshot({path:info.outputPath(`links-${locale}-narrow.png`)});

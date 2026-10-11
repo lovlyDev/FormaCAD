@@ -4,7 +4,7 @@
 
 I’m building Forma as a local CAD workspace where manual editing and AI work on the same model. It combines a Rust desktop backend and a React/Three.js interface. Tagged releases build C++/OpenCascade for CAD IR v2 on Windows, macOS, and Linux; Python/CadQuery remains available for older models.
 
-**Consolidated release 1.2.6: the Windows installer is built, verified and updater-signed.** [Windows EXE](https://github.com/lovlyDev/FormaCAD/releases/download/v1.2.6/Forma_1.2.6_x64-setup.exe): 19,017,594 bytes; [release page](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.2.6). Full 2.0 is unfinished. See [evidence and limits](docs/en/status.md), [release notes](docs/releases/1.2.6.md) and the [release procedure](docs/en/releases.md).
+**Verified Windows release 1.3.0: the Windows installer is built, verified and updater-signed.** [Windows EXE](https://github.com/lovlyDev/FormaCAD/releases/download/v1.3.0/Forma_1.3.0_x64-setup.exe): 19,027,793 bytes; [release page](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.3.0). Full 2.0 is unfinished. See [evidence and limits](docs/en/status.md), [release notes](docs/releases/1.3.0.md) and the [release procedure](docs/en/releases.md).
 
 ## Features
 
@@ -16,7 +16,7 @@ I’m building Forma as a local CAD workspace where manual editing and AI work o
 
 ## Install
 
-Download a verified published package from [GitHub Releases](https://github.com/lovlyDev/FormaCAD/releases/latest). [Windows 1.2.6 EXE](https://github.com/lovlyDev/FormaCAD/releases/download/v1.2.6/Forma_1.2.6_x64-setup.exe) is the verified updater-signed Windows package; other platform packages are not established by this release.
+Download a verified published package from [GitHub Releases](https://github.com/lovlyDev/FormaCAD/releases/latest). [Windows 1.3.0 EXE](https://github.com/lovlyDev/FormaCAD/releases/download/v1.3.0/Forma_1.3.0_x64-setup.exe) is the verified updater-signed Windows package; other platform packages are not established by this release.
 
 | System | Package | Updates |
 | --- | --- | --- |
@@ -98,3 +98,5 @@ Local Sketcher: [holes and contours](docs/en/sketch-profiles.md), [editing and c
 
 
 [Two-PC collaboration](docs/en/collaboration.md): source through Git, user project data kept separate.
+
+Alternating development on two PCs: [workflow and handoff](docs/en/collaboration.md), [AI prompt](docs/en/collaboration-ai-prompt.md), [shared 2.0 specification](docs/architecture-2.0.md).

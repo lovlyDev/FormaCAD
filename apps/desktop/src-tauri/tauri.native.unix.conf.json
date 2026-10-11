@@ -2,8 +2,8 @@
   "bundle": {
     "externalBin": ["binaries/forma-cad-worker"],
     "resources": {
-      "resources/occt/LICENSE_LGPL_21.txt": "licenses/occt",
-      "resources/occt/OCCT_LGPL_EXCEPTION.txt": "licenses/occt"
+      "resources/occt/LICENSE_LGPL_21.txt": "licenses/occt/LICENSE_LGPL_21.txt",
+      "resources/occt/OCCT_LGPL_EXCEPTION.txt": "licenses/occt/OCCT_LGPL_EXCEPTION.txt"
     }
   }
 }

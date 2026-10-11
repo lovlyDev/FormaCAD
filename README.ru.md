@@ -8,7 +8,7 @@
 
 Я создаю Forma как локальную CAD-среду, в которой ручное редактирование и AI работают с одной моделью. Приложение объединяет Rust-бэкенд и интерфейс React/Three.js. Релизы по тегу включают C++/OpenCascade для документов CAD IR v2 на Windows, macOS и Linux; Python/CadQuery остаётся для старых моделей.
 
-**Объединённый релиз 1.2.6: Windows-установщик собран, проверен и подписан для updater.** [Windows EXE](https://github.com/lovlyDev/FormaCAD/releases/download/v1.2.6/Forma_1.2.6_x64-setup.exe) — 19 017 594 байта; [страница релиза](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.2.6). Полная 2.0 не готова. См. [доказательства и ограничения](docs/ru/status.md), [заметку релиза](docs/releases/1.2.6.md) и [процедуру выпуска](docs/ru/releases.md).
+**Проверенный Windows-выпуск 1.3.0: Windows-установщик собран, проверен и подписан для updater.** [Windows EXE](https://github.com/lovlyDev/FormaCAD/releases/download/v1.3.0/Forma_1.3.0_x64-setup.exe) — 19 027 793 байта; [страница релиза](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.3.0). Полная 2.0 не готова. См. [доказательства и ограничения](docs/ru/status.md), [заметку релиза](docs/releases/1.3.0.md) и [процедуру выпуска](docs/ru/releases.md).
 
 ## Возможности
 
@@ -20,7 +20,7 @@
 
 ## Установка
 
-Последняя **опубликованная** версия доступна в [GitHub Releases](https://github.com/lovlyDev/FormaCAD/releases/latest). [Windows EXE 1.2.6](https://github.com/lovlyDev/FormaCAD/releases/download/v1.2.6/Forma_1.2.6_x64-setup.exe) проверен и подписан для updater; см. [ограничения](docs/ru/status.md).
+Последняя **опубликованная** версия доступна в [GitHub Releases](https://github.com/lovlyDev/FormaCAD/releases/latest). [Windows EXE 1.3.0](https://github.com/lovlyDev/FormaCAD/releases/download/v1.3.0/Forma_1.3.0_x64-setup.exe) проверен и подписан для updater; см. [ограничения](docs/ru/status.md).
 
 | Система | Пакет | Обновление |
 | --- | --- | --- |
@@ -96,3 +96,5 @@ npm run build
 
 
 [Совместная работа с двух ПК](docs/ru/collaboration.md): исходники через Git, пользовательские данные отдельно.
+
+Разработка по очереди с двух ПК: [порядок и передача](docs/ru/collaboration.md), [промпт AI](docs/ru/collaboration-ai-prompt.md), [общее ТЗ 2.0](docs/architecture-2.0.md).

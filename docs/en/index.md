@@ -73,3 +73,6 @@ These guides describe the consolidated 1.2.6 candidate and its limits. Final pac
 
 
 - [Two-PC collaboration](collaboration.md): Git source and separate user data.
+
+- [Shared 2.0 scope and acceptance](../architecture-2.0.md).
+- [AI prompt for alternating development](collaboration-ai-prompt.md).

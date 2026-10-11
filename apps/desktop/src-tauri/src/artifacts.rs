@@ -8,7 +8,9 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
 };
+mod project_file;
 mod reader;
+pub use project_file::read_for as read_project_file_for;
 
 pub const MAX_FILE_BYTES: usize = 40 * 1024 * 1024;
 pub fn digest(bytes: &[u8]) -> String {
@@ -197,13 +199,7 @@ pub async fn read_project_file(
     name: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<String> {
-    let p = crate::projects::get(&state, &project_id).await?;
-    let file = p
-        .files
-        .iter()
-        .find(|f| f.name == name)
-        .ok_or_else(|| AppError::Invalid("Project attachment was not found".into()))?;
-    Ok(data_url(&name, &read(&state, &project_id, file)?))
+    read_project_file_for(&state, &project_id, &name).await
 }
 
 #[cfg(test)]

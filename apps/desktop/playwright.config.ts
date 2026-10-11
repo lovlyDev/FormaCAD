@@ -11,7 +11,11 @@ export default defineConfig({
     viewport: { width: 1440, height: 960 },
     launchOptions: {
       args: [
-        "--use-angle=swiftshader",
+        // SwiftShader only backs WebGL; software 2D compositing avoids the
+        // GPU-replacement screenshot stall while retaining real WebGL2 tests.
+        "--use-gl=angle",
+        "--use-angle=swiftshader-webgl",
+        "--enable-unsafe-swiftshader",
         "--enable-webgl",
         "--ignore-gpu-blocklist",
       ],

@@ -31,7 +31,7 @@ pub(super) async fn read(pool: &SqlitePool, id: &str, with_history: bool) -> Res
     Ok(raw)
 }
 
-async fn read_transaction(
+pub(super) async fn read_transaction(
     connection: &mut SqliteConnection,
     id: &str,
     with_history: bool,

@@ -3,7 +3,11 @@
 mod artifacts;
 mod persistence;
 mod portable;
+mod read_state;
 mod state;
+mod status;
+pub(crate) use read_state::from_json as state_from_json;
+pub use status::status_for;
 
 pub use persistence::{load_state, record_commit};
 pub use portable::{export_history, import_history, validate_archive};
@@ -22,17 +26,6 @@ pub struct HistoryStatus {
     pub can_undo: bool,
     pub can_redo: bool,
     pub expected_revision: Option<String>,
-}
-
-pub async fn status_for(state: &AppState, project_id: &str) -> Result<HistoryStatus> {
-    let _lock = state.writes.lock().await;
-    let project = crate::projects::get(state, project_id).await?;
-    let history = load_state(&state.pool, &project).await?;
-    Ok(HistoryStatus {
-        can_undo: history.can_undo(),
-        can_redo: history.can_redo(),
-        expected_revision: project.current_revision,
-    })
 }
 
 #[tauri::command]

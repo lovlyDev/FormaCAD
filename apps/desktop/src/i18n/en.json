@@ -1147,5 +1147,5 @@
   "Exact acute straight-edge angle": "Exact acute straight-edge angle",
   "PROJECT_SNAPSHOT_MISSING": "The saved project could not be found. Refresh the project list and retry the operation.",
   "PROJECT_SNAPSHOT_CHANGED": "The saved project changed while it was being read. Refresh the project and retry the operation.",
-  "PROJECT_SNAPSHOT_RECOVERY_REQUIRED": "Reopen the project to finish storage recovery before copying or exporting."
+  "PROJECT_SNAPSHOT_RECOVERY_REQUIRED": "Reopen the project to finish storage recovery, then retry the operation."
 }
