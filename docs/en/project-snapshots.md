@@ -2,11 +2,11 @@
 
 [Documentation](index.md) · [Русский](../ru/project-snapshots.md) · [Project access](project-access.md) · [History and packages](project-history.md)
 
-Managed-project copying, `.cadpack` export and exact measurements read committed state through a shared pure snapshot adapter. Reading does not open editing access, publish a recovered folder generation or clear its recovery journal. No new controls or settings are required.
+Undo/redo status, attachment reading, exact saved-STEP properties, draft previews, manual sections, managed-project copying, `.cadpack` export and exact measurements read committed state through a shared pure snapshot adapter. Reading does not open editing access, publish a recovered folder generation or clear its recovery journal. No new controls or settings are required.
 
 ## User workflow
 
-Use the existing duplicate-project, save-editable-copy or package-export actions. For `PROJECT_SNAPSHOT_CHANGED`, refresh the project and retry: committed state changed during the read. For `PROJECT_SNAPSHOT_MISSING`, refresh the project list. For `PROJECT_SNAPSHOT_RECOVERY_REQUIRED`, reopen the project so the normal open route can finish recovery, then retry copying or exporting. The pure reader never repairs the source implicitly.
+Use the existing duplicate-project, save-editable-copy or package-export actions. For `PROJECT_SNAPSHOT_CHANGED`, refresh the project and retry: committed state changed during the read. For `PROJECT_SNAPSHOT_MISSING`, refresh the project list. For `PROJECT_SNAPSHOT_RECOVERY_REQUIRED`, reopen the project so the normal open route can finish recovery, then retry the operation. The pure reader never repairs the source implicitly.
 
 Exact measurements and sections using their capture retain compatible `MEASUREMENT_STALE` and `MEASUREMENT_RECOVERY_REQUIRED` messages. Technical codes and diagnostic details remain separate from the localized user message; user filenames and contents are not translated.
 
@@ -19,6 +19,12 @@ Persisted attachments are opened through a bounded reader: the file must be regu
 The source remains the same project: its description, history and owned files are not rewritten by the reader. Creating a copy saves a NEW project UUID and validated history in a separate project; this inserts the new project into the same application-wide SQLite database. The guarantee therefore does not mean that the entire shared database file remains byte-identical. Package export does not create a project copy in the index. Application settings, CLI credentials and permissions are not transferred by copying.
 
 The backend remains application-managed storage (`LegacyManaged` in the transition plan). This change does not make an external folder authoritative, implement arbitrary-folder in-place opening or move all consumers to a new format. NAS support and distributed lock recovery are not claimed.
+
+## Additional read routes
+
+Undo/redo status reads the project and typed history state from one SQL snapshot, without a write lock or recovery. Status does not read the event archive: the 30,000-event export limit does not reject an independently valid committed cursor. Cursor JSON itself is bounded to 16 MiB before allocation. In the current managed backend SQL is the cursor authority: validating the project mirror and file hashes does not prove equality with the folder history archive cursor. Copy and export compare the complete archive separately. Separate project-description, revision and portable-archive limits still apply. Attachment reading validates declared size and any saved checksum, then rechecks the snapshot before returning data. Previews, STEP properties and manual sections recheck their source before adopting worker results. Temporary worker files can be created and removed, but committed project data and the recovery journal remain unchanged.
+
+Pending publication returns the localized reopen-project message. Project opening and explicit model changes retain their separate normal recovery/write routes. Manual sections and properties support saved imported STEP without requiring authored CAD IR; exact authored-measurement requirements remain separate. The entire committed description is checked: even a metadata change during a long operation can require retrying. This is temporarily stricter than the future geometry-source-only fence.
 
 ## Compatibility
 

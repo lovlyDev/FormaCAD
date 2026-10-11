@@ -2,6 +2,14 @@
 
 [Documentation](index.md) · [Русский](../ru/status.md) · [Roadmap](roadmap.md)
 
+## Verified 1.3.0 package
+
+The Windows 1.3.0 installer is built and verified: 19,027,793 bytes, SHA-256 `FA7923F235E64D19B3DE6FDB44EC035EC344646AA06016BEDA247AF363010D00`. Its updater signature was independently verified against the application public key. The app, one worker, 25 OCCT DLLs and both separately named licenses were extracted without executing the installer and their contents verified. App comparison permits only the exact standard Tauri `UNK` to `NSS` token patch; all other bytes match the build output.
+
+Five read routes use consistent snapshots and revalidate sources: history, attachments, STEP properties, previews and manual sections. Checks: native351/30targets (two existing ignored), frontend197/71files, full browser72PASS; fresh packaged preview/section browser3PASS. Strict Clippy, no-default, fmt, lint, i18n1149, docs106 and migrations passed. Extracted worker:64 analytical cases and19 expected rejections. The Chromium harness mocks host IPC and does not establish installed WebView or macOS/Linux acceptance. See [snapshots](project-snapshots.md), [1.3.0 notes](../releases/1.3.0.md) and [two-PC workflow](collaboration.md). Full architectural2.0 is unfinished; PR merging requires another human's review. Installation was not performed.
+
+[Windows EXE1.3.0](https://github.com/lovlyDev/FormaCAD/releases/download/v1.3.0/Forma_1.3.0_x64-setup.exe) · [GitHub release](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.3.0).
+
 ## Consolidated release 1.2.6
 
 All current improvements are consolidated into **1.2.6**. The new Windows installer is built, verified and updater-signed. macOS/Linux packages for this release are not verified; see [release notes](../releases/1.2.6.md).

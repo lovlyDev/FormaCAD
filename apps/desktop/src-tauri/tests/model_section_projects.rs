@@ -1,4 +1,6 @@
 #![cfg(feature = "native-occt")]
+#[path = "model_section_projects/consistency.rs"]
+mod consistency;
 use forma_core::{
     core::AppState,
     models::Project,

@@ -402,28 +402,4 @@ pub fn box_volume(width_mm: f64, depth_mm: f64, height_mm: f64) -> Result<f64, N
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn cxx_bridge_builds_valid_brep() {
-        assert!((box_volume(60.0, 40.0, 10.0).unwrap() - 24000.0).abs() < 0.001);
-        assert_eq!(
-            box_volume(0.0, 40.0, 10.0).unwrap_err().code,
-            "INVALID_DIMENSION"
-        );
-        let stock = Solid::box_solid(60.0, 40.0, 10.0).unwrap();
-        assert!((stock.surface_area_mm2() - 6800.0).abs() < 0.001);
-        assert_eq!((stock.face_count(), stock.edge_count()), (6, 12));
-        let tool = Solid::cylinder(5.0, 10.0).unwrap();
-        let cut = stock.cut(&tool).unwrap();
-        let expected = 24000.0 - 250.0 * std::f64::consts::PI;
-        assert!((cut.volume_mm3() - expected).abs() < 0.01);
-        assert!((cut.translated(5.0, 0.0, 0.0).unwrap().volume_mm3() - expected).abs() < 0.01);
-        let path = std::env::temp_dir().join(format!("forma-native-{}.step", uuid::Uuid::new_v4()));
-        cut.write_step(&path).unwrap();
-        let imported = Solid::read_step(&path).unwrap();
-        assert!((imported.volume_mm3() - cut.volume_mm3()).abs() < 0.01);
-        std::fs::remove_file(path).unwrap();
-    }
-}
+mod tests;

@@ -1,6 +1,11 @@
 //! Pure committed snapshots, without recovery publication or index writes.
+mod cursor;
+mod cursor_sql;
 mod folder;
 mod sql;
+pub use cursor::{capture_history_state, recheck_history_state, HistoryStateSnapshot};
+#[cfg(test)]
+pub(crate) mod read_test_fixture;
 #[cfg(test)]
 mod tests;
 use crate::{
