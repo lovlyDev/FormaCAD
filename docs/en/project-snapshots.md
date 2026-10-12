@@ -28,6 +28,33 @@ Pending publication returns the localized reopen-project message. Project openin
 
 ## Compatibility
 
+### Undo/redo status read session
+
+History status uses the shared `project_repository::capture_history_state` and
+`recheck_history_state` entry points. Its snapshot carries an internal read
+session: the `LegacyManaged` backend, project ID, managed location and an opaque
+epoch from the application registry. It is captured before SQL reads and checked
+after capture and source revalidation. Close, a new open, or explicit read-only
+reacquisition invalidates the old session even when project bytes are unchanged.
+Repeated acquisition of an already held writer preserves the session. Another
+project's lifecycle does not invalidate it. A different registry or location also
+rejects the result using the existing `PROJECT_SNAPSHOT_CHANGED` code.
+
+The epoch is memory-only and grants no write capability. Reading without an open
+tab remains supported and creates no OS lock, files, SQL records or recovery.
+Read-only remains read-only after the other owner releases its lock until access
+is explicitly requested again. The existing adapter revalidates SQL payload,
+cursor and manifest/CAS; a lifecycle token alone does not validate the source.
+Validation is a point-in-time check, not a lock against later changes. Writes
+that fully restore the original bytes between checks are not tracked as separate
+write events. This does not implement an external folder backend or NAS/USB
+guarantees; other consumers have not been migrated. IPC and SQL schema are unchanged.
+
+The regressions in `project_history/status/session_tests.rs` cover close/reopen,
+close without open, independent projects, idempotent writer acquisition,
+read-only/reacquisition, changed location/registry and pending recovery. Existing
+status tests still cover changed heads, cursors, CAS and absence of writes.
+
 Copying a current managed project retains validated history and revision IDs under a new project UUID. This differs from the future conversion of a genuine application 1.1 project: that workflow must create a new 2.0 project from the last verified STEP without promising recovery of editable history. The `LegacyManaged` backend label alone does not identify application version 1.1.
 
 ## Verification

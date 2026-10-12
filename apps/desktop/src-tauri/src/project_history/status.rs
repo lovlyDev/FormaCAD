@@ -2,11 +2,11 @@
 use super::HistoryStatus;
 use crate::{
     core::{AppState, Result},
-    project_repository::legacy::{self, HistoryStateSnapshot},
+    project_repository::{self as repository, HistoryStateSnapshot},
 };
 
 pub async fn status_for(state: &AppState, project_id: &str) -> Result<HistoryStatus> {
-    let snapshot = legacy::capture_history_state(state, project_id).await?;
+    let snapshot = repository::capture_history_state(state, project_id).await?;
     from_snapshot(state, &snapshot).await
 }
 
@@ -17,10 +17,14 @@ async fn from_snapshot(state: &AppState, snapshot: &HistoryStateSnapshot) -> Res
         can_redo: history.can_redo(),
         expected_revision: snapshot.project.current_revision.clone(),
     };
-    legacy::recheck_history_state(state, snapshot).await?;
+    repository::recheck_history_state(state, snapshot).await?;
     Ok(status)
 }
 
 #[cfg(test)]
 #[path = "status/tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "status/session_tests.rs"]
+mod session_tests;
