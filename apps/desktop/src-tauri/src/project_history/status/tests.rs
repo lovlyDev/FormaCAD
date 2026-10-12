@@ -1,4 +1,5 @@
 use super::*;
+use crate::project_repository::legacy;
 use crate::project_repository::legacy::read_test_fixture as fixture;
 
 #[tokio::test]

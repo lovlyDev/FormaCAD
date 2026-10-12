@@ -23,6 +23,7 @@ enum Session {
 struct RegistryState {
     sessions: HashMap<String, Session>,
     in_flight: HashMap<String, Weak<File>>,
+    read_epochs: HashMap<String, uuid::Uuid>,
 }
 #[derive(Default)]
 pub struct AccessRegistry {
@@ -115,6 +116,9 @@ impl AccessRegistry {
             Self::open(root, id)?
         };
         state.sessions.insert(id.into(), session);
+        if let Some(epoch) = state.read_epochs.get_mut(id) {
+            *epoch = uuid::Uuid::new_v4();
+        }
         Ok(Self::describe(root, id, state.sessions.get(id)))
     }
     pub fn status(&self, root: &Path, id: &str) -> Result<AccessStatus> {
@@ -127,13 +131,28 @@ impl AccessRegistry {
     }
     pub fn release(&self, id: &str) -> Result<()> {
         crate::security::valid_id(id)?;
-        self.state
+        let mut state = self
+            .state
             .lock()
-            .map_err(|_| AppError::Invalid("PROJECT_ACCESS_UNAVAILABLE".into()))?
-            .sessions
-            .remove(id);
+            .map_err(|_| AppError::Invalid("PROJECT_ACCESS_UNAVAILABLE".into()))?;
+        state.sessions.remove(id);
+        if let Some(epoch) = state.read_epochs.get_mut(id) {
+            *epoch = uuid::Uuid::new_v4();
+        }
         // Never unlink: an old live inode and recreated lock path could have simultaneous owners.
         Ok(())
+    }
+    /// Memory-only lifecycle token; never opens a lock file or grants write access.
+    pub(crate) fn read_epoch(&self, id: &str) -> Result<uuid::Uuid> {
+        crate::security::valid_id(id)?;
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| AppError::Invalid("PROJECT_ACCESS_UNAVAILABLE".into()))?;
+        Ok(*state
+            .read_epochs
+            .entry(id.into())
+            .or_insert_with(uuid::Uuid::new_v4))
     }
     pub fn ensure_write(&self, root: &Path, id: &str) -> Result<WriteGuard> {
         crate::security::valid_id(id)?;
