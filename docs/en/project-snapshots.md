@@ -50,7 +50,8 @@ that fully restore the original bytes between checks are not tracked as separate
 write events. This does not implement an external folder backend or NAS/USB
 guarantees; other consumers have not been migrated. IPC and SQL schema are unchanged.
 
-The regressions in `project_history/status/session_tests.rs` cover close/reopen,
+The regressions in `project_history/status/session_tests.rs` cover close during
+an SQL-blocked capture (without timing assumptions), close/reopen,
 close without open, independent projects, idempotent writer acquisition,
 read-only/reacquisition, changed location/registry and pending recovery. Existing
 status tests still cover changed heads, cursors, CAS and absence of writes.

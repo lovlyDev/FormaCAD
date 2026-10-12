@@ -50,7 +50,8 @@ Read-only остаётся read-only после освобождения чуж�
 отдельные события записи. Это не внешний folder backend и не гарантия NAS/USB;
 другие потребители ещё не переведены на этот сеанс. IPC и SQL-схема не меняются.
 
-Регрессии `project_history/status/session_tests.rs` проверяют close/reopen,
+Регрессии `project_history/status/session_tests.rs` проверяют закрытие во время
+ожидания SQL-захвата (без предположений о тайминге), close/reopen,
 закрытие без открытия, независимость проектов, idempotent write acquire,
 read-only/reacquire, смену пути/реестра и pending recovery. Прежние проверки
 статуса продолжают проверять изменение головы, курсора, CAS и отсутствие записи.
