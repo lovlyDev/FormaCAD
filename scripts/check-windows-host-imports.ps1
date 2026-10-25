@@ -19,7 +19,10 @@ $systemImports = @(
     'kernel32.dll', 'advapi32.dll', 'oleaut32.dll', 'bcryptprimitives.dll',
     'ntdll.dll', 'user32.dll', 'ole32.dll', 'shlwapi.dll', 'comctl32.dll',
     'gdi32.dll', 'dwmapi.dll', 'shell32.dll', 'ws2_32.dll', 'crypt32.dll',
-    'bcrypt.dll', 'msvcrt.dll', 'ucrtbase.dll', 'secur32.dll', 'version.dll'
+    'bcrypt.dll', 'msvcrt.dll', 'ucrtbase.dll', 'secur32.dll', 'version.dll',
+    # Tauri 2.12: actual host imports COM allocation/marshalling and IME APIs.
+    # Both were checked against signed Microsoft DLLs in Windows System32.
+    'combase.dll', 'imm32.dll'
 )
 $unreviewed = @($imports | Where-Object {
     $_ -notin $systemImports -and $_ -notmatch '^api-ms-win-[a-z0-9-]+\.dll$'

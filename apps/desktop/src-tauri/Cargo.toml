@@ -39,12 +39,12 @@ directories = "6"
 notify = "8"
 toml = "0.8"
 base64 = "0.22"
-tauri-plugin-updater = "2"
+tauri-plugin-updater = { path = "../../../vendor/tauri-plugin-updater" }
 tauri-plugin-process = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-window-state = "2"
 cxx = { version = "1", optional = true }
-zip = { version = "4.6.1", default-features = false }
+zip = { version = "9.0.0", default-features = false }
 tempfile = { version = "3", optional = true }
 
 [target.'cfg(windows)'.dependencies]

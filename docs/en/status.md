@@ -8,7 +8,7 @@ The desktop is separated from OCCT: the UI builds with `native-worker-client`, a
 
 `FORMA_DATA_DIR` redirects the entire profile through Tauri 2.12: database, projects, logs, window state and the default WebView directory. Invalid paths fail before profile creation. Appearance, privacy and permissions settings no longer launch external health commands. Usage, storage and verification are described in the [development guide](development.md).
 
-These changes do not establish complete architectural 2.0 readiness, installed WebView acceptance on clean Windows, Smart App Control compatibility, NAS guarantees or other operating systems. Previous installers remain preserved; publishing source code does not install the application. Verification of the specific new artifact is reported separately in its release.
+These changes do not establish complete architectural 2.0 readiness, installed WebView acceptance on clean Windows, Smart App Control compatibility, NAS guarantees or other operating systems. Previous installers remain preserved; publishing source code does not install the application. Verification of the specific new artifact is reported separately in the [1.3.2 release](../releases/1.3.2.md).
 
 ## Verified 1.3.0 package
 
