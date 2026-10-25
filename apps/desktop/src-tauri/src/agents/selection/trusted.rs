@@ -4,7 +4,7 @@ use crate::{
     core::{AppError, AppState, Result},
     models::{Project, ProjectFile, Revision},
 };
-#[cfg(feature = "native-occt")]
+#[cfg(feature = "native-worker-client")]
 use std::sync::atomic::Ordering;
 use std::sync::{atomic::AtomicBool, Arc};
 
@@ -99,12 +99,12 @@ pub async fn validate(
     selected: &SelectionContext,
     cancel: Arc<AtomicBool>,
 ) -> Result<()> {
-    #[cfg(not(feature = "native-occt"))]
+    #[cfg(not(feature = "native-worker-client"))]
     {
         let _ = (state, project, selected, cancel);
         Err(AppError::Invalid("SELECTION_CONTEXT_UNSUPPORTED".into()))
     }
-    #[cfg(feature = "native-occt")]
+    #[cfg(feature = "native-worker-client")]
     {
         let executable = crate::native::worker::worker_executable()?;
         validate_with_executable(state, project, selected, cancel, &executable).await
@@ -112,7 +112,7 @@ pub async fn validate(
 }
 
 /// Injectable isolated worker path for native integration tests. Never supplied by IPC.
-#[cfg(feature = "native-occt")]
+#[cfg(feature = "native-worker-client")]
 pub async fn validate_with_executable(
     state: &AppState,
     project: &Project,

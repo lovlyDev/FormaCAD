@@ -3,6 +3,12 @@
 mod occt;
 
 fn main() {
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+        // Tauri embeds app resources only in bins. Integration tests using its
+        // real menu/runtime paths also import Common Controls v6 APIs.
+        println!("cargo:rustc-link-arg-tests=/MANIFEST:EMBED");
+        println!("cargo:rustc-link-arg-tests=/MANIFESTDEPENDENCY:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'");
+    }
     #[cfg(feature = "native-occt")]
     {
         let root = std::path::PathBuf::from(
@@ -10,7 +16,7 @@ fn main() {
                 .expect("FORMA_OCCT_ROOT must point to an installed OCCT triplet"),
         );
         let (includes, libraries) = occt::directories(&root);
-        cxx_build::bridge("src/native.rs")
+        cxx_build::bridge("src/native/kernel.rs")
             .file("../../../cad-core/src/shape.cpp")
             .file("../../../cad-core/src/measurements.cpp")
             .file("../../../cad-core/src/face_measurements.cpp")
@@ -45,7 +51,7 @@ fn main() {
             .flag_if_supported("/EHsc")
             .compile("forma_native_bridge");
         occt::link(&libraries);
-        println!("cargo:rerun-if-changed=src/native.rs");
+        println!("cargo:rerun-if-changed=src/native/kernel.rs");
         println!("cargo:rerun-if-changed=build/occt.rs");
         println!("cargo:rerun-if-changed=../../../cad-core/src");
         println!("cargo:rerun-if-changed=../../../cad-core/include/forma_core.hpp");

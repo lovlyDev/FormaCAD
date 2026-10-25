@@ -107,7 +107,7 @@ pub async fn section_with_executable(
         Duration::from_secs(120),
     )
     .await?;
-    let response = crate::native::reference_measurements::execute::checked_bytes(
+    let response = crate::native::reference_measurements::inputs::checked_bytes(
         cwd,
         Path::new("result.json"),
         64 * 1024,
@@ -148,7 +148,7 @@ pub async fn section_with_executable(
             serde_json::json!({"code":decoded.code,"message":decoded.detail}).to_string(),
         ));
     }
-    let report = crate::native::reference_measurements::execute::checked_bytes(
+    let report = crate::native::reference_measurements::inputs::checked_bytes(
         cwd,
         Path::new("face-section.json"),
         MAX_FACE_SECTION_BYTES,

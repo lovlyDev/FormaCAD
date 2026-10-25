@@ -3,7 +3,7 @@ mod context;
 pub mod custom;
 pub(crate) mod health;
 mod protocol;
-#[cfg(feature = "native-occt")]
+#[cfg(feature = "native-worker-client")]
 mod repair;
 pub mod review_plan;
 pub mod selection;

@@ -40,3 +40,4 @@ apps/desktop/src-tauri/icons/ios/
 .local/
 apps/desktop/src-tauri/binaries/
 apps/desktop/src-tauri/resources/occt/
+apps/desktop/src-tauri/resources/windows-runtime/

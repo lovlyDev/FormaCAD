@@ -2,6 +2,14 @@
 
 [Documentation](index.md) · [Русский](../ru/status.md) · [Roadmap](roadmap.md)
 
+## Changes in 1.3.2
+
+The desktop is separated from OCCT: the UI builds with `native-worker-client`, and the separate CAD process with `native-occt`. Building, STEP, measurements and sections retain their native routes. Readiness runs a real unit box inside the worker with a time limit and translates unavailable-kernel errors. Windows packaging includes verified Microsoft runtime files; the build rejects unknown host imports and unsuitable DLLs. This addresses confirmed packaging deficiencies in 1.3.0 without claiming the cause of the error on another PC.
+
+`FORMA_DATA_DIR` redirects the entire profile through Tauri 2.12: database, projects, logs, window state and the default WebView directory. Invalid paths fail before profile creation. Appearance, privacy and permissions settings no longer launch external health commands. Usage, storage and verification are described in the [development guide](development.md).
+
+These changes do not establish complete architectural 2.0 readiness, installed WebView acceptance on clean Windows, Smart App Control compatibility, NAS guarantees or other operating systems. Previous installers remain preserved; publishing source code does not install the application. Verification of the specific new artifact is reported separately in its release.
+
 ## Verified 1.3.0 package
 
 The Windows 1.3.0 installer is built and verified: 19,027,793 bytes, SHA-256 `FA7923F235E64D19B3DE6FDB44EC035EC344646AA06016BEDA247AF363010D00`. Its updater signature was independently verified against the application public key. The app, one worker, 25 OCCT DLLs and both separately named licenses were extracted without executing the installer and their contents verified. App comparison permits only the exact standard Tauri `UNK` to `NSS` token patch; all other bytes match the build output.

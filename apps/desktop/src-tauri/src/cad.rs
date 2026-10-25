@@ -105,7 +105,7 @@ async fn generate_step(
     Ok(std::fs::read(output)?)
 }
 
-#[cfg(feature = "native-occt")]
+#[cfg(feature = "native-worker-client")]
 async fn export_selected_body(
     state: &AppState,
     project_id: &str,
@@ -147,7 +147,7 @@ async fn export_selected_body(
     Ok(bytes)
 }
 
-#[cfg(not(feature = "native-occt"))]
+#[cfg(not(feature = "native-worker-client"))]
 async fn export_selected_body(
     _state: &AppState,
     _project_id: &str,

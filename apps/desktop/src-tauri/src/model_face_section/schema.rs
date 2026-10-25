@@ -215,7 +215,7 @@ impl FaceSectionReport {
     }
 }
 
-#[cfg(feature = "native-occt")]
+#[cfg(feature = "native-worker-client")]
 impl From<crate::native::section::SectionGeometry> for FaceSectionGeometry {
     fn from(value: crate::native::section::SectionGeometry) -> Self {
         Self {

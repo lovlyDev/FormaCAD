@@ -1,5 +1,5 @@
 mod command_response;
-#[cfg(all(test, feature = "native-occt"))]
+#[cfg(all(test, feature = "native-worker-client"))]
 mod command_response_tests;
 use crate::core::{AppError, Result};
 use serde::Serialize;
@@ -8,12 +8,12 @@ pub fn parse_output(provider: &str, output: &str) -> Result<PlanResult> {
     parse_output_with_contract(provider, output, false, None)
 }
 
-#[cfg(feature = "native-occt")]
+#[cfg(feature = "native-worker-client")]
 pub fn parse_native_output(provider: &str, output: &str) -> Result<PlanResult> {
     parse_output_with_contract(provider, output, true, None)
 }
 
-#[cfg(feature = "native-occt")]
+#[cfg(feature = "native-worker-client")]
 pub(super) fn parse_native_edit_output(
     provider: &str,
     output: &str,

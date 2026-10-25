@@ -15,13 +15,29 @@ fn worker() -> PathBuf {
 }
 async fn saved_step(state: &AppState) -> crate::models::Project {
     let mut project = fixture::project(state, 4).await;
-    let source = state.root.join("fixture.step");
-    crate::native::Solid::box_solid(40., 20., 10.)
-        .unwrap()
-        .write_step(&source)
-        .unwrap();
-    let bytes = std::fs::read(&source).unwrap();
-    std::fs::remove_file(source).unwrap();
+    // Generate the genuine STEP in an isolated process, as the desktop does.
+    // Worker exit closes its native IO before the host reads and removes staging.
+    let staging = tempfile::tempdir().unwrap();
+    let document = serde_json::json!({
+        "schemaVersion":2,"revisionId":"fixture_box","parameters":[],
+        "features":[
+            {"id":"profile","name":"Profile","operation":{"type":"rectangle","width":{"kind":"literal","mm":40.0},"depth":{"kind":"literal","mm":20.0}}},
+            {"id":"pad","name":"Pad","operation":{"type":"extrude","sketchId":"profile","distance":{"kind":"literal","mm":10.0}}}
+        ],
+        "bodies":[{"id":"body","name":"Box","sourceFeatureId":"pad"}]
+    });
+    assert!(crate::native::worker::build_with_executable(
+        &document.to_string(),
+        staging.path(),
+        Arc::new(AtomicBool::new(false)),
+        &worker()
+    )
+    .await
+    .unwrap());
+    let bytes = std::fs::read(staging.path().join("model.step")).unwrap();
+    staging
+        .close()
+        .expect("worker STEP staging must be fully releasable after exit");
     let file = &mut project.files[0];
     file.size = bytes.len() as u64;
     file.data = Some(crate::artifacts::data_url(&file.name, &bytes));

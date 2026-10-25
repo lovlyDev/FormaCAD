@@ -1,6 +1,6 @@
 //! Read exact CAD properties for any saved STEP revision in the project.
 use crate::core::{AppState, Result};
-#[cfg(feature = "native-occt")]
+#[cfg(feature = "native-worker-client")]
 mod read;
 use tauri::State;
 
@@ -20,12 +20,12 @@ pub async fn inspect_model(
     revision_id: String,
     state: State<'_, AppState>,
 ) -> Result<Option<ExactModelProperties>> {
-    #[cfg(not(feature = "native-occt"))]
+    #[cfg(not(feature = "native-worker-client"))]
     {
         let _ = (project_id, revision_id, state);
         Ok(None)
     }
-    #[cfg(feature = "native-occt")]
+    #[cfg(feature = "native-worker-client")]
     {
         read::inspect(&state, &project_id, &revision_id).await
     }

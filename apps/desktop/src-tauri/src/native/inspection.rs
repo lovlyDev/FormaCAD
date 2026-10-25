@@ -1,33 +1,19 @@
 //! Exact whole-solid properties from the isolated OCCT worker.
-use super::{job::JobResult, worker::worker_executable, NativeError, Solid};
+#[cfg(feature = "native-occt")]
+mod source;
+use super::worker::worker_executable;
 use crate::{
     core::{AppError, Result},
     processes::{self, CommandSpec},
 };
 use serde::Deserialize;
+#[cfg(feature = "native-occt")]
+pub use source::inspect_source;
 use std::{
     path::Path,
     sync::{atomic::AtomicBool, Arc},
     time::Duration,
 };
-
-pub fn inspect_source(cwd: &Path) -> std::result::Result<JobResult, NativeError> {
-    let path = cwd.join("source.step");
-    let size = std::fs::metadata(&path)
-        .map_err(|error| NativeError {
-            code: "STEP_IMPORT_FAILED".into(),
-            detail: error.to_string(),
-        })?
-        .len();
-    if size == 0 || size > 40 * 1024 * 1024 {
-        return Err(NativeError {
-            code: "STEP_SIZE_INVALID".into(),
-            detail: "Inspection STEP has invalid size".into(),
-        });
-    }
-    let solid = Solid::read_step(&path)?;
-    Ok(JobResult::from_solid(&solid))
-}
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]

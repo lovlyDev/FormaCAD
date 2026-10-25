@@ -7,7 +7,11 @@ $selectedTools = $null
 foreach ($installation in $installations) {
     $toolsRoot = Join-Path $installation 'VC\Tools\MSVC'
     foreach ($tools in (Get-ChildItem -LiteralPath $toolsRoot -Directory | Sort-Object Name -Descending)) {
-        if ((Test-Path -LiteralPath (Join-Path $tools.FullName 'include\excpt.h')) -and (Test-Path -LiteralPath (Join-Path $tools.FullName 'lib\x64\msvcrt.lib'))) {
+        if ((Test-Path -LiteralPath (Join-Path $tools.FullName 'include\excpt.h')) -and
+            (Test-Path -LiteralPath (Join-Path $tools.FullName 'lib\x64\msvcrt.lib')) -and
+            (Test-Path -LiteralPath (Join-Path $tools.FullName 'bin\Hostx64\x64\cl.exe')) -and
+            (Test-Path -LiteralPath (Join-Path $tools.FullName 'bin\Hostx64\x64\c2.dll')) -and
+            (Test-Path -LiteralPath (Join-Path $tools.FullName 'bin\Hostx64\x64\link.exe'))) {
             $selectedTools = $tools.FullName
             $env:VCINSTALLDIR = Join-Path $installation 'VC\'
             break

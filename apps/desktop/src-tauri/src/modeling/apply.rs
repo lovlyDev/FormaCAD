@@ -49,7 +49,7 @@ pub async fn apply(state: &AppState, request: ApplyRequest) -> Result<ApplyOutco
 }
 
 /// Rust-only test seam. The caller cannot skip host permissions or commit checks.
-#[cfg(feature = "native-occt")]
+#[cfg(feature = "native-worker-client")]
 pub async fn apply_with_executable(
     state: &AppState,
     request: ApplyRequest,

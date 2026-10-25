@@ -1,4 +1,5 @@
 pub mod agents;
+pub mod app_profile;
 pub mod artifacts;
 pub mod cad;
 pub mod cad_document;
@@ -18,7 +19,7 @@ pub mod model_preview;
 pub mod model_section;
 pub mod modeling;
 pub mod models;
-#[cfg(feature = "native-occt")]
+#[cfg(feature = "native-worker-client")]
 pub mod native;
 pub mod permissions;
 pub mod processes;
@@ -37,6 +38,13 @@ use std::{collections::HashMap, sync::atomic::Ordering};
 use tauri::Manager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let mut context = tauri::generate_context!();
+    if let Err(error) =
+        app_profile::configure(context.config_mut(), std::env::var_os("FORMA_DATA_DIR"))
+    {
+        eprintln!("Forma could not start: {error}");
+        std::process::exit(1);
+    }
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -44,12 +52,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app| {
-            let data = std::env::var_os("FORMA_DATA_DIR")
-                .map(std::path::PathBuf::from)
-                .unwrap_or(app.path().app_data_dir()?);
-            if !data.is_absolute() {
-                return Err("FORMA_DATA_DIR must be an absolute path".into());
-            }
+            let data = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data)?;
             let root = data.join("projects");
             std::fs::create_dir_all(&root)?;
@@ -130,7 +133,7 @@ pub fn run() {
             updates::set_ui_preferences,
             updates::prepare_update
         ])
-        .build(tauri::generate_context!());
+        .build(context);
     match app {
         Ok(app) => app.run(|handle, event| {
             if matches!(event, tauri::RunEvent::ExitRequested { .. }) {

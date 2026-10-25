@@ -1103,6 +1103,7 @@
   "These measurements do not change the saved model and are not pinned dimensions.": "These measurements do not change the saved model and are not pinned dimensions.",
   "This authored edge is straight; circular radius measurement is unavailable.": "This authored edge is straight; circular radius measurement is unavailable.",
   "in": "in",
+  "NATIVE_KERNEL_UNAVAILABLE": "The CAD engine could not start. Check the Forma installation and Windows protection log. The saved model has not changed.",
   "NATIVE_ERROR": "The CAD engine could not complete the operation.",
   "INVALID_SOURCE": "The selected CAD body is invalid.",
   "MEASUREMENT_RECOVERY_REQUIRED": "Reopen the project to finish storage recovery before retrying the operation.",

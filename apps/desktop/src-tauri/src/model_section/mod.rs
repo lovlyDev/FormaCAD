@@ -1,10 +1,10 @@
 //! Read-only section of the committed revision; no model edit or export side effect.
 use crate::core::{AppState, Result};
-#[cfg(feature = "native-occt")]
+#[cfg(feature = "native-worker-client")]
 pub mod build;
-#[cfg(feature = "native-occt")]
+#[cfg(feature = "native-worker-client")]
 mod workspace;
-#[cfg(feature = "native-occt")]
+#[cfg(feature = "native-worker-client")]
 pub use crate::native::section::{SectionPlane, SectionReport};
 
 #[tauri::command]
@@ -16,7 +16,7 @@ pub async fn section_model(
     deflection_mm: Option<f64>,
     state: tauri::State<'_, AppState>,
 ) -> Result<serde_json::Value> {
-    #[cfg(not(feature = "native-occt"))]
+    #[cfg(not(feature = "native-worker-client"))]
     {
         let _ = (
             project_id,
@@ -31,7 +31,7 @@ pub async fn section_model(
             "Model section requires the native OpenCascade build",
         ))
     }
-    #[cfg(feature = "native-occt")]
+    #[cfg(feature = "native-worker-client")]
     {
         let plane = SectionPlane {
             origin_mm,

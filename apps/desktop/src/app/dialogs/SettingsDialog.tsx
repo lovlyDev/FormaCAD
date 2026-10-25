@@ -20,13 +20,13 @@ export function SettingsDialog({
   project: Project | null;
   onAgent: (a: Agent) => Promise<void>;
 }) {
+  const [page, setPage] = usePersistentState("forma.ui.settingsPage", "AI agents");
   const system = useQuery({
     queryKey: ["health"],
     queryFn: health,
-    enabled: open,
+    enabled: open && (page === "AI agents" || page === "CAD environment"),
     staleTime: 30000,
   });
-  const [page, setPage] = usePersistentState("forma.ui.settingsPage", "AI agents");
   const [configuring, setConfiguring] = useState(false);
   const [configurationError, setConfigurationError] = useState("");
   const audit = useQuery({
@@ -92,7 +92,7 @@ export function SettingsDialog({
                     </span>
                     <div>
                       <strong>{t(h.name)}</strong>
-                      <small>{systemText(h.detail)}</small>
+                      <small role={h.available ? undefined : "status"}>{errorText(h.detail)}</small>
                     </div>
                     <span>
                       {h.available ? t("Detected") : t("Unavailable")}
@@ -143,7 +143,7 @@ export function SettingsDialog({
               <p className="field-hint">
                 {page === "AI agents"
                   ? t("Uses your existing CLI login.")
-                  : system.data?.some((item) => item.name === "OpenCascade kernel" && item.available)
+                  : system.data?.some((item) => item.name === "OpenCascade kernel")
                     ? t("OpenCascade handles STEP import and CAD modeling. Python and CadQuery are optional for legacy workflows.")
                     : t("Python and CadQuery power STEP import and export.")}
               </p>

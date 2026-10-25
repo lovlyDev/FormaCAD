@@ -13,9 +13,9 @@ pub fn prepare(source: &str) -> Result<PreparedProgram> {
             compiled_legacy: None,
         });
     }
-    #[cfg(feature = "native-occt")]
+    #[cfg(feature = "native-worker-client")]
     let value: serde_json::Value = serde_json::from_str(source)?;
-    #[cfg(feature = "native-occt")]
+    #[cfg(feature = "native-worker-client")]
     if value
         .get("schemaVersion")
         .and_then(serde_json::Value::as_u64)
@@ -54,7 +54,7 @@ mod legacy_tests {
     }
 }
 
-#[cfg(all(test, feature = "native-occt"))]
+#[cfg(all(test, feature = "native-worker-client"))]
 mod tests {
     use super::*;
 

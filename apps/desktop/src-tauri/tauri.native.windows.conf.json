@@ -1,9 +1,11 @@
 {
   "bundle": {
+    "externalBin": ["binaries/forma-cad-worker"],
     "resources": {
       "resources/occt/*.dll": "",
       "resources/occt/LICENSE_LGPL_21.txt": "licenses/occt/LICENSE_LGPL_21.txt",
-      "resources/occt/OCCT_LGPL_EXCEPTION.txt": "licenses/occt/OCCT_LGPL_EXCEPTION.txt"
+      "resources/occt/OCCT_LGPL_EXCEPTION.txt": "licenses/occt/OCCT_LGPL_EXCEPTION.txt",
+      "resources/windows-runtime/*.dll": ""
     }
   }
 }

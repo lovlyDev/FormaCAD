@@ -1,17 +1,17 @@
 //! Only kernel-generated, sealed topology can authorize viewport ordinals.
-#[cfg(any(feature = "native-occt", test))]
+#[cfg(any(feature = "native-worker-client", test))]
 use super::SelectionContext;
 use crate::core::AppError;
-#[cfg(any(feature = "native-occt", test))]
+#[cfg(any(feature = "native-worker-client", test))]
 use crate::core::Result;
-#[cfg(any(feature = "native-occt", test))]
+#[cfg(any(feature = "native-worker-client", test))]
 use serde_json::Value;
 
 pub(super) fn invalid() -> AppError {
     AppError::Invalid("SELECTION_CONTEXT_INVALID".into())
 }
 
-#[cfg(any(feature = "native-occt", test))]
+#[cfg(any(feature = "native-worker-client", test))]
 pub(super) fn body_topology(bytes: &[u8], body: &str) -> Result<Value> {
     let field = |offset: usize| -> Result<u32> {
         let value: [u8; 4] = bytes
@@ -63,7 +63,7 @@ pub(super) fn body_topology(bytes: &[u8], body: &str) -> Result<Value> {
     Ok(extras.clone())
 }
 
-#[cfg(any(feature = "native-occt", test))]
+#[cfg(any(feature = "native-worker-client", test))]
 pub(super) fn verify(selected: &SelectionContext, fresh: &Value, saved: &Value) -> Result<()> {
     selected.validate(Some(&selected.revision_id))?;
     // Exact mapping equality deliberately fails closed on regenerated topology changes.

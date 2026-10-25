@@ -1,11 +1,16 @@
 //! Project-scoped host staging and independently verified worker STEP inputs.
+#[cfg(feature = "native-occt")]
 mod resolve;
+#[cfg(feature = "native-occt")]
+mod shape;
 mod stage;
-pub use resolve::read_step;
+#[cfg(feature = "native-occt")]
+pub use shape::read_step;
 pub use stage::stage_project_assets;
 
 pub const MAX_TOTAL_STEP_BYTES: usize = 128 * 1024 * 1024;
 /// Check every authored input before producing any geometry/artifact.
+#[cfg(feature = "native-occt")]
 pub fn verify_inputs(
     document: &crate::cad_ir::Document,
     cwd: &std::path::Path,
@@ -25,6 +30,7 @@ pub fn verify_inputs(
 pub fn relative_path(sha256: &str) -> std::path::PathBuf {
     std::path::PathBuf::from(format!("inputs/step-{sha256}.step"))
 }
+#[cfg(feature = "native-occt")]
 pub(super) fn error(code: &str, detail: impl Into<String>) -> super::NativeError {
     super::NativeError {
         code: code.into(),

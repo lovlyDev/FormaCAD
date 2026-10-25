@@ -1,8 +1,8 @@
 //! Read-only, same-body exact pair measurements; no pins/constraints/history writes.
-#[cfg(feature = "native-occt")]
+#[cfg(feature = "native-worker-client")]
 pub mod build;
 pub mod schema;
-#[cfg(feature = "native-occt")]
+#[cfg(feature = "native-worker-client")]
 mod workspace;
 use crate::core::{AppError, AppState, Result};
 use schema::{PairMeasurementQuery, PairMeasurementReport};
@@ -24,7 +24,7 @@ pub async fn measure_model_pair(
     query: PairMeasurementQuery,
     state: tauri::State<'_, AppState>,
 ) -> Result<ConfirmedPairMeasurement> {
-    #[cfg(feature = "native-occt")]
+    #[cfg(feature = "native-worker-client")]
     {
         let executable = crate::native::worker::worker_executable()?;
         build::measure_with_executable(
@@ -38,7 +38,7 @@ pub async fn measure_model_pair(
         )
         .await
     }
-    #[cfg(not(feature = "native-occt"))]
+    #[cfg(not(feature = "native-worker-client"))]
     {
         let _ = (project_id, expected_revision, body_id, query, state);
         Err(failure(

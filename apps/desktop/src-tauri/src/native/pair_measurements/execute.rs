@@ -16,7 +16,7 @@ use crate::{
 
 use std::path::Path;
 
-pub use crate::native::reference_measurements::execute::{checked_bytes, imported_seals};
+pub use crate::native::reference_measurements::inputs::{checked_bytes, imported_seals};
 fn digest(bytes: &[u8]) -> String {
     crate::artifacts::digest(bytes)
 }

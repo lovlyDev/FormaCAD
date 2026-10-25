@@ -1,12 +1,12 @@
 //! Read-only committed-authored-body measurements. Schema is supplied by native stage.
-#[cfg(feature = "native-occt")]
+#[cfg(feature = "native-worker-client")]
 pub mod build;
-#[cfg(feature = "native-occt")]
+#[cfg(feature = "native-worker-client")]
 pub(crate) mod capture;
 pub mod schema;
-#[cfg(feature = "native-occt")]
+#[cfg(feature = "native-worker-client")]
 mod snapshot;
-#[cfg(feature = "native-occt")]
+#[cfg(feature = "native-worker-client")]
 mod workspace;
 
 use crate::core::{AppError, AppState, Result};
@@ -28,7 +28,7 @@ pub async fn measure_model_reference(
     query: MeasurementQuery,
     state: tauri::State<'_, AppState>,
 ) -> Result<ConfirmedMeasurement> {
-    #[cfg(feature = "native-occt")]
+    #[cfg(feature = "native-worker-client")]
     {
         let executable = crate::native::worker::worker_executable()?;
         build::measure_with_executable(
@@ -42,7 +42,7 @@ pub async fn measure_model_reference(
         )
         .await
     }
-    #[cfg(not(feature = "native-occt"))]
+    #[cfg(not(feature = "native-worker-client"))]
     {
         let _ = (project_id, expected_revision, body_id, query, state);
         Err(failure(

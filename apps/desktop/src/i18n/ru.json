@@ -1103,6 +1103,7 @@
   "These measurements do not change the saved model and are not pinned dimensions.": "Эти измерения не меняют сохранённую модель и не являются закреплёнными размерами.",
   "This authored edge is straight; circular radius measurement is unavailable.": "Это прямое ребро исходной модели; измерение радиуса окружности недоступно.",
   "in": "дюйм",
+  "NATIVE_KERNEL_UNAVAILABLE": "CAD-ядро не удалось запустить. Проверьте установку Forma и журнал защиты Windows. Сохранённая модель не изменена.",
   "NATIVE_ERROR": "CAD-ядру не удалось завершить операцию.",
   "INVALID_SOURCE": "Выбранное CAD-тело некорректно.",
   "MEASUREMENT_RECOVERY_REQUIRED": "Откройте проект заново, чтобы завершить восстановление перед повторной операцией.",
