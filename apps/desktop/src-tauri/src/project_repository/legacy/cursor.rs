@@ -4,6 +4,7 @@ use crate::{
     core::{AppError, AppState, Result},
     models::Project,
     project_history::HistoryState,
+    project_repository::session::ReadSession,
 };
 
 pub struct HistoryStateSnapshot {
@@ -13,10 +14,12 @@ pub struct HistoryStateSnapshot {
     folder: Option<String>,
     project_bytes: Vec<u8>,
     state_bytes: Vec<u8>,
+    session: ReadSession,
 }
 
 pub async fn capture_history_state(state: &AppState, id: &str) -> Result<HistoryStateSnapshot> {
     crate::security::valid_id(id)?;
+    let session = ReadSession::capture(state, id)?;
     let raw = cursor_sql::read(&state.pool, id).await?;
     if raw.project.journal.is_some() {
         return Err(AppError::Invalid(
@@ -38,6 +41,7 @@ pub async fn capture_history_state(state: &AppState, id: &str) -> Result<History
     }
     let project_bytes = serde_json::to_vec(&project)?;
     let state_bytes = serde_json::to_vec(&history_state)?;
+    session.recheck(state, id)?;
     Ok(HistoryStateSnapshot {
         project,
         history_state,
@@ -45,6 +49,7 @@ pub async fn capture_history_state(state: &AppState, id: &str) -> Result<History
         folder,
         project_bytes,
         state_bytes,
+        session,
     })
 }
 
@@ -52,6 +57,7 @@ pub async fn recheck_history_state(
     state: &AppState,
     snapshot: &HistoryStateSnapshot,
 ) -> Result<()> {
+    snapshot.session.recheck(state, &snapshot.project.id)?;
     if serde_json::to_vec(&snapshot.project)? != snapshot.project_bytes
         || serde_json::to_vec(&snapshot.history_state)? != snapshot.state_bytes
     {
@@ -67,5 +73,6 @@ pub async fn recheck_history_state(
     {
         return Err(changed());
     }
+    snapshot.session.recheck(state, &snapshot.project.id)?;
     Ok(())
 }
