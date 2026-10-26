@@ -86,9 +86,13 @@ pub fn to_strings(set: &PermissionSet) -> Vec<String> {
 pub const WIT_PACKAGE: &str = "formacad:plugin";
 pub const WIT_VERSION: &str = "0.1.0";
 
+/// The import is not part of the host contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UnknownImport;
+
 /// Which permission an imported interface needs. `Ok(None)` means "always
-/// available"; an error means the import is not part of the host contract.
-pub fn import_requirement(interface: &str) -> std::result::Result<Option<Requirement>, ()> {
+/// available".
+pub fn import_requirement(interface: &str) -> std::result::Result<Option<Requirement>, UnknownImport> {
     Ok(match interface {
         "types" | "log" | "assets" => None,
         "model" => Some(Requirement::Exact(Permission::ModelRead)),
@@ -96,7 +100,7 @@ pub fn import_requirement(interface: &str) -> std::result::Result<Option<Require
         "storage" => Some(Requirement::Exact(Permission::Storage)),
         "notifications" => Some(Requirement::Exact(Permission::Notifications)),
         "network" => Some(Requirement::AnyNetwork),
-        _ => return Err(()),
+        _ => return Err(UnknownImport),
     })
 }
 

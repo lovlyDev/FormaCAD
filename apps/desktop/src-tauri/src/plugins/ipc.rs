@@ -117,9 +117,9 @@ pub async fn plugins_uninstall(id: String, version: Option<String>, plugins: Sta
 #[tauri::command]
 pub async fn plugins_journal(id: Option<String>, plugins: State<'_, PluginState>) -> Result<Vec<Entry>> {
     let service = plugins.service.clone();
-    Ok(tokio::task::spawn_blocking(move || service.journal.recent(id.as_deref(), 100))
+    tokio::task::spawn_blocking(move || service.journal.recent(id.as_deref(), 100))
         .await
-        .map_err(|e| AppError::Invalid(e.to_string()))?)
+        .map_err(|e| AppError::Invalid(e.to_string()))
 }
 
 #[derive(serde::Serialize)]

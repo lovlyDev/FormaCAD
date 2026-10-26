@@ -2,7 +2,7 @@
 
 [Documentation](index.md) · [Русский](../ru/plugin-platform.md)
 
-Status: **specification, not implemented yet.** This document is the shared contract for three parts built in parallel: the plugin runtime in the CAD app, the `plugins.formacad.ru` catalog and the author tooling. The catalog opens to everyone only after the CAD app can install and run plugins. Contract version: `plugin-api 0.1`; fields may change until the first public version and only compatibly afterwards (see “Versions and compatibility”).
+Status: **the CAD plugin runtime is implemented** (install from file, execution, permissions, UI — see [Plugins](plugins.md) and the [author guide](plugin-authoring.md)); the `plugins.formacad.ru` catalog is built separately and the catalog key in the CAD app is a placeholder. This document is the shared contract for three parts built in parallel: the plugin runtime in the CAD app, the `plugins.formacad.ru` catalog and the author tooling. The catalog opens to everyone only after the CAD app can install and run plugins. Contract version: `plugin-api 0.1`; fields may change until the first public version and only compatibly afterwards (see “Versions and compatibility”).
 
 Builds on the [2.x plan](../architecture-2.0.md), section 8.3 “Lua and WASM extension lifecycle” and stages 2.12–2.13.
 
@@ -132,9 +132,43 @@ If a plugin is missing or disabled, a body created by its operation stays visibl
 
 `api` is the contract MAJOR.MINOR. MINOR adds host functions and fields compatibly; MAJOR breaks. The CAD app supports the current MAJOR and announces deprecations one release ahead. A plugin operation's parameter schema is versioned with the plugin; when a project updates, parameters migrate after a backup and a successful rebuild.
 
-## 11. Not decided yet
+## 11. Host interface `formacad:plugin@0.1`
 
-- The exact WIT interface `formacad:plugin@0.1` (host functions) — the first step of the CAD runtime work.
+WIT file: [`docs/plugin-api/wit/formacad-plugin.wit`](../plugin-api/wit/formacad-plugin.wit). A plugin is a **WebAssembly component** (component model), not a core module: WIT describes the types exactly, every group of host functions is its own interface, and permissions are checked against the component's import list without guessing an ABI. A component imports only the interfaces it actually calls.
+
+| Interface | Permission | Functions |
+| --- | --- | --- |
+| `types`, `log`, `assets` | none | error types; local journal lines; reading the plugin's own package files (`assets/`, `locales/`) |
+| `model` | `model.read` | `document()` — CAD IR v2 of the current revision (JSON) |
+| `selection` | `selection.read` | `current()` — viewport selection (JSON) |
+| `storage` | `storage` | `get/set/remove/keys`, 10 MB in total |
+| `notifications` | `notifications` | `notify(level, message)`, up to 5 per call |
+| `network` | `network:<host>` | `fetch(request)` — HTTPS to declared hosts only, no redirects, 15 s, response up to 10 MB |
+
+Plugin exports and the permissions they require:
+
+| Export | Contribution | Permission | Result |
+| --- | --- | --- | --- |
+| `feature.build(id, params, context)` | `features` | `model.write` | JSON array of Command API commands |
+| `command.run(id, params, context)` | `commands` | `model.write` | `{"message","commands":[…]}` |
+| `importer.import-file(id, name, bytes, params, context)` | `importers` | `file.import` | JSON array of commands |
+| `exporter.export-file(id, document, params, context)` | `exporters` | `file.export` and `model.read` | file bytes |
+| `panel.render(id, context)` | `panels` | — | declarative view `{"blocks":[…]}` |
+
+CAD IR, parameters and commands cross the boundary as JSON strings and are parsed by the host with the same strict types as its own Command API, so WIT stays stable while CAD IR grows. `context` carries `api`, `locale`, `revisionId`, `settings` and `idPrefix`; every new ID (feature, body, parameter) must start with `idPrefix` or the result is rejected.
+
+## 12. Implementation notes for 0.1
+
+- **Package:** only `manifest.json`, the `entry` file, the icon, `locales/*.json` and `assets/**` are allowed; stored/deflate compression; case-insensitive duplicate paths are rejected.
+- **Catalog index entry** (`GET /api/v1/plugins/<id>/versions/<version>`): `{"payload":"<base64 JSON>","signature":"<base64 Ed25519 over the payload bytes>","keyId":"…"}`. The payload has `format: "formacad-plugin-index-entry/1"`, `id`, `version`, `name`, `permissions`, `sha256`, `size`, `downloadUrl`, `pageUrl` (both `https://plugins.formacad.ru/…`), `yanked`. The CAD app matches id/version with the link, the package size and SHA-256, and the manifest permissions with the signed list. Unknown fields are ignored.
+- **Catalog key** lives in `apps/desktop/src-tauri/src/plugins/catalog/keys.rs`; the list is empty for now (owner TODO), so catalog installs answer `PLUGIN_CATALOG_KEY_MISSING` while file installs work.
+- **A plugin operation** is stored as ordinary CAD IR operations (`add_feature`/`add_body`) in one revision; history shows “Plugin <name> <version>: <operation>”. The body therefore stays visible, measurable and exportable without the plugin. Reopening the operation with the plugin's parameters and pinning the version in the document are **not implemented**: that needs a new CAD IR operation type with worker support (proposal: `pluginFeature { pluginId, version, featureId, params, expanded }`).
+- **Panels** open from the command palette as a dialog, not in the sidebar/inspector; a panel form submits a plugin command whose params match the form fields.
+- **`formacad://` links** open a second window on Windows when the CAD app is already running (single-instance is not enabled, to keep multi-window and separate-profile launches unchanged).
+- **Switching the active version** to one with new permissions is not done from settings: install that version again (consent window).
+
+## 13. Not decided yet
+
 - Author-side package signing (integrity currently comes from the hash and the catalog-signed index).
 - Paid plugins — not planned.
 
