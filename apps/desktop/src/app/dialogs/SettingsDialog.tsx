@@ -9,6 +9,7 @@ import { health, permissionAudit, chooseCadPython, native } from "../../lib/api"
 import type { Agent, Project } from "../../types";
 import { ConfirmationControls } from "./ConfirmationControls";
 import { CustomAgentSettings } from "./CustomAgentSettings";
+import { PluginsSettings } from "../../features/plugins/PluginsSettings";
 export function SettingsDialog({
   open,
   close,
@@ -49,6 +50,7 @@ export function SettingsDialog({
             "AI agents",
             "CAD environment",
             "Permissions",
+            "Plugins",
             "Appearance",
             "Privacy",
           ].map((s) => (
@@ -195,6 +197,8 @@ export function SettingsDialog({
                 )}
               </p>
             </>
+          ) : page === "Plugins" ? (
+            <PluginsSettings open={open} />
           ) : page === "Appearance" ? (
             <>
               <label>
