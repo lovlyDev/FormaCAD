@@ -31,6 +31,7 @@ These guides describe the consolidated 1.2.6 candidate and its limits. Final pac
 
 ## For developers
 
+- [Plugin platform](plugin-platform.md): specification of the `.cadplugin` format, `manifest.json`, permissions, GitHub publishing and the `plugins.formacad.ru` catalog (not implemented yet).
 - [Architecture](architecture.md): React, Rust, worker, and CAD kernel boundaries.
 - [Code map and data flows](internals.md): modules and the model-edit path.
 - [Development and local builds](development.md): environment, tests, and packaging.
