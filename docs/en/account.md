@@ -9,7 +9,7 @@ Signing in to a FormaCAD account is optional. Projects, modeling, history, impor
 ## What the user does
 
 1. Click the user icon in the top bar → “Sign in with browser”.
-2. The system browser opens the FormaCAD site. Sign in with VK ID and click “Allow” on the “Sign in to FormaCAD on this computer” page. No password is typed into the app.
+2. The system browser opens the FormaCAD site. Sign in any way you like — VK ID, Yandex ID, GitHub or a passkey — and click “Allow” on the “Sign in to FormaCAD on this computer” page. No password is typed into the app.
 3. The browser hands a one-time code back to the app; the account dialog shows the name, plan, rights state and how long they stay valid offline.
 4. “Check again” refreshes rights online. “Sign out” revokes the sign-in on the server and deletes local credentials. “Open account page” opens the site.
 
@@ -44,7 +44,7 @@ The app has no local paid features yet: rights are shown, but the free core neve
 ## Limitations
 
 - The default server is `https://cad.kartochk1n.ru`. For development set `FORMA_ACCOUNT_SERVER=http://127.0.0.1:5173` (http is allowed only for 127.0.0.1).
-- Real VK ID sign-in needs a configured APP_ID and a deployed server; locally it was verified with a VK ID stand-in and a test password account.
+- The site, not the app, decides the sign-in methods, so new methods appear without a CAD update. VK ID sign-in was verified on the deployed server; sign-in from the app was verified locally with a VK ID stand-in and a test password account.
 - On Linux the kernel keyring does not survive a reboot: sign in again afterwards.
 
 ## Verification

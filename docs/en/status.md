@@ -4,7 +4,7 @@
 
 ## Changes in 1.3.3
 
-Optional FormaCAD account sign-in from the app through the system browser and VK ID, signed rights with a bounded offline period, fixed project deletion on Windows and merged wenlixxq work on history sessions. Details and verification scope: [1.3.3 release](../releases/1.3.3.md) and the [account guide](account.md). The installer was built locally and is not published.
+Optional FormaCAD account sign-in from the app through the system browser (VK ID, Yandex ID, GitHub, passkey), signed rights with a bounded offline period, fixed project deletion on Windows and merged wenlixxq work on history sessions. Details and verification scope: [1.3.3 release](../releases/1.3.3.md) and the [account guide](account.md). The Windows x64 installer is published: [v1.3.3 release](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.3.3).
 
 ## Changes in 1.3.2
 
