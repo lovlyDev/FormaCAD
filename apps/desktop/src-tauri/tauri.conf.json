@@ -52,6 +52,11 @@
     }
   },
   "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["formacad"]
+      }
+    },
     "updater": {
       "windows": {
         "installMode": "passive"

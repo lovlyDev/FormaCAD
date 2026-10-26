@@ -1,0 +1,13 @@
+[package]
+name = "cadplugin"
+version = "0.1.0"
+edition = "2021"
+description = "Packs a FormaCAD plugin (plugin-api 0.1) into a .cadplugin archive"
+license = "MIT"
+publish = false
+
+[dependencies]
+wit-component = "0.262"
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+serde_json = "1"
+sha2 = "0.10"
