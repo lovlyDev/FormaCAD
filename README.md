@@ -49,7 +49,7 @@ npm run test:e2e
 npm run build
 ```
 
-Start with the [documentation index](docs/en/index.md). Detailed guides cover [using Forma](docs/en/using-forma.md), [projects](docs/en/projects.md), [modeling](docs/en/modeling.md), [sketches](docs/en/sketches.md), [AI and permissions](docs/en/ai.md), [viewer and files](docs/en/viewer-and-files.md), [settings and updates](docs/en/settings-and-updates.md), [data and recovery](docs/en/data.md), [architecture](docs/en/architecture.md), [code map](docs/en/internals.md), [development](docs/en/development.md), [release automation](docs/en/releases.md), and [contributing](CONTRIBUTING.md). New work must update both language guides as described in [documentation maintenance](docs/en/documentation.md).
+Start with the [documentation index](docs/en/index.md). Detailed guides cover [using Forma](docs/en/using-forma.md), [projects](docs/en/projects.md), [modeling](docs/en/modeling.md), [sketches](docs/en/sketches.md), [AI and permissions](docs/en/ai.md), [viewer and files](docs/en/viewer-and-files.md), [settings and updates](docs/en/settings-and-updates.md), [FormaCAD account](docs/en/account.md), [data and recovery](docs/en/data.md), [architecture](docs/en/architecture.md), [code map](docs/en/internals.md), [development](docs/en/development.md), [release automation](docs/en/releases.md), and [contributing](CONTRIBUTING.md). New work must update both language guides as described in [documentation maintenance](docs/en/documentation.md).
 
 ## Data and privacy
 

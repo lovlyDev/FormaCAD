@@ -26,6 +26,7 @@ These guides describe the consolidated 1.2.6 candidate and its limits. Final pac
 - [3D viewer, measurements, and files](viewer-and-files.md): camera, selection, import, and export.
 - [Data and recovery](data.md): directories, backups, and persisted preferences.
 - [Settings, localization, and updates](settings-and-updates.md): themes, language, versions, and persistence.
+- [FormaCAD account](account.md): optional browser sign-in, rights and offline mode.
 - [Releases and updates](releases.md): publication state and update installation.
 
 ## For developers

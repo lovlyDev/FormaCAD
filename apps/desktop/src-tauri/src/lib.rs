@@ -1,3 +1,4 @@
+pub mod account;
 pub mod agents;
 pub mod app_profile;
 pub mod artifacts;
@@ -51,6 +52,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
+        .manage(account::AccountState::default())
         .setup(|app| {
             let data = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data)?;
@@ -131,7 +133,12 @@ pub fn run() {
             updates::update_support,
             updates::get_ui_preferences,
             updates::set_ui_preferences,
-            updates::prepare_update
+            updates::prepare_update,
+            account::commands::account_status,
+            account::commands::account_sign_in,
+            account::commands::account_cancel_sign_in,
+            account::commands::account_refresh,
+            account::commands::account_sign_out
         ])
         .build(context);
     match app {

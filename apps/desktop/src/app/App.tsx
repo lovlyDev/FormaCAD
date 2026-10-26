@@ -18,6 +18,7 @@ import { Dashboard } from "./Dashboard";
 import { SelectionModelProperties } from "../features/reference-measurements/SelectionModelProperties";
 import { NewProjectDialog } from "./dialogs/NewProjectDialog";
 import { SettingsDialog } from "./dialogs/SettingsDialog";
+import { AccountButton } from "../features/account/AccountButton";
 import { ParametersDialog } from "./dialogs/ParametersDialog";
 import { ExportDialog } from "./dialogs/ExportDialog";
 import { ProgramDialog } from "./dialogs/ProgramDialog";
@@ -837,6 +838,7 @@ export default function App() {
           {project && <CadTaskIndicator projectId={project.id} onError={setError} />}
           {project && <ModelHistoryControls project={project} blocked={editingBlocked || !!pending || !!modal || loadingModel} onAction={historyAction} />}
           <Updates blocked={busy || !!pending || !!modal || loadingModel} />
+          <AccountButton />
           <button
             className="command-button"
             onClick={() => setModal("palette")}

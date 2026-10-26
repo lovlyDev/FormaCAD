@@ -33,3 +33,24 @@ impl ProjectLock {
         Ok(Self { _file: file })
     }
 }
+
+#[cfg(test)]
+mod delete_rename_tests {
+    use super::ProjectLock;
+
+    /// Project deletion renames the project directory. The storage lock file lives inside
+    /// it, so the lock must be released first: Windows denies renaming a directory that
+    /// holds an open file (os error 5).
+    #[test]
+    fn project_directory_renames_after_the_lock_is_released() {
+        let root = tempfile::tempdir().unwrap();
+        let project = root.path().join("p1");
+        std::fs::create_dir_all(project.join("metadata")).unwrap();
+        let lock = ProjectLock::acquire(&project).unwrap();
+        #[cfg(windows)]
+        assert!(std::fs::rename(&project, root.path().join(".deleting-p1")).is_err());
+        drop(lock);
+        std::fs::rename(&project, root.path().join(".deleting-p1")).unwrap();
+        std::fs::remove_dir_all(root.path().join(".deleting-p1")).unwrap();
+    }
+}
