@@ -152,7 +152,7 @@ mod tests {
 
     fn claims(now: i64) -> serde_json::Value {
         serde_json::json!({
-            "iss": "https://cad.kartochk1n.ru", "aud": "forma-desktop", "sub": "u1", "jti": "j", "ver": 1,
+            "iss": "https://formacad.ru", "aud": "forma-desktop", "sub": "u1", "jti": "j", "ver": 1,
             "iat": now, "nbf": now - 60, "exp": now + 7 * 86400, "rfa": now + 86400,
             "plan": "pro", "subscriptionStatus": "active",
             "capabilities": [{ "key": "support.priority", "limit": null, "until": null }]
@@ -164,7 +164,7 @@ mod tests {
         let now = 1_800_000_000;
         let k1 = SigningKey::from_bytes(&[7u8; 32]);
         let k2 = SigningKey::from_bytes(&[9u8; 32]);
-        let iss = "https://cad.kartochk1n.ru";
+        let iss = "https://formacad.ru";
         let doc = sign(&k1, "ent-1", "forma-entitlement+jwt", &claims(now));
         let jwks = vec![jwk(&k1, "ent-1")];
 

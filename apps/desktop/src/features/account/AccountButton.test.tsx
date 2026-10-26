@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({ invoke: vi.fn(), openUrl: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke, isTauri: () => true }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: mocks.openUrl }));
 
-const signedOut = { server: "https://cad.kartochk1n.ru", signedIn: false, profile: null, plan: null, subscriptionStatus: null, documentState: null, capabilities: [], offlineUntil: null, refreshAfter: null, syncedAt: null };
+const signedOut = { server: "https://formacad.ru", signedIn: false, profile: null, plan: null, subscriptionStatus: null, documentState: null, capabilities: [], offlineUntil: null, refreshAfter: null, syncedAt: null };
 const signedIn = { ...signedOut, signedIn: true, profile: { sub: "u1", displayName: "Анна", avatarUrl: null, email: null, locale: "ru" }, plan: "pro", subscriptionStatus: "active", documentState: "valid", capabilities: ["support.priority"], offlineUntil: 1900000000, refreshAfter: 1900000000, syncedAt: 1800000000 };
 
 const renderButton = () => render(<TooltipProvider><AccountButton /></TooltipProvider>);

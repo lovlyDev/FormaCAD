@@ -18,7 +18,7 @@ Waiting for approval can be cancelled; it ends by itself after 5 minutes.
 ## Technical route
 
 - OAuth 2.0 Authorization Code + PKCE (S256) for a native public client without a secret (RFC 8252). Every attempt uses fresh `code_verifier`, `state` and `nonce`.
-- The app opens `https://cad.kartochk1n.ru/oauth/authorize` in the system browser and listens once on `http://127.0.0.1:<random port>/callback`. A callback with a foreign `state` is ignored; `iss` must match the server (RFC 9207).
+- The app opens `https://formacad.ru/oauth/authorize` in the system browser and listens once on `http://127.0.0.1:<random port>/callback`. A callback with a foreign `state` is ignored; `iss` must match the server (RFC 9207).
 - Only a short-lived one-time code travels in the address bar. The code exchange and all tokens stay in the Rust host; the WebView receives only the profile and rights.
 - The access token lives about 10 minutes, in memory only. The refresh token rotates on every refresh and is kept in the OS credential store (Windows Credential Manager, macOS Keychain, Linux kernel keyring). Reusing an old refresh token is treated as theft and revokes the whole sign-in.
 - Rights arrive as a signed document (EdDSA/Ed25519, `typ: forma-entitlement+jwt`). The app checks the signature against the published keys at `/api/v1/entitlements/keys`, plus issuer, audience, version and expiry.
@@ -43,7 +43,7 @@ The app has no local paid features yet: rights are shown, but the free core neve
 
 ## Limitations
 
-- The default server is `https://cad.kartochk1n.ru`. For development set `FORMA_ACCOUNT_SERVER=http://127.0.0.1:5173` (http is allowed only for 127.0.0.1).
+- The default server is `https://formacad.ru`. For development set `FORMA_ACCOUNT_SERVER=http://127.0.0.1:5173` (http is allowed only for 127.0.0.1).
 - The site, not the app, decides the sign-in methods, so new methods appear without a CAD update. VK ID sign-in was verified on the deployed server; sign-in from the app was verified locally with a VK ID stand-in and a test password account.
 - On Linux the kernel keyring does not survive a reboot: sign in again afterwards.
 

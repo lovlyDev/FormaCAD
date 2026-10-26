@@ -127,13 +127,13 @@ mod tests {
         assert!(parse_callback("/favicon.ico", "s").is_none());
         assert!(parse_callback("/callback?code=x&state=other", "s").is_none());
         let ok = parse_callback(
-            "/callback?code=abc&state=s&iss=https%3A%2F%2Fcad.kartochk1n.ru",
+            "/callback?code=abc&state=s&iss=https%3A%2F%2Fformacad.ru",
             "s",
         )
         .unwrap()
         .unwrap();
         assert_eq!(ok.code, "abc");
-        assert_eq!(ok.iss.as_deref(), Some("https://cad.kartochk1n.ru"));
+        assert_eq!(ok.iss.as_deref(), Some("https://formacad.ru"));
         assert!(matches!(
             parse_callback("/callback?error=access_denied&state=s", "s"),
             Some(Err(AccountError::Denied))

@@ -1,7 +1,7 @@
 use super::error::{AccountError, AccountResult};
 
 /// Production account server (single origin for site, API and OAuth).
-pub const DEFAULT_SERVER: &str = "https://cad.kartochk1n.ru";
+pub const DEFAULT_SERVER: &str = "https://formacad.ru";
 pub const CLIENT_ID: &str = "forma-desktop";
 pub const SCOPE: &str = "openid profile entitlements offline_access";
 
@@ -45,14 +45,14 @@ mod tests {
     #[test]
     fn accepts_only_https_or_loopback_http() {
         assert_eq!(
-            normalize_origin("https://cad.kartochk1n.ru/").unwrap(),
-            "https://cad.kartochk1n.ru"
+            normalize_origin("https://formacad.ru/").unwrap(),
+            "https://formacad.ru"
         );
         assert_eq!(
             normalize_origin("http://127.0.0.1:5173").unwrap(),
             "http://127.0.0.1:5173"
         );
-        assert!(normalize_origin("http://cad.kartochk1n.ru").is_err());
+        assert!(normalize_origin("http://formacad.ru").is_err());
         assert!(normalize_origin("http://localhost:5173").is_err());
         assert!(normalize_origin("https://user:pw@kartochk1n.ru").is_err());
         assert!(normalize_origin("file:///etc/passwd").is_err());

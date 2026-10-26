@@ -114,7 +114,7 @@ export function AccountButton() {
   const label = profile ? profile.displayName || t("account.title") : t("account.signIn");
   const initial = (profile?.displayName || "?").slice(0, 1).toUpperCase();
   const tone = status?.documentState ? STATE_TONE[status.documentState] : "warn";
-  const openPortal = () => void openUrl(`${status?.server ?? "https://cad.kartochk1n.ru"}/account`).catch((cause) => setError({ text: accountMessage(cause), offline: false }));
+  const openPortal = () => void openUrl(`${status?.server ?? "https://formacad.ru"}/account`).catch((cause) => setError({ text: accountMessage(cause), offline: false }));
 
   return (
     <>
