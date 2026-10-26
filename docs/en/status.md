@@ -2,6 +2,10 @@
 
 [Documentation](index.md) · [Русский](../ru/status.md) · [Roadmap](roadmap.md)
 
+## Changes in 1.3.3
+
+Optional FormaCAD account sign-in from the app through the system browser and VK ID, signed rights with a bounded offline period, fixed project deletion on Windows and merged wenlixxq work on history sessions. Details and verification scope: [1.3.3 release](../releases/1.3.3.md) and the [account guide](account.md). The installer was built locally and is not published.
+
 ## Changes in 1.3.2
 
 The desktop is separated from OCCT: the UI builds with `native-worker-client`, and the separate CAD process with `native-occt`. Building, STEP, measurements and sections retain their native routes. Readiness runs a real unit box inside the worker with a time limit and translates unavailable-kernel errors. Windows packaging includes verified Microsoft runtime files; the build rejects unknown host imports and unsuitable DLLs. This addresses confirmed packaging deficiencies in 1.3.0 without claiming the cause of the error on another PC.
