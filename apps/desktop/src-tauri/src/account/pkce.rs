@@ -49,6 +49,9 @@ mod tests {
         assert_ne!(a.verifier, b.verifier);
         assert_ne!(a.state, b.state);
         assert_eq!(a.verifier.len(), 43);
-        assert!(a.verifier.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'));
+        assert!(a
+            .verifier
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'));
     }
 }

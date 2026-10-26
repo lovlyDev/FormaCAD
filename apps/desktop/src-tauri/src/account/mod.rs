@@ -11,12 +11,12 @@ mod cache;
 mod client;
 pub mod commands;
 mod config;
+#[cfg(test)]
+mod e2e_tests;
 mod entitlements;
 mod error;
 mod loopback;
 mod pkce;
 mod token_store;
-#[cfg(test)]
-mod e2e_tests;
 
 pub use commands::AccountState;

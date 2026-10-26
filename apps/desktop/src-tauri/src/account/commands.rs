@@ -39,11 +39,20 @@ pub struct AccountStatus {
 }
 
 fn now() -> i64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
 }
 
 async fn current_cache(state: &AppState, server: &str) -> AccountResult<AccountCache> {
-    Ok(cache::load(&state.pool).await?.filter(|c| c.server == server).unwrap_or_else(|| AccountCache { server: server.into(), ..Default::default() }))
+    Ok(cache::load(&state.pool)
+        .await?
+        .filter(|c| c.server == server)
+        .unwrap_or_else(|| AccountCache {
+            server: server.into(),
+            ..Default::default()
+        }))
 }
 
 fn build_status(server: &str, signed_in: bool, cache: &AccountCache) -> AccountStatus {
@@ -60,7 +69,9 @@ fn build_status(server: &str, signed_in: bool, cache: &AccountCache) -> AccountS
         profile: cache.profile.clone(),
         plan: claims.as_ref().map(|c| c.plan.clone()),
         subscription_status: claims.as_ref().map(|c| c.subscription_status.clone()),
-        capabilities: doc_state.map(|s| usable_capabilities(s, claims.as_ref())).unwrap_or_default(),
+        capabilities: doc_state
+            .map(|s| usable_capabilities(s, claims.as_ref()))
+            .unwrap_or_default(),
         offline_until: claims.as_ref().map(|c| c.exp),
         refresh_after: claims.as_ref().map(|c| c.rfa),
         document_state: doc_state,
@@ -69,7 +80,11 @@ fn build_status(server: &str, signed_in: bool, cache: &AccountCache) -> AccountS
 }
 
 /// Fetches profile, entitlement document and public keys with a valid access token.
-async fn sync(state: &AppState, client: &ServerClient, access: &str) -> AccountResult<AccountCache> {
+async fn sync(
+    state: &AppState,
+    client: &ServerClient,
+    access: &str,
+) -> AccountResult<AccountCache> {
     let mut profile = client.profile(access).await?;
     profile.avatar_url = match profile.avatar_url.as_deref() {
         Some(url) => client.avatar_data_url(url).await,
@@ -91,7 +106,9 @@ async fn sync(state: &AppState, client: &ServerClient, access: &str) -> AccountR
 #[tauri::command]
 pub async fn account_status(state: tauri::State<'_, AppState>) -> AccountResult<AccountStatus> {
     let server = config::server_origin()?;
-    let signed_in = token_store::load(&server).map(|t| t.is_some()).unwrap_or(false);
+    let signed_in = token_store::load(&server)
+        .map(|t| t.is_some())
+        .unwrap_or(false);
     let mut cache = current_cache(&state, &server).await?;
     if now() > cache.max_seen && cache.document.is_some() {
         cache.max_seen = now();
@@ -103,7 +120,11 @@ pub async fn account_status(state: tauri::State<'_, AppState>) -> AccountResult<
 /// Opens the system browser on the account site and waits for the one-time
 /// code on the loopback listener. The password is never entered in the app.
 #[tauri::command]
-pub async fn account_sign_in(app: tauri::AppHandle, state: tauri::State<'_, AppState>, account: tauri::State<'_, AccountState>) -> AccountResult<AccountStatus> {
+pub async fn account_sign_in(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    account: tauri::State<'_, AccountState>,
+) -> AccountResult<AccountStatus> {
     let server = config::server_origin()?;
     let client = ServerClient::new(server.clone())?;
     let (tx, rx) = watch::channel(false);
@@ -118,8 +139,16 @@ pub async fn account_sign_in(app: tauri::AppHandle, state: tauri::State<'_, AppS
         let pair = pkce::generate();
         let loopback = Loopback::bind().await?;
         let redirect = loopback.redirect_uri.clone();
-        let url = client.authorize_url(&redirect, &pair.challenge, &pair.state, &pair.nonce, &config::device_name());
-        app.opener().open_url(url, None::<&str>).map_err(|e| AccountError::Storage(format!("cannot open browser: {e}")))?;
+        let url = client.authorize_url(
+            &redirect,
+            &pair.challenge,
+            &pair.state,
+            &pair.nonce,
+            &config::device_name(),
+        );
+        app.opener()
+            .open_url(url, None::<&str>)
+            .map_err(|e| AccountError::Storage(format!("cannot open browser: {e}")))?;
         let callback = match loopback.wait(&pair.state, SIGN_IN_TIMEOUT, rx).await {
             Ok(callback) => callback,
             Err(error) => {
@@ -136,9 +165,14 @@ pub async fn account_sign_in(app: tauri::AppHandle, state: tauri::State<'_, AppS
             }
         }
         let mut session = account.session.lock().await;
-        let tokens = client.exchange_code(&callback.code, &pair.verifier, &redirect).await?;
+        let tokens = client
+            .exchange_code(&callback.code, &pair.verifier, &redirect)
+            .await?;
         token_store::save(&server, &tokens.refresh_token)?;
-        *session = Some((tokens.access_token.clone(), Instant::now() + Duration::from_secs(tokens.expires_in.saturating_sub(30))));
+        *session = Some((
+            tokens.access_token.clone(),
+            Instant::now() + Duration::from_secs(tokens.expires_in.saturating_sub(30)),
+        ));
         let cache = sync(&state, &client, &tokens.access_token).await?;
         Ok(build_status(&server, true, &cache))
     }
@@ -161,7 +195,10 @@ pub fn account_cancel_sign_in(account: tauri::State<'_, AccountState>) {
 /// Online re-check: rotates the refresh token, refreshes profile and rights.
 /// Offline keeps the cached (bounded) rights; a revoked session signs out.
 #[tauri::command]
-pub async fn account_refresh(state: tauri::State<'_, AppState>, account: tauri::State<'_, AccountState>) -> AccountResult<AccountStatus> {
+pub async fn account_refresh(
+    state: tauri::State<'_, AppState>,
+    account: tauri::State<'_, AccountState>,
+) -> AccountResult<AccountStatus> {
     let server = config::server_origin()?;
     let client = ServerClient::new(server.clone())?;
     let mut session = account.session.lock().await;
@@ -172,7 +209,10 @@ pub async fn account_refresh(state: tauri::State<'_, AppState>, account: tauri::
             match client.refresh(&refresh).await {
                 Ok(tokens) => {
                     token_store::save(&server, &tokens.refresh_token)?;
-                    *session = Some((tokens.access_token.clone(), Instant::now() + Duration::from_secs(tokens.expires_in.saturating_sub(30))));
+                    *session = Some((
+                        tokens.access_token.clone(),
+                        Instant::now() + Duration::from_secs(tokens.expires_in.saturating_sub(30)),
+                    ));
                     tokens.access_token
                 }
                 Err(AccountError::SessionEnded) => {
@@ -196,7 +236,10 @@ pub async fn account_refresh(state: tauri::State<'_, AppState>, account: tauri::
 
 /// Revokes the token family on the server (best effort) and forgets local credentials.
 #[tauri::command]
-pub async fn account_sign_out(state: tauri::State<'_, AppState>, account: tauri::State<'_, AccountState>) -> AccountResult<AccountStatus> {
+pub async fn account_sign_out(
+    state: tauri::State<'_, AppState>,
+    account: tauri::State<'_, AccountState>,
+) -> AccountResult<AccountStatus> {
     let server = config::server_origin()?;
     let mut session = account.session.lock().await;
     *session = None;
@@ -207,5 +250,12 @@ pub async fn account_sign_out(state: tauri::State<'_, AppState>, account: tauri:
     }
     token_store::clear(&server)?;
     cache::clear(&state.pool).await?;
-    Ok(build_status(&server, false, &AccountCache { server: server.clone(), ..Default::default() }))
+    Ok(build_status(
+        &server,
+        false,
+        &AccountCache {
+            server: server.clone(),
+            ..Default::default()
+        },
+    ))
 }

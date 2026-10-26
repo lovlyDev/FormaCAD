@@ -32,10 +32,18 @@ impl Loopback {
             .local_addr()
             .map_err(|e| AccountError::Storage(e.to_string()))?
             .port();
-        Ok(Self { listener, redirect_uri: format!("http://127.0.0.1:{port}/callback") })
+        Ok(Self {
+            listener,
+            redirect_uri: format!("http://127.0.0.1:{port}/callback"),
+        })
     }
 
-    pub async fn wait(self, expected_state: &str, timeout: Duration, mut cancel: watch::Receiver<bool>) -> AccountResult<CallbackParams> {
+    pub async fn wait(
+        self,
+        expected_state: &str,
+        timeout: Duration,
+        mut cancel: watch::Receiver<bool>,
+    ) -> AccountResult<CallbackParams> {
         let deadline = tokio::time::Instant::now() + timeout;
         loop {
             let accept = tokio::select! {
@@ -43,9 +51,12 @@ impl Loopback {
                 _ = tokio::time::sleep_until(deadline) => return Err(AccountError::Timeout),
                 _ = cancel.changed() => return Err(AccountError::Cancelled),
             };
-            let Ok((mut stream, _)) = accept else { continue };
+            let Ok((mut stream, _)) = accept else {
+                continue;
+            };
             let mut buf = vec![0u8; 8192];
-            let n = match tokio::time::timeout(Duration::from_secs(5), stream.read(&mut buf)).await {
+            let n = match tokio::time::timeout(Duration::from_secs(5), stream.read(&mut buf)).await
+            {
                 Ok(Ok(n)) => n,
                 _ => continue,
             };
@@ -82,16 +93,27 @@ fn parse_callback(target: &str, expected_state: &str) -> Option<AccountResult<Ca
     if url.path() != "/callback" {
         return None;
     }
-    let get = |k: &str| url.query_pairs().find(|(key, _)| key == k).map(|(_, v)| v.into_owned());
+    let get = |k: &str| {
+        url.query_pairs()
+            .find(|(key, _)| key == k)
+            .map(|(_, v)| v.into_owned())
+    };
     // A callback with a foreign state is ignored, not trusted (CSRF / mix-up protection).
     if get("state").as_deref() != Some(expected_state) {
         return None;
     }
     if let Some(error) = get("error") {
-        return Some(Err(if error == "access_denied" { AccountError::Denied } else { AccountError::Server(format!("authorization error: {error}")) }));
+        return Some(Err(if error == "access_denied" {
+            AccountError::Denied
+        } else {
+            AccountError::Server(format!("authorization error: {error}"))
+        }));
     }
     match get("code") {
-        Some(code) if !code.is_empty() && code.len() <= 128 => Some(Ok(CallbackParams { code, iss: get("iss") })),
+        Some(code) if !code.is_empty() && code.len() <= 128 => Some(Ok(CallbackParams {
+            code,
+            iss: get("iss"),
+        })),
         _ => Some(Err(AccountError::Invalid("callback without code".into()))),
     }
 }
@@ -104,10 +126,18 @@ mod tests {
     fn parses_only_matching_state() {
         assert!(parse_callback("/favicon.ico", "s").is_none());
         assert!(parse_callback("/callback?code=x&state=other", "s").is_none());
-        let ok = parse_callback("/callback?code=abc&state=s&iss=https%3A%2F%2Fcad.kartochk1n.ru", "s").unwrap().unwrap();
+        let ok = parse_callback(
+            "/callback?code=abc&state=s&iss=https%3A%2F%2Fcad.kartochk1n.ru",
+            "s",
+        )
+        .unwrap()
+        .unwrap();
         assert_eq!(ok.code, "abc");
         assert_eq!(ok.iss.as_deref(), Some("https://cad.kartochk1n.ru"));
-        assert!(matches!(parse_callback("/callback?error=access_denied&state=s", "s"), Some(Err(AccountError::Denied))));
+        assert!(matches!(
+            parse_callback("/callback?error=access_denied&state=s", "s"),
+            Some(Err(AccountError::Denied))
+        ));
     }
 
     #[tokio::test]
@@ -117,13 +147,20 @@ mod tests {
         let (_tx, rx) = watch::channel(false);
         let waiter = tokio::spawn(async move { lb.wait("st", Duration::from_secs(5), rx).await });
         let port = url::Url::parse(&uri).unwrap().port().unwrap();
-        let mut s = tokio::net::TcpStream::connect(("127.0.0.1", port)).await.unwrap();
-        s.write_all(b"GET /callback?code=c1&state=st HTTP/1.1\r\nhost: x\r\n\r\n").await.unwrap();
+        let mut s = tokio::net::TcpStream::connect(("127.0.0.1", port))
+            .await
+            .unwrap();
+        s.write_all(b"GET /callback?code=c1&state=st HTTP/1.1\r\nhost: x\r\n\r\n")
+            .await
+            .unwrap();
         let got = waiter.await.unwrap().unwrap();
         assert_eq!(got.code, "c1");
 
         let lb = Loopback::bind().await.unwrap();
         let (_tx, rx) = watch::channel(false);
-        assert!(matches!(lb.wait("st", Duration::from_millis(50), rx).await, Err(AccountError::Timeout)));
+        assert!(matches!(
+            lb.wait("st", Duration::from_millis(50), rx).await,
+            Err(AccountError::Timeout)
+        ));
     }
 }

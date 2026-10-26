@@ -54,7 +54,9 @@ const SKEW: i64 = 300;
 const SUPPORTED_VERSION: u32 = 1;
 
 fn find_key(jwks: &[serde_json::Value], kid: &str) -> Option<VerifyingKey> {
-    let jwk = jwks.iter().find(|k| k.get("kid").and_then(|v| v.as_str()) == Some(kid))?;
+    let jwk = jwks
+        .iter()
+        .find(|k| k.get("kid").and_then(|v| v.as_str()) == Some(kid))?;
     if jwk.get("kty")?.as_str()? != "OKP" || jwk.get("crv")?.as_str()? != "Ed25519" {
         return None;
     }
@@ -65,12 +67,22 @@ fn find_key(jwks: &[serde_json::Value], kid: &str) -> Option<VerifyingKey> {
 /// Verifies the document and evaluates it at `now` (unix seconds).
 /// `max_seen` is the latest time this installation has observed; a clock set
 /// back further than the tolerance is reported instead of trusted.
-pub fn evaluate(document: &str, jwks: &[serde_json::Value], issuer: &str, now: i64, max_seen: i64) -> (DocState, Option<Claims>) {
+pub fn evaluate(
+    document: &str,
+    jwks: &[serde_json::Value],
+    issuer: &str,
+    now: i64,
+    max_seen: i64,
+) -> (DocState, Option<Claims>) {
     let parts: Vec<&str> = document.split('.').collect();
     if parts.len() != 3 {
         return (DocState::Invalid, None);
     }
-    let Some(header) = URL_SAFE_NO_PAD.decode(parts[0]).ok().and_then(|b| serde_json::from_slice::<Header>(&b).ok()) else {
+    let Some(header) = URL_SAFE_NO_PAD
+        .decode(parts[0])
+        .ok()
+        .and_then(|b| serde_json::from_slice::<Header>(&b).ok())
+    else {
         return (DocState::Invalid, None);
     };
     if header.alg != "EdDSA" || header.typ.as_deref() != Some("forma-entitlement+jwt") {
@@ -79,13 +91,21 @@ pub fn evaluate(document: &str, jwks: &[serde_json::Value], issuer: &str, now: i
     let Some(key) = header.kid.as_deref().and_then(|kid| find_key(jwks, kid)) else {
         return (DocState::Invalid, None);
     };
-    let Ok(sig_bytes) = URL_SAFE_NO_PAD.decode(parts[2]) else { return (DocState::Invalid, None) };
-    let Ok(signature) = Signature::from_slice(&sig_bytes) else { return (DocState::Invalid, None) };
+    let Ok(sig_bytes) = URL_SAFE_NO_PAD.decode(parts[2]) else {
+        return (DocState::Invalid, None);
+    };
+    let Ok(signature) = Signature::from_slice(&sig_bytes) else {
+        return (DocState::Invalid, None);
+    };
     let signed = format!("{}.{}", parts[0], parts[1]);
     if key.verify(signed.as_bytes(), &signature).is_err() {
         return (DocState::Invalid, None);
     }
-    let Some(claims) = URL_SAFE_NO_PAD.decode(parts[1]).ok().and_then(|b| serde_json::from_slice::<Claims>(&b).ok()) else {
+    let Some(claims) = URL_SAFE_NO_PAD
+        .decode(parts[1])
+        .ok()
+        .and_then(|b| serde_json::from_slice::<Claims>(&b).ok())
+    else {
         return (DocState::Invalid, None);
     };
     if claims.iss != issuer || claims.aud != "forma-desktop" || claims.ver != SUPPORTED_VERSION {
@@ -106,7 +126,9 @@ pub fn evaluate(document: &str, jwks: &[serde_json::Value], issuer: &str, now: i
 /// Capabilities usable by local features right now (empty unless the document is valid or stale).
 pub fn usable_capabilities(state: DocState, claims: Option<&Claims>) -> Vec<String> {
     match (state, claims) {
-        (DocState::Valid | DocState::Stale, Some(c)) => c.capabilities.iter().map(|c| c.key.clone()).collect(),
+        (DocState::Valid | DocState::Stale, Some(c)) => {
+            c.capabilities.iter().map(|c| c.key.clone()).collect()
+        }
         _ => Vec::new(),
     }
 }
@@ -117,7 +139,8 @@ mod tests {
     use ed25519_dalek::{Signer, SigningKey};
 
     fn sign(key: &SigningKey, kid: &str, typ: &str, claims: &serde_json::Value) -> String {
-        let h = URL_SAFE_NO_PAD.encode(serde_json::json!({ "alg": "EdDSA", "kid": kid, "typ": typ }).to_string());
+        let h = URL_SAFE_NO_PAD
+            .encode(serde_json::json!({ "alg": "EdDSA", "kid": kid, "typ": typ }).to_string());
         let p = URL_SAFE_NO_PAD.encode(claims.to_string());
         let sig = key.sign(format!("{h}.{p}").as_bytes());
         format!("{h}.{p}.{}", URL_SAFE_NO_PAD.encode(sig.to_bytes()))
@@ -148,28 +171,89 @@ mod tests {
         let (s, c) = evaluate(&doc, &jwks, iss, now, now);
         assert_eq!(s, DocState::Valid);
         assert_eq!(usable_capabilities(s, c.as_ref()), vec!["support.priority"]);
-        assert_eq!(evaluate(&doc, &jwks, iss, now + 2 * 86400, now).0, DocState::Stale);
-        assert_eq!(evaluate(&doc, &jwks, iss, now + 8 * 86400, now).0, DocState::Expired);
+        assert_eq!(
+            evaluate(&doc, &jwks, iss, now + 2 * 86400, now).0,
+            DocState::Stale
+        );
+        assert_eq!(
+            evaluate(&doc, &jwks, iss, now + 8 * 86400, now).0,
+            DocState::Expired
+        );
         assert!(usable_capabilities(DocState::Expired, c.as_ref()).is_empty());
         // Clock moved back a day after we had seen a later time.
-        assert_eq!(evaluate(&doc, &jwks, iss, now - 86400, now).0, DocState::ClockRollback);
+        assert_eq!(
+            evaluate(&doc, &jwks, iss, now - 86400, now).0,
+            DocState::ClockRollback
+        );
 
         // Tampered payload (client-side "isPro") breaks the signature.
         let mut forged = claims(now);
-        forged["capabilities"] = serde_json::json!([{ "key": "cloud.ai_credits", "limit": null, "until": null }]);
+        forged["capabilities"] =
+            serde_json::json!([{ "key": "cloud.ai_credits", "limit": null, "until": null }]);
         let parts: Vec<&str> = doc.split('.').collect();
-        let tampered = format!("{}.{}.{}", parts[0], URL_SAFE_NO_PAD.encode(forged.to_string()), parts[2]);
-        assert_eq!(evaluate(&tampered, &jwks, iss, now, now).0, DocState::Invalid);
+        let tampered = format!(
+            "{}.{}.{}",
+            parts[0],
+            URL_SAFE_NO_PAD.encode(forged.to_string()),
+            parts[2]
+        );
+        assert_eq!(
+            evaluate(&tampered, &jwks, iss, now, now).0,
+            DocState::Invalid
+        );
 
         // Signed by a foreign key with the same kid, wrong typ, wrong issuer.
-        assert_eq!(evaluate(&sign(&k2, "ent-1", "forma-entitlement+jwt", &claims(now)), &jwks, iss, now, now).0, DocState::Invalid);
-        assert_eq!(evaluate(&sign(&k1, "ent-1", "at+jwt", &claims(now)), &jwks, iss, now, now).0, DocState::Invalid);
-        assert_eq!(evaluate(&doc, &jwks, "https://evil.example", now, now).0, DocState::Invalid);
+        assert_eq!(
+            evaluate(
+                &sign(&k2, "ent-1", "forma-entitlement+jwt", &claims(now)),
+                &jwks,
+                iss,
+                now,
+                now
+            )
+            .0,
+            DocState::Invalid
+        );
+        assert_eq!(
+            evaluate(
+                &sign(&k1, "ent-1", "at+jwt", &claims(now)),
+                &jwks,
+                iss,
+                now,
+                now
+            )
+            .0,
+            DocState::Invalid
+        );
+        assert_eq!(
+            evaluate(&doc, &jwks, "https://evil.example", now, now).0,
+            DocState::Invalid
+        );
 
         // Rotation: new key signs, both keys published.
         let rotated = vec![jwk(&k2, "ent-2"), jwk(&k1, "ent-1")];
         assert_eq!(evaluate(&doc, &rotated, iss, now, now).0, DocState::Valid);
-        assert_eq!(evaluate(&sign(&k2, "ent-2", "forma-entitlement+jwt", &claims(now)), &rotated, iss, now, now).0, DocState::Valid);
-        assert_eq!(evaluate(&sign(&k2, "ent-2", "forma-entitlement+jwt", &claims(now)), &jwks, iss, now, now).0, DocState::Invalid);
+        assert_eq!(
+            evaluate(
+                &sign(&k2, "ent-2", "forma-entitlement+jwt", &claims(now)),
+                &rotated,
+                iss,
+                now,
+                now
+            )
+            .0,
+            DocState::Valid
+        );
+        assert_eq!(
+            evaluate(
+                &sign(&k2, "ent-2", "forma-entitlement+jwt", &claims(now)),
+                &jwks,
+                iss,
+                now,
+                now
+            )
+            .0,
+            DocState::Invalid
+        );
     }
 }

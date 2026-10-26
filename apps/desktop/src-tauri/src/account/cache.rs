@@ -21,7 +21,10 @@ pub struct AccountCache {
 const KEY: &str = "account_cache";
 
 pub async fn load(pool: &SqlitePool) -> AccountResult<Option<AccountCache>> {
-    let json: Option<String> = sqlx::query_scalar("SELECT value FROM settings WHERE key = ?").bind(KEY).fetch_optional(pool).await?;
+    let json: Option<String> = sqlx::query_scalar("SELECT value FROM settings WHERE key = ?")
+        .bind(KEY)
+        .fetch_optional(pool)
+        .await?;
     Ok(json.and_then(|s| serde_json::from_str(&s).ok()))
 }
 
@@ -36,6 +39,9 @@ pub async fn save(pool: &SqlitePool, cache: &AccountCache) -> AccountResult<()> 
 }
 
 pub async fn clear(pool: &SqlitePool) -> AccountResult<()> {
-    sqlx::query("DELETE FROM settings WHERE key = ?").bind(KEY).execute(pool).await?;
+    sqlx::query("DELETE FROM settings WHERE key = ?")
+        .bind(KEY)
+        .execute(pool)
+        .await?;
     Ok(())
 }

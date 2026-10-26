@@ -18,7 +18,9 @@ pub fn load(server: &str) -> AccountResult<Option<String>> {
 }
 
 pub fn save(server: &str, refresh_token: &str) -> AccountResult<()> {
-    entry(server)?.set_password(refresh_token).map_err(|e| AccountError::Storage(e.to_string()))
+    entry(server)?
+        .set_password(refresh_token)
+        .map_err(|e| AccountError::Storage(e.to_string()))
 }
 
 pub fn clear(server: &str) -> AccountResult<()> {

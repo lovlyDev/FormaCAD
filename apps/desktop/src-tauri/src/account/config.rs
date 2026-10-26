@@ -13,11 +13,14 @@ pub fn server_origin() -> AccountResult<String> {
 }
 
 pub fn normalize_origin(raw: &str) -> AccountResult<String> {
-    let url = url::Url::parse(raw.trim()).map_err(|_| AccountError::Invalid("Invalid account server URL".into()))?;
+    let url = url::Url::parse(raw.trim())
+        .map_err(|_| AccountError::Invalid("Invalid account server URL".into()))?;
     let loopback = matches!(url.host_str(), Some("127.0.0.1") | Some("[::1]"));
     let allowed = url.scheme() == "https" || (url.scheme() == "http" && loopback);
     if !allowed || url.username() != "" || url.password().is_some() || url.host_str().is_none() {
-        return Err(AccountError::Invalid("Account server must use https".into()));
+        return Err(AccountError::Invalid(
+            "Account server must use https".into(),
+        ));
     }
     Ok(url.origin().ascii_serialization())
 }
@@ -41,8 +44,14 @@ mod tests {
 
     #[test]
     fn accepts_only_https_or_loopback_http() {
-        assert_eq!(normalize_origin("https://cad.kartochk1n.ru/").unwrap(), "https://cad.kartochk1n.ru");
-        assert_eq!(normalize_origin("http://127.0.0.1:5173").unwrap(), "http://127.0.0.1:5173");
+        assert_eq!(
+            normalize_origin("https://cad.kartochk1n.ru/").unwrap(),
+            "https://cad.kartochk1n.ru"
+        );
+        assert_eq!(
+            normalize_origin("http://127.0.0.1:5173").unwrap(),
+            "http://127.0.0.1:5173"
+        );
         assert!(normalize_origin("http://cad.kartochk1n.ru").is_err());
         assert!(normalize_origin("http://localhost:5173").is_err());
         assert!(normalize_origin("https://user:pw@kartochk1n.ru").is_err());

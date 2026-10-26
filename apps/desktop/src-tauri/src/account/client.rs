@@ -63,8 +63,16 @@ impl ServerClient {
         Ok(Self { http, origin })
     }
 
-    pub fn authorize_url(&self, redirect_uri: &str, challenge: &str, state: &str, nonce: &str, device: &str) -> String {
-        let mut url = url::Url::parse(&format!("{}/oauth/authorize", self.origin)).expect("origin is a valid URL");
+    pub fn authorize_url(
+        &self,
+        redirect_uri: &str,
+        challenge: &str,
+        state: &str,
+        nonce: &str,
+        device: &str,
+    ) -> String {
+        let mut url = url::Url::parse(&format!("{}/oauth/authorize", self.origin))
+            .expect("origin is a valid URL");
         url.query_pairs_mut()
             .append_pair("response_type", "code")
             .append_pair("client_id", CLIENT_ID)
@@ -88,16 +96,30 @@ impl ServerClient {
             .map_err(|e| AccountError::Offline(e.to_string()))?;
         let status = res.status();
         if status.is_success() {
-            return res.json().await.map_err(|e| AccountError::Invalid(e.to_string()));
+            return res
+                .json()
+                .await
+                .map_err(|e| AccountError::Invalid(e.to_string()));
         }
-        let error = res.json::<OAuthError>().await.map(|e| e.error).unwrap_or_default();
+        let error = res
+            .json::<OAuthError>()
+            .await
+            .map(|e| e.error)
+            .unwrap_or_default();
         if error == "invalid_grant" {
             return Err(AccountError::SessionEnded);
         }
-        Err(AccountError::Server(format!("token endpoint HTTP {status} {error}")))
+        Err(AccountError::Server(format!(
+            "token endpoint HTTP {status} {error}"
+        )))
     }
 
-    pub async fn exchange_code(&self, code: &str, verifier: &str, redirect_uri: &str) -> AccountResult<TokenSet> {
+    pub async fn exchange_code(
+        &self,
+        code: &str,
+        verifier: &str,
+        redirect_uri: &str,
+    ) -> AccountResult<TokenSet> {
         self.token_request(&[
             ("grant_type", "authorization_code"),
             ("client_id", CLIENT_ID),
@@ -109,7 +131,12 @@ impl ServerClient {
     }
 
     pub async fn refresh(&self, refresh_token: &str) -> AccountResult<TokenSet> {
-        self.token_request(&[("grant_type", "refresh_token"), ("client_id", CLIENT_ID), ("refresh_token", refresh_token)]).await
+        self.token_request(&[
+            ("grant_type", "refresh_token"),
+            ("client_id", CLIENT_ID),
+            ("refresh_token", refresh_token),
+        ])
+        .await
     }
 
     /// Tells the server the app stopped waiting, so the consent page closes too.
@@ -133,12 +160,24 @@ impl ServerClient {
         if !res.status().is_success() {
             return None;
         }
-        let content_type = res.headers().get("content-type")?.to_str().ok()?.split(';').next()?.trim().to_string();
-        if !matches!(content_type.as_str(), "image/png" | "image/jpeg" | "image/webp") {
+        let content_type = res
+            .headers()
+            .get("content-type")?
+            .to_str()
+            .ok()?
+            .split(';')
+            .next()?
+            .trim()
+            .to_string();
+        if !matches!(
+            content_type.as_str(),
+            "image/png" | "image/jpeg" | "image/webp"
+        ) {
             return None;
         }
         let bytes = res.bytes().await.ok()?;
-        (bytes.len() <= 256 * 1024).then(|| format!("data:{content_type};base64,{}", STANDARD.encode(&bytes)))
+        (bytes.len() <= 256 * 1024)
+            .then(|| format!("data:{content_type};base64,{}", STANDARD.encode(&bytes)))
     }
 
     pub async fn revoke(&self, refresh_token: &str) -> AccountResult<()> {
@@ -156,9 +195,15 @@ impl ServerClient {
         if let Some(token) = access {
             req = req.bearer_auth(token);
         }
-        let res = req.send().await.map_err(|e| AccountError::Offline(e.to_string()))?;
+        let res = req
+            .send()
+            .await
+            .map_err(|e| AccountError::Offline(e.to_string()))?;
         match res.status().as_u16() {
-            200 => res.json().await.map_err(|e| AccountError::Invalid(e.to_string())),
+            200 => res
+                .json()
+                .await
+                .map_err(|e| AccountError::Invalid(e.to_string())),
             401 => Err(AccountError::SessionEnded),
             s => Err(AccountError::Server(format!("{path} HTTP {s}"))),
         }
