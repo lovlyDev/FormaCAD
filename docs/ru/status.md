@@ -4,7 +4,7 @@
 
 ## Изменения 1.4.0
 
-Плагины: установка `.cadplugin` из файла и из каталога [plugins.formacad.ru](https://plugins.formacad.ru) с проверкой подписи, песочница Wasmtime с правами, окно согласия, действия в палитре команд, журнал и настройки плагинов. Подробности и объём проверки — в [релизе 1.4.0](../releases/1.4.0.md), [статье о плагинах](plugins.md) и [руководстве автора](plugin-authoring.md). Опубликован Windows x64 установщик: [релиз v1.4.0](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.4.0).
+Плагины: установка `.cadplugin` из файла и из каталога [plugins.formacad.ru](https://plugins.formacad.ru) с проверкой подписи, песочница Wasmtime с правами, окно согласия, действия в палитре команд, журнал и настройки плагинов. Подробности и объём проверки — в [релизе 1.4.0](../releases/1.4.0.md), [статье о плагинах](plugins.md) и [руководстве автора](plugin-authoring.md). Опубликованы установщики Windows x64, Linux x64 и macOS ARM, собранные в GitHub Actions (macOS Intel не вошла в выпуск): [релиз v1.4.0](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.4.0). Каталог [plugins.formacad.ru](https://plugins.formacad.ru) открыт для всех.
 
 ## Изменения 1.3.3
 
