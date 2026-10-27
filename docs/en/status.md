@@ -2,6 +2,10 @@
 
 [Documentation](index.md) · [Русский](../ru/status.md) · [Roadmap](roadmap.md)
 
+## Changes in 1.4.0
+
+Plugins: installing `.cadplugin` from a file and from the [plugins.formacad.ru](https://plugins.formacad.ru) catalog with signature checks, a Wasmtime sandbox with permissions, a consent window, palette actions, plugin log and settings. Details and verification scope: [1.4.0 release](../releases/1.4.0.md), the [plugins article](plugins.md) and the [author guide](plugin-authoring.md). The Windows x64 installer is published: [v1.4.0 release](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.4.0).
+
 ## Changes in 1.3.3
 
 Optional FormaCAD account sign-in from the app through the system browser (VK ID, Yandex ID, GitHub, passkey), signed rights with a bounded offline period, fixed project deletion on Windows and merged wenlixxq work on history sessions. Details and verification scope: [1.3.3 release](../releases/1.3.3.md) and the [account guide](account.md). The Windows x64 installer is published: [v1.3.3 release](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.3.3).
