@@ -32,7 +32,13 @@ export function PluginRunDialog({
   const translations = target.plugin.translations;
   const name = pluginText(translations, target.plugin.manifest.name);
   const action =
-    target.kind === "import" ? t("Choose file…") : target.kind === "export" ? t("Export…") : t("Build");
+    target.kind === "import"
+      ? t("Choose file…")
+      : target.kind === "export"
+        ? t("Export…")
+        : target.kind === "command"
+          ? t("Run")
+          : t("Build");
   return (
     <Modal
       open

@@ -1,6 +1,7 @@
 import "./plugins.css";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import type * as THREE from "three";
 import { errorText, t } from "../../i18n";
 import { native } from "../../lib/api";
 import { useWorkspace } from "../../stores/workspace";
@@ -15,11 +16,14 @@ import {
   type FieldValue,
   type Notice,
 } from "./api";
+import { OrbitCaptureDialog, type CaptureRequest } from "./capture/OrbitCaptureDialog";
 import { PluginInstallDialog } from "./PluginInstallDialog";
 import { PluginPanelDialog } from "./PluginPanelDialog";
 import { contributionOf, PluginRunDialog } from "./PluginRunDialog";
 import { usePluginUi, type RunTarget } from "./pluginUi";
 import { pluginText } from "./pluginText";
+
+const safeFileName = (name: string) => name.replace(/[^\p{L}\p{N}_-]/gu, "-");
 
 type Ask = (title: string, description: string, detail: string, run: () => Promise<void>, action?: string) => Promise<void>;
 
@@ -42,14 +46,18 @@ export function PluginHost({
   ask,
   notify,
   fail,
+  scene,
 }: {
   project: Project | null;
   disabled: boolean;
   ask: Ask;
   notify: (message: string) => void;
   fail: (message: string) => void;
+  /** Model shown in the 3D view, for `viewport.capture` recordings. */
+  scene: () => THREE.Object3D | null;
 }) {
   const showPreview = usePluginUi((state) => state.showPreview);
+  const [capture, setCapture] = useState<CaptureRequest | null>(null);
 
   useEffect(() => {
     if (!native) return;
@@ -95,18 +103,14 @@ export function PluginHost({
           pluginId: target.plugin.manifest.id,
           exporterId: target.contributionId,
           params: values,
-          fileName: base.name.replace(/[^\p{L}\p{N}_-]/gu, "-"),
+          fileName: safeFileName(base.name),
         });
         report(name, result.notices);
         notify(result.path ? t("Exported {{value0}}", { value0: result.path }) : t("Export cancelled"));
       }, "export_file");
       return;
     }
-    void ask(
-      t("Run plugin operation"),
-      t("The plugin proposes CAD operations. FormaCAD checks them, builds the geometry and saves one revision."),
-      prompt,
-      async () => {
+    const execute = async () => {
         const outcome =
           target.kind === "import"
             ? await importWithPlugin({
@@ -129,7 +133,19 @@ export function PluginHost({
         if (!outcome) return;
         if (outcome.project) setProject(outcome.project);
         report(name, outcome.notices, outcome.message);
-      },
+        if (outcome.capture)
+          setCapture({ pluginName: name, fileName: safeFileName(base.name), ticket: outcome.capture });
+    };
+    // A command without `model.write` cannot change the model, so it needs no edit approval.
+    if (target.kind === "command" && !target.plugin.acceptedPermissions.includes("model.write")) {
+      void execute().catch((error: unknown) => fail(errorText(error)));
+      return;
+    }
+    void ask(
+      t("Run plugin operation"),
+      t("The plugin proposes CAD operations. FormaCAD checks them, builds the geometry and saves one revision."),
+      prompt,
+      execute,
     );
   };
 
@@ -137,6 +153,9 @@ export function PluginHost({
     <>
       <PluginInstallDialog onInstalled={notify} />
       <PluginRunDialog disabled={disabled} onRun={run} />
+      {capture && (
+        <OrbitCaptureDialog request={capture} scene={scene} onDone={() => setCapture(null)} notify={notify} fail={fail} />
+      )}
       <PluginPanelDialog
         projectId={project?.id ?? null}
         disabled={disabled}

@@ -524,6 +524,7 @@ impl PluginService {
         input: &CallInput,
     ) -> Result<Plan> {
         let (installed, manifest, granted) = self.loaded(id)?;
+        let granted_write = granted.contains(&permissions::Permission::ModelWrite);
         let list = match kind {
             PlanKind::Feature => &manifest.contributes.features,
             PlanKind::Command => &manifest.contributes.commands,
@@ -592,6 +593,12 @@ impl PluginService {
                 )
             }
         };
+        if !commands.is_empty() && !granted_write {
+            return Err(output_invalid(
+                id,
+                "Changing the model requires the model.write permission".into(),
+            ));
+        }
         if kind == PlanKind::Feature && commands.is_empty() {
             return Err(output_invalid(
                 id,

@@ -6,6 +6,7 @@ Current improvements are consolidated into release 1.2.6. The Windows package is
 
 | Release | Notes |
 | --- | --- |
+| Turntable video recording by plugins (plugin-api 0.2) | [1.5.0](../releases/1.5.0.md) |
 | Plugins and the plugins.formacad.ru catalog | [1.4.0](../releases/1.4.0.md) |
 | FormaCAD account, project deletion, history sessions | [1.3.3](../releases/1.3.3.md) |
 | Consolidated CAD, editor, AI and storage | [1.2.6](../releases/1.2.6.md) |

@@ -177,6 +177,16 @@ pub struct RunOutcome {
     pub project: Option<Project>,
     pub notices: Vec<Notice>,
     pub message: Option<String>,
+    /// Video the plugin asked for via `viewport.record-orbit`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capture: Option<CaptureTicket>,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CaptureTicket {
+    pub token: String,
+    pub spec: super::capture::spec::OrbitSpec,
 }
 
 #[derive(serde::Deserialize)]
@@ -227,11 +237,16 @@ pub async fn plugins_run(
     })
     .await?;
     let (notices, message) = (plan.report.notices.clone(), plan.message.clone());
+    let capture = plan.report.capture.clone().map(|spec| CaptureTicket {
+        token: plugins.capture.issue(&plan.plugin_id, &spec),
+        spec,
+    });
     if plan.commands.is_empty() {
         return Ok(RunOutcome {
             project: None,
             notices,
             message,
+            capture,
         });
     }
     let updated = super::apply::apply(
@@ -247,6 +262,7 @@ pub async fn plugins_run(
         project: Some(updated),
         notices,
         message,
+        capture,
     })
 }
 
@@ -341,6 +357,7 @@ pub async fn plugins_import(
         project: Some(updated),
         notices,
         message: None,
+        capture: None,
     }))
 }
 

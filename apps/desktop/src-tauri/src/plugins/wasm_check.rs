@@ -1,10 +1,11 @@
 //! Static checks of a plugin component before installation: it must be a
-//! WebAssembly component, import only `formacad:plugin@0.1` interfaces, and
-//! every import must be covered by a declared permission.
+//! WebAssembly component, import only `formacad:plugin` interfaces of the
+//! declared plugin-api version, and every import must be covered by a declared
+//! permission.
 use super::{
     error::{PluginError, Result},
     manifest::Manifest,
-    permissions::{import_requirement, PermissionSet, WIT_PACKAGE, WIT_VERSION},
+    permissions::{import_requirement, interface_since, PermissionSet, WIT_PACKAGE, WIT_VERSION},
 };
 use wasmtime::{component::Component, Engine};
 
@@ -31,7 +32,7 @@ pub fn inspect(engine: &Engine, wasm: &[u8]) -> Result<(Component, Surface)> {
     if wasmparser_is_core_module(wasm) {
         return Err(PluginError::package(
             "PLUGIN_WASM_NOT_COMPONENT",
-            "plugin.wasm is a core module; plugin-api 0.1 needs a WebAssembly component",
+            "plugin.wasm is a core module; plugin-api needs a WebAssembly component",
         ));
     }
     let component = Component::new(engine, wasm)
@@ -57,15 +58,20 @@ fn wasmparser_is_core_module(wasm: &[u8]) -> bool {
 
 /// Check imports against permissions and exports against contributions.
 pub fn check(surface: &Surface, manifest: &Manifest, granted: &PermissionSet) -> Result<()> {
+    let api = manifest.api_version()?;
     for import in &surface.imports {
-        let requirement = contract_interface(import)
-            .and_then(|interface| import_requirement(interface).ok())
-            .ok_or_else(|| {
-                PluginError::package(
-                    "PLUGIN_IMPORT_FORBIDDEN",
-                    format!("Import {import} is not part of formacad:plugin@0.1 (no WASI or other host access)"),
-                )
-            })?;
+        let interface = contract_interface(import).ok_or_else(|| forbidden(import))?;
+        let requirement = import_requirement(interface).map_err(|_| forbidden(import))?;
+        let since = interface_since(interface);
+        if api < since {
+            return Err(PluginError::package(
+                "PLUGIN_IMPORT_API_TOO_OLD",
+                format!(
+                    "Import {import} needs \"api\": \"{}.{}\" in the manifest",
+                    since.0, since.1
+                ),
+            ));
+        }
         if let Some(requirement) = requirement {
             if !requirement.satisfied_by(granted) {
                 return Err(PluginError::package(
@@ -94,6 +100,13 @@ pub fn check(surface: &Surface, manifest: &Manifest, granted: &PermissionSet) ->
         }
     }
     Ok(())
+}
+
+fn forbidden(import: &str) -> PluginError {
+    PluginError::package(
+        "PLUGIN_IMPORT_FORBIDDEN",
+        format!("Import {import} is not part of {WIT_PACKAGE}@{WIT_VERSION} (no WASI or other host access)"),
+    )
 }
 
 #[cfg(test)]

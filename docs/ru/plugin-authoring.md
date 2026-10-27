@@ -2,7 +2,7 @@
 
 [Документация](index.md) · [English](../en/plugin-authoring.md) · [Спецификация](plugin-platform.md) · [Плагины для пользователя](plugins.md)
 
-Плагин FormaCAD — WebAssembly-компонент с контрактом [`formacad:plugin@0.1`](../plugin-api/wit/formacad-plugin.wit), упакованный в `.cadplugin`. Полный рабочий пример — [`plugins/examples/simple-gear`](../../plugins/examples/simple-gear/src/lib.rs): шестерня из обычных операций CAD IR.
+Плагин FormaCAD — WebAssembly-компонент с контрактом plugin-api 0.2 — [`formacad:plugin`](../plugin-api/wit/formacad-plugin.wit), упакованный в `.cadplugin`. Полный рабочий пример — [`plugins/examples/simple-gear`](../../plugins/examples/simple-gear/src/lib.rs): шестерня из обычных операций CAD IR.
 
 ## Структура проекта
 
@@ -38,12 +38,12 @@ wit_bindgen::generate!({
 });
 ```
 
-Положите копию `formacad-plugin.wit` в свой репозиторий (например `wit/deps/formacad-plugin/`) и укажите этот путь. В компонент попадут только те интерфейсы хоста, которые код реально вызывает, — каждый из них должен быть покрыт правом в `manifest.json` (таблица в [спецификации, раздел 11](plugin-platform.md#11-интерфейс-хоста-formacadplugin01)).
+Положите копию `formacad-plugin.wit` в свой репозиторий (например `wit/deps/formacad-plugin/`) и укажите этот путь. Если копия лежит в `wit/deps/`, достаточно `path: "wit"`: wit-bindgen сам подключает `deps`, а повторное указание папки даёт ошибку «re-add package». В компонент попадут только те интерфейсы хоста, которые код реально вызывает, — каждый из них должен быть покрыт правом в `manifest.json` (таблица в [спецификации, раздел 11](plugin-platform.md#11-интерфейс-хоста-formacadplugin-plugin-api-02)).
 
 ## Что возвращает плагин
 
 - `feature.build` и `importer.import-file` возвращают JSON-массив команд [Command API](command-api.md): обычно `add_feature` с операциями CAD IR v2 (`circle`, `rectangle`, `sketch2d`, `extrude`, `revolve`, `rotate`, `translate`, `boolean`, `hole`, …) и `add_body`.
-- `command.run` возвращает `{"message":"…","commands":[…]}`; пустой массив — «ничего не менять».
+- `command.run` возвращает `{"message":"…","commands":[…]}`; пустой массив — «ничего не менять». Команда без права `model.write` может вернуть только пустой массив.
 - `exporter.export-file` возвращает байты файла.
 - `panel.render` возвращает `{"blocks":[{"type":"text","text":"…"},{"type":"form","fields":[…],"submit":{"command":"<id>","label":"…"}}]}`.
 - Все новые ID начинаются с `context.idPrefix`. Ошибка — `plugin-error { code, message }`; пользователь увидит её как ошибку плагина.
@@ -83,3 +83,19 @@ cargo run --release --manifest-path <FormaCAD>/plugins/tools/cadplugin/Cargo.tom
 ## Пример: simple-gear
 
 Пример строит диск, прямоугольный зуб, поворачивает его N раз, объединяет и сверлит отверстие. Права: `model.write` (вклад `features`) и `notifications` (сообщение после построения). Готовый пакет для тестов: [`plugins/examples/simple-gear/prebuilt`](../../plugins/examples/simple-gear/prebuilt). Тест [`plugin_gear.rs`](../../apps/desktop/src-tauri/tests/plugin_gear.rs) сверяет объём построенной OCCT-шестерни с аналитической формулой.
+
+## Пример: запись видео (plugin-api 0.2)
+
+Команда без `model.write` может попросить FormaCAD записать видео вращения модели. Объявите право `viewport.capture`, `"api": "0.2"` и `"minAppVersion": "1.5.0"`, проверьте форму и вызовите хост:
+
+```rust
+use formacad::plugin::viewport;
+viewport::record_orbit(viewport::Orbit {
+    width: 1920, height: 1080, fps: 30, duration_ms: 8000, turns: 1.0, clockwise: false,
+    up: viewport::UpAxis::Z, tilt_deg: 0.0, elevation_deg: 20.0, start_deg: 0.0, zoom: 1.0,
+    background: viewport::Background::Theme, format: viewport::VideoFormat::Mp4, bitrate_kbps: 0,
+})?;
+// затем верните {"message":"…","commands":[]}
+```
+
+Запись начинается после завершения вызова: CAD спрашивает путь, рендерит кадры и кодирует видео сам. Готовый плагин с формой и переводами: [lovlyDev/formacad-orbit-video](https://github.com/lovlyDev/formacad-orbit-video). Диапазоны значений — в [спецификации, раздел 12](plugin-platform.md#12-уточнения-реализации).

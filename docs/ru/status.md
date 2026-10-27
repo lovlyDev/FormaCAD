@@ -2,6 +2,10 @@
 
 [Документация](index.md) · [English](../en/status.md) · [План](roadmap.md)
 
+## Изменения 1.5.0
+
+plugin-api 0.2: право `viewport.capture` — плагин может попросить FormaCAD записать видео вращения модели из 3D-вида (MP4/WebM, до 4K и 120 кадров/с); FormaCAD сам рендерит и кодирует кадры, плагин не видит ни модель, ни файл. Команды, которые не меняют модель, больше не требуют `model.write`. Подробности — в [релизе 1.5.0](../releases/1.5.0.md) и [статье о плагинах](plugins.md#запись-видео-вращения).
+
 ## Изменения 1.4.0
 
 Плагины: установка `.cadplugin` из файла и из каталога [plugins.formacad.ru](https://plugins.formacad.ru) с проверкой подписи, песочница Wasmtime с правами, окно согласия, действия в палитре команд, журнал и настройки плагинов. Подробности и объём проверки — в [релизе 1.4.0](../releases/1.4.0.md), [статье о плагинах](plugins.md) и [руководстве автора](plugin-authoring.md). Опубликованы установщики Windows x64, Linux x64 и macOS ARM, собранные в GitHub Actions (macOS Intel не вошла в выпуск): [релиз v1.4.0](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.4.0). Каталог [plugins.formacad.ru](https://plugins.formacad.ru) открыт для всех.

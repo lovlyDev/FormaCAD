@@ -2,7 +2,7 @@
 
 [Documentation](index.md) · [Русский](../ru/plugin-authoring.md) · [Specification](plugin-platform.md) · [Plugins for users](plugins.md)
 
-A FormaCAD plugin is a WebAssembly component implementing [`formacad:plugin@0.1`](../plugin-api/wit/formacad-plugin.wit), packed as `.cadplugin`. A complete working example is [`plugins/examples/simple-gear`](../../plugins/examples/simple-gear/src/lib.rs): a gear built from ordinary CAD IR operations.
+A FormaCAD plugin is a WebAssembly component implementing plugin-api 0.2 — [`formacad:plugin`](../plugin-api/wit/formacad-plugin.wit), packed as `.cadplugin`. A complete working example is [`plugins/examples/simple-gear`](../../plugins/examples/simple-gear/src/lib.rs): a gear built from ordinary CAD IR operations.
 
 ## Project layout
 
@@ -38,12 +38,12 @@ wit_bindgen::generate!({
 });
 ```
 
-Keep a copy of `formacad-plugin.wit` in your repository (for example `wit/deps/formacad-plugin/`) and point to it. Only the host interfaces your code actually calls become component imports, and each must be covered by a permission in `manifest.json` (table in the [specification, section 11](plugin-platform.md#11-host-interface-formacadplugin01)).
+Keep a copy of `formacad-plugin.wit` in your repository (for example `wit/deps/formacad-plugin/`) and point to it. With the copy in `wit/deps/`, `path: "wit"` is enough: wit-bindgen picks up `deps` itself, and listing the folder again fails with “re-add package”. Only the host interfaces your code actually calls become component imports, and each must be covered by a permission in `manifest.json` (table in the [specification, section 11](plugin-platform.md#11-host-interface-formacadplugin-plugin-api-02)).
 
 ## What a plugin returns
 
 - `feature.build` and `importer.import-file` return a JSON array of [Command API](command-api.md) commands: usually `add_feature` with CAD IR v2 operations (`circle`, `rectangle`, `sketch2d`, `extrude`, `revolve`, `rotate`, `translate`, `boolean`, `hole`, …) and `add_body`.
-- `command.run` returns `{"message":"…","commands":[…]}`; an empty array means “change nothing”.
+- `command.run` returns `{"message":"…","commands":[…]}`; an empty array means “change nothing”. A command without the `model.write` permission may only return an empty array.
 - `exporter.export-file` returns the file bytes.
 - `panel.render` returns `{"blocks":[{"type":"text","text":"…"},{"type":"form","fields":[…],"submit":{"command":"<id>","label":"…"}}]}`.
 - Every new ID starts with `context.idPrefix`. Errors are `plugin-error { code, message }`; users see them as plugin errors.
@@ -83,3 +83,19 @@ Call limits: fuel, 256 MB of memory, 10 s. Keep computations deterministic and k
 ## Example: simple-gear
 
 The example builds a disc and a rectangular tooth, rotates it N times, unions everything and drills a bore. Permissions: `model.write` (`features` contribution) and `notifications` (a message after building). The prebuilt package used by tests: [`plugins/examples/simple-gear/prebuilt`](../../plugins/examples/simple-gear/prebuilt). The [`plugin_gear.rs`](../../apps/desktop/src-tauri/tests/plugin_gear.rs) test compares the volume of the OCCT gear with an analytic formula.
+
+## Example: recording a video (plugin-api 0.2)
+
+A command without `model.write` can ask FormaCAD to record a turntable video of the model. Declare the `viewport.capture` permission, `"api": "0.2"` and `"minAppVersion": "1.5.0"`, check the form and call the host:
+
+```rust
+use formacad::plugin::viewport;
+viewport::record_orbit(viewport::Orbit {
+    width: 1920, height: 1080, fps: 30, duration_ms: 8000, turns: 1.0, clockwise: false,
+    up: viewport::UpAxis::Z, tilt_deg: 0.0, elevation_deg: 20.0, start_deg: 0.0, zoom: 1.0,
+    background: viewport::Background::Theme, format: viewport::VideoFormat::Mp4, bitrate_kbps: 0,
+})?;
+// then return {"message":"…","commands":[]}
+```
+
+Recording starts after the call ends: the CAD app asks for the path, renders the frames and encodes the video itself. A complete plugin with a form and translations: [lovlyDev/formacad-orbit-video](https://github.com/lovlyDev/formacad-orbit-video). Value ranges are in the [specification, section 12](plugin-platform.md#12-implementation-notes).

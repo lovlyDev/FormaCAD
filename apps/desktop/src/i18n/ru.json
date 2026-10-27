@@ -1300,5 +1300,22 @@
   "PLUGIN_REGISTRY_CORRUPT": "Список установленных плагинов повреждён.",
   "PLUGIN_IO": "Ошибка файловой операции среды плагинов.",
   "PLUGIN_DATA_INVALID": "Данные плагина повреждены.",
-  "PLUGIN_HOST": "Ошибка среды плагинов."
+  "PLUGIN_HOST": "Ошибка среды плагинов.",
+  "Record turntable videos of the model shown in the 3D view": "Записывать видео вращения модели из 3D-вида",
+  "Run": "Выполнить",
+  "pluginCapture.title": "Запись видео",
+  "pluginCapture.description": "{{plugin}}: {{width}}×{{height}}, {{fps}} кадр/с, {{seconds}} с",
+  "pluginCapture.frames": "Кадр {{done}} из {{total}}",
+  "pluginCapture.stop": "Остановить",
+  "pluginCapture.cancelled": "Запись видео отменена",
+  "pluginCapture.saved": "{{plugin}}: видео сохранено — {{path}}",
+  "PLUGIN_CAPTURE_UNSUPPORTED": "Эта система не поддерживает кодирование видео (WebCodecs).",
+  "PLUGIN_CAPTURE_CODEC": "Видео с такими параметрами нельзя закодировать на этом компьютере. Уменьшите разрешение или выберите другой формат.",
+  "PLUGIN_CAPTURE_EMPTY": "В 3D-виде нет модели для записи.",
+  "PLUGIN_CAPTURE_TICKET": "Запрос на запись видео устарел. Запустите команду плагина ещё раз.",
+  "PLUGIN_CAPTURE_NO_DESTINATION": "Не выбран файл для сохранения видео.",
+  "PLUGIN_CAPTURE_TOO_LARGE": "Видео больше 4 ГБ. Уменьшите разрешение, длительность или битрейт.",
+  "PLUGIN_CAPTURE_WRITE": "Не удалось записать файл видео.",
+  "PLUGIN_CAPTURE_CANCELLED": "Запись видео отменена",
+  "PLUGIN_IMPORT_API_TOO_OLD": "Плагин использует функции новой версии API плагинов, но в manifest.json указана старая версия."
 }

@@ -1,4 +1,8 @@
-/// FormaCAD plugin host contract (plugin-api 0.1).
+/// FormaCAD plugin host contract (plugin-api 0.2).
+///
+/// The WIT package keeps the name `formacad:plugin@0.1.0` so that plugins built
+/// for plugin-api 0.1 keep linking unchanged. plugin-api 0.2 only adds the
+/// `viewport` interface; a plugin that imports it must declare `"api": "0.2"`.
 ///
 /// Every interface that a plugin may import is tied to at most one manifest
 /// permission. A component that imports an interface without the matching
@@ -93,6 +97,67 @@ interface network {
     fetch: func(request: request) -> result<response, string>;
 }
 
+/// Permission `viewport.capture` (plugin-api 0.2). Records a turntable video
+/// of the model shown in the 3D view. CAD starts the recording after the call
+/// ends: it asks the user where to save the file, renders every frame with its
+/// own viewer and encodes the video. The plugin never receives pixels, the
+/// model geometry or the file path. At most one request per call.
+interface viewport {
+    /// Model axis (CAD coordinates) that points up during the recording.
+    enum up-axis {
+        x,
+        y,
+        z,
+        minus-x,
+        minus-y,
+        minus-z,
+    }
+
+    enum video-format {
+        /// H.264 in MP4.
+        mp4,
+        /// VP9 (or VP8) in WebM.
+        webm,
+    }
+
+    enum background {
+        /// Viewer background of the current theme.
+        theme,
+        light,
+        dark,
+    }
+
+    record orbit {
+        /// Frame size in pixels: even numbers, 160–3840 × 120–2160.
+        width: u32,
+        height: u32,
+        /// Frames per second, 1–120.
+        fps: u32,
+        /// Video length, 500 ms – 10 min.
+        duration-ms: u32,
+        /// Revolutions over the whole video, 0.05–100.
+        turns: f32,
+        clockwise: bool,
+        up: up-axis,
+        /// Tilt of the part toward the camera, −90…90°.
+        tilt-deg: f32,
+        /// Camera height above the turntable plane, −89…89°.
+        elevation-deg: f32,
+        /// Turntable angle of the first frame, −360…360°.
+        start-deg: f32,
+        /// Framing: 1 fits the part, larger values come closer, 0.25–4.
+        zoom: f32,
+        background: background,
+        format: video-format,
+        /// Video bitrate; 0 lets CAD choose by frame size.
+        bitrate-kbps: u32,
+    }
+
+    /// Validates `spec` and queues the recording. Errors explain which value
+    /// is out of range or that a recording was already requested in this call.
+    record-orbit: func(spec: orbit) -> result<_, string>;
+}
+
 /// Export for `contributes.features`. Requires `model.write`.
 interface feature {
     use types.{plugin-error};
@@ -105,7 +170,9 @@ interface feature {
     build: func(feature-id: string, params-json: string, context-json: string) -> result<string, plugin-error>;
 }
 
-/// Export for `contributes.commands`. Requires `model.write`.
+/// Export for `contributes.commands`. Changing the model requires
+/// `model.write`; a command without it may only return an empty `commands`
+/// array (since plugin-api 0.2), for example to notify or to record a video.
 interface command {
     use types.{plugin-error};
 
@@ -156,6 +223,7 @@ world host {
     import storage;
     import notifications;
     import network;
+    import viewport;
 }
 
 /// Reference world with every export. Real plugins export a subset.

@@ -2,6 +2,10 @@
 
 [Documentation](index.md) · [Русский](../ru/status.md) · [Roadmap](roadmap.md)
 
+## Changes in 1.5.0
+
+plugin-api 0.2: the `viewport.capture` permission — a plugin can ask FormaCAD to record a turntable video of the model in the 3D view (MP4/WebM, up to 4K and 120 fps); FormaCAD renders and encodes the frames itself, and the plugin never sees the model or the file. Commands that do not change the model no longer need `model.write`. Details: [1.5.0 release](../releases/1.5.0.md) and the [plugins article](plugins.md#turntable-video-recording).
+
 ## Changes in 1.4.0
 
 Plugins: installing `.cadplugin` from a file and from the [plugins.formacad.ru](https://plugins.formacad.ru) catalog with signature checks, a Wasmtime sandbox with permissions, a consent window, palette actions, plugin log and settings. Details and verification scope: [1.4.0 release](../releases/1.4.0.md), the [plugins article](plugins.md) and the [author guide](plugin-authoring.md). Windows x64, Linux x64 and macOS ARM installers built in GitHub Actions are published (macOS Intel is not part of the release): [v1.4.0 release](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.4.0). The [plugins.formacad.ru](https://plugins.formacad.ru) catalog is open to everyone.

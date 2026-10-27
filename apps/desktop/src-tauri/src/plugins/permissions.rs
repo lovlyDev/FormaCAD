@@ -1,4 +1,4 @@
-//! Manifest permissions and their binding to `formacad:plugin@0.1` interfaces.
+//! Manifest permissions and their binding to `formacad:plugin` interfaces.
 use super::error::{PluginError, Result};
 use std::collections::BTreeSet;
 
@@ -11,6 +11,7 @@ pub enum Permission {
     FileExport,
     Storage,
     Notifications,
+    ViewportCapture,
     Network(String),
 }
 
@@ -24,6 +25,7 @@ impl Permission {
             "file.export" => Self::FileExport,
             "storage" => Self::Storage,
             "notifications" => Self::Notifications,
+            "viewport.capture" => Self::ViewportCapture,
             _ => match raw.strip_prefix("network:") {
                 Some(host) if valid_host(host) => Self::Network(host.to_owned()),
                 _ => {
@@ -45,6 +47,7 @@ impl Permission {
             Self::FileExport => "file.export".into(),
             Self::Storage => "storage".into(),
             Self::Notifications => "notifications".into(),
+            Self::ViewportCapture => "viewport.capture".into(),
             Self::Network(host) => format!("network:{host}"),
         }
     }
@@ -82,9 +85,19 @@ pub fn to_strings(set: &PermissionSet) -> Vec<String> {
     set.iter().map(Permission::as_string).collect()
 }
 
-/// WIT package all host imports and plugin exports must belong to.
+/// WIT package all host imports and plugin exports must belong to. The
+/// package version stays 0.1.0 across additive plugin-api minors so that
+/// existing components keep linking; see `docs/plugin-api/wit`.
 pub const WIT_PACKAGE: &str = "formacad:plugin";
 pub const WIT_VERSION: &str = "0.1.0";
+
+/// First plugin-api minor that provides an interface; older ones are 0.1.
+pub fn interface_since(interface: &str) -> (u64, u64) {
+    match interface {
+        "viewport" => (0, 2),
+        _ => (0, 1),
+    }
+}
 
 /// The import is not part of the host contract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -101,6 +114,7 @@ pub fn import_requirement(
         "selection" => Some(Requirement::Exact(Permission::SelectionRead)),
         "storage" => Some(Requirement::Exact(Permission::Storage)),
         "notifications" => Some(Requirement::Exact(Permission::Notifications)),
+        "viewport" => Some(Requirement::Exact(Permission::ViewportCapture)),
         "network" => Some(Requirement::AnyNetwork),
         _ => return Err(UnknownImport),
     })
@@ -143,6 +157,10 @@ mod tests {
             Permission::ModelRead
         );
         assert_eq!(
+            Permission::parse("viewport.capture").unwrap().as_string(),
+            "viewport.capture"
+        );
+        assert_eq!(
             Permission::parse("network:api.example.com").unwrap(),
             Permission::Network("api.example.com".into())
         );
@@ -177,6 +195,12 @@ mod tests {
             import_requirement("model"),
             Ok(Some(Requirement::Exact(Permission::ModelRead)))
         );
+        assert_eq!(
+            import_requirement("viewport"),
+            Ok(Some(Requirement::Exact(Permission::ViewportCapture)))
+        );
+        assert_eq!(interface_since("viewport"), (0, 2));
+        assert_eq!(interface_since("model"), (0, 1));
         assert!(import_requirement("filesystem").is_err());
     }
 }

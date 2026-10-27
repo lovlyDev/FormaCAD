@@ -1,4 +1,4 @@
-//! Host side of `formacad:plugin@0.1` imports. Every function re-checks its
+//! Host side of `formacad:plugin` imports (plugin-api 0.2). Every function re-checks its
 //! permission even though the linker only exposes granted interfaces.
 use super::super::{
     package::check_path,
@@ -76,6 +76,8 @@ pub struct HostState {
     pub notices: Vec<Notice>,
     pub logs: Vec<(Level, String)>,
     pub network: Option<tokio::runtime::Handle>,
+    /// Recording queued by `viewport.record-orbit`; started by the UI after the call.
+    pub capture: Option<super::super::capture::spec::OrbitSpec>,
     storage: Option<BTreeMap<String, String>>,
 }
 
@@ -106,6 +108,7 @@ impl HostState {
             notices: vec![],
             logs: vec![],
             network: None,
+            capture: None,
             storage: None,
         }
     }
@@ -312,6 +315,19 @@ impl formacad::plugin::network::Host for HostState {
     }
 }
 
+impl formacad::plugin::viewport::Host for HostState {
+    fn record_orbit(&mut self, spec: formacad::plugin::viewport::Orbit) -> Result<(), String> {
+        if !self.has(&Permission::ViewportCapture) {
+            return Err("viewport.capture is not granted".into());
+        }
+        if self.capture.is_some() {
+            return Err("A recording was already requested in this call".into());
+        }
+        self.capture = Some(super::super::capture::spec::validate(spec)?);
+        Ok(())
+    }
+}
+
 /// Add only the interfaces this plugin was granted.
 pub fn link(
     linker: &mut wasmtime::component::Linker<HostState>,
@@ -333,6 +349,9 @@ pub fn link(
     }
     if granted.contains(&Permission::Notifications) {
         notifications::add_to_linker::<_, HasSelf<_>>(linker, |s| s)?;
+    }
+    if granted.contains(&Permission::ViewportCapture) {
+        viewport::add_to_linker::<_, HasSelf<_>>(linker, |s| s)?;
     }
     if granted.iter().any(|p| matches!(p, Permission::Network(_))) {
         network::add_to_linker::<_, HasSelf<_>>(linker, |s| s)?;

@@ -1300,5 +1300,22 @@
   "PLUGIN_REGISTRY_CORRUPT": "The list of installed plugins is damaged.",
   "PLUGIN_IO": "A plugin host file operation failed.",
   "PLUGIN_DATA_INVALID": "Plugin data is damaged.",
-  "PLUGIN_HOST": "Plugin host error."
+  "PLUGIN_HOST": "Plugin host error.",
+  "Record turntable videos of the model shown in the 3D view": "Record turntable videos of the model shown in the 3D view",
+  "Run": "Run",
+  "pluginCapture.title": "Recording video",
+  "pluginCapture.description": "{{plugin}}: {{width}}×{{height}}, {{fps}} fps, {{seconds}} s",
+  "pluginCapture.frames": "Frame {{done}} of {{total}}",
+  "pluginCapture.stop": "Stop",
+  "pluginCapture.cancelled": "Video recording cancelled",
+  "pluginCapture.saved": "{{plugin}}: video saved to {{path}}",
+  "PLUGIN_CAPTURE_UNSUPPORTED": "This system cannot encode video (WebCodecs is unavailable).",
+  "PLUGIN_CAPTURE_CODEC": "This computer cannot encode a video with these settings. Lower the resolution or choose another format.",
+  "PLUGIN_CAPTURE_EMPTY": "There is no model in the 3D view to record.",
+  "PLUGIN_CAPTURE_TICKET": "The recording request has expired. Run the plugin command again.",
+  "PLUGIN_CAPTURE_NO_DESTINATION": "No file was chosen for the video.",
+  "PLUGIN_CAPTURE_TOO_LARGE": "The video is larger than 4 GB. Lower the resolution, length or bitrate.",
+  "PLUGIN_CAPTURE_WRITE": "The video file could not be written.",
+  "PLUGIN_CAPTURE_CANCELLED": "Video recording cancelled",
+  "PLUGIN_IMPORT_API_TOO_OLD": "The plugin uses functions of a newer plugin API but manifest.json declares an older version."
 }

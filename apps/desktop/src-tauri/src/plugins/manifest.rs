@@ -10,7 +10,7 @@ use std::sync::OnceLock;
 
 const SCHEMA: &str = include_str!("../../../../../docs/schemas/plugin-manifest.schema.json");
 /// Contract version implemented by this host.
-pub const HOST_API: (u64, u64) = (0, 1);
+pub const HOST_API: (u64, u64) = (0, 2);
 pub const MAX_MANIFEST_BYTES: usize = 256 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -157,14 +157,18 @@ impl Manifest {
         permissions::parse_all(&self.permissions)
     }
 
-    fn check(&self, app_version: &str) -> Result<()> {
-        let api = self
-            .api
+    /// Declared contract version as `(MAJOR, MINOR)`.
+    pub fn api_version(&self) -> Result<(u64, u64)> {
+        self.api
             .split_once('.')
             .and_then(|(major, minor)| {
                 Some((major.parse::<u64>().ok()?, minor.parse::<u64>().ok()?))
             })
-            .ok_or_else(|| invalid("api must be MAJOR.MINOR"))?;
+            .ok_or_else(|| invalid("api must be MAJOR.MINOR"))
+    }
+
+    fn check(&self, app_version: &str) -> Result<()> {
+        let api = self.api_version()?;
         if api.0 != HOST_API.0 || api.1 > HOST_API.1 {
             return Err(PluginError::package(
                 "PLUGIN_API_UNSUPPORTED",
@@ -235,7 +239,8 @@ impl Manifest {
             Ok(())
         };
         need(!c.features.is_empty(), Permission::ModelWrite, "features")?;
-        need(!c.commands.is_empty(), Permission::ModelWrite, "commands")?;
+        // Commands without `model.write` may only return an empty plan
+        // (checked in `PluginService::plan`), e.g. to record a video.
         need(!c.importers.is_empty(), Permission::FileImport, "importers")?;
         need(!c.exporters.is_empty(), Permission::FileExport, "exporters")?;
         need(!c.exporters.is_empty(), Permission::ModelRead, "exporters")?;
@@ -265,8 +270,11 @@ mod tests {
                 .code
         };
         assert_eq!(check(&value, "1.3.3"), "PLUGIN_APP_TOO_OLD");
-        value["api"] = "0.2".into();
+        value["api"] = "0.3".into();
         assert_eq!(check(&value, "2.12.0"), "PLUGIN_API_UNSUPPORTED");
+        value["api"] = "0.2".into();
+        value["permissions"] = serde_json::json!(["model.write", "viewport.capture"]);
+        assert!(parse(value.to_string().as_bytes(), "2.12.0").is_ok());
         value["api"] = "0.1".into();
         value["permissions"] = serde_json::json!(["model.read"]);
         assert_eq!(check(&value, "2.12.0"), "PLUGIN_PERMISSION_MISSING");
