@@ -1,0 +1,169 @@
+/// FormaCAD plugin host contract (plugin-api 0.1).
+///
+/// Every interface that a plugin may import is tied to at most one manifest
+/// permission. A component that imports an interface without the matching
+/// declared permission is rejected at install time, before any code runs.
+/// Interfaces marked "no permission" are always available.
+///
+/// Structured CAD data (parameters, CAD IR v2 documents and Command API
+/// commands) crosses the boundary as UTF-8 JSON strings. The host parses them
+/// with the same strict CAD IR v2 types it uses for its own Command API, so the
+/// WIT surface stays stable while CAD IR grows. Lengths are millimetres,
+/// angles are degrees.
+package formacad:plugin@0.1.0;
+
+/// Shared types. No permission.
+interface types {
+    /// Error returned by a plugin export. Shown to the user as a plugin error,
+    /// never as a CAD error. `code` is a stable SCREAMING_SNAKE_CASE identifier.
+    record plugin-error {
+        code: string,
+        message: string,
+    }
+
+    enum level {
+        info,
+        warning,
+        error,
+    }
+}
+
+/// No permission. Writes one line into the local plugin journal.
+/// Lines are truncated to 2000 bytes; at most 200 lines per call are kept.
+interface log {
+    use types.{level};
+
+    write: func(level: level, message: string);
+}
+
+/// No permission. Reads a file from the plugin's own installed package,
+/// for example `assets/table.json` or `locales/ru.json`.
+interface assets {
+    read: func(path: string) -> result<list<u8>, string>;
+}
+
+/// Permission `model.read`.
+interface model {
+    /// CAD IR v2 document of the current project revision as JSON.
+    /// Errors when the project has no CAD IR v2 revision.
+    document: func() -> result<string, string>;
+}
+
+/// Permission `selection.read`.
+interface selection {
+    /// Current viewer selection as a JSON array of
+    /// `{"kind":"body"|"face"|"edge","bodyId":"…","key":"…"}` objects.
+    current: func() -> string;
+}
+
+/// Permission `storage`. Private key-value storage inside the CAD profile,
+/// at most 10 MB per plugin in total. Keys: 1–128 bytes of `[A-Za-z0-9._-]`.
+interface storage {
+    get: func(key: string) -> option<list<u8>>;
+    set: func(key: string, value: list<u8>) -> result<_, string>;
+    remove: func(key: string);
+    keys: func() -> list<string>;
+}
+
+/// Permission `notifications`. Messages are shown by CAD after the call ends,
+/// labelled with the plugin name. At most 5 notifications per call.
+interface notifications {
+    use types.{level};
+
+    notify: func(level: level, message: string);
+}
+
+/// Permission `network:<host>`. HTTPS only, and only to hosts that are
+/// declared as `network:<host>` permissions. No redirects, 15 s timeout,
+/// response body up to 10 MB.
+interface network {
+    record request {
+        method: string,
+        url: string,
+        headers: list<tuple<string, string>>,
+        body: option<list<u8>>,
+    }
+
+    record response {
+        status: u16,
+        headers: list<tuple<string, string>>,
+        body: list<u8>,
+    }
+
+    fetch: func(request: request) -> result<response, string>;
+}
+
+/// Export for `contributes.features`. Requires `model.write`.
+interface feature {
+    use types.{plugin-error};
+
+    /// `params-json`: object with the values of the feature form.
+    /// `context-json`: `{"api":"0.1","locale":"ru","revisionId":"…"|null,
+    ///   "idPrefix":"p_…_","settings":{…}}`.
+    /// Returns a JSON array of Command API commands (`add_feature`,
+    /// `add_body`, `add_parameter`, …). New IDs must start with `idPrefix`.
+    build: func(feature-id: string, params-json: string, context-json: string) -> result<string, plugin-error>;
+}
+
+/// Export for `contributes.commands`. Requires `model.write`.
+interface command {
+    use types.{plugin-error};
+
+    /// Same context as `feature.build`. Returns
+    /// `{"message":"…","commands":[…]}`; an empty `commands` array means
+    /// "nothing to change" (for example a command that only notifies).
+    run: func(command-id: string, params-json: string, context-json: string) -> result<string, plugin-error>;
+}
+
+/// Export for `contributes.importers`. Requires `file.import`.
+interface importer {
+    use types.{plugin-error};
+
+    /// `data` holds the bytes of the single file the user picked.
+    /// Returns a JSON array of Command API commands that add the imported
+    /// geometry to the current project.
+    import-file: func(importer-id: string, file-name: string, data: list<u8>, params-json: string, context-json: string) -> result<string, plugin-error>;
+}
+
+/// Export for `contributes.exporters`. Requires `file.export` and `model.read`.
+interface exporter {
+    use types.{plugin-error};
+
+    /// `document-json` is the current CAD IR v2 document. Returns the bytes
+    /// CAD writes to the path the user picked.
+    export-file: func(exporter-id: string, document-json: string, params-json: string, context-json: string) -> result<list<u8>, plugin-error>;
+}
+
+/// Export for `contributes.panels`. No extra permission.
+interface panel {
+    use types.{plugin-error};
+
+    /// Returns a declarative view as JSON:
+    /// `{"blocks":[{"type":"text","text":"…"},
+    ///   {"type":"form","fields":[<form field>…],"submit":{"command":"<command id>","label":"…"}}]}`.
+    /// CAD renders it with its own components; HTML is never interpreted.
+    render: func(panel-id: string, context-json: string) -> result<string, plugin-error>;
+}
+
+/// Everything a plugin may import. A plugin world normally does
+/// `include formacad:plugin/host@0.1.0;` and exports only what it contributes.
+/// Only the interfaces the compiled plugin really calls end up as imports.
+world host {
+    import log;
+    import assets;
+    import model;
+    import selection;
+    import storage;
+    import notifications;
+    import network;
+}
+
+/// Reference world with every export. Real plugins export a subset.
+world plugin {
+    include host;
+    export feature;
+    export command;
+    export importer;
+    export exporter;
+    export panel;
+}

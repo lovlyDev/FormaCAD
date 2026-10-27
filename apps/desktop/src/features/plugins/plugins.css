@@ -1,0 +1,29 @@
+/* Plugin UI. Only theme tokens: works in light and dark themes. */
+.plugin-list { display: grid; gap: 12px; margin-top: 14px; max-height: 420px; overflow-y: auto; }
+.plugin-card { padding: 14px; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; }
+.plugin-card h4, .plugin-install h4 { margin: 14px 0 6px; color: var(--text); font-size: 11px; font-weight: 600; }
+.plugin-heading { display: flex; align-items: center; gap: 10px; }
+.plugin-heading > div { flex: 1; min-width: 0; }
+.plugin-heading strong { display: block; color: var(--text); font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.plugin-heading small { display: block; color: var(--muted); font-size: 10px; margin-top: 2px; }
+.plugin-heading .checkbox-row { margin: 0; }
+.plugin-icon { display: grid; place-items: center; flex: none; width: 34px; height: 34px; color: #fff; background: var(--accent); border-radius: 8px; }
+.plugin-permissions { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.plugin-permissions li { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 11px; }
+.plugin-permissions li svg { flex: none; color: var(--light-success-ink, #91b49b); }
+.plugin-permissions li.added svg, .plugin-permissions li em { color: var(--light-danger-ink, #efb2a9); }
+.plugin-permissions li em { font-style: normal; font-size: 9px; padding: 1px 6px; border: 1px solid var(--light-danger-border, #68413a); border-radius: 999px; }
+.plugin-warning { padding: 8px 10px; color: var(--text); background: var(--light-danger-surface, #392926); border: 1px solid var(--light-danger-border, #68413a); border-radius: 8px; font-size: 11px; }
+.plugin-hash { color: var(--muted); font-size: 9px; font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+.plugin-install p { font-size: 12px; color: var(--text); }
+.plugin-install a { color: var(--light-accent-ink, #b791f5); }
+.plugin-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.plugin-actions .button, .plugin-card > .button { display: inline-flex; align-items: center; gap: 6px; }
+.plugin-journal { display: grid; gap: 4px; margin-top: 10px; max-height: 160px; overflow-y: auto; }
+.plugin-journal small { color: var(--muted); font-size: 9px; overflow-wrap: anywhere; }
+.plugin-form { display: grid; gap: 12px; margin: 14px 0; }
+.plugin-field { display: grid; gap: 5px; margin: 0; font-size: 11px; color: var(--text); }
+.plugin-field > span { display: flex; justify-content: space-between; gap: 8px; }
+.plugin-field em { color: var(--muted); font-style: normal; }
+.plugin-field small { color: var(--muted); font-size: 10px; }
+.plugin-panel-text { color: var(--text); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }

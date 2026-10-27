@@ -44,7 +44,7 @@ tauri-plugin-process = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-window-state = "2"
 cxx = { version = "1", optional = true }
-zip = { version = "9.0.0", default-features = false }
+zip = { version = "9.0.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 tempfile = { version = "3", optional = true }
 # FormaCAD account sign-in (system browser + loopback PKCE) and offline entitlement checks.
 reqwest = { version = "0.13", default-features = false, features = ["json", "form", "rustls-no-provider"] }
@@ -52,6 +52,11 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 url = "2"
 rand = "0.8"
 ed25519-dalek = "2"
+# Plugin platform (plugin-api 0.1): sandboxed WASM components, manifest schema, formacad:// links.
+wasmtime = { version = "50", default-features = false, features = ["runtime", "cranelift", "component-model", "std", "parallel-compilation", "anyhow"] }
+jsonschema = { version = "0.60", default-features = false }
+semver = "1"
+tauri-plugin-deep-link = "2"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects"] }
@@ -67,3 +72,6 @@ keyring = { version = "3", features = ["linux-native"] }
 reqwest = { version = "0.13", default-features = false, features = ["json", "form", "cookies", "rustls-no-provider"] }
 tempfile = "3"
 tauri = { version = "=2.12.0", features = ["test"] }
+wit-component = "0.262"
+wit-parser = "0.262"
+wat = "1"

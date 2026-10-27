@@ -1,0 +1,19 @@
+{
+  "name": "Simple Gear",
+  "description": "A parametric cog with straight teeth and a bore — an example plugin.",
+  "feature": "Simple gear",
+  "teeth": "Teeth",
+  "rootRadius": "Root radius",
+  "toothLength": "Tooth length",
+  "toothWidth": "Tooth width",
+  "thickness": "Thickness",
+  "bore": "Bore diameter",
+  "boreHelp": "0 — no bore",
+  "disc": "Gear disc",
+  "discPad": "Gear body",
+  "tooth": "Tooth",
+  "union": "Tooth union",
+  "hole": "Bore",
+  "body": "Gear",
+  "built": "Gear with {teeth} teeth added"
+}

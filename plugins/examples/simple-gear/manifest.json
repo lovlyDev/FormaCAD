@@ -1,0 +1,40 @@
+{
+  "id": "simple-gear",
+  "name": "%name%",
+  "version": "0.1.0",
+  "description": "%description%",
+  "about": "Example plugin from the FormaCAD repository: builds a cog with straight teeth and an optional bore from regular CAD operations, so the result stays visible, measurable and exportable without the plugin.",
+  "highlights": [
+    { "icon": "cog", "label": "Gears" },
+    { "icon": "ruler", "label": "Parametric" }
+  ],
+  "categories": ["modeling", "library"],
+  "author": { "name": "FormaCAD", "github": "lovlyDev" },
+  "repository": "https://github.com/lovlyDev/FormaCAD",
+  "license": "MIT",
+  "icon": "lucide:cog",
+  "iconColor": "#2563eb",
+  "minAppVersion": "1.3.3",
+  "api": "0.1",
+  "entry": "plugin.wasm",
+  "permissions": ["model.write", "notifications"],
+  "contributes": {
+    "features": [
+      {
+        "id": "simpleGear",
+        "title": "%feature%",
+        "icon": "cog",
+        "params": [
+          { "key": "teeth", "type": "integer", "label": "%teeth%", "default": 16, "min": 6, "max": 48 },
+          { "key": "rootRadius", "type": "length", "label": "%rootRadius%", "default": 20, "min": 2, "max": 500 },
+          { "key": "toothLength", "type": "length", "label": "%toothLength%", "default": 4, "min": 0.5, "max": 100 },
+          { "key": "toothWidth", "type": "length", "label": "%toothWidth%", "default": 3, "min": 0.2, "max": 100 },
+          { "key": "thickness", "type": "length", "label": "%thickness%", "default": 8, "min": 0.5, "max": 500 },
+          { "key": "bore", "type": "length", "label": "%bore%", "help": "%boreHelp%", "default": 8, "min": 0, "max": 900 }
+        ]
+      }
+    ]
+  },
+  "links": { "issues": "https://github.com/lovlyDev/FormaCAD/issues" },
+  "locales": ["en", "ru"]
+}

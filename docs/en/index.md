@@ -26,11 +26,14 @@ These guides describe the consolidated 1.2.6 candidate and its limits. Final pac
 - [3D viewer, measurements, and files](viewer-and-files.md): camera, selection, import, and export.
 - [Data and recovery](data.md): directories, backups, and persisted preferences.
 - [Settings, localization, and updates](settings-and-updates.md): themes, language, versions, and persistence.
+- [Plugins](plugins.md): install from a file or the catalog, permissions, settings, removal and limitations.
 - [FormaCAD account](account.md): optional browser sign-in, rights and offline mode.
 - [Releases and updates](releases.md): publication state and update installation.
 
 ## For developers
 
+- [Plugin platform](plugin-platform.md): specification of the `.cadplugin` format, `manifest.json`, permissions, the host interface, GitHub publishing and the `plugins.formacad.ru` catalog.
+- [Plugin author guide](plugin-authoring.md): project layout, building a WASM component, manifest, checks and GitHub releases.
 - [Architecture](architecture.md): React, Rust, worker, and CAD kernel boundaries.
 - [Code map and data flows](internals.md): modules and the model-edit path.
 - [Development and local builds](development.md): environment, tests, and packaging.

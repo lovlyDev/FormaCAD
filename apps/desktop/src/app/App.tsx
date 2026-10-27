@@ -18,6 +18,8 @@ import { Dashboard } from "./Dashboard";
 import { SelectionModelProperties } from "../features/reference-measurements/SelectionModelProperties";
 import { NewProjectDialog } from "./dialogs/NewProjectDialog";
 import { SettingsDialog } from "./dialogs/SettingsDialog";
+import { PluginHost } from "../features/plugins/PluginHost";
+import { pluginPaletteCommands, usePlugins } from "../features/plugins/usePluginCommands";
 import { AccountButton } from "../features/account/AccountButton";
 import { ParametersDialog } from "./dialogs/ParametersDialog";
 import { ExportDialog } from "./dialogs/ExportDialog";
@@ -217,6 +219,7 @@ export default function App() {
     [],
   );
   const [notice, setNotice] = useState("");
+  const plugins = usePlugins(modal === "palette");
   const [liveEvents, setLiveEvents] = useState<
     { kind: string; text: string; createdAt: string }[]
   >([]);
@@ -1979,6 +1982,14 @@ export default function App() {
           chatInput.current?.focus();
         }}
         onSettings={() => setModal("settings")}
+        extraCommands={pluginPaletteCommands(plugins.data ?? [], () => setModal(null))}
+      />
+      <PluginHost
+        project={project}
+        disabled={editingBlocked}
+        ask={ask}
+        notify={setNotice}
+        fail={setError}
       />
     </div>
   );

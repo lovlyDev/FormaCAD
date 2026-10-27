@@ -23,6 +23,7 @@ pub mod models;
 #[cfg(feature = "native-worker-client")]
 pub mod native;
 pub mod permissions;
+pub mod plugins;
 pub mod processes;
 pub mod project_access;
 pub mod project_history;
@@ -36,7 +37,7 @@ pub mod updates;
 #[cfg(feature = "native-occt")]
 pub mod worker_protocol;
 use std::{collections::HashMap, sync::atomic::Ordering};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut context = tauri::generate_context!();
@@ -52,6 +53,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(tauri_plugin_deep_link::init())
         .manage(account::AccountState::default())
         .setup(|app| {
             let data = app.path().app_data_dir()?;
@@ -71,6 +73,8 @@ pub fn run() {
                 .with_ansi(false)
                 .with_env_filter("forma_core=info,warn")
                 .try_init();
+            app.manage(plugins::PluginState::new(&data));
+            register_plugin_links(app)?;
             let pool = tauri::async_runtime::block_on(storage::open(&data.join("forma.sqlite")))?;
             app.manage(core::AppState {
                 cad_tasks: Default::default(),
@@ -138,7 +142,22 @@ pub fn run() {
             account::commands::account_sign_in,
             account::commands::account_cancel_sign_in,
             account::commands::account_refresh,
-            account::commands::account_sign_out
+            account::commands::account_sign_out,
+            plugins::ipc::plugins_list,
+            plugins::ipc::plugins_install_file,
+            plugins::ipc::plugins_install_link,
+            plugins::ipc::plugins_take_pending_link,
+            plugins::ipc::plugins_install_confirm,
+            plugins::ipc::plugins_install_cancel,
+            plugins::ipc::plugins_set_enabled,
+            plugins::ipc::plugins_set_active,
+            plugins::ipc::plugins_set_settings,
+            plugins::ipc::plugins_uninstall,
+            plugins::ipc::plugins_journal,
+            plugins::ipc::plugins_run,
+            plugins::ipc::plugins_import,
+            plugins::ipc::plugins_export,
+            plugins::ipc::plugins_panel
         ])
         .build(context);
     match app {
@@ -156,4 +175,33 @@ pub fn run() {
             eprintln!("Forma could not start: {e}");
         }
     }
+}
+
+/// `formacad://plugins/install?...` links only queue a request for the UI,
+/// which asks the user before anything is downloaded or installed.
+fn register_plugin_links(
+    app: &mut tauri::App,
+) -> std::result::Result<(), Box<dyn std::error::Error>> {
+    use tauri_plugin_deep_link::DeepLinkExt;
+    // Installers register the scheme; development builds register it per user.
+    #[cfg(all(debug_assertions, any(windows, target_os = "linux")))]
+    let _ = app.deep_link().register_all();
+    let state = app.state::<plugins::PluginState>();
+    if let Ok(Some(urls)) = app.deep_link().get_current() {
+        for url in urls {
+            state.offer_link(url.as_str());
+        }
+    }
+    let handle = app.handle().clone();
+    app.deep_link().on_open_url(move |event| {
+        for url in event.urls() {
+            if handle
+                .state::<plugins::PluginState>()
+                .offer_link(url.as_str())
+            {
+                let _ = handle.emit("plugins://install-link", url.as_str());
+            }
+        }
+    });
+    Ok(())
 }
