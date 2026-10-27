@@ -1,7 +1,8 @@
-//! Plugin platform (plugin-api 0.1): `.cadplugin` packages, WASM components
+//! Plugin platform (plugin-api 0.2): `.cadplugin` packages, WASM components
 //! in a Wasmtime sandbox, permissions, catalog links. Contract:
 //! `docs/ru/plugin-platform.md`, WIT: `docs/plugin-api/wit/formacad-plugin.wit`.
 pub mod apply;
+pub mod capture;
 pub mod catalog;
 pub mod error;
 pub mod forms;
@@ -25,6 +26,8 @@ pub struct PluginState {
     pub service: Arc<service::PluginService>,
     /// `formacad://` link received at start-up, waiting for the UI.
     pub pending_link: Mutex<Option<String>>,
+    /// Videos requested through `viewport.record-orbit`, waiting for the UI.
+    pub capture: capture::CaptureDesk,
 }
 
 impl PluginState {
@@ -32,6 +35,7 @@ impl PluginState {
         Self {
             service: Arc::new(service::PluginService::new(profile.join("plugins"))),
             pending_link: Mutex::new(None),
+            capture: capture::CaptureDesk::default(),
         }
     }
 

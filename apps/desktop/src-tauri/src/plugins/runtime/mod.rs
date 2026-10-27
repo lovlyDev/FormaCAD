@@ -72,6 +72,9 @@ pub struct CallReport {
     pub logs: Vec<String>,
     pub duration_ms: u64,
     pub fuel_used: u64,
+    /// Validated `viewport.record-orbit` request, if the plugin made one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capture: Option<super::capture::spec::OrbitSpec>,
 }
 
 pub struct Runtime {
@@ -185,6 +188,7 @@ impl Runtime {
                 .collect(),
             duration_ms: started.elapsed().as_millis() as u64,
             fuel_used: setup.limits.fuel.saturating_sub(fuel_left),
+            capture: state.capture.clone(),
         };
         let memory_denied = state.limiter.memory_denied;
         match outcome {

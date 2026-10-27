@@ -55,7 +55,7 @@
       "type": "array", "uniqueItems": true, "maxItems": 16,
       "items": {
         "type": "string",
-        "pattern": "^(model\\.read|model\\.write|selection\\.read|file\\.import|file\\.export|storage|notifications|network:[a-z0-9.-]{1,253})$"
+        "pattern": "^(model\\.read|model\\.write|selection\\.read|file\\.import|file\\.export|storage|notifications|viewport\\.capture|network:[a-z0-9.-]{1,253})$"
       }
     },
     "contributes": {

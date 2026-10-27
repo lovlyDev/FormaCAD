@@ -55,7 +55,7 @@ Formal schema: [`docs/schemas/plugin-manifest.schema.json`](../schemas/plugin-ma
 | `icon` | no | Built-in `lucide:<name>` or a PNG path in the package; chip background `iconColor` (`#rrggbb`) |
 | `screenshots` | no | Up to 8: `{ "src": "<repository path>", "caption": "…", "theme": "light" \| "dark" \| "any" }`; PNG/WebP/JPEG, up to 2 MB, 800–2400 px wide |
 | `minAppVersion` | yes | Minimum FormaCAD version (`2.12.0`) |
-| `api` | yes | Plugin contract version (`0.1`) |
+| `api` | yes | Plugin contract version (`0.1` or `0.2`) |
 | `entry` | yes | WASM file name in the package |
 | `permissions` | yes | Permission list (section 4); may be empty |
 | `contributes` | yes | What the plugin adds (section 1); at least one contribution |
@@ -78,6 +78,7 @@ Permissions are declared in the manifest, shown at install time and take effect 
 | `storage` | Own storage up to 10 MB inside the CAD profile |
 | `network:<host>` | HTTPS requests to the named host only; each host is a separate permission |
 | `notifications` | Show CAD notifications |
+| `viewport.capture` | Record turntable videos of the model in the 3D view (since plugin-api 0.2); the plugin never sees the geometry, the frames or the file path |
 
 If a new version requests **new** permissions, the CAD app never updates silently: it shows the difference and waits for approval, keeping the previous version until the user agrees.
 
@@ -132,7 +133,7 @@ If a plugin is missing or disabled, a body created by its operation stays visibl
 
 `api` is the contract MAJOR.MINOR. MINOR adds host functions and fields compatibly; MAJOR breaks. The CAD app supports the current MAJOR and announces deprecations one release ahead. A plugin operation's parameter schema is versioned with the plugin; when a project updates, parameters migrate after a backup and a successful rebuild.
 
-## 11. Host interface `formacad:plugin@0.1`
+## 11. Host interface `formacad:plugin` (plugin-api 0.2)
 
 WIT file: [`docs/plugin-api/wit/formacad-plugin.wit`](../plugin-api/wit/formacad-plugin.wit). A plugin is a **WebAssembly component** (component model), not a core module: WIT describes the types exactly, every group of host functions is its own interface, and permissions are checked against the component's import list without guessing an ABI. A component imports only the interfaces it actually calls.
 
@@ -144,21 +145,25 @@ WIT file: [`docs/plugin-api/wit/formacad-plugin.wit`](../plugin-api/wit/formacad
 | `storage` | `storage` | `get/set/remove/keys`, 10 MB in total |
 | `notifications` | `notifications` | `notify(level, message)`, up to 5 per call |
 | `network` | `network:<host>` | `fetch(request)` — HTTPS to declared hosts only, no redirects, 15 s, response up to 10 MB |
+| `viewport` | `viewport.capture` | `record-orbit(orbit)` — queue a turntable video of the model in the 3D view (since plugin-api 0.2) |
 
 Plugin exports and the permissions they require:
 
 | Export | Contribution | Permission | Result |
 | --- | --- | --- | --- |
 | `feature.build(id, params, context)` | `features` | `model.write` | JSON array of Command API commands |
-| `command.run(id, params, context)` | `commands` | `model.write` | `{"message","commands":[…]}` |
+| `command.run(id, params, context)` | `commands` | `model.write` when it changes the model | `{"message","commands":[…]}` |
 | `importer.import-file(id, name, bytes, params, context)` | `importers` | `file.import` | JSON array of commands |
 | `exporter.export-file(id, document, params, context)` | `exporters` | `file.export` and `model.read` | file bytes |
 | `panel.render(id, context)` | `panels` | — | declarative view `{"blocks":[…]}` |
 
 CAD IR, parameters and commands cross the boundary as JSON strings and are parsed by the host with the same strict types as its own Command API, so WIT stays stable while CAD IR grows. `context` carries `api`, `locale`, `revisionId`, `settings` and `idPrefix`; every new ID (feature, body, parameter) must start with `idPrefix` or the result is rejected.
 
-## 12. Implementation notes for 0.1
+## 12. Implementation notes
 
+- **plugin-api 0.2** adds the `viewport` interface and the `viewport.capture` permission; the rest of the contract is unchanged. The WIT package keeps the name `formacad:plugin@0.1.0`, so 0.1 plugins keep working without a rebuild. A component that imports `viewport` must declare `"api": "0.2"`, otherwise installation fails with `PLUGIN_IMPORT_API_TOO_OLD`. FormaCAD 1.4.0 refuses such packages (`PLUGIN_API_UNSUPPORTED`), so they need `minAppVersion` 1.5.0 or newer.
+- **Commands without `model.write`** (since 0.2): `contributes.commands` no longer requires `model.write`. Such a command may only return an empty `commands` array; any model-changing command is rejected as `PLUGIN_OUTPUT_INVALID`. The CAD app shows no model-edit approval for it.
+- **Video recording** (`viewport.record-orbit`): the plugin passes a typed `orbit` record — frame size (even, 160–3840 × 120–2160), 1–120 fps, 0.5 s – 10 min, 0.05–100 turns, direction, the up axis (±X/±Y/±Z in CAD coordinates), tilt −90…90°, camera height −89…89°, start angle, zoom 0.25–4, background (theme/light/dark), `mp4` (H.264) or `webm` (VP9/VP8) and bitrate (0 = automatic); at most 36,000 frames. The host validates the values and returns an error string; one request per call. After the call the CAD app hands the UI a one-time ticket, opens the native save dialog, renders every frame of a copy of the current model on its own WebGL renderer (lights fixed to the camera, the user's camera untouched) and encodes the video with WebCodecs through the mediabunny library. Frames get exact timestamps, so the video is smooth even on a slow computer. Bytes are written to `<file>.part` at their offsets and renamed on success; cancelling or an error removes the partial file; the size limit is 4 GB. The plugin never receives the geometry, the pixels or the path.
 - **Package:** only `manifest.json`, the `entry` file, the icon, `locales/*.json` and `assets/**` are allowed; stored/deflate compression; case-insensitive duplicate paths are rejected.
 - **Catalog index entry** (`GET /api/v1/plugins/<id>/versions/<version>`): `{"payload":"<base64 JSON>","signature":"<base64 Ed25519 over the payload bytes>","keyId":"…"}`. The payload has `format: "formacad-plugin-index-entry/1"`, `id`, `version`, `name`, `permissions`, `sha256`, `size`, `downloadUrl`, `pageUrl` (both `https://plugins.formacad.ru/…`), `yanked`. The CAD app matches id/version with the link, the package size and SHA-256, and the manifest permissions with the signed list. Unknown fields are ignored.
 - **Catalog key** lives in `apps/desktop/src-tauri/src/plugins/catalog/keys.rs`; it holds the production key `catalog-20261026` (the same bytes as `https://plugins.formacad.ru/api/v1/catalog/keys`). A build without keys answers `PLUGIN_CATALOG_KEY_MISSING` for catalog installs; file installs always work. Rotation: ship the new key next to the old one first, then switch the server.

@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getLocale } from "../../i18n";
 import type { Project } from "../../types";
+import type { CaptureTicket } from "./capture/captureApi";
 
 export type FieldType = "length" | "angle" | "number" | "integer" | "boolean" | "choice" | "text";
 export type FieldValue = number | boolean | string;
@@ -94,6 +95,8 @@ export interface RunOutcome {
   project: Project | null;
   notices: Notice[];
   message: string | null;
+  /** Present when the plugin asked for a video through `viewport.record-orbit`. */
+  capture?: CaptureTicket;
 }
 
 export interface JournalEntry {

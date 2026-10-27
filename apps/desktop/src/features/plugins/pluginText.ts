@@ -31,6 +31,8 @@ export function permissionText(permission: string): string {
       return t("Keep its own data in the FormaCAD profile (up to 10 MB)");
     case "notifications":
       return t("Show notifications in FormaCAD");
+    case "viewport.capture":
+      return t("Record turntable videos of the model shown in the 3D view");
     default:
       return permission;
   }

@@ -24,6 +24,7 @@ Plugins add parametric operations, commands, import and export formats, panels a
 | `storage` | Keeping its own data in the FormaCAD profile (up to 10 MB) |
 | `network:<host>` | HTTPS requests to that host only |
 | `notifications` | Showing notifications |
+| `viewport.capture` | Record turntable videos of the model in the 3D view; the plugin never sees the model, the frames or the file |
 
 A package that calls a function without the matching permission, or tries to reach the system outside FormaCAD (for example WASI), is not installed.
 
@@ -38,6 +39,14 @@ Actions of enabled plugins appear in the command palette (`Ctrl K`): “<plugin>
 The result consists of ordinary CAD operations. The body stays visible, measurable and exportable even after the plugin is disabled or removed.
 
 Plugin import opens the system file picker; the plugin receives only the bytes of the chosen file. Plugin export hands the current model to the plugin and writes the result where you choose.
+
+## Turntable video recording
+
+A plugin with the `viewport.capture` permission (for example [Turntable Video](https://github.com/lovlyDev/formacad-orbit-video)) can ask FormaCAD to record a video of the model turning in a circle. Steps: command palette → the plugin's command → form (resolution, frames per second, length and number of turns, direction, which axis points up, part tilt, camera height, zoom, background, MP4 or WebM, bitrate) → Run → the native “Save video” dialog. Such a command does not change the model, so no model-edit approval appears.
+
+FormaCAD renders every frame of a copy of the model shown in the 3D view and encodes the video with the system's encoders (WebCodecs). Your view, camera and selection stay unchanged. The “Recording video” window shows the frame number and percentage; Stop or closing the window aborts the recording and deletes the unfinished file. Until the recording is complete the file is named `<name>.mp4.part`.
+
+Limits: up to 3840 × 2160, up to 120 fps, up to 10 minutes and at most 36,000 frames, files up to 4 GB. If the system cannot encode the chosen format or size, FormaCAD says so — lower the resolution or pick the other format. Only the model is recorded: the grid, selection, dimensions and labels do not appear in the video.
 
 ## Settings, journal, removal
 

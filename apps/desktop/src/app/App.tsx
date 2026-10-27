@@ -45,6 +45,7 @@ import {
   lazy,
   Suspense,
   useEffect,
+  useCallback,
   useMemo,
   useRef,
   useState,
@@ -270,6 +271,9 @@ export default function App() {
     [geometryKey, committedScene.hasFile],
   );
   const object = committedScene.object ?? (committedScene.hasFile ? emptyScene : model);
+  const displayedObject = useRef(object);
+  displayedObject.current = object;
+  const pluginScene = useCallback(() => displayedObject.current, []);
   const displayedRevision = committedScene.hasFile
     ? project?.revisions.find(item => committedScene.object && item.id === committedScene.displayed?.revisionId)
     : revision;
@@ -1990,6 +1994,7 @@ export default function App() {
         ask={ask}
         notify={setNotice}
         fail={setError}
+        scene={pluginScene}
       />
     </div>
   );

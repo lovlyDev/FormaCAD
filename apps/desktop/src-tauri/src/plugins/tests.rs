@@ -266,6 +266,18 @@ const WIT: &str = include_str!("../../../../../docs/plugin-api/wit/formacad-plug
 /// Core module exporting `feature.build` with `body` as its code, encoded
 /// as a component against `world` (written in WIT).
 fn component(world: &str, extra_packages: &str, imports: &str, body: &str) -> Vec<u8> {
+    component_exporting(world, extra_packages, imports, "feature@0.1.0#build", body)
+}
+
+/// Same, exporting `formacad:plugin/<export>` (`feature@0.1.0#build` or
+/// `command@0.1.0#run`, which share the string ABI).
+fn component_exporting(
+    world: &str,
+    extra_packages: &str,
+    imports: &str,
+    export: &str,
+    body: &str,
+) -> Vec<u8> {
     let mut resolve = wit_parser::Resolve::default();
     resolve.push_str("formacad.wit", WIT).unwrap();
     if !extra_packages.is_empty() {
@@ -278,8 +290,8 @@ fn component(world: &str, extra_packages: &str, imports: &str, body: &str) -> Ve
             {imports}
             (memory (export "memory") 1)
             (func (export "cabi_realloc") (param i32 i32 i32 i32) (result i32) i32.const 1024)
-            (func (export "formacad:plugin/feature@0.1.0#build") (param i32 i32 i32 i32 i32 i32) (result i32) {body})
-            (func (export "cabi_post_formacad:plugin/feature@0.1.0#build") (param i32)))"#
+            (func (export "formacad:plugin/{export}") (param i32 i32 i32 i32 i32 i32) (result i32) {body})
+            (func (export "cabi_post_formacad:plugin/{export}") (param i32)))"#
     ))
     .unwrap();
     wit_component::embed_component_metadata(
@@ -415,4 +427,132 @@ fn bad_plugin_output_is_a_plugin_error() {
         (error.code.as_str(), error.origin),
         ("PLUGIN_OUTPUT_INVALID", super::error::Origin::Plugin)
     );
+}
+
+const COMMAND_WORLD: &str = "package test:plugin; world test { include formacad:plugin/host@0.1.0; export formacad:plugin/command@0.1.0; }";
+
+/// Command that calls `viewport.record-orbit(640×360, 30 fps, 1 s, …, webm)`
+/// with `width` and returns `{"commands":[]}`.
+fn orbit_component(width: i32) -> Vec<u8> {
+    let imports = r#"(import "formacad:plugin/viewport@0.1.0" "record-orbit"
+            (func $orbit (param i32 i32 i32 i32 f32 i32 i32 f32 f32 f32 f32 i32 i32 i32 i32)))
+        (data (i32.const 2048) "{\"commands\":[]}")"#;
+    let body = format!(
+        r#"(call $orbit (i32.const {width}) (i32.const 360) (i32.const 30) (i32.const 1000)
+            (f32.const 1) (i32.const 0) (i32.const 2) (f32.const 0) (f32.const 20) (f32.const 0)
+            (f32.const 1) (i32.const 0) (i32.const 1) (i32.const 0) (i32.const 8192))
+        (i32.store (i32.const 4096) (i32.const 0))
+        (i32.store (i32.const 4100) (i32.const 2048))
+        (i32.store (i32.const 4104) (i32.const 15))
+        i32.const 4096"#
+    );
+    component_exporting(COMMAND_WORLD, "", imports, "command@0.1.0#run", &body)
+}
+
+fn orbit_package(wasm: &[u8], api: &str, permissions: Value) -> Vec<u8> {
+    repack(
+        EXAMPLE,
+        |m| {
+            m["id"] = "orbit-test".into();
+            m["api"] = api.into();
+            m["permissions"] = permissions;
+            m["contributes"] =
+                json!({ "commands": [{ "id": "record", "title": "Record", "params": [] }] });
+        },
+        Some(wasm),
+    )
+}
+
+#[test]
+fn viewport_capture_queues_a_validated_orbit_without_model_write() {
+    let (_dir, service) = service();
+    install(
+        &service,
+        &orbit_package(&orbit_component(640), "0.2", json!(["viewport.capture"])),
+    );
+    let plan = service
+        .plan(
+            "orbit-test",
+            PlanKind::Command,
+            "record",
+            &json!({}),
+            &input("en"),
+        )
+        .unwrap();
+    assert!(plan.commands.is_empty());
+    let spec = plan.report.capture.expect("recording requested");
+    assert_eq!(
+        (spec.width, spec.height, spec.fps, spec.frames()),
+        (640, 360, 30, 30)
+    );
+    assert_eq!(
+        (spec.up, spec.format, spec.background),
+        ("z", "webm", "theme")
+    );
+
+    // An odd width is refused by the host; the plugin sees the error string
+    // and here simply ignores it, so no recording is queued.
+    let (_dir, service) = self::service();
+    install(
+        &service,
+        &orbit_package(&orbit_component(641), "0.2", json!(["viewport.capture"])),
+    );
+    let plan = service
+        .plan(
+            "orbit-test",
+            PlanKind::Command,
+            "record",
+            &json!({}),
+            &input("en"),
+        )
+        .unwrap();
+    assert!(plan.report.capture.is_none());
+}
+
+#[test]
+fn viewport_import_needs_its_permission_and_api_0_2() {
+    let wasm = orbit_component(640);
+    let (_dir, service) = service();
+    let error = service
+        .prepare(
+            &orbit_package(&wasm, "0.2", json!(["notifications"])),
+            Source::File,
+        )
+        .unwrap_err();
+    assert_eq!(error.code, "PLUGIN_IMPORT_NOT_PERMITTED");
+    let error = service
+        .prepare(
+            &orbit_package(&wasm, "0.1", json!(["viewport.capture"])),
+            Source::File,
+        )
+        .unwrap_err();
+    assert_eq!(error.code, "PLUGIN_IMPORT_API_TOO_OLD");
+}
+
+#[test]
+fn commands_without_model_write_cannot_change_the_model() {
+    // Returning any command without model.write is refused, even a rename.
+    let imports = r#"(data (i32.const 2048) "{\"commands\":[{\"command\":\"rename_feature\",\"featureId\":\"x\",\"name\":\"y\"}]}")"#;
+    let text_len =
+        r#"{"commands":[{"command":"rename_feature","featureId":"x","name":"y"}]}"#.len();
+    let body = format!(
+        r#"(i32.store (i32.const 4096) (i32.const 0))
+        (i32.store (i32.const 4100) (i32.const 2048))
+        (i32.store (i32.const 4104) (i32.const {text_len}))
+        i32.const 4096"#
+    );
+    let wasm = component_exporting(COMMAND_WORLD, "", imports, "command@0.1.0#run", &body);
+    let (_dir, service) = service();
+    install(&service, &orbit_package(&wasm, "0.1", json!([])));
+    let error = service
+        .plan(
+            "orbit-test",
+            PlanKind::Command,
+            "record",
+            &json!({}),
+            &input("en"),
+        )
+        .unwrap_err();
+    assert_eq!(error.code, "PLUGIN_OUTPUT_INVALID");
+    assert!(error.message.contains("model.write"), "{}", error.message);
 }

@@ -157,7 +157,10 @@ pub fn run() {
             plugins::ipc::plugins_run,
             plugins::ipc::plugins_import,
             plugins::ipc::plugins_export,
-            plugins::ipc::plugins_panel
+            plugins::ipc::plugins_panel,
+            plugins::capture::ipc::plugins_capture_pick,
+            plugins::capture::ipc::plugins_capture_write,
+            plugins::capture::ipc::plugins_capture_finish
         ])
         .build(context);
     match app {
