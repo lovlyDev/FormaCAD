@@ -9,8 +9,13 @@ const MAX_TEXT: usize = 1000;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase", deny_unknown_fields)]
 pub enum Block {
-    Text { text: String },
-    Form { fields: Vec<FormField>, submit: Submit },
+    Text {
+        text: String,
+    },
+    Form {
+        fields: Vec<FormField>,
+        submit: Submit,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -33,14 +38,24 @@ pub fn parse(raw: &str, manifest: &Manifest) -> Result<serde_json::Value, String
     }
     for block in &view.blocks {
         match block {
-            Block::Text { text } if text.chars().count() > MAX_TEXT => return Err("Panel text is too long".into()),
+            Block::Text { text } if text.chars().count() > MAX_TEXT => {
+                return Err("Panel text is too long".into())
+            }
             Block::Text { .. } => {}
             Block::Form { fields, submit } => {
                 super::forms::check_form(fields)?;
-                if fields.len() > 40 || submit.label.chars().count() > 60 || submit.label.trim().is_empty() {
+                if fields.len() > 40
+                    || submit.label.chars().count() > 60
+                    || submit.label.trim().is_empty()
+                {
                     return Err("Panel form is too large".into());
                 }
-                if !manifest.contributes.commands.iter().any(|c| c.id == submit.command) {
+                if !manifest
+                    .contributes
+                    .commands
+                    .iter()
+                    .any(|c| c.id == submit.command)
+                {
                     return Err(format!("Panel submits unknown command {}", submit.command));
                 }
             }

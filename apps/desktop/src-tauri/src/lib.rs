@@ -179,7 +179,9 @@ pub fn run() {
 
 /// `formacad://plugins/install?...` links only queue a request for the UI,
 /// which asks the user before anything is downloaded or installed.
-fn register_plugin_links(app: &mut tauri::App) -> std::result::Result<(), Box<dyn std::error::Error>> {
+fn register_plugin_links(
+    app: &mut tauri::App,
+) -> std::result::Result<(), Box<dyn std::error::Error>> {
     use tauri_plugin_deep_link::DeepLinkExt;
     // Installers register the scheme; development builds register it per user.
     #[cfg(all(debug_assertions, any(windows, target_os = "linux")))]
@@ -193,7 +195,10 @@ fn register_plugin_links(app: &mut tauri::App) -> std::result::Result<(), Box<dy
     let handle = app.handle().clone();
     app.deep_link().on_open_url(move |event| {
         for url in event.urls() {
-            if handle.state::<plugins::PluginState>().offer_link(url.as_str()) {
+            if handle
+                .state::<plugins::PluginState>()
+                .offer_link(url.as_str())
+            {
                 let _ = handle.emit("plugins://install-link", url.as_str());
             }
         }

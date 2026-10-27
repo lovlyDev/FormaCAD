@@ -92,7 +92,9 @@ pub struct UnknownImport;
 
 /// Which permission an imported interface needs. `Ok(None)` means "always
 /// available".
-pub fn import_requirement(interface: &str) -> std::result::Result<Option<Requirement>, UnknownImport> {
+pub fn import_requirement(
+    interface: &str,
+) -> std::result::Result<Option<Requirement>, UnknownImport> {
     Ok(match interface {
         "types" | "log" | "assets" => None,
         "model" => Some(Requirement::Exact(Permission::ModelRead)),
@@ -136,7 +138,10 @@ mod tests {
 
     #[test]
     fn parses_known_permissions_and_rejects_unsafe_hosts() {
-        assert_eq!(Permission::parse("model.read").unwrap(), Permission::ModelRead);
+        assert_eq!(
+            Permission::parse("model.read").unwrap(),
+            Permission::ModelRead
+        );
         assert_eq!(
             Permission::parse("network:api.example.com").unwrap(),
             Permission::Network("api.example.com".into())
@@ -158,7 +163,10 @@ mod tests {
     fn added_permissions_are_a_set_difference() {
         let old = parse_all(&["model.read".into()]).unwrap();
         let new = parse_all(&["model.read".into(), "network:a.example.com".into()]).unwrap();
-        assert_eq!(to_strings(&added(&old, &new)), vec!["network:a.example.com"]);
+        assert_eq!(
+            to_strings(&added(&old, &new)),
+            vec!["network:a.example.com"]
+        );
         assert!(added(&new, &old).is_empty());
     }
 

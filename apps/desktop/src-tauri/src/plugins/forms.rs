@@ -61,7 +61,8 @@ pub fn check_form(fields: &[FormField]) -> Result<(), String> {
             return Err(format!("{}: choice needs options", field.key));
         }
         if let Some(default) = &field.default {
-            check_value(field, default).map_err(|error| format!("{} default: {error}", field.key))?;
+            check_value(field, default)
+                .map_err(|error| format!("{} default: {error}", field.key))?;
         }
     }
     Ok(())
@@ -69,14 +70,20 @@ pub fn check_form(fields: &[FormField]) -> Result<(), String> {
 
 /// Validate submitted values: unknown keys are rejected, missing keys take the
 /// default (or the field's neutral value), every value is type and range checked.
-pub fn resolve_values(fields: &[FormField], submitted: &Value) -> Result<Map<String, Value>, String> {
+pub fn resolve_values(
+    fields: &[FormField],
+    submitted: &Value,
+) -> Result<Map<String, Value>, String> {
     let empty = Map::new();
     let submitted = match submitted {
         Value::Null => &empty,
         Value::Object(map) => map,
         _ => return Err("Form values must be an object".into()),
     };
-    if let Some(unknown) = submitted.keys().find(|key| !fields.iter().any(|f| &f.key == *key)) {
+    if let Some(unknown) = submitted
+        .keys()
+        .find(|key| !fields.iter().any(|f| &f.key == *key))
+    {
         return Err(format!("Unknown form field {unknown}"));
     }
     let mut resolved = Map::new();
@@ -103,7 +110,10 @@ fn neutral(field: &FormField) -> Value {
 
 fn check_value(field: &FormField, value: &Value) -> Result<(), String> {
     match field.kind {
-        FieldType::Boolean => value.as_bool().map(|_| ()).ok_or_else(|| "expected true or false".into()),
+        FieldType::Boolean => value
+            .as_bool()
+            .map(|_| ())
+            .ok_or_else(|| "expected true or false".into()),
         FieldType::Text => match value.as_str() {
             Some(text) if text.chars().count() <= MAX_TEXT => Ok(()),
             Some(_) => Err("text is too long".into()),
@@ -114,14 +124,19 @@ fn check_value(field: &FormField, value: &Value) -> Result<(), String> {
             _ => Err("unknown choice".into()),
         },
         FieldType::Integer | FieldType::Number | FieldType::Length | FieldType::Angle => {
-            let number = value.as_f64().filter(|n| n.is_finite()).ok_or("expected a number")?;
+            let number = value
+                .as_f64()
+                .filter(|n| n.is_finite())
+                .ok_or("expected a number")?;
             if field.kind == FieldType::Integer && number.fract() != 0.0 {
                 return Err("expected a whole number".into());
             }
             if field.kind == FieldType::Length && number.abs() > MAX_LENGTH_MM {
                 return Err("length is out of range".into());
             }
-            if field.min.is_some_and(|min| number < min) || field.max.is_some_and(|max| number > max) {
+            if field.min.is_some_and(|min| number < min)
+                || field.max.is_some_and(|max| number > max)
+            {
                 return Err("value is out of range".into());
             }
             Ok(())

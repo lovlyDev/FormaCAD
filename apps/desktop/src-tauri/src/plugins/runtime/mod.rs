@@ -118,7 +118,12 @@ impl Runtime {
 
     fn component(&self, setup: &CallSetup) -> Result<Component> {
         let key = format!("{}@{}#{}", setup.plugin_id, setup.version, setup.sha256);
-        if let Some(component) = self.cache.lock().unwrap_or_else(|p| p.into_inner()).get(&key) {
+        if let Some(component) = self
+            .cache
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .get(&key)
+        {
             return Ok(component.clone());
         }
         let bytes = std::fs::read(&setup.wasm_path)?;
@@ -134,18 +139,28 @@ impl Runtime {
     pub fn call<R>(
         &self,
         setup: CallSetup,
-        body: impl FnOnce(&mut Store<HostState>, &Instance) -> wasmtime::Result<std::result::Result<R, WitError>>,
+        body: impl FnOnce(
+            &mut Store<HostState>,
+            &Instance,
+        ) -> wasmtime::Result<std::result::Result<R, WitError>>,
     ) -> Result<(R, CallReport)> {
         let id = setup.plugin_id.clone();
         let component = self.component(&setup)?;
-        let mut state = HostState::new(&setup.plugin_id, setup.granted.clone(), setup.package_dir, setup.data_dir, setup.limits.memory);
+        let mut state = HostState::new(
+            &setup.plugin_id,
+            setup.granted.clone(),
+            setup.package_dir,
+            setup.data_dir,
+            setup.limits.memory,
+        );
         state.document = setup.document;
         if let Some(selection) = setup.selection {
             state.selection = selection;
         }
         state.network = tokio::runtime::Handle::try_current().ok();
         let mut linker = Linker::new(&self.engine);
-        host::link(&mut linker, &setup.granted).map_err(|e| PluginError::host("PLUGIN_HOST", format!("{e:#}")))?;
+        host::link(&mut linker, &setup.granted)
+            .map_err(|e| PluginError::host("PLUGIN_HOST", format!("{e:#}")))?;
         let mut store = Store::new(&self.engine, state);
         store.limiter(|state| &mut state.limiter);
         store
@@ -173,10 +188,18 @@ impl Runtime {
         };
         let memory_denied = state.limiter.memory_denied;
         match outcome {
-            Err(_) => Err(PluginError::host("PLUGIN_HOST_PANIC", "The plugin host failed during the call").for_plugin(&id)),
+            Err(_) => Err(PluginError::host(
+                "PLUGIN_HOST_PANIC",
+                "The plugin host failed during the call",
+            )
+            .for_plugin(&id)),
             Ok(Err(error)) => Err(classify(&error, memory_denied).for_plugin(&id)),
             Ok(Ok(Err(error))) => {
-                let code = if error.code.is_empty() { "PLUGIN_ERROR".into() } else { error.code };
+                let code = if error.code.is_empty() {
+                    "PLUGIN_ERROR".into()
+                } else {
+                    error.code
+                };
                 Err(PluginError {
                     code,
                     message: error.message.chars().take(1000).collect(),
@@ -204,10 +227,17 @@ fn classify(error: &wasmtime::Error, memory_denied: bool) -> PluginError {
     }
 }
 
-fn lookup(store: &mut Store<HostState>, instance: &Instance, interface: &str, func: &str) -> wasmtime::Result<wasmtime::component::ComponentExportIndex> {
+fn lookup(
+    store: &mut Store<HostState>,
+    instance: &Instance,
+    interface: &str,
+    func: &str,
+) -> wasmtime::Result<wasmtime::component::ComponentExportIndex> {
     let parent = instance
         .get_export_index(&mut *store, None, &export_name(interface))
-        .ok_or_else(|| wasmtime::format_err!("component does not export {}", export_name(interface)))?;
+        .ok_or_else(|| {
+            wasmtime::format_err!("component does not export {}", export_name(interface))
+        })?;
     instance
         .get_export_index(&mut *store, Some(&parent), func)
         .ok_or_else(|| wasmtime::format_err!("{} has no function {func}", export_name(interface)))
@@ -222,13 +252,24 @@ pub fn call_strings(
     args: (&str, &str, &str),
 ) -> wasmtime::Result<std::result::Result<String, WitError>> {
     let index = lookup(store, instance, interface, func)?;
-    let typed = instance.get_typed_func::<(&str, &str, &str), (std::result::Result<String, WitError>,)>(&mut *store, &index)?;
+    let typed = instance
+        .get_typed_func::<(&str, &str, &str), (std::result::Result<String, WitError>,)>(
+            &mut *store,
+            &index,
+        )?;
     Ok(typed.call(&mut *store, args)?.0)
 }
 
-pub fn call_panel(store: &mut Store<HostState>, instance: &Instance, args: (&str, &str)) -> wasmtime::Result<std::result::Result<String, WitError>> {
+pub fn call_panel(
+    store: &mut Store<HostState>,
+    instance: &Instance,
+    args: (&str, &str),
+) -> wasmtime::Result<std::result::Result<String, WitError>> {
     let index = lookup(store, instance, "panel", "render")?;
-    let typed = instance.get_typed_func::<(&str, &str), (std::result::Result<String, WitError>,)>(&mut *store, &index)?;
+    let typed = instance.get_typed_func::<(&str, &str), (std::result::Result<String, WitError>,)>(
+        &mut *store,
+        &index,
+    )?;
     Ok(typed.call(&mut *store, args)?.0)
 }
 
@@ -248,6 +289,10 @@ pub fn call_export(
     args: (&str, &str, &str, &str),
 ) -> wasmtime::Result<std::result::Result<Vec<u8>, WitError>> {
     let index = lookup(store, instance, "exporter", "export-file")?;
-    let typed = instance.get_typed_func::<(&str, &str, &str, &str), (std::result::Result<Vec<u8>, WitError>,)>(&mut *store, &index)?;
+    let typed = instance
+        .get_typed_func::<(&str, &str, &str, &str), (std::result::Result<Vec<u8>, WitError>,)>(
+            &mut *store,
+            &index,
+        )?;
     Ok(typed.call(&mut *store, args)?.0)
 }

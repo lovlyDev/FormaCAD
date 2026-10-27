@@ -44,12 +44,22 @@ pub struct Limiter {
 }
 
 impl ResourceLimiter for Limiter {
-    fn memory_growing(&mut self, current: usize, desired: usize, maximum: Option<usize>) -> wasmtime::Result<bool> {
+    fn memory_growing(
+        &mut self,
+        current: usize,
+        desired: usize,
+        maximum: Option<usize>,
+    ) -> wasmtime::Result<bool> {
         let allowed = self.inner.memory_growing(current, desired, maximum)?;
         self.memory_denied |= !allowed;
         Ok(allowed)
     }
-    fn table_growing(&mut self, current: usize, desired: usize, maximum: Option<usize>) -> wasmtime::Result<bool> {
+    fn table_growing(
+        &mut self,
+        current: usize,
+        desired: usize,
+        maximum: Option<usize>,
+    ) -> wasmtime::Result<bool> {
         self.inner.table_growing(current, desired, maximum)
     }
 }
@@ -70,7 +80,13 @@ pub struct HostState {
 }
 
 impl HostState {
-    pub fn new(plugin_id: &str, granted: PermissionSet, package_dir: PathBuf, data_dir: PathBuf, memory_bytes: usize) -> Self {
+    pub fn new(
+        plugin_id: &str,
+        granted: PermissionSet,
+        package_dir: PathBuf,
+        data_dir: PathBuf,
+        memory_bytes: usize,
+    ) -> Self {
         Self {
             limiter: Limiter {
                 inner: wasmtime::StoreLimitsBuilder::new()
@@ -121,7 +137,10 @@ impl HostState {
 }
 
 fn valid_storage_key(key: &str) -> bool {
-    (1..=128).contains(&key.len()) && key.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
+    (1..=128).contains(&key.len())
+        && key
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
 }
 
 impl formacad::plugin::types::Host for HostState {}
@@ -157,7 +176,9 @@ impl formacad::plugin::model::Host for HostState {
         if !self.has(&Permission::ModelRead) {
             return Err("model.read is not granted".into());
         }
-        self.document.clone().ok_or_else(|| "The project has no CAD IR v2 model".into())
+        self.document
+            .clone()
+            .ok_or_else(|| "The project has no CAD IR v2 model".into())
     }
 }
 
@@ -177,7 +198,9 @@ impl formacad::plugin::storage::Host for HostState {
             return None;
         }
         let encoded = self.storage().get(&key)?.clone();
-        base64::engine::general_purpose::STANDARD.decode(encoded).ok()
+        base64::engine::general_purpose::STANDARD
+            .decode(encoded)
+            .ok()
     }
 
     fn set(&mut self, key: String, value: Vec<u8>) -> Result<(), String> {
@@ -219,13 +242,19 @@ impl formacad::plugin::notifications::Host for HostState {
     fn notify(&mut self, level: Level, message: String) {
         if self.has(&Permission::Notifications) && self.notices.len() < MAX_NOTIFICATIONS {
             let message: String = message.chars().take(300).collect();
-            self.notices.push(Notice { level: level_name(level), message });
+            self.notices.push(Notice {
+                level: level_name(level),
+                message,
+            });
         }
     }
 }
 
 impl formacad::plugin::network::Host for HostState {
-    fn fetch(&mut self, request: formacad::plugin::network::Request) -> Result<formacad::plugin::network::Response, String> {
+    fn fetch(
+        &mut self,
+        request: formacad::plugin::network::Request,
+    ) -> Result<formacad::plugin::network::Response, String> {
         let url = url::Url::parse(&request.url).map_err(|_| "Invalid URL".to_string())?;
         let host = url.host_str().unwrap_or_default().to_owned();
         if url.scheme() != "https" || url.port().is_some() || !url.username().is_empty() {
@@ -238,7 +267,10 @@ impl formacad::plugin::network::Host for HostState {
             .ok()
             .filter(|m| ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"].contains(&m.as_str()))
             .ok_or_else(|| "Unsupported HTTP method".to_string())?;
-        let handle = self.network.clone().ok_or_else(|| "Network is unavailable".to_string())?;
+        let handle = self
+            .network
+            .clone()
+            .ok_or_else(|| "Network is unavailable".to_string())?;
         handle.block_on(async move {
             if rustls::crypto::CryptoProvider::get_default().is_none() {
                 let _ = rustls::crypto::ring::default_provider().install_default();
@@ -271,13 +303,20 @@ impl formacad::plugin::network::Host for HostState {
                     return Err("Response is larger than 10 MB".to_string());
                 }
             }
-            Ok(formacad::plugin::network::Response { status, headers, body })
+            Ok(formacad::plugin::network::Response {
+                status,
+                headers,
+                body,
+            })
         })
     }
 }
 
 /// Add only the interfaces this plugin was granted.
-pub fn link(linker: &mut wasmtime::component::Linker<HostState>, granted: &PermissionSet) -> wasmtime::Result<()> {
+pub fn link(
+    linker: &mut wasmtime::component::Linker<HostState>,
+    granted: &PermissionSet,
+) -> wasmtime::Result<()> {
     use formacad::plugin::*;
     use wasmtime::component::HasSelf;
     types::add_to_linker::<_, HasSelf<_>>(linker, |s| s)?;

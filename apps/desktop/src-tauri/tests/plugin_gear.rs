@@ -8,10 +8,14 @@ use forma_core::{
 };
 use serde_json::json;
 
-const EXAMPLE: &[u8] = include_bytes!("../../../../plugins/examples/simple-gear/prebuilt/simple-gear-0.1.0.cadplugin");
+const EXAMPLE: &[u8] =
+    include_bytes!("../../../../plugins/examples/simple-gear/prebuilt/simple-gear-0.1.0.cadplugin");
 
 fn close(actual: f64, expected: f64) {
-    assert!((actual - expected).abs() < 1e-5 * expected.abs().max(1.), "{actual} != {expected}");
+    assert!(
+        (actual - expected).abs() < 1e-5 * expected.abs().max(1.),
+        "{actual} != {expected}"
+    );
 }
 
 #[test]
@@ -31,7 +35,13 @@ fn installed_example_plugin_builds_an_analytic_gear() {
             &CallInput { locale: "en".into(), ..Default::default() },
         )
         .unwrap();
-    let base = Document { schema_version: SCHEMA_VERSION, revision_id: "base".into(), parameters: vec![], features: vec![], bodies: vec![] };
+    let base = Document {
+        schema_version: SCHEMA_VERSION,
+        revision_id: "base".into(),
+        parameters: vec![],
+        features: vec![],
+        bodies: vec![],
+    };
     let document = apply_commands(&base, "base", "gear", &plan.commands).unwrap();
     let body = document.bodies[0].id.clone();
     let gear = build_body(&document, &body).unwrap();

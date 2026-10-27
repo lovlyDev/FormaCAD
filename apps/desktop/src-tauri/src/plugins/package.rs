@@ -53,7 +53,10 @@ pub fn check_path(name: &str) -> Result<()> {
     if valid {
         Ok(())
     } else {
-        Err(bad("PLUGIN_PACKAGE_PATH", format!("Unsafe path in package: {name:?}")))
+        Err(bad(
+            "PLUGIN_PACKAGE_PATH",
+            format!("Unsafe path in package: {name:?}"),
+        ))
     }
 }
 
@@ -61,12 +64,18 @@ pub fn check_path(name: &str) -> Result<()> {
 pub fn read(bytes: &[u8], app_version: &str) -> Result<Package> {
     use sha2::Digest;
     if bytes.len() > MAX_PACKAGE_BYTES {
-        return Err(bad("PLUGIN_PACKAGE_TOO_LARGE", "Package is larger than 20 MB"));
+        return Err(bad(
+            "PLUGIN_PACKAGE_TOO_LARGE",
+            "Package is larger than 20 MB",
+        ));
     }
     let mut archive = ZipArchive::new(Cursor::new(bytes))
         .map_err(|error| bad("PLUGIN_PACKAGE_CORRUPT", error.to_string()))?;
     if archive.len() > MAX_FILES {
-        return Err(bad("PLUGIN_PACKAGE_TOO_MANY_FILES", "Package has more than 200 entries"));
+        return Err(bad(
+            "PLUGIN_PACKAGE_TOO_MANY_FILES",
+            "Package has more than 200 entries",
+        ));
     }
     // Pass 1: directory only.
     let mut declared_total = 0u64;
@@ -80,13 +89,25 @@ pub fn read(bytes: &[u8], app_version: &str) -> Result<Package> {
             .map_err(|_| bad("PLUGIN_PACKAGE_PATH", "Non UTF-8 path in package"))?
             .to_owned();
         if entry.is_symlink() {
-            return Err(bad("PLUGIN_PACKAGE_SYMLINK", format!("Symbolic link in package: {name}")));
+            return Err(bad(
+                "PLUGIN_PACKAGE_SYMLINK",
+                format!("Symbolic link in package: {name}"),
+            ));
         }
         if entry.encrypted() {
-            return Err(bad("PLUGIN_PACKAGE_CORRUPT", "Encrypted entries are not allowed"));
+            return Err(bad(
+                "PLUGIN_PACKAGE_CORRUPT",
+                "Encrypted entries are not allowed",
+            ));
         }
-        if !matches!(entry.compression(), CompressionMethod::Stored | CompressionMethod::Deflated) {
-            return Err(bad("PLUGIN_PACKAGE_CORRUPT", "Only stored or deflated entries are allowed"));
+        if !matches!(
+            entry.compression(),
+            CompressionMethod::Stored | CompressionMethod::Deflated
+        ) {
+            return Err(bad(
+                "PLUGIN_PACKAGE_CORRUPT",
+                "Only stored or deflated entries are allowed",
+            ));
         }
         if entry.is_dir() {
             check_path(name.trim_end_matches('/'))?;
@@ -95,11 +116,17 @@ pub fn read(bytes: &[u8], app_version: &str) -> Result<Package> {
         check_path(&name)?;
         // Windows profiles are case-insensitive: `A.json` and `a.json` collide.
         if !seen.insert(name.to_ascii_lowercase()) {
-            return Err(bad("PLUGIN_PACKAGE_PATH", format!("Duplicate path in package: {name}")));
+            return Err(bad(
+                "PLUGIN_PACKAGE_PATH",
+                format!("Duplicate path in package: {name}"),
+            ));
         }
         declared_total = declared_total.saturating_add(entry.size());
         if declared_total > MAX_UNPACKED_BYTES {
-            return Err(bad("PLUGIN_PACKAGE_TOO_LARGE", "Package unpacks to more than 60 MB"));
+            return Err(bad(
+                "PLUGIN_PACKAGE_TOO_LARGE",
+                "Package unpacks to more than 60 MB",
+            ));
         }
         entries.push((index, name, entry.size()));
     }
@@ -116,11 +143,17 @@ pub fn read(bytes: &[u8], app_version: &str) -> Result<Package> {
             .read_to_end(&mut data)
             .map_err(|error| bad("PLUGIN_PACKAGE_CORRUPT", error.to_string()))?;
         if data.len() as u64 != size {
-            return Err(bad("PLUGIN_PACKAGE_CORRUPT", format!("Size mismatch for {name}")));
+            return Err(bad(
+                "PLUGIN_PACKAGE_CORRUPT",
+                format!("Size mismatch for {name}"),
+            ));
         }
         actual_total += data.len() as u64;
         if actual_total > MAX_UNPACKED_BYTES {
-            return Err(bad("PLUGIN_PACKAGE_TOO_LARGE", "Package unpacks to more than 60 MB"));
+            return Err(bad(
+                "PLUGIN_PACKAGE_TOO_LARGE",
+                "Package unpacks to more than 60 MB",
+            ));
         }
         files.insert(name, data);
     }
@@ -129,12 +162,21 @@ pub fn read(bytes: &[u8], app_version: &str) -> Result<Package> {
         .ok_or_else(|| bad("PLUGIN_PACKAGE_INCOMPLETE", "manifest.json is missing"))?;
     let manifest = manifest::parse(manifest_bytes, app_version)?;
     if !files.contains_key(&manifest.entry) {
-        return Err(bad("PLUGIN_PACKAGE_INCOMPLETE", format!("{} is missing", manifest.entry)));
+        return Err(bad(
+            "PLUGIN_PACKAGE_INCOMPLETE",
+            format!("{} is missing", manifest.entry),
+        ));
     }
-    let icon = manifest.icon.as_deref().filter(|icon| !icon.starts_with("lucide:"));
+    let icon = manifest
+        .icon
+        .as_deref()
+        .filter(|icon| !icon.starts_with("lucide:"));
     if let Some(icon) = icon {
         if !files.contains_key(icon) {
-            return Err(bad("PLUGIN_PACKAGE_INCOMPLETE", format!("{icon} is missing")));
+            return Err(bad(
+                "PLUGIN_PACKAGE_INCOMPLETE",
+                format!("{icon} is missing"),
+            ));
         }
     }
     for name in files.keys() {
@@ -143,9 +185,14 @@ pub fn read(bytes: &[u8], app_version: &str) -> Result<Package> {
             || Some(name.as_str()) == icon
             || name == "icon.png"
             || name.starts_with("assets/")
-            || (name.starts_with("locales/") && name.ends_with(".json") && name.matches('/').count() == 1);
+            || (name.starts_with("locales/")
+                && name.ends_with(".json")
+                && name.matches('/').count() == 1);
         if !allowed {
-            return Err(bad("PLUGIN_PACKAGE_UNEXPECTED_FILE", format!("Unexpected file in package: {name}")));
+            return Err(bad(
+                "PLUGIN_PACKAGE_UNEXPECTED_FILE",
+                format!("Unexpected file in package: {name}"),
+            ));
         }
     }
     Ok(Package {
@@ -175,7 +222,10 @@ pub(crate) mod tests {
         let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
         for (name, data) in files {
             writer
-                .start_file(*name, SimpleFileOptions::default().compression_method(CompressionMethod::Deflated))
+                .start_file(
+                    *name,
+                    SimpleFileOptions::default().compression_method(CompressionMethod::Deflated),
+                )
                 .unwrap();
             writer.write_all(data).unwrap();
         }
@@ -189,7 +239,15 @@ pub(crate) mod tests {
     #[test]
     fn accepts_a_minimal_package() {
         let manifest = manifest_json().to_string();
-        let package = read(&zip(&[("manifest.json", manifest.as_bytes()), ("plugin.wasm", b"\0asm"), ("locales/ru.json", b"{}")]), "1.3.3").unwrap();
+        let package = read(
+            &zip(&[
+                ("manifest.json", manifest.as_bytes()),
+                ("plugin.wasm", b"\0asm"),
+                ("locales/ru.json", b"{}"),
+            ]),
+            "1.3.3",
+        )
+        .unwrap();
         assert_eq!(package.wasm(), b"\0asm");
         assert_eq!(package.sha256.len(), 64);
     }
@@ -197,21 +255,49 @@ pub(crate) mod tests {
     #[test]
     fn rejects_traversal_absolute_and_odd_paths() {
         let manifest = manifest_json().to_string();
-        for name in ["../evil.wasm", "assets/../../x", "/abs.json", "C:/x", "assets\\x", "assets/./x", "a/b/c/d/e/f/g"] {
-            let bytes = zip(&[("manifest.json", manifest.as_bytes()), ("plugin.wasm", b"\0asm"), (name, b"x")]);
+        for name in [
+            "../evil.wasm",
+            "assets/../../x",
+            "/abs.json",
+            "C:/x",
+            "assets\\x",
+            "assets/./x",
+            "a/b/c/d/e/f/g",
+        ] {
+            let bytes = zip(&[
+                ("manifest.json", manifest.as_bytes()),
+                ("plugin.wasm", b"\0asm"),
+                (name, b"x"),
+            ]);
             assert_eq!(code(&bytes), "PLUGIN_PACKAGE_PATH", "{name}");
         }
     }
 
     #[test]
     fn rejects_corrupt_incomplete_and_unexpected_content() {
-        assert_eq!(code(b"PK\x03\x04 not really a zip"), "PLUGIN_PACKAGE_CORRUPT");
-        assert_eq!(code(&zip(&[("plugin.wasm", b"\0asm")])), "PLUGIN_PACKAGE_INCOMPLETE");
+        assert_eq!(
+            code(b"PK\x03\x04 not really a zip"),
+            "PLUGIN_PACKAGE_CORRUPT"
+        );
+        assert_eq!(
+            code(&zip(&[("plugin.wasm", b"\0asm")])),
+            "PLUGIN_PACKAGE_INCOMPLETE"
+        );
         let manifest = manifest_json().to_string();
-        assert_eq!(code(&zip(&[("manifest.json", manifest.as_bytes())])), "PLUGIN_PACKAGE_INCOMPLETE");
-        let extra = zip(&[("manifest.json", manifest.as_bytes()), ("plugin.wasm", b"\0asm"), ("run.exe", b"MZ")]);
+        assert_eq!(
+            code(&zip(&[("manifest.json", manifest.as_bytes())])),
+            "PLUGIN_PACKAGE_INCOMPLETE"
+        );
+        let extra = zip(&[
+            ("manifest.json", manifest.as_bytes()),
+            ("plugin.wasm", b"\0asm"),
+            ("run.exe", b"MZ"),
+        ]);
         assert_eq!(code(&extra), "PLUGIN_PACKAGE_UNEXPECTED_FILE");
-        let mut truncated = zip(&[("manifest.json", manifest.as_bytes()), ("plugin.wasm", b"\0asm")]);
+        let mut truncated = zip(&[
+            ("manifest.json", manifest.as_bytes()),
+            ("plugin.wasm", b"\0asm"),
+        ]);
         truncated.truncate(truncated.len() / 2);
         assert_eq!(code(&truncated), "PLUGIN_PACKAGE_CORRUPT");
     }
@@ -223,14 +309,26 @@ pub(crate) mod tests {
         assert_eq!(code(&zip(&files)), "PLUGIN_PACKAGE_TOO_MANY_FILES");
         // 61 MB of zeros deflates to a tiny archive: a classic bomb.
         let zeros = vec![0u8; (MAX_UNPACKED_BYTES + 1024 * 1024) as usize];
-        assert_eq!(code(&zip(&[("assets/zeros.bin", &zeros)])), "PLUGIN_PACKAGE_TOO_LARGE");
-        assert_eq!(code(&vec![0u8; MAX_PACKAGE_BYTES + 1]), "PLUGIN_PACKAGE_TOO_LARGE");
+        assert_eq!(
+            code(&zip(&[("assets/zeros.bin", &zeros)])),
+            "PLUGIN_PACKAGE_TOO_LARGE"
+        );
+        assert_eq!(
+            code(&vec![0u8; MAX_PACKAGE_BYTES + 1]),
+            "PLUGIN_PACKAGE_TOO_LARGE"
+        );
     }
 
     #[test]
     fn rejects_symlinks() {
         let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
-        writer.add_symlink("assets/link", "../../etc/passwd", SimpleFileOptions::default()).unwrap();
+        writer
+            .add_symlink(
+                "assets/link",
+                "../../etc/passwd",
+                SimpleFileOptions::default(),
+            )
+            .unwrap();
         let bytes = writer.finish().unwrap().into_inner();
         assert_eq!(code(&bytes), "PLUGIN_PACKAGE_SYMLINK");
     }

@@ -14,9 +14,9 @@ pub mod permissions;
 pub mod registry;
 pub mod runtime;
 pub mod service;
-pub mod wasm_check;
 #[cfg(test)]
 mod tests;
+pub mod wasm_check;
 
 use std::sync::{Arc, Mutex};
 

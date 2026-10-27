@@ -25,7 +25,13 @@ pub struct Entry {
 }
 
 impl Entry {
-    pub fn new(plugin_id: &str, version: Option<&str>, event: &str, ok: bool, detail: impl Into<String>) -> Self {
+    pub fn new(
+        plugin_id: &str,
+        version: Option<&str>,
+        event: &str,
+        ok: bool,
+        detail: impl Into<String>,
+    ) -> Self {
         let mut detail = detail.into();
         if detail.len() > MAX_DETAIL {
             let mut end = MAX_DETAIL;
@@ -61,12 +67,21 @@ impl Journal {
 
     /// Best effort: a full disk must not turn into a plugin failure.
     pub fn append(&self, entry: &Entry) {
-        let _guard = self.lock.lock().unwrap_or_else(|poison| poison.into_inner());
+        let _guard = self
+            .lock
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
         if std::fs::metadata(&self.path).is_ok_and(|meta| meta.len() > MAX_BYTES) {
             let _ = std::fs::rename(&self.path, self.path.with_extension("1.jsonl"));
         }
-        let Ok(line) = serde_json::to_string(entry) else { return };
-        if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(&self.path) {
+        let Ok(line) = serde_json::to_string(entry) else {
+            return;
+        };
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.path)
+        {
             let _ = writeln!(file, "{line}");
         }
         tracing::info!(target: "forma_core::plugins", plugin = %entry.plugin_id, event = %entry.event, ok = entry.ok);
@@ -74,8 +89,13 @@ impl Journal {
 
     /// Newest first, optionally for one plugin.
     pub fn recent(&self, plugin_id: Option<&str>, limit: usize) -> Vec<Entry> {
-        let _guard = self.lock.lock().unwrap_or_else(|poison| poison.into_inner());
-        let Ok(file) = std::fs::File::open(&self.path) else { return vec![] };
+        let _guard = self
+            .lock
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        let Ok(file) = std::fs::File::open(&self.path) else {
+            return vec![];
+        };
         let mut entries: Vec<Entry> = std::io::BufReader::new(file)
             .lines()
             .map_while(|line| line.ok())

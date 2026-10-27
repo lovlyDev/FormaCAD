@@ -161,12 +161,17 @@ impl Manifest {
         let api = self
             .api
             .split_once('.')
-            .and_then(|(major, minor)| Some((major.parse::<u64>().ok()?, minor.parse::<u64>().ok()?)))
+            .and_then(|(major, minor)| {
+                Some((major.parse::<u64>().ok()?, minor.parse::<u64>().ok()?))
+            })
             .ok_or_else(|| invalid("api must be MAJOR.MINOR"))?;
         if api.0 != HOST_API.0 || api.1 > HOST_API.1 {
             return Err(PluginError::package(
                 "PLUGIN_API_UNSUPPORTED",
-                format!("Plugin needs plugin-api {}, this FormaCAD provides {}.{}", self.api, HOST_API.0, HOST_API.1),
+                format!(
+                    "Plugin needs plugin-api {}, this FormaCAD provides {}.{}",
+                    self.api, HOST_API.0, HOST_API.1
+                ),
             ));
         }
         let required = semver::Version::parse(&self.min_app_version)
@@ -188,17 +193,34 @@ impl Manifest {
                 None => Ok(()),
             }
         };
-        unique(c.features.iter().map(|f| f.id.as_str()).collect(), "feature")?;
-        unique(c.commands.iter().map(|f| f.id.as_str()).collect(), "command")?;
-        unique(c.importers.iter().map(|f| f.id.as_str()).collect(), "importer")?;
-        unique(c.exporters.iter().map(|f| f.id.as_str()).collect(), "exporter")?;
+        unique(
+            c.features.iter().map(|f| f.id.as_str()).collect(),
+            "feature",
+        )?;
+        unique(
+            c.commands.iter().map(|f| f.id.as_str()).collect(),
+            "command",
+        )?;
+        unique(
+            c.importers.iter().map(|f| f.id.as_str()).collect(),
+            "importer",
+        )?;
+        unique(
+            c.exporters.iter().map(|f| f.id.as_str()).collect(),
+            "exporter",
+        )?;
         unique(c.panels.iter().map(|f| f.id.as_str()).collect(), "panel")?;
         for form in c
             .features
             .iter()
             .chain(&c.commands)
             .map(|item| &item.params)
-            .chain(c.importers.iter().chain(&c.exporters).map(|item| &item.params))
+            .chain(
+                c.importers
+                    .iter()
+                    .chain(&c.exporters)
+                    .map(|item| &item.params),
+            )
             .chain(std::iter::once(&c.settings))
         {
             super::forms::check_form(form).map_err(invalid)?;
@@ -238,7 +260,9 @@ mod tests {
     fn rejects_schema_api_version_and_permission_violations() {
         let mut value: serde_json::Value = serde_json::from_str(EXAMPLE).unwrap();
         let check = |value: &serde_json::Value, version: &str| {
-            parse(value.to_string().as_bytes(), version).unwrap_err().code
+            parse(value.to_string().as_bytes(), version)
+                .unwrap_err()
+                .code
         };
         assert_eq!(check(&value, "1.3.3"), "PLUGIN_APP_TOO_OLD");
         value["api"] = "0.2".into();

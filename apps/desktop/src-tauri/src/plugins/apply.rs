@@ -24,7 +24,14 @@ pub async fn input(
         .transpose()?
         .filter(|text| text.len() <= 64 * 1024);
     let Some(project_id) = project_id else {
-        return Ok((CallInput { locale, selection, ..Default::default() }, None));
+        return Ok((
+            CallInput {
+                locale,
+                selection,
+                ..Default::default()
+            },
+            None,
+        ));
     };
     let project = crate::projects::get(state, project_id).await?;
     let document = typed_document(&project);
@@ -64,11 +71,20 @@ pub async fn apply(
         return Ok(project.clone());
     }
     if project.current_revision != expected_revision {
-        return Err(AppError::Invalid("Project changed; retry the CAD edit".into()));
+        return Err(AppError::Invalid(
+            "Project changed; retry the CAD edit".into(),
+        ));
     }
     let request = match (&expected_revision, typed_document(project)) {
         (Some(revision), Some(_)) => {
-            crate::modeling::commands::prepare(state, project.id.clone(), plan.commands, prompt, revision.clone()).await?
+            crate::modeling::commands::prepare(
+                state,
+                project.id.clone(),
+                plan.commands,
+                prompt,
+                revision.clone(),
+            )
+            .await?
         }
         (None, _) => {
             // Empty project: the plan builds the first CAD IR v2 document.
@@ -80,9 +96,15 @@ pub async fn apply(
                 bodies: vec![],
             };
             let next = uuid::Uuid::new_v4().to_string();
-            let document = crate::cad_ir::apply_commands(&base, "plugin-base", &next, &plan.commands)
-                .map_err(crate::cad_ir::app_error)?;
-            crate::modeling::apply::ApplyRequest::new(project.id.clone(), serde_json::to_string(&document)?, prompt, None)
+            let document =
+                crate::cad_ir::apply_commands(&base, "plugin-base", &next, &plan.commands)
+                    .map_err(crate::cad_ir::app_error)?;
+            crate::modeling::apply::ApplyRequest::new(
+                project.id.clone(),
+                serde_json::to_string(&document)?,
+                prompt,
+                None,
+            )
         }
         (Some(_), None) => {
             return Err(PluginError::host(

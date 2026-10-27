@@ -9,7 +9,9 @@ use crate::cad_ir::{apply_commands, Document, SCHEMA_VERSION};
 use serde_json::{json, Value};
 use std::{io::Read, time::Duration};
 
-const EXAMPLE: &[u8] = include_bytes!("../../../../../plugins/examples/simple-gear/prebuilt/simple-gear-0.1.0.cadplugin");
+const EXAMPLE: &[u8] = include_bytes!(
+    "../../../../../plugins/examples/simple-gear/prebuilt/simple-gear-0.1.0.cadplugin"
+);
 
 fn service() -> (tempfile::TempDir, PluginService) {
     let dir = tempfile::tempdir().unwrap();
@@ -44,7 +46,10 @@ fn repack(bytes: &[u8], edit: impl FnOnce(&mut Value), wasm: Option<&[u8]>) -> V
             }
         }
     }
-    let borrowed: Vec<(&str, &[u8])> = entries.iter().map(|(n, d)| (n.as_str(), d.as_slice())).collect();
+    let borrowed: Vec<(&str, &[u8])> = entries
+        .iter()
+        .map(|(n, d)| (n.as_str(), d.as_slice()))
+        .collect();
     zip(&borrowed)
 }
 
@@ -54,11 +59,20 @@ fn install(service: &PluginService, bytes: &[u8]) {
 }
 
 fn empty() -> Document {
-    Document { schema_version: SCHEMA_VERSION, revision_id: "base".into(), parameters: vec![], features: vec![], bodies: vec![] }
+    Document {
+        schema_version: SCHEMA_VERSION,
+        revision_id: "base".into(),
+        parameters: vec![],
+        features: vec![],
+        bodies: vec![],
+    }
 }
 
 fn input(locale: &str) -> CallInput {
-    CallInput { locale: locale.into(), ..Default::default() }
+    CallInput {
+        locale: locale.into(),
+        ..Default::default()
+    }
 }
 
 #[test]
@@ -74,10 +88,20 @@ fn example_installs_builds_an_operation_and_uninstalls() {
     let summary = service.confirm(&preview.token).unwrap();
     assert!(summary.enabled);
     assert_eq!(summary.translations["ru"]["name"], "Простая шестерня");
-    assert!(service.store.version_dir("simple-gear", "0.1.0").join("plugin.wasm").is_file());
+    assert!(service
+        .store
+        .version_dir("simple-gear", "0.1.0")
+        .join("plugin.wasm")
+        .is_file());
 
     let plan = service
-        .plan("simple-gear", PlanKind::Feature, "simpleGear", &json!({"teeth": 8, "bore": 6}), &input("ru"))
+        .plan(
+            "simple-gear",
+            PlanKind::Feature,
+            "simpleGear",
+            &json!({"teeth": 8, "bore": 6}),
+            &input("ru"),
+        )
         .unwrap();
     // 5 setup features + 2 per tooth + bore + body.
     assert_eq!(plan.commands.len(), 5 + 16 + 1 + 1);
@@ -91,24 +115,56 @@ fn example_installs_builds_an_operation_and_uninstalls() {
 
     // Out-of-range parameters are refused by the host before the plugin runs.
     let error = service
-        .plan("simple-gear", PlanKind::Feature, "simpleGear", &json!({"teeth": 4}), &input("en"))
+        .plan(
+            "simple-gear",
+            PlanKind::Feature,
+            "simpleGear",
+            &json!({"teeth": 4}),
+            &input("en"),
+        )
         .unwrap_err();
     assert_eq!(error.code, "PLUGIN_PARAMS_INVALID");
     // Plugin-side validation is reported as a plugin error.
     let error = service
-        .plan("simple-gear", PlanKind::Feature, "simpleGear", &json!({"bore": 80}), &input("en"))
+        .plan(
+            "simple-gear",
+            PlanKind::Feature,
+            "simpleGear",
+            &json!({"bore": 80}),
+            &input("en"),
+        )
         .unwrap_err();
-    assert_eq!((error.code.as_str(), error.origin), ("BORE_TOO_LARGE", super::error::Origin::Plugin));
+    assert_eq!(
+        (error.code.as_str(), error.origin),
+        ("BORE_TOO_LARGE", super::error::Origin::Plugin)
+    );
 
     service.set_enabled("simple-gear", false).unwrap();
-    let error = service.plan("simple-gear", PlanKind::Feature, "simpleGear", &json!({}), &input("en")).unwrap_err();
+    let error = service
+        .plan(
+            "simple-gear",
+            PlanKind::Feature,
+            "simpleGear",
+            &json!({}),
+            &input("en"),
+        )
+        .unwrap_err();
     assert_eq!(error.code, "PLUGIN_DISABLED");
 
     service.uninstall("simple-gear", None).unwrap();
     assert!(service.list().unwrap().is_empty());
     assert!(!service.store.root.join("simple-gear").exists());
-    let events: Vec<_> = service.journal.recent(Some("simple-gear"), 20).into_iter().map(|e| e.event).collect();
-    assert!(events.contains(&"install".to_owned()) && events.contains(&"call".to_owned()) && events[0] == "uninstall");
+    let events: Vec<_> = service
+        .journal
+        .recent(Some("simple-gear"), 20)
+        .into_iter()
+        .map(|e| e.event)
+        .collect();
+    assert!(
+        events.contains(&"install".to_owned())
+            && events.contains(&"call".to_owned())
+            && events[0] == "uninstall"
+    );
 }
 
 #[test]
@@ -140,15 +196,36 @@ fn updates_show_new_permissions_and_versions_are_immutable() {
     let preview = service.prepare(&update, Source::File).unwrap();
     service.confirm(&preview.token).unwrap();
     let summary = service.summary("simple-gear").unwrap();
-    assert_eq!((summary.active.as_str(), summary.versions.len()), ("0.2.0", 2));
+    assert_eq!(
+        (summary.active.as_str(), summary.versions.len()),
+        ("0.2.0", 2)
+    );
     // Going back needs no new consent; going forward again does.
-    service.set_active("simple-gear", "0.1.0", &["model.write".into(), "notifications".into()]).unwrap();
-    let error = service.set_active("simple-gear", "0.2.0", &["model.write".into(), "notifications".into()]).unwrap_err();
+    service
+        .set_active(
+            "simple-gear",
+            "0.1.0",
+            &["model.write".into(), "notifications".into()],
+        )
+        .unwrap();
+    let error = service
+        .set_active(
+            "simple-gear",
+            "0.2.0",
+            &["model.write".into(), "notifications".into()],
+        )
+        .unwrap_err();
     assert_eq!(error.code, "PLUGIN_CONSENT_REQUIRED");
 
     let tampered = repack(EXAMPLE, |m| m["description"] = "changed".into(), None);
-    assert_eq!(service.prepare(&tampered, Source::File).unwrap_err().code, "PLUGIN_VERSION_CONFLICT");
-    assert_eq!(service.confirm("missing-token").unwrap_err().code, "PLUGIN_INSTALL_EXPIRED");
+    assert_eq!(
+        service.prepare(&tampered, Source::File).unwrap_err().code,
+        "PLUGIN_VERSION_CONFLICT"
+    );
+    assert_eq!(
+        service.confirm("missing-token").unwrap_err().code,
+        "PLUGIN_INSTALL_EXPIRED"
+    );
 }
 
 #[test]
@@ -156,12 +233,30 @@ fn broken_archives_and_traversal_never_reach_the_profile() {
     let (_dir, service) = service();
     let mut truncated = EXAMPLE.to_vec();
     truncated.truncate(EXAMPLE.len() - 100);
-    assert_eq!(service.prepare(&truncated, Source::File).unwrap_err().code, "PLUGIN_PACKAGE_CORRUPT");
+    assert_eq!(
+        service.prepare(&truncated, Source::File).unwrap_err().code,
+        "PLUGIN_PACKAGE_CORRUPT"
+    );
     let mut entries = files(EXAMPLE);
     entries.push(("assets/../../escape.txt".into(), b"x".to_vec()));
-    let borrowed: Vec<(&str, &[u8])> = entries.iter().map(|(n, d)| (n.as_str(), d.as_slice())).collect();
-    assert_eq!(service.prepare(&zip(&borrowed), Source::File).unwrap_err().code, "PLUGIN_PACKAGE_PATH");
-    assert!(!service.store.root.exists() || std::fs::read_dir(&service.store.root).unwrap().next().is_none());
+    let borrowed: Vec<(&str, &[u8])> = entries
+        .iter()
+        .map(|(n, d)| (n.as_str(), d.as_slice()))
+        .collect();
+    assert_eq!(
+        service
+            .prepare(&zip(&borrowed), Source::File)
+            .unwrap_err()
+            .code,
+        "PLUGIN_PACKAGE_PATH"
+    );
+    assert!(
+        !service.store.root.exists()
+            || std::fs::read_dir(&service.store.root)
+                .unwrap()
+                .next()
+                .is_none()
+    );
 }
 
 // --- Hand-built components -------------------------------------------------
@@ -187,8 +282,20 @@ fn component(world: &str, extra_packages: &str, imports: &str, body: &str) -> Ve
             (func (export "cabi_post_formacad:plugin/feature@0.1.0#build") (param i32)))"#
     ))
     .unwrap();
-    wit_component::embed_component_metadata(&mut module, &resolve, world, wit_component::StringEncoding::UTF8, false).unwrap();
-    wit_component::ComponentEncoder::default().module(&module).unwrap().validate(true).encode().unwrap()
+    wit_component::embed_component_metadata(
+        &mut module,
+        &resolve,
+        world,
+        wit_component::StringEncoding::UTF8,
+        false,
+    )
+    .unwrap();
+    wit_component::ComponentEncoder::default()
+        .module(&module)
+        .unwrap()
+        .validate(true)
+        .encode()
+        .unwrap()
 }
 
 const FEATURE_WORLD: &str = "package test:plugin; world test { include formacad:plugin/host@0.1.0; export formacad:plugin/feature@0.1.0; }";
@@ -206,20 +313,38 @@ fn wat_package(wasm: &[u8]) -> Vec<u8> {
 }
 
 fn run(service: &PluginService) -> super::error::PluginError {
-    service.plan("wat-plugin", PlanKind::Feature, "simpleGear", &json!({}), &input("en")).unwrap_err()
+    service
+        .plan(
+            "wat-plugin",
+            PlanKind::Feature,
+            "simpleGear",
+            &json!({}),
+            &input("en"),
+        )
+        .unwrap_err()
 }
 
 #[test]
 fn endless_loop_runs_out_of_fuel_or_time_without_harming_the_host() {
     let wasm = component(FEATURE_WORLD, "", "", "(loop br 0) i32.const 0");
     let dir = tempfile::tempdir().unwrap();
-    let fuel = PluginService::new(dir.path().join("a")).with_limits(Limits { fuel: 50_000_000, ..Limits::default() });
+    let fuel = PluginService::new(dir.path().join("a")).with_limits(Limits {
+        fuel: 50_000_000,
+        ..Limits::default()
+    });
     install(&fuel, &wat_package(&wasm));
     let error = run(&fuel);
-    assert_eq!((error.code.as_str(), error.origin), ("PLUGIN_FUEL_EXHAUSTED", super::error::Origin::Plugin));
+    assert_eq!(
+        (error.code.as_str(), error.origin),
+        ("PLUGIN_FUEL_EXHAUSTED", super::error::Origin::Plugin)
+    );
     assert_eq!(error.plugin_id.as_deref(), Some("wat-plugin"));
 
-    let slow = PluginService::new(dir.path().join("b")).with_limits(Limits { fuel: u64::MAX / 2, timeout: Duration::from_millis(300), ..Limits::default() });
+    let slow = PluginService::new(dir.path().join("b")).with_limits(Limits {
+        fuel: u64::MAX / 2,
+        timeout: Duration::from_millis(300),
+        ..Limits::default()
+    });
     install(&slow, &wat_package(&wasm));
     let started = std::time::Instant::now();
     assert_eq!(run(&slow).code, "PLUGIN_TIMEOUT");
@@ -231,12 +356,22 @@ fn endless_loop_runs_out_of_fuel_or_time_without_harming_the_host() {
 #[test]
 fn memory_beyond_256_mb_is_refused() {
     // 5000 pages = 312.5 MB; the limiter refuses, the plugin then traps.
-    let wasm = component(FEATURE_WORLD, "", "", "(drop (memory.grow (i32.const 5000))) unreachable");
+    let wasm = component(
+        FEATURE_WORLD,
+        "",
+        "",
+        "(drop (memory.grow (i32.const 5000))) unreachable",
+    );
     let (_dir, service) = service();
     install(&service, &wat_package(&wasm));
     assert_eq!(run(&service).code, "PLUGIN_MEMORY_LIMIT");
     // Growth inside the limit works and an ordinary trap is reported as such.
-    let wasm = component(FEATURE_WORLD, "", "", "(drop (memory.grow (i32.const 100))) unreachable");
+    let wasm = component(
+        FEATURE_WORLD,
+        "",
+        "",
+        "(drop (memory.grow (i32.const 100))) unreachable",
+    );
     let (_dir, service) = self::service();
     install(&service, &wat_package(&wasm));
     assert_eq!(run(&service).code, "PLUGIN_TRAP");
@@ -244,7 +379,8 @@ fn memory_beyond_256_mb_is_refused() {
 
 #[test]
 fn wasi_and_foreign_imports_are_forbidden() {
-    let wasi = "package wasi:cli@0.2.0; interface environment { get-arguments: func() -> list<string>; }";
+    let wasi =
+        "package wasi:cli@0.2.0; interface environment { get-arguments: func() -> list<string>; }";
     let world = "package test:plugin; world test { import wasi:cli/environment@0.2.0; export formacad:plugin/feature@0.1.0; }";
     let wasm = component(
         world,
@@ -253,7 +389,9 @@ fn wasi_and_foreign_imports_are_forbidden() {
         "(call $args (i32.const 0)) i32.const 0",
     );
     let (_dir, service) = service();
-    let error = service.prepare(&wat_package(&wasm), Source::File).unwrap_err();
+    let error = service
+        .prepare(&wat_package(&wasm), Source::File)
+        .unwrap_err();
     assert_eq!(error.code, "PLUGIN_IMPORT_FORBIDDEN");
     assert!(error.message.contains("wasi:cli"));
 }
@@ -273,5 +411,8 @@ fn bad_plugin_output_is_a_plugin_error() {
     let (_dir, service) = service();
     install(&service, &wat_package(&wasm));
     let error = run(&service);
-    assert_eq!((error.code.as_str(), error.origin), ("PLUGIN_OUTPUT_INVALID", super::error::Origin::Plugin));
+    assert_eq!(
+        (error.code.as_str(), error.origin),
+        ("PLUGIN_OUTPUT_INVALID", super::error::Origin::Plugin)
+    );
 }

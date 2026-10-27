@@ -70,9 +70,8 @@ impl Store {
 
     pub fn load(&self) -> Result<Registry> {
         match std::fs::read(self.registry_path()) {
-            Ok(bytes) => serde_json::from_slice(&bytes).map_err(|error| {
-                PluginError::host("PLUGIN_REGISTRY_CORRUPT", error.to_string())
-            }),
+            Ok(bytes) => serde_json::from_slice(&bytes)
+                .map_err(|error| PluginError::host("PLUGIN_REGISTRY_CORRUPT", error.to_string())),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Registry::default()),
             Err(error) => Err(error.into()),
         }
@@ -97,7 +96,10 @@ impl Store {
         if target.exists() {
             return Ok(());
         }
-        let staging = self.root.join(id).join(format!(".staging-{}", uuid::Uuid::new_v4()));
+        let staging = self
+            .root
+            .join(id)
+            .join(format!(".staging-{}", uuid::Uuid::new_v4()));
         let result = (|| {
             for (name, data) in &package.files {
                 // Paths were validated by package::check_path; join stays inside.
@@ -118,7 +120,9 @@ impl Store {
     pub fn remove_plugin(&self, id: &str) -> Result<()> {
         for dir in [self.root.join(id), self.data_dir(id)] {
             match std::fs::remove_dir_all(&dir) {
-                Err(error) if error.kind() != std::io::ErrorKind::NotFound => return Err(error.into()),
+                Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
+                    return Err(error.into())
+                }
                 _ => {}
             }
         }
@@ -141,7 +145,10 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
 
 pub fn sort_versions(versions: &mut [InstalledVersion]) {
     versions.sort_by(|a, b| {
-        match (semver::Version::parse(&a.version), semver::Version::parse(&b.version)) {
+        match (
+            semver::Version::parse(&a.version),
+            semver::Version::parse(&b.version),
+        ) {
             (Ok(a), Ok(b)) => a.cmp(&b),
             _ => a.version.cmp(&b.version),
         }

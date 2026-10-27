@@ -38,8 +38,14 @@ pub fn inspect(engine: &Engine, wasm: &[u8]) -> Result<(Component, Surface)> {
         .map_err(|error| PluginError::package("PLUGIN_WASM_INVALID", format!("{error:#}")))?;
     let ty = component.component_type();
     let surface = Surface {
-        imports: ty.imports(engine).map(|(name, _)| name.to_owned()).collect(),
-        exports: ty.exports(engine).map(|(name, _)| name.to_owned()).collect(),
+        imports: ty
+            .imports(engine)
+            .map(|(name, _)| name.to_owned())
+            .collect(),
+        exports: ty
+            .exports(engine)
+            .map(|(name, _)| name.to_owned())
+            .collect(),
     };
     Ok((component, surface))
 }
@@ -80,7 +86,10 @@ pub fn check(surface: &Surface, manifest: &Manifest, granted: &PermissionSet) ->
         if present && !surface.exports.contains(&export_name(interface)) {
             return Err(PluginError::package(
                 "PLUGIN_EXPORT_MISSING",
-                format!("Manifest contributes {interface}s but the component does not export {}", export_name(interface)),
+                format!(
+                    "Manifest contributes {interface}s but the component does not export {}",
+                    export_name(interface)
+                ),
             ));
         }
     }
@@ -93,7 +102,10 @@ mod tests {
 
     #[test]
     fn contract_interface_names_are_exact() {
-        assert_eq!(contract_interface("formacad:plugin/model@0.1.0"), Some("model"));
+        assert_eq!(
+            contract_interface("formacad:plugin/model@0.1.0"),
+            Some("model")
+        );
         assert_eq!(contract_interface("formacad:plugin/model@0.2.0"), None);
         assert_eq!(contract_interface("wasi:filesystem/types@0.2.0"), None);
         assert_eq!(contract_interface("formacad:pluginx/model@0.1.0"), None);
@@ -103,7 +115,13 @@ mod tests {
     fn core_modules_are_refused_before_compilation() {
         let engine = Engine::default();
         let module = wat::parse_str("(module)").unwrap();
-        assert_eq!(inspect(&engine, &module).unwrap_err().code, "PLUGIN_WASM_NOT_COMPONENT");
-        assert_eq!(inspect(&engine, b"garbage").unwrap_err().code, "PLUGIN_WASM_INVALID");
+        assert_eq!(
+            inspect(&engine, &module).unwrap_err().code,
+            "PLUGIN_WASM_NOT_COMPONENT"
+        );
+        assert_eq!(
+            inspect(&engine, b"garbage").unwrap_err().code,
+            "PLUGIN_WASM_INVALID"
+        );
     }
 }
