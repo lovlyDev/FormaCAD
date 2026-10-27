@@ -2,7 +2,7 @@
 
 [Documentation](index.md) · [Русский](../ru/plugin-platform.md)
 
-Status: **the CAD plugin runtime is implemented** (install from file, execution, permissions, UI — see [Plugins](plugins.md) and the [author guide](plugin-authoring.md)); the `plugins.formacad.ru` catalog is built separately and the catalog key in the CAD app is a placeholder. This document is the shared contract for three parts built in parallel: the plugin runtime in the CAD app, the `plugins.formacad.ru` catalog and the author tooling. The catalog opens to everyone only after the CAD app can install and run plugins. Contract version: `plugin-api 0.1`; fields may change until the first public version and only compatibly afterwards (see “Versions and compatibility”).
+Status: **the CAD plugin runtime is implemented** (install from file, execution, permissions, UI — see [Plugins](plugins.md) and the [author guide](plugin-authoring.md)); the `plugins.formacad.ru` catalog is live (publishing through the “FormaCAD Plugins” GitHub App) and its signing key is built into the CAD app. This document is the shared contract for three parts built in parallel: the plugin runtime in the CAD app, the `plugins.formacad.ru` catalog and the author tooling. The catalog opens to everyone only after the CAD app can install and run plugins. Contract version: `plugin-api 0.1`; fields may change until the first public version and only compatibly afterwards (see “Versions and compatibility”).
 
 Builds on the [2.x plan](../architecture-2.0.md), section 8.3 “Lua and WASM extension lifecycle” and stages 2.12–2.13.
 

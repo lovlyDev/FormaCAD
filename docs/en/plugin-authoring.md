@@ -76,8 +76,9 @@ Call limits: fuel, 256 MB of memory, 10 s. Keep computations deterministic and k
 
 1. The tag `vX.Y.Z` equals `version` in the manifest; `id` never changes after the first publication.
 2. Attach `<id>-<version>.cadplugin` to the GitHub release.
-3. Install the “FormaCAD Plugins” GitHub App on the repository and publish on `plugins.formacad.ru` (specification section 5). The catalog keeps its own copy of the package and signs the index entry.
-4. Users re-confirm new permissions in a new version — declare only what you really need.
+3. Connect the repository once: sign in on `plugins.formacad.ru` with your FormaCAD account; link GitHub to the account on formacad.ru (“Account → Security”) if it is not linked yet; in the “Author dashboard” click “Install GitHub App”, install [FormaCAD Plugins](https://github.com/apps/formacad-plugins) on the repository (it only reads contents and metadata) and choose “Publish from here”.
+4. From then on every published (not draft, not prerelease) GitHub release is checked automatically: asset, ZIP, manifest (`repository` = this repository, `author.github` = your GitHub), WASM imports against permissions, screenshots. A passing version appears in the catalog at once; the rejection reason is shown in the dashboard and “Check again” repeats the check. The catalog keeps its own copy of the package and signs the index entry.
+5. Users re-confirm new permissions in a new version — declare only what you really need.
 
 ## Example: simple-gear
 

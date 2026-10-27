@@ -8,7 +8,7 @@ Plugins add parametric operations, commands, import and export formats, panels a
 
 **From a file.** Settings → “Plugins” → “Install from file…” → pick a `.cadplugin`. FormaCAD checks the package and opens the install window. Use this for plugins outside the catalog and for authors' development builds. Neither the catalog nor the network is needed.
 
-**From the catalog.** “Add to FormaCAD” on `plugins.formacad.ru` opens `formacad://plugins/install?id=…&version=…`. FormaCAD downloads the signed catalog entry and the package only from `plugins.formacad.ru`, verifies the signature and SHA-256 and shows the same install window. Until the build contains the catalog key, link installs answer “This build has no catalog key” — use a file.
+**From the catalog.** “Add to FormaCAD” on `plugins.formacad.ru` opens `formacad://plugins/install?id=…&version=…`. FormaCAD downloads the signed catalog entry and the package only from `plugins.formacad.ru`, verifies the signature and SHA-256 and shows the same install window. The catalog key is built into the app from version 1.4.0; a build without it answers “This build has no catalog key” for link installs — use a file then. To publish your own plugin in the catalog, see the [author guide](plugin-authoring.md#releasing-to-the-catalog).
 
 **The install window** shows the name, author, version, source, checksum and permissions in plain words. Nothing is installed until you press “Install”. A `formacad://` link never runs anything by itself.
 
