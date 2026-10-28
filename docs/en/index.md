@@ -38,6 +38,7 @@ These guides describe the consolidated 1.2.6 candidate and its limits. Final pac
 - [Code map and data flows](internals.md): modules and the model-edit path.
 - [Development and local builds](development.md): environment, tests, and packaging.
 - [Maintaining documentation](documentation.md): the required process after every feature.
+- [Check, release and maintenance scripts](maintainer-scripts.md): one-command pre-PR checks, updater signature verification, GitHub App and site-docs helpers.
 - [Roadmap and references](roadmap.md): work still open before 2.0.
 - [Contributing](../../CONTRIBUTING.md) and [security](../../SECURITY.md).
 - [Change index](changelog.md): every version note in one place.

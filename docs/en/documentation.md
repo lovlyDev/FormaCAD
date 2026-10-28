@@ -8,7 +8,7 @@
 
 For each material change, update its topical guide under `docs/en/` and the matching `docs/ru/` guide. Describe purpose and user steps, inputs and output, important failure modes, the UI/Rust/CAD-worker boundary, persisted data and recovery, limitations, and platform differences. For security or data-transfer changes, update [security](../../SECURITY.md) and [data](data.md). For build or publication changes, update [development](development.md) and [releases](releases.md). Add relative links to source files so readers can verify the explanation.
 
-After UI changes, add new strings to both [i18n catalogs](../../apps/desktop/src/i18n/) and check Russian, English, light, and dark modes. A translated button does not document behavior, and a guide does not replace UI localization. For a new version, add a bilingual note in `docs/releases/VERSION.md` and link it from the [change index](changelog.md); never present a local note as a published release.
+After UI changes, add new strings to both [i18n catalogs](../../apps/desktop/src/i18n/) and check Russian, English, light, and dark modes. A translated button does not document behavior, and a guide does not replace UI localization. For a new version, add a bilingual note in `docs/releases/VERSION.md` and link it from the [change index](changelog.md); never present a local note as a published release. Release notes, status and release history describe the platform and API only; they never list or announce specific catalog plugins (see [maintenance scripts](maintainer-scripts.md#release-documentation-rules)).
 
 ## Before handoff
 
