@@ -80,3 +80,4 @@ These guides describe the consolidated 1.2.6 candidate and its limits. Final pac
 
 - [Shared 2.0 scope and acceptance](../architecture-2.0.md).
 - [AI prompt for alternating development](collaboration-ai-prompt.md).
+- [Workspace areas and editors](workspace-areas.md): project/workspace tabs, split/join, stable viewport, contextual properties and navigation settings.

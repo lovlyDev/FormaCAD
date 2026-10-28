@@ -13,7 +13,10 @@ import {
   GizmoViewport,
   Bounds,
 } from "@react-three/drei";
-import { useCallback, useState, useRef, useMemo } from "react";
+import { useCallback, useState, useRef, useMemo, useEffect } from "react";
+import { ViewportSidebar } from "../viewport-sidebar/ViewportSidebar";
+import { useNavigationPreferences } from "../settings/workspacePreferences";
+import { OrbitSelection } from "./navigation/OrbitSelection";
 import * as THREE from "three";
 import {
   Box,
@@ -56,6 +59,15 @@ export default function Viewer({
 }) {
   const projectId = useWorkspace((s) => s.project?.id ?? "empty");
   const viewKey = `forma.ui.project.${projectId}.view.${comparison ? "comparison" : "main"}`;
+  const navigation = useNavigationPreferences();
+  const [toolbarOpen, setToolbarOpen] = usePersistentState(
+    `${viewKey}.toolbarOpen`,
+    true,
+  );
+  const [sidebarOpen, setSidebarOpen] = usePersistentState(
+    `${viewKey}.sidebarOpen`,
+    false,
+  );
   const section = useSectionView(object, viewKey, !!comparison, !interactive);
   const [playing, setPlaying] = usePersistentState(`${viewKey}.playing`, false);
   const light = useTheme() === "light";
@@ -112,8 +124,54 @@ export default function Viewer({
     (fn: () => string) => setCapture(() => fn),
     [],
   );
+  useEffect(() => {
+    if (comparison) return;
+    const keydown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      if (
+        !target.closest('[data-editor="viewport3d"]') ||
+        target.closest(
+          "input,textarea,select,[contenteditable=true],[role=combobox]",
+        ) ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey
+      )
+        return;
+      if (event.code === "KeyT") {
+        event.preventDefault();
+        setToolbarOpen((value) => !value);
+      }
+      if (event.code === "KeyN") {
+        event.preventDefault();
+        setSidebarOpen((value) => !value);
+      }
+      const code = navigation.emulateNumpad
+        ? event.code.replace("Digit", "Numpad")
+        : event.code;
+      const views: Record<string, string> = {
+        Numpad1: "front",
+        Numpad3: "side",
+        Numpad7: "top",
+      };
+      if (views[code]) {
+        event.preventDefault();
+        setPreset(views[code]);
+      }
+    };
+    window.addEventListener("keydown", keydown);
+    return () => window.removeEventListener("keydown", keydown);
+  }, [
+    comparison,
+    navigation.emulateNumpad,
+    setToolbarOpen,
+    setSidebarOpen,
+    setPreset,
+  ]);
   return (
-    <div className="viewport">
+    <div
+      className={`viewport ${toolbarOpen ? "" : "workspace-viewer-tools-hidden"}`}
+    >
       <div className="viewport-heading">
         <span>
           <Box size={13} />{" "}
@@ -123,7 +181,36 @@ export default function Viewer({
           {ortho ? t("Orthographic") : t("Perspective")}{" "}
           <span className="tiny-dot" /> {t("mm")}
         </span>
+        {!comparison && (
+          <div className="workspace-viewport-panel-toggles">
+            <button
+              aria-pressed={toolbarOpen}
+              aria-label={t("Toggle viewport toolbar (T)")}
+              onClick={() => setToolbarOpen(!toolbarOpen)}
+            >
+              {t("Tools")}
+            </button>
+            <button
+              aria-pressed={sidebarOpen}
+              aria-label={t("Toggle viewport sidebar (N)")}
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+            >
+              {t("Item")}
+            </button>
+          </div>
+        )}
       </div>
+      {sidebarOpen && !comparison && (
+        <ViewportSidebar
+          object={object}
+          selected={selected}
+          onFit={() => setFit((value) => value + 1)}
+          onReset={() => {
+            setPreset("iso");
+            setReset((value) => value + 1);
+          }}
+        />
+      )}
       <div className="viewport-toolbars">
         <div className="view-toolbar">
           <IconButton
@@ -179,7 +266,21 @@ export default function Viewer({
             <MoveRight size={17} />
           </IconButton>
           <i />
-          <IconButton label={section.available ? t("Section view") : t("Section view requires a committed STEP model")} disabled={!section.available} active={section.enabled} onClick={() => { section.setOpen(!section.open); if (!section.open) section.setEnabled(true); }}><Scissors size={17} /></IconButton>
+          <IconButton
+            label={
+              section.available
+                ? t("Section view")
+                : t("Section view requires a committed STEP model")
+            }
+            disabled={!section.available}
+            active={section.enabled}
+            onClick={() => {
+              section.setOpen(!section.open);
+              if (!section.open) section.setEnabled(true);
+            }}
+          >
+            <Scissors size={17} />
+          </IconButton>
           <IconButton
             label={t("Fit model")}
             onClick={() => setFit((f) => f + 1)}
@@ -283,7 +384,10 @@ export default function Viewer({
         shadows
         dpr={[1, 1.75]}
         gl={{ antialias: true, preserveDrawingBuffer: true }}
-        onPointerMissed={() => { if (interactive && !comparison) useWorkspace.getState().setSelected(null); }}
+        onPointerMissed={() => {
+          if (interactive && !comparison)
+            useWorkspace.getState().setSelected(null);
+        }}
       >
         <color attach="background" args={[light ? "#f5f7f9" : "#202326"]} />
         <ambientLight intensity={1.5} />
@@ -328,8 +432,14 @@ export default function Viewer({
             appliedPreset={appliedPreset}
           />
         </Bounds>
-        {grid && <AdaptiveGrid object={object} light={light}/>}
-        <SectionScene object={object} plane={section.plane} enabled={section.clipEnabled} report={section.report} light={light} />
+        {grid && <AdaptiveGrid object={object} light={light} />}
+        <SectionScene
+          object={object}
+          plane={section.plane}
+          enabled={section.clipEnabled}
+          report={section.report}
+          light={light}
+        />
         <OrbitControls
           ref={controlsRef as never}
           makeDefault
@@ -340,7 +450,7 @@ export default function Viewer({
             MIDDLE: THREE.MOUSE.DOLLY,
             RIGHT: THREE.MOUSE.PAN,
           }}
-          panSpeed={0.3}
+          panSpeed={navigation.panSpeed}
           screenSpacePanning
           minDistance={3}
           maxDistance={100000}
@@ -352,7 +462,15 @@ export default function Viewer({
             hideNegativeAxes
           />
         </GizmoHelper>
-        <SmoothZoom />
+        <SmoothZoom
+          sensitivity={navigation.zoomSpeed}
+          zoomToCursor={navigation.zoomCursor}
+        />
+        <OrbitSelection
+          object={object}
+          selected={selected}
+          enabled={navigation.orbitSelection}
+        />
         <Playback
           object={object}
           playing={playing}
@@ -384,7 +502,7 @@ export default function Viewer({
         </div>
         <div className="render-select">
           <Select
-            leadingIcon={<Layers size={14}/>}
+            leadingIcon={<Layers size={14} />}
             aria-label={t("Rendering mode")}
             value={mode}
             onChange={(e) => setMode(e.target.value as RenderMode)}

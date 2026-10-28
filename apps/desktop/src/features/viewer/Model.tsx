@@ -42,7 +42,12 @@ export function Model({
   const selectFace = useWorkspace((s) => s.setSelectedFace);
   const selectEdge = useWorkspace((s) => s.setSelectedEdge);
   const light = useTheme() === "light";
-  useBodyAppearance(object, mode, selectionMode === "body" || mode === "ghost" ? selected : null, light);
+  useBodyAppearance(
+    object,
+    mode,
+    selectionMode === "body" || mode === "ghost" ? selected : null,
+    light,
+  );
   useBodyOutline(object, mode, selected, light);
   useEffect(() => {
     if (!selectedFace || selectedFace.revisionId !== revisionId) return;
@@ -59,7 +64,9 @@ export function Model({
   }, [object, revisionId, selectedFace]);
   useEffect(() => {
     if (!revisionId) return;
-    const overlays: (THREE.LineSegments | ReturnType<typeof selectedEdgeStroke>)[] = [];
+    const overlays: (
+      THREE.LineSegments | ReturnType<typeof selectedEdgeStroke>
+    )[] = [];
     object.traverse((node) => {
       if (!(node instanceof THREE.Mesh) || node.userData.formaSelectionOverlay)
         return;
@@ -90,7 +97,14 @@ export function Model({
         overlay.geometry.dispose();
         (overlay.material as THREE.Material).dispose();
       });
-  }, [object, revisionId, selectedEdge, selectionMode, size.width, size.height]);
+  }, [
+    object,
+    revisionId,
+    selectedEdge,
+    selectionMode,
+    size.width,
+    size.height,
+  ]);
   return (
     <primitive
       object={object}
@@ -103,16 +117,35 @@ export function Model({
         intersections: { object: THREE.Object3D; point: THREE.Vector3 }[];
       }) => {
         e.stopPropagation();
-        if (!interactive) return;
+        if (!interactive || e.object.userData.formaSelectionLocked) return;
         if (selectionMode === "edge") {
           if (!revisionId) return;
           const rect = gl.domElement.getBoundingClientRect();
-          const hit = pickCadEdge(object, camera, { x: e.nativeEvent.clientX - rect.left, y: e.nativeEvent.clientY - rect.top }, rect.width, rect.height);
-          if (!hit) { selectEdge(null); return; }
+          const hit = pickCadEdge(
+            object,
+            camera,
+            {
+              x: e.nativeEvent.clientX - rect.left,
+              y: e.nativeEvent.clientY - rect.top,
+            },
+            rect.width,
+            rect.height,
+          );
+          if (!hit) {
+            selectEdge(null);
+            return;
+          }
+          if (object.getObjectByName(hit.bodyId)?.userData.formaSelectionLocked)
+            return;
           select(hit.bodyId);
-          selectEdge({ bodyId: hit.bodyId, edgeOrdinal: hit.edgeOrdinal, revisionId, sceneToken: object.uuid,
+          selectEdge({
+            bodyId: hit.bodyId,
+            edgeOrdinal: hit.edgeOrdinal,
+            revisionId,
+            sceneToken: object.uuid,
             ...(hit.topologyRef ? { topologyRef: hit.topologyRef } : {}),
-            ...(hit.semanticKey ? { semanticKey: hit.semanticKey } : {}) });
+            ...(hit.semanticKey ? { semanticKey: hit.semanticKey } : {}),
+          });
           onPoint(hit.point.clone());
           return;
         }

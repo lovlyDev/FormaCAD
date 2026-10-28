@@ -3,7 +3,13 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { persist, readState } from "../../lib/persistence";
 
-export function SmoothZoom() {
+export function SmoothZoom({
+  sensitivity = 1,
+  zoomToCursor = false,
+}: {
+  sensitivity?: number;
+  zoomToCursor?: boolean;
+}) {
   const { gl, camera } = useThree();
   const controls = useThree((s) => s.controls) as unknown as
     | {
@@ -14,10 +20,27 @@ export function SmoothZoom() {
       }
     | undefined;
   const pending = useRef(0);
+  const anchor = useRef<THREE.Vector3 | null>(null);
   useEffect(() => {
     const canvas = gl.domElement;
     const wheel = (event: WheelEvent) => {
       event.preventDefault();
+      if (zoomToCursor && controls) {
+        const rect = canvas.getBoundingClientRect();
+        const ray = new THREE.Raycaster();
+        ray.setFromCamera(
+          new THREE.Vector2(
+            ((event.clientX - rect.left) / rect.width) * 2 - 1,
+            (-(event.clientY - rect.top) / rect.height) * 2 + 1,
+          ),
+          camera,
+        );
+        const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(
+          camera.getWorldDirection(new THREE.Vector3()),
+          controls.target,
+        );
+        anchor.current = ray.ray.intersectPlane(plane, new THREE.Vector3());
+      } else anchor.current = null;
       const pixels =
         event.deltaY *
         (event.deltaMode === 1
@@ -26,7 +49,8 @@ export function SmoothZoom() {
             ? canvas.clientHeight
             : 1);
       pending.current = THREE.MathUtils.clamp(
-        pending.current + THREE.MathUtils.clamp(pixels, -240, 240) * 0.0015,
+        pending.current +
+          THREE.MathUtils.clamp(pixels, -240, 240) * 0.0015 * sensitivity,
         -1.5,
         1.5,
       );
@@ -40,18 +64,27 @@ export function SmoothZoom() {
       canvas.removeEventListener("wheel", wheel);
       canvas.removeEventListener("pointerdown", stop);
     };
-  }, [gl]);
+  }, [gl, camera, controls, sensitivity, zoomToCursor]);
   useFrame((_, delta) => {
     if (!controls || Math.abs(pending.current) < 0.00001) return;
     const step = pending.current * (1 - Math.exp(-10 * Math.min(delta, 0.05)));
     pending.current -= step;
     if (camera instanceof THREE.OrthographicCamera) {
+      const previous = camera.zoom;
       camera.zoom = THREE.MathUtils.clamp(
         camera.zoom * Math.exp(-step),
         0.02,
         5000,
       );
       camera.updateProjectionMatrix();
+      if (anchor.current) {
+        const shift = anchor.current
+          .clone()
+          .sub(controls.target)
+          .multiplyScalar(1 - previous / camera.zoom);
+        camera.position.add(shift);
+        controls.target.add(shift);
+      }
     } else {
       const offset = camera.position.clone().sub(controls.target);
       const distance = THREE.MathUtils.clamp(
@@ -59,7 +92,18 @@ export function SmoothZoom() {
         controls.minDistance,
         controls.maxDistance,
       );
-      camera.position.copy(controls.target).add(offset.setLength(distance));
+      if (anchor.current) {
+        const factor = distance / Math.max(offset.length(), 0.000001);
+        camera.position
+          .sub(anchor.current)
+          .multiplyScalar(factor)
+          .add(anchor.current);
+        controls.target
+          .sub(anchor.current)
+          .multiplyScalar(factor)
+          .add(anchor.current);
+      } else
+        camera.position.copy(controls.target).add(offset.setLength(distance));
     }
     controls.update();
   });
@@ -120,7 +164,16 @@ export function Playback({
   useEffect(() => {
     elapsed.current = reset > 0 || !storageKey ? 0 : readState(storageKey, 0);
     if (!Number.isFinite(elapsed.current)) elapsed.current = 0;
-    bindings.forEach(({ node, initial, axis, speed }) => node.quaternion.copy(initial).multiply(new THREE.Quaternion().setFromAxisAngle(axis, elapsed.current * speed)));
+    bindings.forEach(({ node, initial, axis, speed }) =>
+      node.quaternion
+        .copy(initial)
+        .multiply(
+          new THREE.Quaternion().setFromAxisAngle(
+            axis,
+            elapsed.current * speed,
+          ),
+        ),
+    );
     return () => {
       bindings.forEach(({ node, initial }) => node.quaternion.copy(initial));
     };
