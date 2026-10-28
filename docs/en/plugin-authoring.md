@@ -99,3 +99,7 @@ viewport::record_orbit(viewport::Orbit {
 ```
 
 Recording starts after the call ends: the CAD app asks for the path, renders the frames and encodes the video itself. A complete plugin with a form and translations: [lovlyDev/formacad-orbit-video](https://github.com/lovlyDev/formacad-orbit-video). Value ranges are in the [specification, section 12](plugin-platform.md#12-implementation-notes).
+
+## Button in the 3D-view toolbar
+
+A feature or command whose `icon` is one of `box`, `camera`, `clapperboard`, `cog`, `compass`, `film`, `grid-3x3`, `layers`, `monitor-play`, `package`, `pen-tool`, `printer`, `rotate-3d`, `ruler`, `scan`, `scissors`, `sparkles`, `square-dashed`, `video`, `wand-2`, `wrench` gets its own button in the 3D-view toolbar in FormaCAD 1.5.1 and newer; its tooltip reads “<plugin>: <title>”. Any other value or no `icon` keeps the action in the command palette and the “Plugin actions” menu.

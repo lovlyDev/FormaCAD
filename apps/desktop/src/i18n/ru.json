@@ -1317,5 +1317,6 @@
   "PLUGIN_CAPTURE_TOO_LARGE": "Видео больше 4 ГБ. Уменьшите разрешение, длительность или битрейт.",
   "PLUGIN_CAPTURE_WRITE": "Не удалось записать файл видео.",
   "PLUGIN_CAPTURE_CANCELLED": "Запись видео отменена",
-  "PLUGIN_IMPORT_API_TOO_OLD": "Плагин использует функции новой версии API плагинов, но в manifest.json указана старая версия."
+  "PLUGIN_IMPORT_API_TOO_OLD": "Плагин использует функции новой версии API плагинов, но в manifest.json указана старая версия.",
+  "Plugin actions": "Действия плагинов"
 }

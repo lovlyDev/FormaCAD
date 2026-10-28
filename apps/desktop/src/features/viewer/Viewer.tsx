@@ -38,6 +38,7 @@ import { measurement, type MeasureKind } from "../../lib/measurement";
 import { Model } from "./Model";
 import { CameraControl, type OrbitHandle } from "./CameraControl";
 import { Capture } from "./Capture";
+import { PluginToolbarMenu } from "../plugins/PluginToolbarMenu";
 import type { RenderMode } from "./renderMode";
 import { faceTriangleCounts } from "./faceSelection";
 import { cadEdges } from "./edgeSelection";
@@ -217,6 +218,7 @@ export default function Viewer({
           >
             <Camera size={17} />
           </IconButton>
+          {interactive && !comparison && <PluginToolbarMenu />}
           {motion && (
             <>
               <i />

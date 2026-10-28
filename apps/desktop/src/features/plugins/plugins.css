@@ -27,3 +27,7 @@
 .plugin-field em { color: var(--muted); font-style: normal; }
 .plugin-field small { color: var(--muted); font-size: 10px; }
 .plugin-panel-text { color: var(--text); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.plugin-toolbar-menu { position: relative; display: flex; }
+.plugin-toolbar-list { position: absolute; top: calc(100% + 9px); right: -5px; z-index: 20; display: grid; min-width: 260px; max-width: 380px; max-height: 320px; overflow-y: auto; padding: 5px; background: var(--panel); border: 1px solid var(--light-border, var(--line)); border-radius: 10px; box-shadow: var(--island-shadow, 0 4px 12px #0003); }
+.plugin-toolbar-list button { padding: 7px 10px; color: var(--text); background: none; border: 0; border-radius: 6px; font-size: 12px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.plugin-toolbar-list button:hover, .plugin-toolbar-list button:focus-visible { background: var(--light-accent-surface, var(--panel2)); color: var(--light-accent-ink, var(--text)); outline: none; }

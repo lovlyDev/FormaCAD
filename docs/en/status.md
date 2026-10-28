@@ -2,6 +2,10 @@
 
 [Documentation](index.md) · [Русский](../ru/status.md) · [Roadmap](roadmap.md)
 
+## Changes in 1.5.1
+
+Plugin actions in the 3D-view toolbar: own buttons for actions with an icon and a “Plugin actions” menu for the rest, without the command palette. Details: [1.5.1 release](../releases/1.5.1.md).
+
 ## Changes in 1.5.0
 
 plugin-api 0.2: the `viewport.capture` permission — a plugin can ask FormaCAD to record a turntable video of the model in the 3D view (MP4/WebM, up to 4K and 120 fps); FormaCAD renders and encodes the frames itself, and the plugin never sees the model or the file. Commands that do not change the model no longer need `model.write`. Details: [1.5.0 release](../releases/1.5.0.md) and the [plugins article](plugins.md#turntable-video-recording).
