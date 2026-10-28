@@ -331,7 +331,8 @@ test("viewport clicks and tools preserve camera zoom", async ({ page }) => {
     .toBeGreaterThanOrEqual(3);
   const before = JSON.parse((await canvas.getAttribute("data-camera")) ?? "{}");
   await page.getByRole("button", { name: "Select body", exact: true }).click();
-  await canvas.click({ position: { x: 40, y: 240 } });
+  // Keep the empty-scene click clear of the vertical viewport toolbar.
+  await canvas.click({ position: { x: 200, y: 240 } });
   await page.waitForTimeout(1000);
   const after = JSON.parse((await canvas.getAttribute("data-camera")) ?? "{}");
   expect(
