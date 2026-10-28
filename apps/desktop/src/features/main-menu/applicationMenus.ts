@@ -1,6 +1,7 @@
 import { t } from "../../i18n";
 import type { MenuGroup } from "./MainMenu";
 interface Actions {
+  duplicate: () => void;
   create: () => void;
   import: () => void;
   export: () => void;
@@ -37,6 +38,12 @@ export function applicationMenus(
           label: t("Export model"),
           shortcut: "Ctrl Shift E",
           run: actions.export,
+          disabled: !projectOpen || blocked,
+        },
+        {
+          id: "duplicate",
+          label: t("Duplicate project"),
+          run: actions.duplicate,
           disabled: !projectOpen || blocked,
         },
       ],

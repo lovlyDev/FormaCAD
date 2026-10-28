@@ -16,6 +16,8 @@ Workspace tabs switch presets, create a copy of the current arrangement, rename 
 
 Project tabs switch between opened projects. Closing a tab never deletes its project. Camera, message draft and area settings are keyed by project ID and reused on reopening. Existing restrictions during active operations remain in effect.
 
+File → Duplicate project retains access to independent copies, using the existing checked `copy_project_for_editing` route on desktop and local copy persistence in the browser, with normal confirmation. Files retains collapsible workspace, attachment and export folders; clicking an export opens its details.
+
 ## Model tree, properties and AI
 
 The model tree shows bodies and available typed operations, searchable by name and ID. The eye changes visibility only. The lock prevents picking a body in the tree and viewport; it is an interaction setting, not a CAD edit lock or project-access permission. Selecting an operation supplies its context to Properties when that editor is open. Double-click opens the existing parameter/operation editor, with the usual reviewed build path.
@@ -28,7 +30,7 @@ F3 opens the command palette; Ctrl+K remains available. Search includes existing
 
 T toggles viewport tools and N toggles the sidebar while the viewport editor has focus. Header buttons provide the same actions. The sidebar shows the selected element's display transform, view actions and existing plugin actions. Display transforms are explicitly distinguished from exact B-Rep properties.
 
-Interface settings control density and text size. Input enables number-row numpad emulation. Navigation controls orbit around selection, zoom toward the pointer and zoom/pan sensitivity. Pointer zoom uses a plane through the orbit center, not an exact CAD snap. View settings do not create revisions. Theme changes apply immediately to the interface, WebGL background and grid.
+Interface settings control density and text size. Input enables number-row numpad emulation for front, side and top views (1/3/7); the complete new numpad mapping belongs to M2. Navigation controls orbit around selection, zoom toward the pointer and zoom/pan sensitivity. Pointer zoom uses a plane through the orbit center, not an exact CAD snap. View settings do not create revisions. Theme changes apply immediately to the interface, WebGL background and grid.
 
 Tasks uses the existing CAD queue and cancellation API. Activity shows recorded project events; Logs shows recorded project errors. These editors do not read full host diagnostic logs, which remain local.
 

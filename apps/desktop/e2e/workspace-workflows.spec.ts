@@ -138,6 +138,14 @@ test("custom workspaces and editor navigation preserve the project document", as
       .getByRole("heading", { name: "Navigation", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Close dialog", exact: true }).click();
+  await page.getByRole("menuitem", { name: "File", exact: true }).click();
+  await page
+    .getByRole("menuitem", { name: "Duplicate project", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Duplicate project", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Deny", exact: true }).click();
   expect(
     await page.evaluate(() => localStorage.getItem("forma.projects.v1")),
   ).toBe(original);
@@ -164,6 +172,15 @@ test("input, navigation and interface settings persist without remounting the vi
     "compact",
   );
   await expect(page.locator("html")).toHaveAttribute("data-density", "compact");
+  await selectValue(
+    page,
+    dialog.getByRole("combobox", { name: "Interface text size" }),
+    "1.3",
+  );
+  await expect(page.locator(".composer textarea")).toHaveCSS(
+    "font-size",
+    "15.6px",
+  );
   await dialog.getByRole("button", { name: "Input", exact: true }).click();
   await dialog
     .getByRole("checkbox", { name: "Emulate numpad with number keys" })

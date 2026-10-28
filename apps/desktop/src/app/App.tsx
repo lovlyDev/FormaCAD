@@ -1,4 +1,5 @@
 import { applicationMenus } from "../features/main-menu/applicationMenus";
+import { copyProjectForEditing } from "../features/project-access/projectAccessApi";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -927,6 +928,33 @@ export default function App() {
       <MainMenu
         groups={applicationMenus(
           {
+            duplicate: () => {
+              if (project)
+                void ask(
+                  t("Duplicate project"),
+                  t(
+                    "Create an independent project with the same files and history.",
+                  ),
+                  project.name,
+                  async () => {
+                    if (native) {
+                      await openProject(
+                        await copyProjectForEditing(project.id),
+                      );
+                      return;
+                    }
+                    await openProject(
+                      await saveProject({
+                        ...project,
+                        id: crypto.randomUUID(),
+                        name: t("{{value0}} copy", { value0: project.name }),
+                        createdAt: stamp(),
+                        updatedAt: stamp(),
+                      }),
+                    );
+                  },
+                );
+            },
             create: () => setModal("new"),
             import: () => fileInput.current?.click(),
             export: () => setModal("export"),
@@ -1086,6 +1114,8 @@ export default function App() {
               ),
               files: (
                 <ProjectFilesPanel
+                  exports={project.exports}
+                  onExport={setExportInfo}
                   files={referenceFiles}
                   revision={revision}
                   blocked={editingBlocked}

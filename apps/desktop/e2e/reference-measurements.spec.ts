@@ -72,11 +72,13 @@ for (const locale of ["ru", "en"] as const) {
     await expect
       .poll(() =>
         page
-          .locator(".panel-scroll")
+          .locator('[data-editor="outliner"] .workspace-editor-content')
           .evaluate((el) => el.getBoundingClientRect().height),
       )
       .toBeGreaterThan(100);
-    const properties = page.locator(".selection-model-properties");
+    const properties = page.locator(
+      '[data-editor="properties"] .workspace-editor-content',
+    );
     expect(
       await properties.evaluate((el) => el.scrollHeight > el.clientHeight),
     ).toBe(true);
