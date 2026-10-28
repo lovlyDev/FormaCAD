@@ -1,3 +1,4 @@
+import { settingsPages } from "../../features/settings/settingsPages";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Cpu, LoaderCircle, RefreshCw, ShieldCheck } from "lucide-react";
@@ -5,11 +6,21 @@ import { t, errorText, systemText, getLocale, setLocale } from "../../i18n";
 import { Button, IconButton, Modal, Select } from "../../components/ui";
 import { applyTheme } from "../../lib/theme";
 import { usePersistentState } from "../../lib/persistence";
-import { health, permissionAudit, chooseCadPython, native } from "../../lib/api";
+import {
+  health,
+  permissionAudit,
+  chooseCadPython,
+  native,
+} from "../../lib/api";
 import type { Agent, Project } from "../../types";
 import { ConfirmationControls } from "./ConfirmationControls";
 import { CustomAgentSettings } from "./CustomAgentSettings";
 import { PluginsSettings } from "../../features/plugins/PluginsSettings";
+import {
+  WorkspaceAppearance,
+  WorkspaceInputSettings,
+  WorkspaceNavigationSettings,
+} from "../../features/settings/WorkspaceSettings";
 export function SettingsDialog({
   open,
   close,
@@ -21,7 +32,10 @@ export function SettingsDialog({
   project: Project | null;
   onAgent: (a: Agent) => Promise<void>;
 }) {
-  const [page, setPage] = usePersistentState("forma.ui.settingsPage", "AI agents");
+  const [page, setPage] = usePersistentState(
+    "forma.ui.settingsPage",
+    "AI agents",
+  );
   const system = useQuery({
     queryKey: ["health"],
     queryFn: health,
@@ -46,14 +60,7 @@ export function SettingsDialog({
     >
       <div className="settings-layout">
         <nav>
-          {[
-            "AI agents",
-            "CAD environment",
-            "Permissions",
-            "Plugins",
-            "Appearance",
-            "Privacy",
-          ].map((s) => (
+          {settingsPages.map((s) => (
             <button
               className={page === s ? "active" : ""}
               onClick={() => setPage(s)}
@@ -94,7 +101,9 @@ export function SettingsDialog({
                     </span>
                     <div>
                       <strong>{t(h.name)}</strong>
-                      <small role={h.available ? undefined : "status"}>{errorText(h.detail)}</small>
+                      <small role={h.available ? undefined : "status"}>
+                        {errorText(h.detail)}
+                      </small>
                     </div>
                     <span>
                       {h.available ? t("Detected") : t("Unavailable")}
@@ -145,8 +154,12 @@ export function SettingsDialog({
               <p className="field-hint">
                 {page === "AI agents"
                   ? t("Uses your existing CLI login.")
-                  : system.data?.some((item) => item.name === "OpenCascade kernel")
-                    ? t("OpenCascade handles STEP import and CAD modeling. Python and CadQuery are optional for legacy workflows.")
+                  : system.data?.some(
+                        (item) => item.name === "OpenCascade kernel",
+                      )
+                    ? t(
+                        "OpenCascade handles STEP import and CAD modeling. Python and CadQuery are optional for legacy workflows.",
+                      )
                     : t("Python and CadQuery power STEP import and export.")}
               </p>
             </>
@@ -199,6 +212,12 @@ export function SettingsDialog({
             </>
           ) : page === "Plugins" ? (
             <PluginsSettings open={open} />
+          ) : page === "Interface" ? (
+            <WorkspaceAppearance />
+          ) : page === "Input" ? (
+            <WorkspaceInputSettings />
+          ) : page === "Navigation" ? (
+            <WorkspaceNavigationSettings />
           ) : page === "Appearance" ? (
             <>
               <label>
@@ -228,9 +247,7 @@ export function SettingsDialog({
                 </Select>
               </label>
               <p>
-                {t(
-                  "The 3D viewport and controls follow the selected theme.",
-                )}
+                {t("The 3D viewport and controls follow the selected theme.")}
               </p>
             </>
           ) : (

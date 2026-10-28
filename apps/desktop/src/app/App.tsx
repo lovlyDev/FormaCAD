@@ -1,168 +1,118 @@
-import { candidateSourceStatus } from "../features/agents/candidateSource";
-import { captureApply, assertApplyBase } from "../features/model-apply/capturedApply";
-import { useModelApply } from "../features/model-apply/useModelApply";
-import { useCommittedScene } from "../features/model-apply/useCommittedScene";
-import { useRevisionEvents } from "../features/model-apply/useRevisionEvents";
-import { ModelHistoryControls } from "../features/project-history/ModelHistoryControls";
-import { useProjectAccess } from "../features/project-access/useProjectAccess";
-import { ProjectAccessNotice } from "../features/project-access/ProjectAccessNotice";
-import { CadTaskIndicator } from "../features/cad-tasks/CadTaskIndicator";
-import { useHistoryAction } from "../features/project-history/useHistoryAction";
-import { revisionHistoryLabel } from "../features/project-history/revisionHistoryLabel";
-import { ActionReviewDialog, type PendingAction } from "./dialogs/ActionReviewDialog";
-import type { CandidateReviewData } from "../features/agents/review/CandidateReview";
-import { readTypedCadDocument } from "../lib/typedCadDocument";
-import { prepareProjectImport } from "../features/import/projectImport";
-import { CommandPalette } from "./dialogs/CommandPalette";
-import { Dashboard } from "./Dashboard";
-import { SelectionModelProperties } from "../features/reference-measurements/SelectionModelProperties";
-import { NewProjectDialog } from "./dialogs/NewProjectDialog";
-import { SettingsDialog } from "./dialogs/SettingsDialog";
-import { PluginHost } from "../features/plugins/PluginHost";
-import { pluginPaletteCommands, usePlugins } from "../features/plugins/usePluginCommands";
-import { AccountButton } from "../features/account/AccountButton";
-import { ParametersDialog } from "./dialogs/ParametersDialog";
-import { ExportDialog } from "./dialogs/ExportDialog";
-import { ProgramDialog } from "./dialogs/ProgramDialog";
-import { MessageText } from "../features/agents/MessageText";
-import { RevisionComparison } from "./RevisionComparison";
-import { agentPermissionPreview } from "../features/agents/permissionPreview";
-import {
-  t,
-  useLocale,
-  quantity,
-  fixedNumber,
-  getLocale,
-  systemText,
-  errorText,
-  rawError,
-} from "../i18n";
-import { usePersistentState } from "../lib/persistence";
-import { Updates } from "../components/Updates";
-import { version as appVersion } from "../../package.json";
+import { applicationMenus } from "../features/main-menu/applicationMenus";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
 import {
-  lazy,
-  Suspense,
-  useEffect,
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-  Component,
-  type ReactNode,
-  type ErrorInfo,
-} from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useParams } from "react-router-dom";
-import { motion } from "framer-motion";
-import * as THREE from "three";
-import {
-  ArrowUp,
-  ArrowUpRight,
+  AlertCircle,
   Box,
   ChevronDown,
   CircleCheck,
-  Command,
   Download,
-  FileBox,
-  FileImage,
-  Folder,
-  History,
-  LoaderCircle,
-  PanelLeftClose,
-  Paperclip,
   Plus,
   Search,
   Settings2,
-  Sparkles,
-  Square,
   Trash2,
-  Undo2,
   X,
-  SlidersHorizontal,
-  Copy,
-  AlertCircle,
-  GitBranch,
-  Eye,
-  EyeOff,
 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import * as THREE from "three";
+import { version as appVersion } from "../../package.json";
+import { Button, IconButton, Modal, Select } from "../components/ui";
+import { Updates } from "../components/Updates";
+import { AccountButton } from "../features/account/AccountButton";
+import { ActivityPanel } from "../features/activity-log/ActivityPanel";
+import { candidateSourceStatus } from "../features/agents/candidateSource";
+import { agentPermissionPreview } from "../features/agents/permissionPreview";
+import type { CandidateReviewData } from "../features/agents/review/CandidateReview";
+import { AssistantPanel } from "../features/assistant/AssistantPanel";
+import { CadTaskIndicator } from "../features/cad-tasks/CadTaskIndicator";
+import { CommandPalette } from "../features/command-palette/CommandPalette";
+import { prepareProjectImport } from "../features/import/projectImport";
+import { MainMenu } from "../features/main-menu/MainMenu";
 import {
-  Button,
-  IconButton,
-  Modal,
-  Select,
-  TreeFolder,
-} from "../components/ui";
+  assertApplyBase,
+  captureApply,
+} from "../features/model-apply/capturedApply";
+import { useCommittedScene } from "../features/model-apply/useCommittedScene";
+import { useModelApply } from "../features/model-apply/useModelApply";
+import { useRevisionEvents } from "../features/model-apply/useRevisionEvents";
+import { Outliner } from "../features/outliner/Outliner";
+import { PluginHost } from "../features/plugins/PluginHost";
 import {
-  type Project,
-  type Parameters,
-  type ProjectFile,
-} from "../types";
-import { useWorkspace, currentParameters } from "../stores/workspace";
-import {
-  readProjectFile,
-  interruptedSessions,
-  acknowledgeRecovery,
-  convertStep,
-  confirmationSettings,
-  needsConfirmation,
-  listProjects,
-  saveProject,
-  exportProjectBundle,
-  importProjectBundle,
-  saveProjectThumbnail,
-  deleteProject,
-  health,
-  plan,
-  native,
-  cancelTask,
-  exportStep,
-  saveMesh,
-  requestNativePermission,
-  resolveNativePermission,
-} from "../lib/api";
-import { buildModel, inspectModel, disposeModel } from "../lib/model";
-import { readFile, loadModel, exportMesh, download } from "../lib/files";
-import { renderThumbnail } from "../lib/thumbnail";
+  pluginPaletteCommands,
+  usePlugins,
+} from "../features/plugins/usePluginCommands";
+import { ProjectAccessNotice } from "../features/project-access/ProjectAccessNotice";
+import { useProjectAccess } from "../features/project-access/useProjectAccess";
+import { ProjectFilesPanel } from "../features/project-files/ProjectFilesPanel";
+import { ModelHistoryControls } from "../features/project-history/ModelHistoryControls";
+import { RevisionList } from "../features/project-history/RevisionList";
+import { useHistoryAction } from "../features/project-history/useHistoryAction";
+import { PropertiesPanel } from "../features/properties/PropertiesPanel";
+import { SelectionModelProperties } from "../features/reference-measurements/SelectionModelProperties";
+import { StatusBar } from "../features/status-bar/StatusBar";
 import { bodyLabel } from "../features/viewer/bodyLabel";
-import { faceAreaMm2 } from "../features/viewer/faceSelection";
 import { edgeLengthMm, edgeRadiusMm } from "../features/viewer/edgeSelection";
 import { exportBodies } from "../features/viewer/exportBodies";
-const Viewer = lazy(() => import("../features/viewer/Viewer"));
-class ViewerBoundary extends Component<
-  { children: ReactNode },
-  { error: boolean }
-> {
-  state = { error: false };
-  static getDerivedStateFromError() {
-    return { error: true };
-  }
-  componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error("Viewer failed", error.message, info.componentStack);
-  }
-  render() {
-    return this.state.error ? (
-      <div className="empty-state">
-        <AlertCircle />
-        <h3>{t("3D view is unavailable")}</h3>
-        <p>{t("Check that hardware acceleration and WebGL 2 are enabled.")}</p>
-      </div>
-    ) : (
-      this.props.children
-    );
-  }
-}
+import { faceAreaMm2 } from "../features/viewer/faceSelection";
+import { ModelViewport } from "../features/viewer/ModelViewport";
+import { WorkspaceShell } from "../features/workspace-areas/WorkspaceShell";
+import { showWorkspaceEditor } from "../features/workspace-areas/editorNavigation";
+import { ProjectTabs } from "../features/project-tabs/ProjectTabs";
+import { CadTaskPanel } from "../features/cad-tasks/CadTaskPanel";
+import {
+  errorText,
+  fixedNumber,
+  getLocale,
+  rawError,
+  systemText,
+  t,
+  useLocale,
+} from "../i18n";
+import {
+  acknowledgeRecovery,
+  cancelTask,
+  confirmationSettings,
+  convertStep,
+  deleteProject,
+  exportProjectBundle,
+  exportStep,
+  health,
+  importProjectBundle,
+  interruptedSessions,
+  listProjects,
+  native,
+  needsConfirmation,
+  plan,
+  readProjectFile,
+  requestNativePermission,
+  resolveNativePermission,
+  saveMesh,
+  saveProject,
+  saveProjectThumbnail,
+} from "../lib/api";
+import { download, exportMesh, loadModel, readFile } from "../lib/files";
+import { buildModel, disposeModel, inspectModel } from "../lib/model";
+import { persist, usePersistentState } from "../lib/persistence";
+import { workspacePaletteCommands } from "../features/command-palette/workspaceCommands";
+import { renderThumbnail } from "../lib/thumbnail";
+import { readTypedCadDocument } from "../lib/typedCadDocument";
+import { currentParameters, useWorkspace } from "../stores/workspace";
+import { type Parameters, type Project, type ProjectFile } from "../types";
+import { Dashboard } from "./Dashboard";
+import {
+  ActionReviewDialog,
+  type PendingAction,
+} from "./dialogs/ActionReviewDialog";
+import { ExportDialog } from "./dialogs/ExportDialog";
+import { NewProjectDialog } from "./dialogs/NewProjectDialog";
+import { ParametersDialog } from "./dialogs/ParametersDialog";
+import { ProgramDialog } from "./dialogs/ProgramDialog";
+import { SettingsDialog } from "./dialogs/SettingsDialog";
+import { RevisionComparison } from "./RevisionComparison";
 const stamp = () => new Date().toISOString();
 const legacyMotionPrompt = (text: string) =>
   text.startsWith("Добавь анимацию движения к текущей сборке.");
-const revisionPrompt = (text: string) =>
-  revisionHistoryLabel(text) ?? (legacyMotionPrompt(text) ? t("Настроено движение сборки") : text);
-const date = (v: string) =>
-  new Date(v).toLocaleDateString(getLocale(), {
-    month: "short",
-    day: "numeric",
-  });
 export default function App() {
   useLocale();
   const nav = useNavigate();
@@ -201,10 +151,6 @@ export default function App() {
     "new" | "settings" | "export" | "palette" | "parameters" | null
   >(null);
   const stateKey = `forma.ui.project.${projectId ?? "home"}`;
-  const [tab, setTab] = usePersistentState<"files" | "history">(
-    `${stateKey}.tab`,
-    "files",
-  );
   const [search, setSearch] = usePersistentState("forma.ui.search", "");
   const [renameTarget, setRenameTarget] = useState<Project | null>(null);
   const [renameName, setRenameName] = useState("");
@@ -231,14 +177,12 @@ export default function App() {
   const [exportInfo, setExportInfo] = useState<
     Project["exports"][number] | null
   >(null);
-  const [leftOpen, setLeftOpen] = usePersistentState("forma.ui.leftOpen", true);
-  const [leftWidth, setLeftWidth] = usePersistentState(
-    "forma.ui.leftWidth",
-    238,
+  const [lockedBodies, setLockedBodies] = usePersistentState<string[]>(
+    `${stateKey}.lockedBodies`,
+    [],
   );
-  const [rightWidth, setRightWidth] = usePersistentState(
-    "forma.ui.rightWidth",
-    350,
+  const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(
+    null,
   );
   const [compare, setCompare] = usePersistentState<string | null>(
     `${stateKey}.compare`,
@@ -246,7 +190,6 @@ export default function App() {
   );
   const fileInput = useRef<HTMLInputElement>(null);
   const chatInput = useRef<HTMLTextAreaElement>(null);
-  const end = useRef<HTMLDivElement>(null);
   const parameters = currentParameters(project);
   const revision = project?.revisions.find(
     (r) => r.id === project.currentRevision,
@@ -267,19 +210,33 @@ export default function App() {
     ) ?? [];
   const geometryKey = JSON.stringify(parameters);
   const model = useMemo(
-    () => committedScene.hasFile ? new THREE.Group() : buildModel(JSON.parse(geometryKey) as Parameters),
+    () =>
+      committedScene.hasFile
+        ? new THREE.Group()
+        : buildModel(JSON.parse(geometryKey) as Parameters),
     [geometryKey, committedScene.hasFile],
   );
-  const object = committedScene.object ?? (committedScene.hasFile ? emptyScene : model);
+  const object =
+    committedScene.object ?? (committedScene.hasFile ? emptyScene : model);
   const displayedObject = useRef(object);
   displayedObject.current = object;
   const pluginScene = useCallback(() => displayedObject.current, []);
   const displayedRevision = committedScene.hasFile
-    ? project?.revisions.find(item => committedScene.object && item.id === committedScene.displayed?.revisionId)
+    ? project?.revisions.find(
+        (item) =>
+          committedScene.object &&
+          item.id === committedScene.displayed?.revisionId,
+      )
     : revision;
-  const retainedLabel = displayedRevision && displayedRevision.id !== revision?.id
-    ? t("Displayed model and properties: revision {{value0}}.", { value0: project!.revisions.findIndex(item => item.id === displayedRevision.id) + 1 })
-    : null;
+  const retainedLabel =
+    displayedRevision && displayedRevision.id !== revision?.id
+      ? t("Displayed model and properties: revision {{value0}}.", {
+          value0:
+            project!.revisions.findIndex(
+              (item) => item.id === displayedRevision.id,
+            ) + 1,
+        })
+      : null;
   const selectedBody = selected ? object.getObjectByName(selected) : undefined;
   const selectedBodyLabel = selectedBody ? bodyLabel(selectedBody) : selected;
   const selectedLabel =
@@ -331,6 +288,13 @@ export default function App() {
     });
   }, [bodies, hiddenBodies]);
   useEffect(() => {
+    bodies.forEach((body, index) => {
+      body.userData.formaSelectionLocked = lockedBodies.includes(
+        `${index}:${body.name}`,
+      );
+    });
+  }, [bodies, lockedBodies]);
+  useEffect(() => {
     let active = true;
     setBefore(null);
     const r = project?.revisions.find((r) => r.id === compare);
@@ -380,10 +344,6 @@ export default function App() {
       unlisten?.();
     };
   }, [project?.id, setError]);
-  useEffect(() => {
-    end.current?.scrollIntoView({ behavior: "smooth" });
-  }, [liveEvents]);
-  useEffect(() => () => disposeModel(model), [model]);
   useEffect(() => {
     if (projectId || !projects.data) return;
     previewProjects.current = projects.data;
@@ -452,9 +412,6 @@ export default function App() {
     }
   }, [projectId, projects.data, setProject, nav]);
   useEffect(() => {
-    end.current?.scrollIntoView({ behavior: "smooth" });
-  }, [project?.messages.length, busy]);
-  useEffect(() => {
     if (notice) {
       const t = setTimeout(() => setNotice(""), 5000);
       return () => clearTimeout(t);
@@ -462,23 +419,30 @@ export default function App() {
   }, [notice]);
   useEffect(() => {
     const f = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
-      if (e.key === "k") {
+      const target = e.target as HTMLElement;
+      if (e.code === "F3") {
         e.preventDefault();
         setModal("palette");
-      } else if (e.key === "n") {
+        return;
+      }
+      if (target.closest("input,textarea,[contenteditable=true]")) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.code === "KeyK") {
+        e.preventDefault();
+        setModal("palette");
+      } else if (e.code === "KeyN") {
         e.preventDefault();
         setModal("new");
-      } else if (e.key === "o") {
+      } else if (e.code === "KeyO") {
         e.preventDefault();
         fileInput.current?.click();
-      } else if (e.key === "s") {
+      } else if (e.code === "KeyS") {
         e.preventDefault();
         if (project)
           saveProject(project)
             .then(() => setNotice(t("Project saved")))
             .catch((e) => setError(errorText(e)));
-      } else if (e.key === "E" || (e.key === "e" && e.shiftKey)) {
+      } else if (e.code === "KeyE" && e.shiftKey) {
         e.preventDefault();
         setModal("export");
       }
@@ -510,9 +474,21 @@ export default function App() {
         native && targetProjectId && !review
           ? await requestNativePermission(targetProjectId, action, detail)
           : undefined;
-      setPending({ title, description, detail, run, id, review, targetProjectId });
+      setPending({
+        title,
+        description,
+        detail,
+        run,
+        id,
+        review,
+        targetProjectId,
+      });
     } catch (e) {
-      if (!targetProjectId || useWorkspace.getState().project?.id === targetProjectId) setError(errorText(e));
+      if (
+        !targetProjectId ||
+        useWorkspace.getState().project?.id === targetProjectId
+      )
+        setError(errorText(e));
     }
   }
   async function approve(allow: boolean) {
@@ -520,17 +496,38 @@ export default function App() {
     if (!p) return;
     setPending(null);
     try {
-      if (allow && p.review && candidateSourceStatus(useWorkspace.getState().project, p.review.base) !== "valid")
-        throw new Error(t("Модель изменилась во время ответа. Повторите запрос."));
+      if (
+        allow &&
+        p.review &&
+        candidateSourceStatus(
+          useWorkspace.getState().project,
+          p.review.base,
+        ) !== "valid"
+      )
+        throw new Error(
+          t("Модель изменилась во время ответа. Повторите запрос."),
+        );
       // Review can take longer than a grant's five-minute lifetime. Request only at the decision.
-      const permissionId = p.review && native && (!allow || needsConfirmation(await confirmationSettings(), "modify_project"))
-        ? await requestNativePermission(p.review.base.id, "modify_project", p.detail)
-        : p.id;
+      const permissionId =
+        p.review &&
+        native &&
+        (!allow ||
+          needsConfirmation(await confirmationSettings(), "modify_project"))
+          ? await requestNativePermission(
+              p.review.base.id,
+              "modify_project",
+              p.detail,
+            )
+          : p.id;
       if (permissionId) await resolveNativePermission(permissionId, allow);
       if (allow) await p.run();
       else setNotice(t("Action denied. No model changes were made."));
     } catch (e) {
-      if (!p.targetProjectId || useWorkspace.getState().project?.id === p.targetProjectId) setError(errorText(e));
+      if (
+        !p.targetProjectId ||
+        useWorkspace.getState().project?.id === p.targetProjectId
+      )
+        setError(errorText(e));
     } finally {
       refresh();
     }
@@ -541,11 +538,24 @@ export default function App() {
     nav(`/project/${p.id}`);
   }
   async function importStepIntoScene(p: Project, name: string) {
-    await ask(t("Import STEP model"), t("Run the local CAD converter and create a new revision with a 3D preview."), name, async () => {
-      setBusy(true, t("Converting STEP"));
-      try { setProject(await convertStep(p.id, name)); refresh(); }
-      finally { setBusy(false); }
-    }, "convert_file", p.id);
+    await ask(
+      t("Import STEP model"),
+      t(
+        "Run the local CAD converter and create a new revision with a 3D preview.",
+      ),
+      name,
+      async () => {
+        setBusy(true, t("Converting STEP"));
+        try {
+          setProject(await convertStep(p.id, name));
+          refresh();
+        } finally {
+          setBusy(false);
+        }
+      },
+      "convert_file",
+      p.id,
+    );
   }
   async function importFiles(files: FileList | null) {
     if (!files?.length) return;
@@ -569,10 +579,13 @@ export default function App() {
           await update(imported.project);
           if (!imported.hasMesh) {
             setAttachments((a) => [...a, ...importedFiles]);
-            if (native && imported.step) await importStepIntoScene(useWorkspace.getState().project ?? imported.project, imported.step.name);
+            if (native && imported.step)
+              await importStepIntoScene(
+                useWorkspace.getState().project ?? imported.project,
+                imported.step.name,
+              );
             else setNotice(t("Files added to project attachments."));
           }
-
         },
       );
     } catch (e) {
@@ -600,7 +613,8 @@ export default function App() {
     try {
       agentPreview = await agentPermissionPreview(p, text);
     } catch (cause) {
-      if (useWorkspace.getState().project?.id === p.id) setError(errorText(cause));
+      if (useWorkspace.getState().project?.id === p.id)
+        setError(errorText(cause));
       return;
     }
     await ask(
@@ -638,7 +652,8 @@ export default function App() {
           );
           setAttachments([]);
           const latest = useWorkspace.getState().project;
-          if (!latest || candidateSourceStatus(latest, p) === "projectChanged") throw new Error(t("Project closed during the request"));
+          if (!latest || candidateSourceStatus(latest, p) === "projectChanged")
+            throw new Error(t("Project closed during the request"));
           await update({
             ...latest,
             messages: [
@@ -674,13 +689,19 @@ export default function App() {
               setBusy(true, t("Построение и проверка геометрии"));
               try {
                 const current = useWorkspace.getState().project;
-                if (!current || candidateSourceStatus(current, p) === "projectChanged")
+                if (
+                  !current ||
+                  candidateSourceStatus(current, p) === "projectChanged"
+                )
                   throw new Error(t("Project closed during the request"));
                 if (candidateSourceStatus(current, p) !== "valid")
                   throw new Error(
                     t("Модель изменилась во время ответа. Повторите запрос."),
                   );
-                await applyModel(captureApply(p, result.program!, text), { reviewPlan: result.reviewPlan, assistantMessage: result.message });
+                await applyModel(captureApply(p, result.program!, text), {
+                  reviewPlan: result.reviewPlan,
+                  assistantMessage: result.message,
+                });
               } catch (error) {
                 const current = useWorkspace.getState().project;
                 if (current?.id === p.id)
@@ -702,7 +723,13 @@ export default function App() {
             },
             "modify_project",
             p.id,
-            native && readTypedCadDocument(result.program) ? { base: p, source: result.program, reviewPlan: result.reviewPlan } : undefined,
+            native && readTypedCadDocument(result.program)
+              ? {
+                  base: p,
+                  source: result.program,
+                  reviewPlan: result.reviewPlan,
+                }
+              : undefined,
           );
         } catch (e) {
           const latest = useWorkspace.getState().project;
@@ -737,24 +764,35 @@ export default function App() {
       "run_agent",
     );
   }
-  const resize = (side: "left" | "right", event: React.PointerEvent) => {
-    const start = event.clientX,
-      initial = side === "left" ? leftWidth : rightWidth;
-    event.currentTarget.setPointerCapture(event.pointerId);
-    const target = event.currentTarget;
-    const move = (e: Event) => {
-      const x = (e as PointerEvent).clientX;
-      const value = initial + (side === "left" ? x - start : start - x);
-      if (side === "left") setLeftWidth(Math.max(195, Math.min(340, value)));
-      else setRightWidth(Math.max(300, Math.min(540, value)));
-    };
-    const stop = () => {
-      target.removeEventListener("pointermove", move);
-      target.removeEventListener("pointerup", stop);
-    };
-    target.addEventListener("pointermove", move);
-    target.addEventListener("pointerup", stop);
-  };
+  async function openReferenceFile(file: ProjectFile) {
+    if (!project) return;
+    try {
+      if (native && /\.(step|stp)$/i.test(file.name)) {
+        await ask(
+          t("Import STEP model"),
+          t(
+            "Run the local CAD converter and create a new revision with a 3D preview.",
+          ),
+          file.name,
+          async () => {
+            setBusy(true, t("Converting STEP"));
+            try {
+              setProject(await convertStep(project.id, file.name));
+              refresh();
+            } finally {
+              setBusy(false);
+            }
+          },
+          "convert_file",
+        );
+        return;
+      }
+      const data = file.data ?? (await readProjectFile(project.id, file.name));
+      download(await (await fetch(data)).blob(), file.name);
+    } catch (cause) {
+      setError(errorText(cause));
+    }
+  }
   return (
     <div className="app-shell">
       <Modal
@@ -842,8 +880,16 @@ export default function App() {
           </span>
         )}
         <div className="topbar-actions">
-          {project && <CadTaskIndicator projectId={project.id} onError={setError} />}
-          {project && <ModelHistoryControls project={project} blocked={editingBlocked || !!pending || !!modal || loadingModel} onAction={historyAction} />}
+          {project && (
+            <CadTaskIndicator projectId={project.id} onError={setError} />
+          )}
+          {project && (
+            <ModelHistoryControls
+              project={project}
+              blocked={editingBlocked || !!pending || !!modal || loadingModel}
+              onAction={historyAction}
+            />
+          )}
           <Updates blocked={busy || !!pending || !!modal || loadingModel} />
           <AccountButton />
           <button
@@ -878,7 +924,54 @@ export default function App() {
           )}
         </div>
       </header>
-      {project && <ProjectAccessNotice projectId={project.id} {...projectAccess} onCopy={copy => { refresh(); void openProject(copy); }} onError={setError} />}
+      <MainMenu
+        groups={applicationMenus(
+          {
+            create: () => setModal("new"),
+            import: () => fileInput.current?.click(),
+            export: () => setModal("export"),
+            parameters: () => setModal("parameters"),
+            palette: () => setModal("palette"),
+            settings: (page) => {
+              if (page) persist("forma.ui.settingsPage", JSON.stringify(page));
+              setModal("settings");
+            },
+            workspaces: () =>
+              document
+                .querySelector<HTMLElement>(
+                  '[role="tablist"][aria-label="' +
+                    t("Workspaces") +
+                    '"] button',
+                )
+                ?.focus(),
+          },
+          !!project,
+          editingBlocked,
+        )}
+      />
+      {project && (
+        <ProjectAccessNotice
+          projectId={project.id}
+          {...projectAccess}
+          onCopy={(copy) => {
+            refresh();
+            void openProject(copy);
+          }}
+          onError={setError}
+        />
+      )}
+      {project && (
+        <ProjectTabs
+          projects={projects.data ?? [project]}
+          activeId={project.id}
+          blocked={busy}
+          onSelect={(item) => void openProject(item)}
+          onHome={() => {
+            setProject(null);
+            nav("/");
+          }}
+        />
+      )}
       {!project ? (
         <Dashboard
           projects={projects.data ?? []}
@@ -905,7 +998,10 @@ export default function App() {
               t("Save a portable copy of this project."),
               item.name,
               async () => {
-                const path = await exportProjectBundle(item.id, redactConversation);
+                const path = await exportProjectBundle(
+                  item.id,
+                  redactConversation,
+                );
                 if (path) setNotice(t("Project bundle exported"));
               },
               "export_file",
@@ -927,465 +1023,200 @@ export default function App() {
         />
       ) : (
         <div
-          className="workspace"
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => {
-            e.preventDefault();
-            if (!busy) void importFiles(e.dataTransfer.files);
+          className="workspace workspace-area-container"
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={(event) => {
+            event.preventDefault();
+            if (!busy) void importFiles(event.dataTransfer.files);
           }}
         >
-          {leftOpen && (
-            <>
-              <aside className="left-panel" style={{ width: leftWidth }}>
-                <div className="panel-heading">
-                  <span>{t("PROJECT")}</span>
-                  <IconButton
-                    label={t("Collapse project panel")}
-                    onClick={() => setLeftOpen(false)}
-                  >
-                    <PanelLeftClose size={15} />
-                  </IconButton>
-                </div>
-                <div className="project-title">
-                  <span className="project-symbol">
-                    <Box size={20} />
-                  </span>
-                  <div>
-                    <strong>{project.name}</strong>
-                    <small>
-                      {project.agent === "codex"
-                        ? "Codex"
-                        : project.agent === "claude"
-                          ? "Claude Code"
-                          : t("Custom agent")}{" "}
-                      <span>·</span> {t(project.units)}
-                    </small>
-                  </div>
-                  <IconButton
-                    label={t("Duplicate project")}
-                    disabled={editingBlocked}
-                    onClick={() =>
-                      void ask(
-                        t("Duplicate project"),
-                        t(
-                          "Create an independent project with the same files and history.",
-                        ),
-                        project.name,
-                        async () => {
-                          const duplicate = {
-                            ...project,
-                            id: crypto.randomUUID(),
-                            name: t("{{value0}} copy", {
-                              value0: project.name,
-                            }),
-                            createdAt: stamp(),
-                            updatedAt: stamp(),
-                          };
-                          await openProject(await saveProject(duplicate));
-                        },
+          <WorkspaceShell
+            key={project.id}
+            projectId={project.id}
+            slots={{
+              viewport3d: (
+                <ModelViewport
+                  projectId={project.id}
+                  object={object}
+                  before={before}
+                  interactive={
+                    !committedScene.hasFile || committedScene.interactive
+                  }
+                  targetRevision={revision?.id ?? ""}
+                  displayedRevision={committedScene.displayed?.revisionId ?? ""}
+                  phase={committedScene.phase}
+                  loading={loadingModel}
+                  failed={committedScene.failed}
+                  failure={errorText(committedScene.cause)}
+                  retainedLabel={retainedLabel}
+                  onRetry={committedScene.retry}
+                  onScreenshot={(data) => void captureScreenshot(data)}
+                />
+              ),
+              outliner: (
+                <Outliner
+                  project={project}
+                  bodies={bodies}
+                  source={displayedRevision?.program ?? revision?.program ?? ""}
+                  selected={selected}
+                  featureId={selectedFeatureId}
+                  hidden={hiddenBodies}
+                  locked={lockedBodies}
+                  onSelect={(id) => {
+                    setSelected(id);
+                    setSelectedFeatureId(null);
+                  }}
+                  onFeature={setSelectedFeatureId}
+                  onVisibility={(key) =>
+                    setHiddenBodies((current) =>
+                      current.includes(key)
+                        ? current.filter((value) => value !== key)
+                        : [...current, key],
+                    )
+                  }
+                  onLock={(key) =>
+                    setLockedBodies((current) =>
+                      current.includes(key)
+                        ? current.filter((value) => value !== key)
+                        : [...current, key],
+                    )
+                  }
+                  onEdit={() => setModal("parameters")}
+                />
+              ),
+              files: (
+                <ProjectFilesPanel
+                  files={referenceFiles}
+                  revision={revision}
+                  blocked={editingBlocked}
+                  onImport={() => fileInput.current?.click()}
+                  onEdit={() => setModal("parameters")}
+                  onOpen={(file) => void openReferenceFile(file)}
+                />
+              ),
+              parameters: (
+                <PropertiesPanel
+                  source={displayedRevision?.program ?? revision?.program ?? ""}
+                  featureId={null}
+                  onEdit={() => setModal("parameters")}
+                  initialTab="parameters"
+                >
+                  {null}
+                </PropertiesPanel>
+              ),
+              properties: (
+                <PropertiesPanel
+                  source={displayedRevision?.program ?? revision?.program ?? ""}
+                  featureId={selectedFeatureId}
+                  onEdit={() => setModal("parameters")}
+                >
+                  <SelectionModelProperties
+                    selectedBodyId={selected}
+                    sceneToken={committedScene.selectionScene.token}
+                    interactive={committedScene.interactive && !compare}
+                    hostAvailable={
+                      native &&
+                      !!agentEnvironment.data?.some(
+                        (item) =>
+                          item.name === "OpenCascade kernel" && item.available,
                       )
                     }
-                  >
-                    <Copy size={13} />
-                  </IconButton>
-                </div>
-                <div className="panel-tabs">
-                  <button
-                    className={tab === "files" ? "active" : ""}
-                    onClick={() => setTab("files")}
-                  >
-                    <Folder size={14} />
-                    {t("Files")}
-                  </button>
-                  <button
-                    className={tab === "history" ? "active" : ""}
-                    onClick={() => setTab("history")}
-                  >
-                    <History size={14} />
-                    {t("History")}
-                    <span>{project.revisions.length}</span>
-                  </button>
-                </div>
-                <div className="panel-scroll">
-                  {tab === "files" ? (
-                    <>
-                      <div className="tree-heading">
-                        <span>{t("MODEL TREE")}</span>
-                        <IconButton
-                          label={t("Edit model parameters")}
-                          disabled={editingBlocked}
-                          onClick={() => setModal("parameters")}
-                        >
-                          <SlidersHorizontal size={13} />
-                        </IconButton>
-                      </div>
-                      <TreeFolder
-                        folderId="assembly"
-                        title={t("Assembly")}
-                        count={stats.bodies}
-                      >
-                        {bodies.map((o, i) => (
-                          <div
-                            key={o.uuid}
-                            className={`tree-row body-row ${selected === o.name ? "selected" : ""}`}
-                          >
-                            <button
-                              className="body-select"
-                              onClick={() => setSelected(o.name)}
-                            >
-                              <Box size={14} />
-                              {bodyLabel(o) ||
-                                t("Body {{value0}}", { value0: i + 1 })}
-                            </button>
-                            <IconButton
-                              label={`${hiddenBodies.includes(`${i}:${o.name}`) ? t("Show") : t("Hide")} ${bodyLabel(o) || t("Body {{value0}}", { value0: i + 1 })}`}
-                              onClick={() =>
-                                setHiddenBodies((current) => {
-                                  const next = new Set(current);
-                                  if (next.has(`${i}:${o.name}`))
-                                    next.delete(`${i}:${o.name}`);
-                                  else next.add(`${i}:${o.name}`);
-                                  return [...next];
-                                })
-                              }
-                            >
-                              {hiddenBodies.includes(`${i}:${o.name}`) ? (
-                                <EyeOff size={13} />
-                              ) : (
-                                <Eye size={13} />
-                              )}
-                            </IconButton>
-                          </div>
-                        ))}
-                      </TreeFolder>
-                      <div className="tree-heading files-heading">
-                        <span>{t("PROJECT FILES")}</span>
-                        <IconButton
-                          label={t("Import files")}
-                          disabled={editingBlocked}
-                          onClick={() => fileInput.current?.click()}
-                        >
-                          <Plus size={14} />
-                        </IconButton>
-                      </div>
-                      <TreeFolder folderId="workspace" title={t("workspace")}>
-                        {revision && (
-                          <button
-                            className="tree-row file-row"
-                            onClick={() => setModal("parameters")}
-                          >
-                            <FileBox size={14} />
-                            {revision.program
-                              ? revision.program.trimStart().startsWith("{")
-                                ? "model.cad.json"
-                                : "model.py"
-                              : "model.parameters.json"}
-                          </button>
-                        )}
-                      </TreeFolder>
-                      <TreeFolder
-                        folderId="attachments"
-                        title={t("attachments")}
-                        count={referenceFiles.length}
-                      >
-                        {referenceFiles.map((f) => (
-                          <button
-                            className="tree-row file-row"
-                            key={f.name}
-                            onClick={async () => {
-                              try {
-                                if (native && /\.(step|stp)$/i.test(f.name)) {
-                                  await ask(
-                                    t("Import STEP model"),
-                                    t(
-                                      "Run the local CAD converter and create a new revision with a 3D preview.",
-                                    ),
-                                    f.name,
-                                    async () => {
-                                      setBusy(true, t("Converting STEP"));
-                                      try {
-                                        setProject(
-                                          await convertStep(project.id, f.name),
-                                        );
-                                        refresh();
-                                      } finally {
-                                        setBusy(false);
-                                      }
-                                    },
-                                    "convert_file",
-                                  );
-                                  return;
-                                }
-                                const data =
-                                  f.data ??
-                                  (await readProjectFile(project.id, f.name));
-                                download(
-                                  await (await fetch(data)).blob(),
-                                  f.name,
-                                );
-                              } catch (error) {
-                                setError(String(error));
-                              }
-                            }}
-                          >
-                            {f.kind === "image" ? (
-                              <FileImage size={14} />
-                            ) : (
-                              <FileBox size={14} />
-                            )}
-                            <span className="truncate">{f.name}</span>
-                          </button>
-                        ))}
-                      </TreeFolder>
-                      <TreeFolder
-                        folderId="revisions"
-                        title={t("Revisions")}
-                        count={project.revisions.length}
-                        initial={false}
-                      >
-                        {project.revisions.map((r, i) => (
-                          <button
-                            className="tree-row file-row"
-                            key={r.id}
-                            onClick={() => {
-                              setTab("history");
-                              requestAnimationFrame(() =>
-                                document
-                                  .getElementById(`revision-${r.id}`)
-                                  ?.scrollIntoView({
-                                    behavior: "smooth",
-                                    block: "center",
-                                  }),
-                              );
-                            }}
-                          >
-                            <History size={13} />
-                            <span>
-                              {t("Revision")} {i + 1}
-                            </span>
-                          </button>
-                        ))}
-                      </TreeFolder>
-                      <TreeFolder
-                        folderId="exports"
-                        title={t("exports")}
-                        count={project.exports.length}
-                      >
-                        {project.exports.map((e, i) => (
-                          <button
-                            className="tree-row file-row"
-                            key={`${e.name}-${i}`}
-                            onClick={() => setExportInfo(e)}
-                          >
-                            <Download size={13} />
-                            <span className="truncate">{e.name}</span>
-                          </button>
-                        ))}
-                      </TreeFolder>
-                    </>
-                  ) : (
-                    <div className="revision-list">
-                      {[...project.revisions].reverse().map((r, i) => (
-                        <div
-                          id={`revision-${r.id}`}
-                          className={`revision-item ${r.id === project.currentRevision ? "current" : ""}`}
-                          key={r.id}
-                        >
-                          <div>
-                            <GitBranch size={14} />
-                            <strong>
-                              {t("Revision")} {project.revisions.length - i}
-                            </strong>
-                            {r.id === project.currentRevision && (
-                              <span>{t("Current")}</span>
-                            )}
-                          </div>
-                          <p>{revisionPrompt(r.prompt)}</p>
-                          <small>
-                            {date(r.createdAt)} ·{" "}
-                            {new Date(r.createdAt).toLocaleTimeString(
-                              getLocale(),
-                              {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              },
-                            )}
-                          </small>
-                          <div className="revision-actions">
-                            <button
-                              disabled={
-                                busy || r.id === project.currentRevision
-                              }
-                              onClick={() =>
-                                void ask(
-                                  t("Restore this revision"),
-                                  t(
-                                    "The current history will be preserved. Restoration creates a new revision.",
-                                  ),
-                                  r.prompt,
-                                  () =>
-                                    revise(
-                                      r.parameters,
-                                      t("Restored revision {{value0}}", {
-                                        value0:
-                                          project.revisions.indexOf(r) + 1,
-                                      }),
-                                      r.source,
-                                      r.preview,
-                                      r.program,
-                                      r.programBase,
-                                    ),
-                                )
-                              }
-                            >
-                              <Undo2 size={12} />
-                              {t("Restore")}
-                            </button>
-                            <button
-                              disabled={editingBlocked}
-                              onClick={() =>
-                                setCompare(compare === r.id ? null : r.id)
-                              }
-                            >
-                              {compare === r.id
-                                ? t("Close comparison")
-                                : t("Compare")}
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <SelectionModelProperties
-                  selectedBodyId={selected}
-                  sceneToken={committedScene.selectionScene.token}
-                  interactive={committedScene.interactive && !compare}
-                  hostAvailable={native && !!agentEnvironment.data?.some(item => item.name === "OpenCascade kernel" && item.available)}
-                  project={project}
-                  revision={displayedRevision}
-                  selectedLabel={selectedLabel ?? null}
-                  selectedFace={selectedFace}
-                  selectedFaceAreaMm2={selectedFaceAreaMm2}
-                  selectedEdge={selectedEdge}
-                  selectedEdgeLengthMm={selectedEdgeLengthMm}
-                  selectedEdgeRadiusMm={selectedEdgeRadiusMm}
-                  stats={stats}
-                  thickness={displayedRevision?.parameters.thickness ?? parameters.thickness}
-                  onEditParameters={() => setModal("parameters")}
-                />
-                {compare && project.currentRevision && compare !== project.currentRevision &&
-                  <RevisionComparison project={project} fromRevisionId={compare} toRevisionId={project.currentRevision} />}
-              </aside>
-              <div
-                role="separator"
-                aria-label={t("Resize project panel")}
-                aria-orientation="vertical"
-                className="resize-handle"
-                onPointerDown={(e) => resize("left", e)}
-              />
-            </>
-          )}
-          <section className="center-panel">
-            <div className="document-tabs">
-              {!leftOpen && (
-                <IconButton
-                  label={t("Open project panel")}
-                  onClick={() => setLeftOpen(true)}
-                >
-                  <Folder size={15} />
-                </IconButton>
-              )}
-              <div className="document-tab">
-                <Box size={14} />
-                {revision?.program
-                  ? t("Model")
-                  : (revision?.source ?? t("Model"))}
-                <span className="tab-dot" />
-              </div>
-              {compare && (
-                <button onClick={() => setCompare(null)}>
-                  {t("Comparison")}
-                  <X size={13} />
-                </button>
-              )}
-              <span className="document-tab-space" />
-              <span className="revision-badge">
-                {project.revisions.length
-                  ? t("Revision {{value0}}", {
-                      value0:
-                        project.revisions.findIndex(
-                          (r) => r.id === project.currentRevision,
-                        ) + 1,
-                    })
-                  : t("No revisions")}
-              </span>
-            </div>
-            <div className={`viewer-area ${before ? "comparison" : ""}`} data-displayed-revision={committedScene.displayed?.revisionId ?? ""} data-target-revision={revision?.id ?? ""} data-scene-phase={committedScene.phase}>
-              <ViewerBoundary key={project.id}>
-                <Suspense
-                  fallback={
-                    <div className="empty-state">
-                      <LoaderCircle className="spin" />
-                      {t("Loading 3D workspace…")}
-                    </div>
-                  }
-                >
-                  {before && (
-                    <Viewer
-                      object={before}
-                      comparison
-                      onScreenshot={(data) => void captureScreenshot(data)}
-                    />
-                  )}
-                  <Viewer
-                    object={object}
-                    interactive={!committedScene.hasFile || committedScene.interactive}
-                    onScreenshot={(data) => void captureScreenshot(data)}
+                    project={project}
+                    revision={displayedRevision}
+                    selectedLabel={selectedLabel ?? null}
+                    selectedFace={selectedFace}
+                    selectedFaceAreaMm2={selectedFaceAreaMm2}
+                    selectedEdge={selectedEdge}
+                    selectedEdgeLengthMm={selectedEdgeLengthMm}
+                    selectedEdgeRadiusMm={selectedEdgeRadiusMm}
+                    stats={stats}
+                    thickness={
+                      displayedRevision?.parameters.thickness ??
+                      parameters.thickness
+                    }
+                    onEditParameters={() => setModal("parameters")}
                   />
-                </Suspense>
-              </ViewerBoundary>
-              {loadingModel && (
-                <div className="model-loading">
-                  <LoaderCircle className="spin" />
-                  {t("Reading geometry…")}
-                  {retainedLabel && <small>{retainedLabel}</small>}
-                </div>
-              )}
-              {committedScene.failed && <div className="model-loading" role="alert"><AlertCircle size={16} /><span>{t("The committed preview could not be loaded. The previous valid model is shown when available.")}</span>{retainedLabel && <small>{retainedLabel}</small>}<small>{errorText(committedScene.cause)}</small><Button onClick={committedScene.retry}>{t("Retry preview loading")}</Button></div>}
-            </div>
-            <div className="model-bottom">
-              <span>
-                <Box size={12} />
-                {quantity("bodies", stats.bodies)}
-              </span>
-              <span>
-                {selected
-                  ? t("{{value0}} selected", {
-                      value0: selectedLabel ?? selected,
-                    })
-                  : t("No selection")}
-              </span>
-            </div>
-          </section>
-          <div
-            role="separator"
-            aria-label={t("Resize assistant panel")}
-            aria-orientation="vertical"
-            className="resize-handle"
-            onPointerDown={(e) => resize("right", e)}
-          />
-          <aside className="chat-panel" style={{ width: rightWidth }}>
-            <div className="chat-header">
-              <span>
-                <Sparkles size={16} />
-                {t("Assistant")}
-              </span>
-              <div>
-                <IconButton
-                  label={t("Start a fresh conversation")}
-                  disabled={busy || !chatMessages.length}
-                  onClick={() =>
+                  {compare &&
+                    project.currentRevision &&
+                    compare !== project.currentRevision && (
+                      <RevisionComparison
+                        project={project}
+                        fromRevisionId={compare}
+                        toRevisionId={project.currentRevision}
+                      />
+                    )}
+                </PropertiesPanel>
+              ),
+              history: (
+                <RevisionList
+                  project={project}
+                  blocked={editingBlocked}
+                  compare={compare}
+                  onCompare={setCompare}
+                  onRestore={(item) =>
+                    void ask(
+                      t("Restore this revision"),
+                      t(
+                        "The current history will be preserved. Restoration creates a new revision.",
+                      ),
+                      item.prompt,
+                      () =>
+                        revise(
+                          item.parameters,
+                          t("Restored revision {{value0}}", {
+                            value0: project.revisions.indexOf(item) + 1,
+                          }),
+                          item.source,
+                          item.preview,
+                          item.program,
+                          item.programBase,
+                        ),
+                    )
+                  }
+                />
+              ),
+              ai: (
+                <AssistantPanel
+                  project={project}
+                  messages={chatMessages}
+                  events={liveEvents}
+                  busy={chatBusy}
+                  blocked={editingBlocked}
+                  stage={useWorkspace.getState().stage}
+                  prompt={prompt}
+                  onPrompt={setPrompt}
+                  inputRef={chatInput}
+                  attachments={attachments}
+                  selectedLabel={selectedLabel ?? null}
+                  status={
+                    !native
+                      ? t("Desktop only")
+                      : liveEvents.some((event) => event.kind === "connected")
+                        ? t("Connected")
+                        : agentEnvironment.isFetching
+                          ? t("Checking…")
+                          : agentEnvironment.data?.find(
+                                (item) =>
+                                  item.name ===
+                                  (project.agent === "codex"
+                                    ? "OpenAI Codex"
+                                    : project.agent === "claude"
+                                      ? "Claude Code"
+                                      : "Custom CLI"),
+                              )?.available
+                            ? t("Installed")
+                            : t("Not found")
+                  }
+                  onSend={() => void send()}
+                  onAttach={() => fileInput.current?.click()}
+                  onRemoveAttachment={(index) =>
+                    setAttachments((current) =>
+                      current.filter((_, i) => i !== index),
+                    )
+                  }
+                  onClearSelection={() => setSelected(null)}
+                  onSettings={() => setModal("settings")}
+                  onFresh={() =>
                     void ask(
                       t("Start a fresh conversation"),
                       t(
@@ -1395,290 +1226,31 @@ export default function App() {
                       () => update({ ...project, messages: [] }),
                     )
                   }
-                >
-                  <Plus size={16} />
-                </IconButton>
-              </div>
-            </div>
-            <button
-              className="agent-picker"
-              onClick={() => setModal("settings")}
-            >
-              <span className="agent-logo">
-                <Command size={15} />
-              </span>
-              {project.agent === "codex"
-                ? "OpenAI Codex"
-                : project.agent === "claude"
-                  ? "Claude Code"
-                  : t("Custom agent")}
-              <span className="agent-local">
-                {!native
-                  ? t("Desktop only")
-                  : liveEvents.some((e) => e.kind === "connected")
-                    ? t("Connected")
-                    : agentEnvironment.isFetching
-                      ? t("Checking…")
-                      : agentEnvironment.data?.find(
-                            (h) =>
-                              h.name ===
-                              (project.agent === "codex"
-                                ? "OpenAI Codex"
-                                : "Claude Code"),
-                          )?.available
-                        ? t("Installed")
-                        : t("Not found")}
-              </span>
-              <ChevronDown size={12} />
-            </button>
-            <div className="chat-scroll">
-              {chatMessages.length === 0 ? (
-                <>
-                  <div className="assistant-welcome">
-                    <div className="welcome-icon">
-                      <Sparkles size={24} />
-                    </div>
-                    <h2>{t("What will we make?")}</h2>
-                    <p>
-                      {t("Describe a part, explore an idea,")}
-                      <br />
-                      {t("or refine what’s already here.")}
-                    </p>
-                  </div>
-                  <div className="suggestions">
-                    <span>{t("A FEW PLACES TO START")}</span>
-                    {[
-                      "Создай шестерёнку с 20 зубьями",
-                      "Change the mounting holes to 6 mm",
-                      "Создай фигурку кота высотой 60 мм",
-                    ].map((suggestion) => (
-                      <button
-                        key={suggestion}
-                        onClick={() => {
-                          setPrompt(t(suggestion));
-                          chatInput.current?.focus();
-                        }}
-                      >
-                        <Box size={14} />
-                        {t(suggestion)}
-                        <ArrowUpRight size={13} />
-                      </button>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                chatMessages.map((m) => (
-                  <motion.div
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`message ${m.role}`}
-                    key={m.id}
-                  >
-                    {m.role === "user" ? (
-                      <div className="message-label">
-                        {t("You")}{" "}
-                        <time>
-                          {new Date(m.createdAt).toLocaleTimeString(
-                            getLocale(),
-                            {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            },
-                          )}
-                        </time>
-                      </div>
-                    ) : m.role === "event" ? (
-                      <CircleCheck size={15} />
-                    ) : m.role === "error" ? (
-                      <AlertCircle size={15} />
-                    ) : (
-                      <div className="message-label">
-                        <Sparkles size={13} />{" "}
-                        {project.agent === "codex" ? "Codex" : "Claude"}
-                        <time>
-                          {new Date(m.createdAt).toLocaleTimeString(
-                            getLocale(),
-                            {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            },
-                          )}
-                        </time>
-                      </div>
-                    )}
-                    <MessageText
-                      text={m.role === "event" ? systemText(m.text) : m.text}
-                      error={m.role === "error"}
-                    />
-                    {m.role === "assistant" && (
-                      <button
-                        className="message-copy"
-                        aria-label={t("Copy assistant message")}
-                        onClick={() =>
-                          void navigator.clipboard
-                            .writeText(m.text)
-                            .then(() => setNotice(t("Message copied")))
-                            .catch((e) => setError(errorText(e)))
-                        }
-                      >
-                        <Copy size={12} />
-                      </button>
-                    )}
-                    {m.role === "error" &&
-                      !/usage limit|rate limit|quota/i.test(m.text) &&
-                      chatMessages.some(
-                        (message) => message.role === "user",
-                      ) && (
-                        <button
-                          onClick={() => {
-                            const last = [...chatMessages]
-                              .reverse()
-                              .find((m) => m.role === "user");
-                            if (last) setPrompt(last.text);
-                          }}
-                        >
-                          {t("Edit and retry")}
-                          <ArrowUpRight size={12} />
-                        </button>
-                      )}
-                  </motion.div>
-                ))
-              )}
-              {chatBusy && liveEvents.length > 0 && (
-                <div className="live-feed" aria-live="polite">
-                  {liveEvents.map((event, index) => (
-                    <div key={index} className={`live-event ${event.kind}`}>
-                      <span className="live-dot" />
-                      <p>
-                        {event.kind === "message"
-                          ? event.text
-                          : systemText(event.text)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {chatBusy && (
-                <div className="task-timeline">
-                  <LoaderCircle size={16} className="spin" />
-                  <div>
-                    <strong>{systemText(useWorkspace.getState().stage)}</strong>
-                    <p>
-                      {systemText(
-                        liveEvents.at(-1)?.text ??
-                          t("Starting a local session…"),
-                      )}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() =>
-                      void cancelTask(project.id).catch((e) =>
-                        setError(errorText(e)),
-                      )
-                    }
-                  >
-                    <Square size={12} />
-                    {t("Stop")}
-                  </button>
-                </div>
-              )}
-              <div ref={end} />
-            </div>
-            <div className="composer-wrap">
-              {selected && (
-                <div className="selection-context">
-                  <Box size={12} />
-                  {selectedLabel}
-                  <button onClick={() => setSelected(null)}>
-                    <X size={12} />
-                  </button>
-                </div>
-              )}
-              {attachments.length > 0 && (
-                <div className="attachment-chips">
-                  {attachments.map((a, i) => (
-                    <span key={`${a.name}-${i}`}>
-                      {a.kind === "image" && a.data && (
-                        <img src={a.data} alt="" />
-                      )}
-                      {a.name}
-                      <button
-                        aria-label={t("Remove {{value0}}", { value0: a.name })}
-                        onClick={() =>
-                          setAttachments((old) => old.filter((_, j) => j !== i))
-                        }
-                      >
-                        <X size={11} />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-              <div className="composer">
-                <textarea
-                  ref={chatInput}
-                  aria-label={t("Message your CAD assistant")}
-                  placeholder={t("Describe your next change…")}
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                      e.preventDefault();
-                      void send();
-                    }
-                  }}
+                  onCancel={() =>
+                    void cancelTask(project.id).catch((cause) =>
+                      setError(errorText(cause)),
+                    )
+                  }
+                  onNotice={setNotice}
+                  onError={setError}
                 />
-                <div className="composer-actions">
-                  <IconButton
-                    label={t("Attach a file")}
-                    disabled={editingBlocked}
-                    onClick={() => fileInput.current?.click()}
-                  >
-                    <Paperclip size={16} />
-                  </IconButton>
-                  <span>{t("CAD context included")}</span>
-                  <button
-                    className="send-button"
-                    aria-label={t("Send prompt")}
-                    disabled={!prompt.trim() || editingBlocked}
-                    onClick={() => void send()}
-                  >
-                    {busy ? (
-                      <LoaderCircle size={16} className="spin" />
-                    ) : (
-                      <ArrowUp size={17} />
-                    )}
-                  </button>
-                </div>
-              </div>
-              <div className="composer-hint">
-                <span>{t("Ctrl ↵ to send")}</span>
-              </div>
-            </div>
-          </aside>
+              ),
+              tasks: <CadTaskPanel onError={setError} />,
+              activity: <ActivityPanel messages={project.messages} />,
+              logs: <ActivityPanel messages={project.messages} errorsOnly />,
+            }}
+          />
         </div>
       )}
-      <footer className="statusbar">
-        <span className="status-dot" />
-        <span>
-          {busy
-            ? chatBusy
-              ? t("Agent working")
-              : systemText(useWorkspace.getState().stage)
-            : native
-              ? t("Local workspace ready")
-              : t("Browser workspace · desktop required for AI")}
-        </span>
-        {project && (
-          <>
-            <span className="status-separator" />
-            <GitBranch size={11} />
-            <span>{quantity("revisions", project.revisions.length)}</span>
-          </>
-        )}
-        <span className="statusbar-spacer" />
-        <span>v{appVersion}</span>
-      </footer>
+      <StatusBar
+        busy={busy}
+        chatBusy={chatBusy}
+        stage={useWorkspace.getState().stage}
+        native={native}
+        revisions={project?.revisions.length ?? null}
+        units={project?.units}
+        version={appVersion}
+      />
       <input
         ref={fileInput}
         type="file"
@@ -1705,7 +1277,10 @@ export default function App() {
           {systemText(notice)}
         </div>
       )}
-      <ActionReviewDialog pending={pending} onDecision={allow => void approve(allow)} />
+      <ActionReviewDialog
+        pending={pending}
+        onDecision={(allow) => void approve(allow)}
+      />
       <Modal
         open={!!exportInfo}
         onClose={() => setExportInfo(null)}
@@ -1835,18 +1410,20 @@ export default function App() {
         </form>
       </Modal>
       <NewProjectDialog
-        importNames={attachments.map(file => file.name)}
+        importNames={attachments.map((file) => file.name)}
         open={modal === "new"}
         close={() => setModal(null)}
         onCreate={async (p) => {
           try {
-            if (attachments.length) p = (await prepareProjectImport(p, attachments)).project;
+            if (attachments.length)
+              p = (await prepareProjectImport(p, attachments)).project;
             const saved = await saveProject(p);
             await openProject(saved);
             setModal(null);
             setAttachments([]);
             refresh();
-            const step = native && attachments.find(f => /\.st(e)?p$/i.test(f.name));
+            const step =
+              native && attachments.find((f) => /\.st(e)?p$/i.test(f.name));
             if (step) await importStepIntoScene(saved, step.name);
           } catch (e) {
             setError(errorText(e));
@@ -1868,12 +1445,20 @@ export default function App() {
           source={revision?.program ?? ""}
           importedSource={revision?.source}
           disabled={editingBlocked}
-          nativeCadAvailable={agentEnvironment.data?.some((item) => item.name === "OpenCascade kernel" && item.available) ?? false}
+          nativeCadAvailable={
+            agentEnvironment.data?.some(
+              (item) => item.name === "OpenCascade kernel" && item.available,
+            ) ?? false
+          }
           nativeCadChecked={!!agentEnvironment.data}
           onApply={(program) => {
             const base = useWorkspace.getState().project;
             if (!base) return;
-            const captured = captureApply(base, program, t("Изменён исходный код модели"));
+            const captured = captureApply(
+              base,
+              program,
+              t("Изменён исходный код модели"),
+            );
             setModal(null);
             void ask(
               t("Построить модель"),
@@ -1887,7 +1472,9 @@ export default function App() {
                 } finally {
                   setBusy(false);
                 }
-              }, "modify_project", base.id,
+              },
+              "modify_project",
+              base.id,
             );
           }}
         />
@@ -1942,7 +1529,10 @@ export default function App() {
                     t("STEP export of imported meshes is not supported."),
                   );
                 const path = await exportStep(project.id, parameters, bodyId);
-                if (!path) { setNotice(t("Export cancelled")); return; }
+                if (!path) {
+                  setNotice(t("Export cancelled"));
+                  return;
+                }
                 setNotice(t("STEP exported to {{value0}}", { value0: path }));
               } else {
                 const blob = await exportMesh(object, format, bodyId);
@@ -1965,6 +1555,27 @@ export default function App() {
         }}
       />
       <CommandPalette
+        onSettingsPage={(page) => {
+          persist("forma.ui.settingsPage", JSON.stringify(page));
+          setModal("settings");
+        }}
+        activeProject={project}
+        onEntity={(kind, id) => {
+          if (!project) return;
+          if (kind === "body") {
+            setSelected(id);
+            setSelectedFeatureId(null);
+            showWorkspaceEditor(project.id, "outliner");
+          } else if (kind === "feature") {
+            setSelectedFeatureId(id);
+            showWorkspaceEditor(project.id, "properties");
+          } else if (kind === "parameter")
+            showWorkspaceEditor(project.id, "parameters");
+          else {
+            setCompare(id === project.currentRevision ? null : id);
+            showWorkspaceEditor(project.id, "history");
+          }
+        }}
         open={modal === "palette"}
         close={() => setModal(null)}
         search={search}
@@ -1983,10 +1594,14 @@ export default function App() {
         onParameters={() => setModal("parameters")}
         onAsk={() => {
           setModal(null);
-          chatInput.current?.focus();
+          if (project) showWorkspaceEditor(project.id, "ai");
+          requestAnimationFrame(() => chatInput.current?.focus());
         }}
         onSettings={() => setModal("settings")}
-        extraCommands={pluginPaletteCommands(plugins.data ?? [], () => setModal(null))}
+        extraCommands={[
+          ...pluginPaletteCommands(plugins.data ?? [], () => setModal(null)),
+          ...workspacePaletteCommands(project?.id),
+        ]}
       />
       <PluginHost
         project={project}

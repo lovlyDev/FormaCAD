@@ -1,0 +1,9 @@
+.palette-list button.active {
+  background: var(--panel2);
+  box-shadow: inset 2px 0 var(--accent);
+}
+.palette-list > p {
+  padding: 16px;
+  color: var(--muted);
+  font-size: 12px;
+}

@@ -1,0 +1,32 @@
+.project-tabs {
+  display: flex;
+  gap: 4px;
+  min-height: 34px;
+  padding: 3px 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+.project-tabs > button {
+  padding: 3px 8px;
+}
+.project-tab {
+  display: flex;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.project-tab.is-active {
+  border-color: var(--line);
+  background: var(--panel2);
+}
+.project-tab > button:first-child {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+.project-tab > button:last-child {
+  padding: 4px 6px;
+  color: var(--muted);
+}

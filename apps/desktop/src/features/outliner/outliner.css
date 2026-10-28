@@ -1,0 +1,81 @@
+.outliner {
+  font-size: 12px;
+  padding: 8px;
+}
+.outliner-search input {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 6px 8px;
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.outliner-project {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.outliner-project strong {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.outliner-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.outliner-row > button:first-child {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  padding: 7px 4px;
+  text-align: left;
+  border-radius: 3px;
+}
+.outliner-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.outliner-row .icon-button {
+  width: 24px;
+  height: 26px;
+  min-width: 24px;
+}
+.outliner .is-selected {
+  background: var(--panel2);
+  color: var(--accent);
+  box-shadow: inset 2px 0 var(--accent);
+}
+.outliner-feature {
+  display: flex;
+  gap: 5px;
+  width: 100%;
+  padding: 6px 5px 6px 20px;
+  text-align: left;
+}
+.outliner small {
+  color: var(--muted);
+  margin-left: auto;
+  font-size: 10px;
+}
+.outliner-unassigned {
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+  padding-top: 10px;
+}
+.outliner-unassigned h4 {
+  margin-bottom: 6px;
+  color: var(--muted);
+}
+.outliner-unassigned button {
+  display: flex;
+  width: 100%;
+  padding: 5px;
+  text-align: left;
+  gap: 5px;
+}

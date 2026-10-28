@@ -95,12 +95,17 @@ async function legacyProject(page: Page, name = "Precision bracket") {
   await expect(page.locator("canvas")).toBeVisible();
 }
 
-test("local geometry work does not appear as an agent chat task", async ({ page }) => {
+test("local geometry work does not appear as an agent chat task", async ({
+  page,
+}) => {
   await legacyProject(page);
   await page.evaluate(async () => {
-    const path = performance.getEntriesByType("resource")
-      .map((entry) => entry.name)
-      .find((url) => url.includes("/src/stores/workspace.ts")) ?? "/src/stores/workspace.ts";
+    const path =
+      performance
+        .getEntriesByType("resource")
+        .map((entry) => entry.name)
+        .find((url) => url.includes("/src/stores/workspace.ts")) ??
+      "/src/stores/workspace.ts";
     const { useWorkspace } = await import(path);
     useWorkspace.getState().setBusy(true, "Building geometry");
   });
@@ -109,7 +114,9 @@ test("local geometry work does not appear as an agent chat task", async ({ page 
   await expect(page.locator(".statusbar")).not.toContainText("Agent working");
 });
 
-test("typed sketch editor changes workplane and length without losing feature IDs", async ({ page }) => {
+test("typed sketch editor changes workplane and length without losing feature IDs", async ({
+  page,
+}) => {
   await legacyProject(page, "Sketch workspace");
   await page.evaluate(async () => {
     const { createStarterSketch } = await import("/src/lib/sketchDocument.ts");
@@ -118,15 +125,24 @@ test("typed sketch editor changes workplane and length without losing feature ID
     localStorage.setItem("forma.projects.v1", JSON.stringify(projects));
   });
   await page.reload();
-  await page.getByRole("button", { name: "Edit model parameters", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Edit model parameters", exact: true })
+    .click();
   await page.getByText("Edit 2D sketch", { exact: true }).click();
   await expect(page.getByRole("img", { name: "Sketch preview" })).toBeVisible();
   await selectValue(page, page.getByLabel("Sketch plane"), "xz");
-  await page.getByRole("button", { name: "Length", exact: true }).first().click();
+  await page
+    .getByRole("button", { name: "Length", exact: true })
+    .first()
+    .click();
   await page.getByLabel("Length in mm").fill("50");
   const source = JSON.parse(await page.getByLabel("CAD source").inputValue());
   expect(source.features[0].operation.plane).toBe("xz");
-  expect(source.features[0].operation.constraints.find((item: { kind: string }) => item.kind === "length").distance.mm).toBe(50);
+  expect(
+    source.features[0].operation.constraints.find(
+      (item: { kind: string }) => item.kind === "length",
+    ).distance.mm,
+  ).toBe(50);
   expect(source.features[1].operation.sketchId).toBe("sketch_1");
   expect(source.bodies[0].sourceFeatureId).toBe("pad_1");
 });
@@ -255,7 +271,9 @@ test("custom controls, folders and persisted confirmation policy", async ({
   await expect(
     page.getByRole("checkbox", { name: "Edit models and project files" }),
   ).toBeChecked();
-  await page.screenshot({ path: testInfo.outputPath("custom-confirmations.png") });
+  await page.screenshot({
+    path: testInfo.outputPath("custom-confirmations.png"),
+  });
 });
 
 test("agent and CAD settings show distinct tools", async ({ page }) => {
@@ -312,9 +330,7 @@ test("viewport clicks and tools preserve camera zoom", async ({ page }) => {
     )
     .toBeGreaterThanOrEqual(3);
   const before = JSON.parse((await canvas.getAttribute("data-camera")) ?? "{}");
-  await page
-    .getByRole("button", { name: "Select body", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Select body", exact: true }).click();
   await canvas.click({ position: { x: 40, y: 240 } });
   await page.waitForTimeout(1000);
   const after = JSON.parse((await canvas.getAttribute("data-camera")) ?? "{}");
@@ -326,34 +342,52 @@ test("viewport clicks and tools preserve camera zoom", async ({ page }) => {
   expect(after.zoom).toBe(before.zoom);
 });
 
-test("projection changes keep separate framing and right-drag panning stays predictable", async ({ page }) => {
+test("projection changes keep separate framing and right-drag panning stays predictable", async ({
+  page,
+}) => {
   await legacyProject(page, "Camera regression");
   const canvas = page.locator("canvas");
-  const camera = async () => JSON.parse((await canvas.getAttribute("data-camera")) ?? "{}");
+  const camera = async () =>
+    JSON.parse((await canvas.getAttribute("data-camera")) ?? "{}");
   await expect.poll(async () => (await camera()).position?.length ?? 0).toBe(3);
   const perspective = await camera();
-  await page.getByRole("button", { name: "Toggle orthographic projection" }).click();
+  await page
+    .getByRole("button", { name: "Toggle orthographic projection" })
+    .click();
   await expect.poll(async () => (await camera()).zoom).toBeGreaterThan(1);
   await page.waitForTimeout(350);
   const orthographic = await camera();
   const box = (await canvas.boundingBox())!;
-  const startX = box.x + box.width * 0.5, startY = box.y + box.height * 0.5;
+  const startX = box.x + box.width * 0.5,
+    startY = box.y + box.height * 0.5;
   await page.mouse.move(startX, startY);
   await page.mouse.down({ button: "right" });
   await page.mouse.move(startX + 80, startY, { steps: 8 });
   await page.mouse.up({ button: "right" });
   await page.waitForTimeout(100);
   const panned = await camera();
-  const shift = Math.hypot(...panned.target.map((v: number, i: number) => v - orthographic.target[i]));
+  const shift = Math.hypot(
+    ...panned.target.map((v: number, i: number) => v - orthographic.target[i]),
+  );
   expect(shift).toBeGreaterThan(0.1);
   expect(shift).toBeLessThan(100);
   await page.waitForTimeout(250);
   const settled = await camera();
-  expect(Math.hypot(...settled.target.map((v: number, i: number) => v - panned.target[i]))).toBeLessThan(0.01);
-  await page.getByRole("button", { name: "Toggle orthographic projection" }).click();
+  expect(
+    Math.hypot(
+      ...settled.target.map((v: number, i: number) => v - panned.target[i]),
+    ),
+  ).toBeLessThan(0.01);
+  await page
+    .getByRole("button", { name: "Toggle orthographic projection" })
+    .click();
   await expect.poll(async () => (await camera()).zoom).toBe(perspective.zoom);
-  await page.getByRole("button", { name: "Toggle orthographic projection" }).click();
-  await expect.poll(async () => (await camera()).zoom).toBeCloseTo(orthographic.zoom, 2);
+  await page
+    .getByRole("button", { name: "Toggle orthographic projection" })
+    .click();
+  await expect
+    .poll(async () => (await camera()).zoom)
+    .toBeCloseTo(orthographic.zoom, 2);
 });
 
 test("new projects are empty without a template selector", async ({ page }) => {
@@ -422,7 +456,8 @@ test("camera presets apply their intended direction", async ({ page }) => {
     .poll(
       async () => {
         const current = await distance();
-        stableSamples = Math.abs(current - previousDistance) < 0.01 ? stableSamples + 1 : 0;
+        stableSamples =
+          Math.abs(current - previousDistance) < 0.01 ? stableSamples + 1 : 0;
         previousDistance = current;
         return stableSamples;
       },
@@ -469,49 +504,88 @@ test("project cards generate previews and support pin, rename, and deletion", as
   await page.goto("/");
   await page.reload();
 
-  const card = page.locator(".project-card").filter({ hasText: "Project Alpha" });
+  const card = page
+    .locator(".project-card")
+    .filter({ hasText: "Project Alpha" });
   await expect(card).toBeVisible();
-  await expect(card.locator(".project-art img")).toBeVisible({ timeout: 15000 });
+  await expect(card.locator(".project-art img")).toBeVisible({
+    timeout: 15000,
+  });
 
   await card.getByRole("button", { name: "Pin project", exact: true }).click();
   await expect(card.locator(".project-pinned")).toBeVisible();
-  await expect(card.getByRole("button", { name: "Unpin project", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    card.getByRole("button", { name: "Unpin project", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
 
-  await card.getByRole("button", { name: "Rename project", exact: true }).click();
+  await card
+    .getByRole("button", { name: "Rename project", exact: true })
+    .click();
   await page.getByLabel("Project name", { exact: true }).fill("Project Beta");
   await page.getByRole("button", { name: "Save name", exact: true }).click();
-  const renamed = page.locator(".project-card").filter({ hasText: "Project Beta" });
+  const renamed = page
+    .locator(".project-card")
+    .filter({ hasText: "Project Beta" });
   await expect(renamed).toBeVisible();
 
-  await renamed.getByRole("button", { name: "Delete project", exact: true }).click();
+  await renamed
+    .getByRole("button", { name: "Delete project", exact: true })
+    .click();
   await expect(page.locator(".delete-project-name")).toHaveText("Project Beta");
-  const confirm = page.getByLabel("Type Project Beta to confirm deletion", { exact: true });
+  const confirm = page.getByLabel("Type Project Beta to confirm deletion", {
+    exact: true,
+  });
   await expect(confirm).toBeEmpty();
-  await expect(page.getByRole("button", { name: "Delete permanently", exact: true })).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Delete permanently", exact: true }),
+  ).toBeDisabled();
   await confirm.fill("Project Beta");
-  await page.getByRole("button", { name: "Delete permanently", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Delete permanently", exact: true })
+    .click();
   await expect(renamed).toHaveCount(0);
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("forma.projects.v1") ?? "[]").length)).toBe(0);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          JSON.parse(localStorage.getItem("forma.projects.v1") ?? "[]").length,
+      ),
+    )
+    .toBe(0);
 });
 
-test("pin animation reaches the first project slot without a leftover transform", async ({ page }) => {
+test("pin animation reaches the first project slot without a leftover transform", async ({
+  page,
+}) => {
   await legacyProject(page, "First card");
   await page.evaluate(() => {
     const projects = JSON.parse(localStorage.getItem("forma.projects.v1")!);
-    projects.push({ ...projects[0], id: crypto.randomUUID(), name: "Second card", revisions: [], currentRevision: "" });
+    projects.push({
+      ...projects[0],
+      id: crypto.randomUUID(),
+      name: "Second card",
+      revisions: [],
+      currentRevision: "",
+    });
     localStorage.setItem("forma.projects.v1", JSON.stringify(projects));
   });
   await page.goto("/");
   await page.reload();
   const first = page.locator(".project-card").filter({ hasText: "First card" });
-  const second = page.locator(".project-card").filter({ hasText: "Second card" });
+  const second = page
+    .locator(".project-card")
+    .filter({ hasText: "Second card" });
   const firstSlot = await first.boundingBox();
   const secondSlot = await second.boundingBox();
   expect(firstSlot).not.toBeNull();
   expect(secondSlot!.x).toBeGreaterThan(firstSlot!.x);
-  await second.getByRole("button", { name: "Pin project", exact: true }).click();
+  await second
+    .getByRole("button", { name: "Pin project", exact: true })
+    .click();
   await expect(second.locator(".project-pinned")).toBeVisible();
-  await expect.poll(async () => (await second.boundingBox())!.x, { timeout: 3000 }).toBeCloseTo(firstSlot!.x, 0);
+  await expect
+    .poll(async () => (await second.boundingBox())!.x, { timeout: 3000 })
+    .toBeCloseTo(firstSlot!.x, 0);
   await expect(second).toHaveCSS("transform", "none");
   expect((await first.boundingBox())!.x).toBeCloseTo(secondSlot!.x, 0);
 });
@@ -547,7 +621,7 @@ test("viewport toolbars never overlap and body visibility toggles", async ({
   ).toHaveCount(0);
   await page.getByRole("button", { name: "History", exact: false }).click();
   await expect(page.getByText("Assembly motion configured")).toBeVisible();
-  await page.getByRole("button", { name: "Files", exact: false }).click();
+  await expect(page.locator('[data-editor="outliner"]')).toBeVisible();
   await expect(
     page.getByRole("button", { name: /^Hide / }).first(),
   ).toBeVisible();
@@ -568,6 +642,11 @@ test("viewport toolbars never overlap and body visibility toggles", async ({
     await page.setViewportSize({ width, height: 940 });
     const main = await page.locator(".view-toolbar").boundingBox();
     const measure = await page.locator(".measure-result").boundingBox();
-    expect(measure!.y).toBeGreaterThanOrEqual(main!.y + main!.height + 9);
+    expect(
+      main!.x + main!.width <= measure!.x ||
+        measure!.x + measure!.width <= main!.x ||
+        main!.y + main!.height <= measure!.y ||
+        measure!.y + measure!.height <= main!.y,
+    ).toBe(true);
   }
 });
