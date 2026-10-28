@@ -4,7 +4,7 @@
 
 ## Изменения 1.5.0
 
-plugin-api 0.2: право `viewport.capture` — плагин может попросить FormaCAD записать видео вращения модели из 3D-вида (MP4/WebM, до 4K и 120 кадров/с); FormaCAD сам рендерит и кодирует кадры, плагин не видит ни модель, ни файл. Команды, которые не меняют модель, больше не требуют `model.write`. Подробности — в [релизе 1.5.0](../releases/1.5.0.md) и [статье о плагинах](plugins.md#запись-видео-вращения). Опубликованы установщики Windows x64, Linux x64, macOS ARM и macOS Intel, собранные в GitHub Actions: [релиз v1.5.0](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.5.0). В каталоге [plugins.formacad.ru](https://plugins.formacad.ru) опубликован первый плагин на plugin-api 0.2 — «Видео вращения» (`orbit-video`).
+plugin-api 0.2: право `viewport.capture` — плагин может попросить FormaCAD записать видео вращения модели из 3D-вида (MP4/WebM, до 4K и 120 кадров/с); FormaCAD сам рендерит и кодирует кадры, плагин не видит ни модель, ни файл. Команды, которые не меняют модель, больше не требуют `model.write`. Подробности — в [релизе 1.5.0](../releases/1.5.0.md) и [статье о плагинах](plugins.md#запись-видео-вращения). Опубликованы установщики Windows x64, Linux x64, macOS ARM и macOS Intel, собранные в GitHub Actions: [релиз v1.5.0](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.5.0).
 
 ## Изменения 1.4.0
 

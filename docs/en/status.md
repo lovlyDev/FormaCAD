@@ -4,7 +4,7 @@
 
 ## Changes in 1.5.0
 
-plugin-api 0.2: the `viewport.capture` permission — a plugin can ask FormaCAD to record a turntable video of the model in the 3D view (MP4/WebM, up to 4K and 120 fps); FormaCAD renders and encodes the frames itself, and the plugin never sees the model or the file. Commands that do not change the model no longer need `model.write`. Details: [1.5.0 release](../releases/1.5.0.md) and the [plugins article](plugins.md#turntable-video-recording). Windows x64, Linux x64, macOS ARM and macOS Intel installers built in GitHub Actions are published: [v1.5.0 release](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.5.0). The first plugin on plugin-api 0.2, “Orbit video” (`orbit-video`), is published in the [plugins.formacad.ru](https://plugins.formacad.ru) catalog.
+plugin-api 0.2: the `viewport.capture` permission — a plugin can ask FormaCAD to record a turntable video of the model in the 3D view (MP4/WebM, up to 4K and 120 fps); FormaCAD renders and encodes the frames itself, and the plugin never sees the model or the file. Commands that do not change the model no longer need `model.write`. Details: [1.5.0 release](../releases/1.5.0.md) and the [plugins article](plugins.md#turntable-video-recording). Windows x64, Linux x64, macOS ARM and macOS Intel installers built in GitHub Actions are published: [v1.5.0 release](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.5.0).
 
 ## Changes in 1.4.0
 
