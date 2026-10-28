@@ -99,3 +99,7 @@ viewport::record_orbit(viewport::Orbit {
 ```
 
 Запись начинается после завершения вызова: CAD спрашивает путь, рендерит кадры и кодирует видео сам. Готовый плагин с формой и переводами: [lovlyDev/formacad-orbit-video](https://github.com/lovlyDev/formacad-orbit-video). Диапазоны значений — в [спецификации, раздел 12](plugin-platform.md#12-уточнения-реализации).
+
+## Кнопка в панели 3D-вида
+
+Операция или команда с полем `icon` из списка `box`, `camera`, `clapperboard`, `cog`, `compass`, `film`, `grid-3x3`, `layers`, `monitor-play`, `package`, `pen-tool`, `printer`, `rotate-3d`, `ruler`, `scan`, `scissors`, `sparkles`, `square-dashed`, `video`, `wand-2`, `wrench` получает в FormaCAD 1.5.1 и новее свою кнопку в панели инструментов 3D-вида; подсказка — «<плагин>: <название>». С другим значением или без `icon` действие остаётся в палитре команд и в меню «Действия плагинов».

@@ -34,7 +34,7 @@ When you install a newer version, the window shows the installed version and mar
 
 ## Using plugins
 
-Actions of enabled plugins appear in the command palette (`Ctrl K`): “<plugin>: <operation>”, “…: import …”, “…: export …”, “…: panel …”. An operation opens its parameter form (lengths in mm, angles in degrees) and then the usual model-change confirmation. FormaCAD checks the plugin result (CAD IR v2, IDs, BREP build) and saves **one** revision; on any error the model is unchanged. History labels the change “Plugin <name> <version>: <operation>”.
+Actions of enabled plugins appear in the command palette (`Ctrl K`): “<plugin>: <operation>”, “…: import …”, “…: export …”, “…: panel …”. The same actions are available from the 3D-view toolbar: a feature or command whose author set an icon gets its own button with that icon (for example a video camera for video recording); the rest are in the “Plugin actions” menu (puzzle icon). The buttons show only while enabled plugins have actions; the menu closes on `Esc` or a click outside. An operation opens its parameter form (lengths in mm, angles in degrees) and then the usual model-change confirmation. FormaCAD checks the plugin result (CAD IR v2, IDs, BREP build) and saves **one** revision; on any error the model is unchanged. History labels the change “Plugin <name> <version>: <operation>”.
 
 The result consists of ordinary CAD operations. The body stays visible, measurable and exportable even after the plugin is disabled or removed.
 
@@ -42,7 +42,7 @@ Plugin import opens the system file picker; the plugin receives only the bytes o
 
 ## Turntable video recording
 
-A plugin with the `viewport.capture` permission (for example [Turntable Video](https://github.com/lovlyDev/formacad-orbit-video)) can ask FormaCAD to record a video of the model turning in a circle. Steps: command palette → the plugin's command → form (resolution, frames per second, length and number of turns, direction, which axis points up, part tilt, camera height, zoom, background, MP4 or WebM, bitrate) → Run → the native “Save video” dialog. Such a command does not change the model, so no model-edit approval appears.
+A plugin with the `viewport.capture` permission (for example [Turntable Video](https://github.com/lovlyDev/formacad-orbit-video)) can ask FormaCAD to record a video of the model turning in a circle. Steps: command palette or the command's button in the 3D-view toolbar → the plugin's command → form (resolution, frames per second, length and number of turns, direction, which axis points up, part tilt, camera height, zoom, background, MP4 or WebM, bitrate) → Run → the native “Save video” dialog. Such a command does not change the model, so no model-edit approval appears.
 
 FormaCAD renders every frame of a copy of the model shown in the 3D view and encodes the video with the system's encoders (WebCodecs). Your view, camera and selection stay unchanged. The “Recording video” window shows the frame number and percentage; Stop or closing the window aborts the recording and deletes the unfinished file. Until the recording is complete the file is named `<name>.mp4.part`.
 

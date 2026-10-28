@@ -1317,5 +1317,6 @@
   "PLUGIN_CAPTURE_TOO_LARGE": "The video is larger than 4 GB. Lower the resolution, length or bitrate.",
   "PLUGIN_CAPTURE_WRITE": "The video file could not be written.",
   "PLUGIN_CAPTURE_CANCELLED": "Video recording cancelled",
-  "PLUGIN_IMPORT_API_TOO_OLD": "The plugin uses functions of a newer plugin API but manifest.json declares an older version."
+  "PLUGIN_IMPORT_API_TOO_OLD": "The plugin uses functions of a newer plugin API but manifest.json declares an older version.",
+  "Plugin actions": "Plugin actions"
 }
