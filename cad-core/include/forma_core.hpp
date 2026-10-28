@@ -57,6 +57,7 @@ private:
   friend std::unique_ptr<Shape> fillet_edge(const Shape&, const std::string&, double) noexcept;
   friend std::unique_ptr<Shape> chamfer_all_edges(const Shape&, double) noexcept;
   friend std::unique_ptr<Shape> translate(const Shape&, double, double, double) noexcept;
+  friend std::unique_ptr<Shape> transform_affine(const Shape&, const double*, std::size_t) noexcept;
   friend std::unique_ptr<Shape> rotate(const Shape&, double, double, double, double, double, double, double) noexcept;
   friend std::unique_ptr<Shape> mirror(const Shape&, double, double, double, double, double, double) noexcept;
   friend std::unique_ptr<Shape> rotate(const Shape&, double, double, double, double, double, double, double) noexcept;
@@ -78,6 +79,8 @@ private:
 std::unique_ptr<Shape> failure(const char* code, const char* message) noexcept;
 std::unique_ptr<Shape> checked(TopoDS_Shape shape) noexcept;
 std::unique_ptr<Shape> make_box(double width_mm, double depth_mm, double height_mm) noexcept;
+// Row-major 3x4 affine matrix in world millimetres. Copies and validates the BREP.
+std::unique_ptr<Shape> transform_affine(const Shape&, const double*, std::size_t) noexcept;
 std::unique_ptr<Shape> make_referenced_box(double, double, double, const std::string&) noexcept;
 std::unique_ptr<Shape> make_referenced_cylinder(double, double, const std::string&) noexcept;
 std::unique_ptr<Shape> topology_occurrence(const Shape&, const std::string&) noexcept;

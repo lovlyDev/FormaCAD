@@ -1,6 +1,6 @@
 #pragma once
 #include <TopoDS_Shape.hxx>
-#include <BRepBuilderAPI_Transform.hxx>
+#include <BRepBuilderAPI_ModifyShape.hxx>
 #include <string>
 #include <vector>
 
@@ -12,7 +12,7 @@ struct TopologyEntry {
   std::vector<std::string> path;
 };
 using TopologyCatalog = std::vector<TopologyEntry>;
-TopologyCatalog transformed_catalog(const TopologyCatalog&, BRepBuilderAPI_Transform&,
+TopologyCatalog transformed_catalog(const TopologyCatalog&, BRepBuilderAPI_ModifyShape&,
                                     const TopoDS_Shape&);
 // Exact BREP membership and unique identity; null is explicit unsupported/ambiguous.
 std::string topology_reference_json(const TopologyCatalog&, const TopoDS_Shape&);

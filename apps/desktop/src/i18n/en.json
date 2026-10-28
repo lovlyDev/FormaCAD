@@ -315,6 +315,7 @@
   "circle": "circle",
   "extrude": "extrude",
   "translate": "translate",
+  "transform": "Transform",
   "boolean": "boolean",
   "Output": "Output",
   "mm": "mm",

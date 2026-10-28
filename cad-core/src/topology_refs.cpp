@@ -31,7 +31,7 @@ bool member(const TopoDS_Shape& shape, const TopoDS_Shape& entity) {
 } // namespace
 
 TopologyCatalog transformed_catalog(const TopologyCatalog& catalog,
-    BRepBuilderAPI_Transform& builder, const TopoDS_Shape& output) {
+    BRepBuilderAPI_ModifyShape& builder, const TopoDS_Shape& output) {
   TopologyCatalog result;
   for (const auto& entry : catalog) {
     const auto moved = builder.ModifiedShape(entry.entity);

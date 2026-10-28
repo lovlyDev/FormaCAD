@@ -255,6 +255,14 @@ impl Document {
                     }
                     FeatureKind::Solid
                 }
+                Operation::Transform {
+                    body_feature_id,
+                    matrix,
+                } => {
+                    reference(body_feature_id, FeatureKind::Solid)?;
+                    super::affine_transform::validate(matrix, id)?;
+                    FeatureKind::Solid
+                }
                 Operation::Rotate {
                     body_feature_id,
                     axis_origin_mm,

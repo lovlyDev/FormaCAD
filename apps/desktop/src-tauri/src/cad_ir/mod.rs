@@ -1,6 +1,7 @@
 //! CAD IR v2 foundation. This module validates intent and dependency structure;
 //! geometric execution and topology validation belong to the native CAD worker.
 use serde::{Deserialize, Serialize};
+mod affine_transform;
 pub mod assets;
 pub mod topology_refs;
 pub use topology_refs::{TopologyKind, TopologyReference};
@@ -177,6 +178,10 @@ pub enum Operation {
         body_feature_id: String,
         offset_mm: [f64; 3],
     },
+    Transform {
+        body_feature_id: String,
+        matrix: [f64; 12],
+    },
     Rotate {
         body_feature_id: String,
         axis_origin_mm: [f64; 3],
@@ -285,6 +290,12 @@ pub enum DimensionField {
     deny_unknown_fields
 )]
 pub enum Command {
+    TransformBody {
+        body_id: String,
+        feature_id: String,
+        name: String,
+        matrix: [f64; 12],
+    },
     SetTopologyReference {
         feature_id: String,
         reference: TopologyReference,

@@ -31,6 +31,7 @@ set(FORMA_OCCT_LIBRARIES
   TKBRep TKGeomBase TKG3d TKG2d TKMath TKernel)
 
 add_library(forma_cad_core STATIC
+  src/affine_transform.cpp
   src/shape.cpp
   src/measurements.cpp
   src/face_measurements.cpp
@@ -64,6 +65,14 @@ target_link_libraries(forma_cad_core PUBLIC ${FORMA_OCCT_LIBRARIES})
 
 include(CTest)
 if(BUILD_TESTING)
+  add_executable(forma_affine_transform_test tests/affine_transform_test.cpp)
+  target_include_directories(forma_affine_transform_test PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+  target_link_libraries(forma_affine_transform_test PRIVATE forma_cad_core)
+  add_test(NAME forma_affine_transform_test COMMAND forma_affine_transform_test)
+  if(WIN32)
+    set_tests_properties(forma_affine_transform_test PROPERTIES
+      ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OpenCASCADE_BINARY_DIR}")
+  endif()
   add_executable(forma_pair_measurement_test tests/pair_measurement_test.cpp)
   target_include_directories(forma_pair_measurement_test PRIVATE ${OpenCASCADE_INCLUDE_DIR})
   target_link_libraries(forma_pair_measurement_test PRIVATE forma_cad_core)

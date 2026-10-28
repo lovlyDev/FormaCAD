@@ -156,6 +156,11 @@ pub(crate) mod ffi {
         fn fillet_edge(source: &Shape, edge_key: &CxxString, radius_mm: f64) -> UniquePtr<Shape>;
         fn chamfer_all_edges(source: &Shape, distance_mm: f64) -> UniquePtr<Shape>;
         fn translate(source: &Shape, x_mm: f64, y_mm: f64, z_mm: f64) -> UniquePtr<Shape>;
+        unsafe fn transform_affine(
+            source: &Shape,
+            matrix: *const f64,
+            count: usize,
+        ) -> UniquePtr<Shape>;
         #[allow(clippy::too_many_arguments)]
         fn rotate(
             source: &Shape,
