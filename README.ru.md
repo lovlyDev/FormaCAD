@@ -98,3 +98,5 @@ npm run build
 [Совместная работа с двух ПК](docs/ru/collaboration.md): исходники через Git, пользовательские данные отдельно.
 
 Разработка по очереди с двух ПК: [порядок и передача](docs/ru/collaboration.md), [промпт AI](docs/ru/collaboration-ai-prompt.md), [общее ТЗ 2.0](docs/architecture-2.0.md).
+
+[Подготовка M2: viewport, трансформации и оставшаяся интеграция](docs/ru/viewport-transforms.md).
