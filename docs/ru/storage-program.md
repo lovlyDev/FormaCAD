@@ -3,9 +3,13 @@
 [Документация](index.md) · [English](../en/storage-program.md) · [Снимки](project-snapshots.md)
 
 Ответственный: wenlixxq; приёмка и слияние: lovlyDev. Основа локальной ветки
-`codex/storage-week` — `abe2e054cb4b4f807aa89195825edd0e4e82c62a` (head PR №5
-по приложенному ТЗ). Актуальные PR, замечания, CI и Issue №3 не подтверждены:
-подключённый GitHub возвращает HTTP 403 `Your account was suspended`.
+`codex/storage-week` первоначально — `abe2e054cb4b4f807aa89195825edd0e4e82c62a`.
+PR №5 подтверждён объединённым через API; 29 октября принят актуальный `main`
+`4834e1020f755d4a158a105fc63965315d9c78c1` обычным merge в своей ветке.
+Локально авторизованный аккаунт wenlixxq имеет рабочий API-доступ;
+ошибка 403 отдельного подключённого аккаунта не относится к этой авторизации.
+Программа закреплена в [Issue №27](https://github.com/lovlyDev/FormaCAD/issues/27),
+этапы — №28–34; область Issue №3 прочитана и остаётся исключённой.
 Версии, релизы, установка и область native/Cargo/worker исключены из изменений.
 
 ## Исправление сеанса общего снимка
@@ -54,7 +58,9 @@ close/reopen для project/archive, закрытие во время SQL captur
 
 Локальная проверка 29 октября 2026: rustfmt и `git diff --check` прошли;
 check:docs — 108 документов, check:i18n — 1149 сообщений,
-check:migrations и check:version прошли (версия остаётся 1.3.0).
+check:migrations и check:version прошли на первоначальной основе 1.3.0.
+После получения main версия 1.5.1 унаследована от владельца; задачная правка
+не меняет версионные файлы относительно main. Проверки новой основы — отдельно.
 Rust-тесты не выполнились: после загрузки зависимостей компиляция остановилась
 на `linker link.exe not found`. Штатный `scripts/windows-env.ps1` также
 остановился: отсутствует `C:\Program Files (x86)\Windows Kits\10\Lib`.
