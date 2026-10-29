@@ -4,6 +4,12 @@ use crate::{
     models::{Project, ProjectFile, Revision},
 };
 use std::sync::atomic::{AtomicBool, Ordering};
+pub(super) struct CommitMetadata {
+    pub job: String,
+    pub program: String,
+    pub prompt: String,
+    pub amend: Option<crate::project_history::AmendCapture>,
+}
 
 pub(super) fn program_for_revision(
     program: &str,
@@ -25,11 +31,21 @@ pub(super) async fn commit(
     state: &AppState,
     mut project: Project,
     model: GeneratedModel,
-    job: String,
-    program: String,
-    prompt: String,
+    metadata: CommitMetadata,
     cancel: &AtomicBool,
 ) -> Result<Project> {
+    let CommitMetadata {
+        job,
+        program,
+        prompt,
+        amend,
+    } = metadata;
+    let before = amend.as_ref().map(|_| project.clone());
+    let history = if amend.is_some() {
+        Some(crate::project_history::load_state(&state.pool, &project).await?)
+    } else {
+        None
+    };
     let step_name = format!("model-{job}.step");
     let preview_name = format!("preview-{job}.glb");
     for (name, bytes) in [(&step_name, &model.step), (&preview_name, &model.preview)] {
@@ -67,7 +83,12 @@ pub(super) async fn commit(
     if cancel.load(Ordering::Relaxed) {
         return Err(AppError::Invalid("CAD_TASK_CANCELLED".into()));
     }
-    crate::projects::persist(state, project, pending, None).await
+    if let (Some(capture), Some(before), Some(history)) = (amend, before, history) {
+        let intent = crate::project_history::prepare_amend(&before, &project, &history, &capture)?;
+        crate::projects::persist_with_history(state, project, pending, None, intent).await
+    } else {
+        crate::projects::persist(state, project, pending, None).await
+    }
 }
 
 #[cfg(test)]

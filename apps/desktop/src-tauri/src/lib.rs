@@ -128,6 +128,8 @@ pub fn run() {
             artifacts::read_project_file,
             modeling::apply_program,
             modeling::apply_ir_commands,
+            modeling::amend_transform::ipc::last_transform,
+            modeling::amend_transform::ipc::amend_last_transform,
             sketch_analysis::analyze_sketch,
             model_preview::preview_model,
             model_preview::cancel_model_preview,

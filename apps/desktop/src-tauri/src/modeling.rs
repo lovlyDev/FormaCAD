@@ -3,6 +3,7 @@ use crate::{
     models::Project,
 };
 use tauri::{Emitter, State};
+pub mod amend_transform;
 pub mod apply;
 mod build;
 pub mod commands;
