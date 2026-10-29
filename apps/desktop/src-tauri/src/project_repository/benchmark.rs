@@ -35,7 +35,7 @@ async fn compare_storage_representations() {
         let (pool, project, assets) =
             fixture::build(&sql_root, revisions, attachments, asset_bytes).await;
         let archive =
-            project_history::export_history(&mut *pool.acquire().await.unwrap(), &project)
+            project_history::export_history(&mut pool.acquire().await.unwrap(), &project)
                 .await
                 .unwrap();
         project_history::validate_archive(&project, &archive).unwrap();
