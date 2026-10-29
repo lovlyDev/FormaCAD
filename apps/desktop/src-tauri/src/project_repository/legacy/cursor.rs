@@ -21,6 +21,7 @@ pub async fn capture_history_state(state: &AppState, id: &str) -> Result<History
     crate::security::valid_id(id)?;
     let session = ReadSession::capture(state, id)?;
     let raw = cursor_sql::read(&state.pool, id).await?;
+    session.recheck(state, id)?;
     if raw.project.journal.is_some() {
         return Err(AppError::Invalid(
             "PROJECT_SNAPSHOT_RECOVERY_REQUIRED".into(),
@@ -36,6 +37,7 @@ pub async fn capture_history_state(state: &AppState, id: &str) -> Result<History
     let latest = cursor_sql::read(&state.pool, id)
         .await
         .map_err(missing_to_changed)?;
+    session.recheck(state, id)?;
     if latest != raw {
         return Err(changed());
     }

@@ -37,12 +37,21 @@ project and retry. Readers acquire no writer lease and perform no recovery.
 Checks are optimistic observations at specific points; they do not block changes
 after the final check. Paths do not yet provide OS directory identity: replacing
 a directory at the same path with identical bytes is undetected. AccessRegistry
-keys by project ID rather than backend/location, and acquire/status/ensure_write
-perform filesystem work under its global mutex. These require separate changes
+keys by project ID rather than backend/location. These require separate changes
 before the next stage is ready. External folders are not independent backends.
 Neither stage 1 nor the complete program is declared finished.
 
 ## Reproduction
+
+The registry holds its global map lock only while resolving an
+`Arc<Mutex<ProjectState>>`. IO, OS lease acquisition and owner JSON use the
+individual project gate. A slow source does not hold the global map. Sessions,
+epochs and Weak writer references remain in project state; release retains a
+lease while an in-flight WriteGuard survives and never unlinks the lock file.
+New `project_access/registry_tests.rs` regressions cover another project operating
+while the first gate is held, release/reacquire with a surviving guard, and
+transient writes. An additional history regression closes during SQL recheck;
+cursor capture checks the original token after both SQL awaits.
 
 New tests in `project_repository/legacy/session_tests.rs` cover close/reopen for
 project/archive snapshots and closure during SQL capture and recheck. They exhaust
