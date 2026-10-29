@@ -82,3 +82,4 @@ These guides describe the consolidated 1.2.6 candidate and its limits. Final pac
 - [AI prompt for alternating development](collaboration-ai-prompt.md).
 - [Storage program: audit and limits](storage-program.md).
 - [Storage format comparison](storage-formats.md).
+- [Repository read contract](storage-contract.md).

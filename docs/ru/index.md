@@ -82,3 +82,4 @@
 - [Промпт AI для работы по очереди](collaboration-ai-prompt.md).
 - [Программа хранения: аудит и ограничения](storage-program.md).
 - [Сравнение форматов хранения](storage-formats.md).
+- [Контракт чтения репозитория](storage-contract.md).
