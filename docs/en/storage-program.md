@@ -3,10 +3,13 @@
 [Documentation](index.md) · [Русский](../ru/storage-program.md) · [Snapshots](project-snapshots.md)
 
 Owner: wenlixxq; acceptance and merge: lovlyDev. Local branch `codex/storage-week`
-starts at `abe2e054cb4b4f807aa89195825edd0e4e82c62a`, the PR #5 head recorded
-in the supplied specification. Current PR metadata, reviews, CI and Issue #3
-remain unverified: the connected GitHub account returns HTTP 403
-`Your account was suspended`. Versions, releases, installation and native/Cargo/worker
+started at `abe2e054cb4b4f807aa89195825edd0e4e82c62a`. API access confirmed
+PR #5 merged; on 29 October the branch merged current main at
+`4834e1020f755d4a158a105fc63965315d9c78c1` without rewriting history.
+The locally authorized wenlixxq account has working API access; the separate
+connector account's HTTP 403 does not apply to it. The program is tracked in
+[Issue #27](https://github.com/lovlyDev/FormaCAD/issues/27), stages #28–34.
+Issue #3 boundaries were read and remain excluded. Versions, releases, installation and native/Cargo/worker
 files are outside these changes.
 
 ## Shared snapshot lifecycle correction
@@ -53,7 +56,9 @@ UI acceptance. Execution results must be recorded separately; test presence is n
 
 Local checks on 29 October 2026: rustfmt and `git diff --check` passed;
 check:docs covered 108 documents, check:i18n covered 1149 messages,
-check:migrations and check:version passed (version remains 1.3.0).
+check:migrations and check:version passed on the original 1.3.0 baseline.
+Merging main inherited the owner's 1.5.1 version; task changes do not modify
+version files relative to main. Checks on the updated baseline are separate.
 Rust tests did not execute: after dependencies downloaded, compilation stopped
 at `linker link.exe not found`. The standard `scripts/windows-env.ps1` also
 stopped because `C:\Program Files (x86)\Windows Kits\10\Lib` is absent.
