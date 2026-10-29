@@ -7,6 +7,7 @@
 #include "forma_section.hpp"
 #include "forma_measurement.hpp"
 #include "forma_pair_measurement.hpp"
+#include "forma_snap.hpp"
 
 class TopoDS_Shape;
 
@@ -39,6 +40,8 @@ private:
   bool update_bounds();
   friend std::unique_ptr<Shape> failure(const char*, const char*) noexcept;
   friend std::unique_ptr<Shape> checked(TopoDS_Shape) noexcept;
+  friend std::unique_ptr<SnapResult> snap_reference(const Shape&, int, const std::string&,
+    const std::string&, const std::string&, const double*, std::size_t) noexcept;
   friend std::unique_ptr<Shape> boolean_apply(const Shape&, const Shape&, BooleanKind) noexcept;
   friend std::unique_ptr<Shape> make_box(double, double, double) noexcept;
   friend std::unique_ptr<Shape> make_referenced_box(double, double, double, const std::string&) noexcept;

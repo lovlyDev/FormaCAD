@@ -26,7 +26,7 @@ A session captures project, revision, scene token and copies of original matrice
 
 `features/visibility/` separates normal hidden bodies from temporary isolation. Leaving isolation restores earlier hidden bodies while retaining explicit visibility changes made during isolation. Empty selection never executes hide-others. Invalid persisted values and missing bodies are pruned. No BREP, revision or CAD permissions change.
 
-`features/snapping/` separates mathematical grid/increment constraints from an exact OCCT response contract. The reader checks request/project/revision/body/scene identity, document/source hashes, STEP size, sealed imported assets, reference kind, finite coordinates and unit normals. Late or foreign results are rejected. The current contract covers edge midpoints, circle centres and faces; worker requests and semantic vertices are not yet implemented. Ray intersections with tessellation are not declared exact BREP snapping.
+`features/snapping/` separates mathematical grid/increment constraints from an exact OCCT response contract. The reader checks request/project/revision/body/scene identity, document/source hashes, STEP size, sealed imported assets, reference kind, finite coordinates and unit normals. Late or foreign results are rejected. The contract covers edge midpoints, circle centres and faces. The C++ primitive is verified; the `snap_query` worker operation and live-project capture are not yet part of the verified result. Semantic vertices are not implemented yet. Ray intersections with tessellation are not declared exact BREP snapping.
 
 ## Data, limitations and validation
 
@@ -45,3 +45,13 @@ A replacement supplies command indices and new matrices, not arbitrary CAD code,
 Success uses existing `modify_project` permission, queue, worker and atomic persistence. A new physical revision and `edit` event are appended while replacing the final logical Undo slot. Old revisions/files stay immutable; the parent chain, audit log and portable archive retain existing validation. No SQL migration changes. One Undo returns the state before the initial transform; Redo restores the latest amended result. Immediately after Undo/Redo an old operation is not amendable; a new transform creates a new eligible operation. `history:amend:<revision>` is translated at display time.
 
 Real-worker host tests cover repeated amendments, one-step Undo, Redo, a new transform after history travel, portable archives, immutable old snapshots and no saved changes on stale requests, worker failure or denied permission. All 12 `model_apply_transaction` scenarios pass, including 10 existing ones. Keyboard/UI F9 acceptance remains pending.
+
+## Geometric snapping and worker
+
+`cad-core/src/snap_reference.cpp` computes a BREP curve's arc-length midpoint, an analytic circle centre and the nearest positive intersection with a selected trimmed face. Outward normals account for face orientation, reflection and affine transformation. Ellipses are not called circles. Wrong owner/role/occurrence references, misses and zero rays fail explicitly, without triangle-index fallback. Coverage is bounded by the existing rectangular/cylindrical semantic catalogue and transformations retaining those references. Vertices and general references for arbitrary BREP models remain necessary. Results use CAD mm within ±1e9; transform input bounds are separate.
+
+The next `snap_query` layer must read only sealed `document.json`, `source.step` and imported STEP assets in an isolated working directory. Queries must contain no paths. The worker must rebuild the authored body and recheck hashes, sizes and asset seals. Planned output is `snap.json` and the protocol result, without new model.step/preview.glb or live-project writes.
+
+The host must verify response bounds, checksum, request identity, engine, revision/body, all source/import seals, full query echo and finite point/unit normal. JSON-shape checking alone is not geometric proof: OCCT computes coordinates and separate oracles test them.
+
+The 17/17 CTest suite passes for lines, circles/ellipses, reflection, affine transforms, trimmed faces and a cylinder surface. Windows memory exhaustion stopped validation of the prepared Rust/worker route, including the follow-up library check. That route is not yet part of the verified checkpoint. Host capture must retain the original ReadSession under the shared storage contract; close/reopen guarantees are not claimed before PR35 integration. Neither the other branch's code nor applied SQL is changed.

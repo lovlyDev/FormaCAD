@@ -5,9 +5,9 @@ import {
   type SelectionScope,
 } from "../selection/selectionModel";
 const point = z.tuple([
-  z.number().finite().min(-10000).max(10000),
-  z.number().finite().min(-10000).max(10000),
-  z.number().finite().min(-10000).max(10000),
+  z.number().finite().min(-1e9).max(1e9),
+  z.number().finite().min(-1e9).max(1e9),
+  z.number().finite().min(-1e9).max(1e9),
 ]);
 const normal = z
   .tuple([z.number().finite(), z.number().finite(), z.number().finite()])

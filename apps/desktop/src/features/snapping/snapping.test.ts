@@ -54,6 +54,21 @@ describe("snap source ownership", () => {
     expect(
       readExactSnap(sample, expected, expected)?.candidates[0].pointMm,
     ).toEqual([10, 20, 30]);
+    // Existing geometry may lie beyond the limit for a single transform input.
+    expect(
+      readExactSnap(
+        { ...sample, candidates: [{ ...candidate, pointMm: [25000, -1e9, 1e9] }] },
+        expected,
+        expected,
+      )?.candidates[0].pointMm,
+    ).toEqual([25000, -1e9, 1e9]);
+    expect(
+      readExactSnap(
+        { ...sample, candidates: [{ ...candidate, pointMm: [1e9 + 1, 0, 0] }] },
+        expected,
+        expected,
+      ),
+    ).toBeNull();
     for (const changed of [
       { requestId: "00000000-0000-4000-8000-000000000002" },
       { sourceSha256: "c".repeat(64) },
