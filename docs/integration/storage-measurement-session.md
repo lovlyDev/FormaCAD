@@ -2,7 +2,8 @@
 
 ## Русский
 
-Статус: **предложение для согласования**, не применено к исходникам. Приёмка и
+Статус: **согласовано lovlyDev 29 октября 2026 и применено к шести файлам в задачной ветке**.
+Результаты compile/worker тестов ещё требуются. Приёмка и
 владелец общей интеграции — lovlyDev; область native/worker закреплена в Issue #3.
 Исполнитель предложения — wenlixxq. [Точный патч](storage-measurement-session.patch)
 подготовлен относительно `main` @ `4834e1020f755d4a158a105fc63965315d9c78c1`.
@@ -95,7 +96,9 @@ then accept a fresh request. Its fixture excludes changing owner hints from the
 saved-data comparison. It uses the existing isolated worker fixture and never
 terminates unrelated processes.
 
-Only patch applicability and rustfmt of temporary copies were checked. **No
+lovlyDev authorized these six files on 29 October 2026; the patch is now applied
+in the task branch. Compilation and real-worker results are still required.
+Initially only patch applicability and rustfmt of temporary copies were checked. **No
 compilation or execution is claimed**, and S28 remains unverified. After owner
 agreement, use the commands above against the exact integration SHA. The test
 requires a compatible real worker and DLLs in the normal location or via

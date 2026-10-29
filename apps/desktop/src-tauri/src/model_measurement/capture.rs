@@ -6,6 +6,7 @@ use crate::{
     cad_ir::Document,
     core::{AppState, Result},
     models::{Project, ProjectFile, Revision},
+    project_repository::legacy::CommittedSnapshot,
 };
 use std::path::Path;
 
@@ -17,7 +18,7 @@ struct PreviewSeal {
 }
 
 pub(crate) struct CapturedMeasurement {
-    pub project: Project,
+    pub snapshot: CommittedSnapshot,
     pub revision: Revision,
     pub document: Document,
     pub program_bytes: Vec<u8>,
@@ -97,7 +98,8 @@ pub(crate) async fn capture(
             "Selected body identifier is invalid",
         ));
     }
-    let project = super::snapshot::read(state, project_id).await?;
+    let snapshot = super::snapshot::read(state, project_id).await?;
+    let project = &snapshot.project;
     if project.current_revision.as_deref() != Some(expected_revision) {
         return Err(failure(
             "MEASUREMENT_STALE",
@@ -147,7 +149,7 @@ pub(crate) async fn capture(
                 "Measurement requires a committed exact STEP source",
             )
         })?;
-    let source_bytes = sealed_bytes(state, &project, source)?;
+    let source_bytes = sealed_bytes(state, project, source)?;
     let source_sha256 = crate::artifacts::digest(&source_bytes);
     let source_size = source.size;
     drop(source_bytes); // Queued requests retain seals, not a 40 MB STEP buffer.
@@ -160,7 +162,7 @@ pub(crate) async fn capture(
                 .iter()
                 .find(|entry| entry.name == name)
                 .ok_or_else(|| failure("ASSET_MISSING", "Committed preview is missing"))?;
-            let bytes = sealed_bytes(state, &project, file)?;
+            let bytes = sealed_bytes(state, project, file)?;
             Ok::<_, crate::core::AppError>(PreviewSeal {
                 name: name.into(),
                 sha256: crate::artifacts::digest(&bytes),
@@ -178,7 +180,7 @@ pub(crate) async fn capture(
             .iter()
             .find(|file| file.sha256.as_deref() == Some(hash) && is_step(file))
             .ok_or_else(|| failure("ASSET_MISSING", "Authored imported STEP is missing"))?;
-        let bytes = sealed_bytes(state, &project, file)?;
+        let bytes = sealed_bytes(state, project, file)?;
         total = total
             .checked_add(bytes.len())
             .ok_or_else(|| failure("ASSET_LIMIT", "Measurement STEP input size overflow"))?;
@@ -209,8 +211,9 @@ pub(crate) async fn capture(
             "Captured input binding exceeds measurement limits",
         ));
     }
+    super::snapshot::recheck(state, &snapshot).await?;
     Ok(CapturedMeasurement {
-        project,
+        snapshot,
         revision,
         document,
         program_bytes,
@@ -221,22 +224,25 @@ pub(crate) async fn capture(
 
 pub(crate) fn source_bytes(state: &AppState, captured: &CapturedMeasurement) -> Result<Vec<u8>> {
     let file = captured
+        .snapshot
         .project
         .files
         .iter()
         .find(|file| Some(&file.name) == captured.revision.source.as_ref())
         .ok_or_else(|| failure("ASSET_MISSING", "Captured exact source is missing"))?;
-    sealed_bytes(state, &captured.project, file)
+    sealed_bytes(state, &captured.snapshot.project, file)
 }
 
 pub(crate) async fn recheck(state: &AppState, captured: &CapturedMeasurement) -> Result<()> {
+    super::snapshot::recheck(state, &captured.snapshot).await?;
     let latest = capture(
         state,
-        &captured.project.id,
+        &captured.snapshot.project.id,
         &captured.binding.revision_id,
         &captured.binding.body_id,
     )
     .await?;
+    super::snapshot::recheck(state, &captured.snapshot).await?;
     if latest.revision != captured.revision
         || latest.binding != captured.binding
         || latest.preview != captured.preview
