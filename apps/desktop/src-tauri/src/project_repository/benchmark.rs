@@ -1,5 +1,6 @@
 //! Opt-in storage representation comparison, not a production folder backend.
 //! Run with --ignored --nocapture; every output line starts STORAGE_BENCHMARK.
+mod candidate;
 mod fixture;
 mod measurement;
 
@@ -18,6 +19,7 @@ async fn compare_storage_representations() {
             "logical_cpus":std::thread::available_parallelism().map(|n| n.get()).unwrap_or(0),
             "filesystem":"runner temporary directory; filesystem cache not flushed",
             "cpu_model":"collect runner metadata separately", "disk_type":"not detected",
+            "sqlite_candidate":"minimal project/history schema; DELETE rollback journal with FULL synchronous; no immutable reader; live-WAL reader purity unsupported",
             "provenance":"synthetic model metadata/chat/binary STEP-labelled payload; no CAD geometry claim",
             "scope":"existing APIs have different validation work; timings do not establish semantic equivalence or select a format"
         })
@@ -60,16 +62,16 @@ async fn compare_storage_representations() {
             folder::reader::FolderSnapshot::capture(&manifest_root).unwrap()
         });
         let started = Instant::now();
-        let reopened = crate::storage::open(&sql_root.join("project.sqlite"))
+        let reopened = candidate::open_reader(&sql_root.join("project.sqlite"))
             .await
             .unwrap();
         let current = fixture::read_project(&reopened, &project.id).await;
         row(
             label,
-            "sqlite-candidate",
+            "sqlite-delete-prototype",
             "first_api_open",
             started.elapsed(),
-            "includes existing DB integrity/migrations/session recovery route; not a pure reader",
+            "prototype DELETE journal DB opened read-only/query-only with SQLite locking; validates markers/integrity/project metadata; no app migrations, index, immutable mode or agent recovery",
         );
         assert_eq!(
             serde_json::to_vec(&current).unwrap(),
@@ -116,11 +118,18 @@ async fn compare_storage_representations() {
         std::hint::black_box((cursor.can_undo(), cursor.can_redo()));
         row(
             label,
-            "sqlite-candidate",
+            "sqlite-delete-prototype",
             "history_status",
             started.elapsed(),
             "validates typed cursor; does not hash assets or full event archive",
         );
+        reopened.close().await;
+        let started = Instant::now();
+        let writer = candidate::open_writer(&sql_root.join("project.sqlite"))
+            .await
+            .unwrap();
+        row(label, "sqlite-delete-prototype", "writer_reopen", started.elapsed(),
+            "prototype separate writer startup: candidate format validation, DELETE journal and FULL synchronous; no app schema or production session lease");
 
         let before_manifest = bytes_on_disk(&manifest_root);
         let before_sql = bytes_on_disk(&sql_root);
@@ -135,8 +144,8 @@ async fn compare_storage_representations() {
             folder::publish(&manifest_root, staged).unwrap();
         });
         let started = Instant::now();
-        fixture::persist(&reopened, Some(&current), &renamed).await;
-        row(label,"sqlite-candidate","metadata_save",started.elapsed(),"same typed record_commit validation; existing SQL schema only; no production writer/session adapter");
+        fixture::persist(&writer, Some(&current), &renamed).await;
+        row(label,"sqlite-delete-prototype","metadata_save",started.elapsed(),"same typed record_commit validation; minimal project/history schema only; writer startup measured separately; no production writer/session adapter");
         measured(label, "manifest-v2", "explicit_previous_read", || {
             let previous = folder::read_backup(&manifest_root).unwrap();
             assert_eq!(previous.name, project.name);
@@ -151,17 +160,23 @@ async fn compare_storage_representations() {
             serde_json::json!({"kind":"growth","size":label,
             "manifest_before_bytes":before_manifest,"manifest_after_bytes":bytes_on_disk(&manifest_root),
             "sqlite_before_bytes":before_sql,"sqlite_after_bytes":bytes_on_disk(&sql_root),
-            "sqlite_includes_active_wal":true,
+            "sqlite_journal_mode":"DELETE", "sqlite_synchronous":"FULL",
+            "sqlite_includes_active_writer":true,
             "manifest_assets_after":std::fs::read_dir(manifest_root.join("assets")).unwrap().count(),
             "expected_unique_assets":assets.len()})
         );
-        for backend in ["manifest-v2", "manifest-v2-metadata", "sqlite-candidate"] {
+        for backend in [
+            "manifest-v2",
+            "manifest-v2-metadata",
+            "sqlite-delete-prototype",
+        ] {
             for operation in [
                 "single_attachment_public_api",
                 "copy_export_transaction",
                 "crash_recovery",
                 "process_cold_open",
                 "peak_memory",
+                "live_wal_reader_purity",
             ] {
                 if backend == "manifest-v2-metadata" && operation == "single_attachment_public_api"
                 {
@@ -174,7 +189,7 @@ async fn compare_storage_representations() {
                 );
             }
         }
-        reopened.close().await;
+        writer.close().await;
         assert_eq!(
             std::fs::read_dir(manifest_root.join("assets"))
                 .unwrap()

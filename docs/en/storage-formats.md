@@ -4,9 +4,20 @@
 
 The independent folder backend format has not been selected. Candidates are the
 existing v2 manifest/generations representation and experimental project-local
-SQLite. The SQL candidate uses existing schemas and typed history; the global app
+SQLite. The SQL candidate now uses minimal project/history tables and typed history; the global app
 database does not supply its synthetic data. This is a benchmark, not a user-facing
-open/save route.
+open/save route. The saved first baseline used the app schema; it remains separate
+and does not establish the corrected pure opener's behavior.
+
+The corrected `sqlite-delete-prototype` uses DELETE rollback journal and FULL
+synchronous. Explicit create refuses existing files. A reader checks a bounded
+SQLite header, application_id/user_version and absence of WAL/SHM/journal before
+connecting read_only/query_only and running quick_check. It never uses immutable,
+applies migrations or repairs a journal. Live-WAL purity remains unsupported.
+This is a benchmark prototype, not a production writer API. Four regressions
+cover byte preservation, absence of app tables, write refusal and controlled
+foreign/future/WAL format rejection. Writer startup is timed separately from
+metadata save.
 
 ## Read boundaries
 

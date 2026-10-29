@@ -47,7 +47,8 @@ rename, подмена по тому же пути и появление ран�
 на даты. Сохранение файловых handles не является доказательством гарантий NAS.
 AccessRegistry индексируется ID, а не backend/location. Эти ограничения требуют отдельных
 изменений перед готовностью следующего этапа. Внешняя папка ещё не является
-самостоятельным backend. Этап 1 и программа целиком не объявлены завершёнными.
+самостоятельным write backend. Проверки основы этапа 1 завершены на SHA ниже;
+приёмка и слияние остаются у lovlyDev. Программа целиком не завершена.
 
 ## Воспроизводимая проверка
 
@@ -64,7 +65,8 @@ Weak writer guard остаются в состоянии проекта; release
 `project_repository/location/tests.rs` проверяет неизменённые/отсутствующие пути,
 подмену листа/родителя/корня, traversal, обычные файлы и платформенные ссылки.
 Два теста общего снимка проверяют подмену каталога с неизменным SQL и одинаковые
-project IDs/payload в двух разных корнях. Эти тесты ещё требуют результата CI.
+project IDs/payload в двух разных корнях. Они прошли Quality на `1ad4937`;
+последующие изменения требуют своего прогона.
 
 Проверка записи истории выделена в чистый `project_history::prepare_commit`.
 Она возвращает закрытый тип с проверенным cursor/event; SQL writer использует
@@ -92,3 +94,28 @@ Rust-тесты не выполнились: после загрузки зав�
 на `linker link.exe not found`. Штатный `scripts/windows-env.ps1` также
 остановился: отсутствует `C:\Program Files (x86)\Windows Kits\10\Lib`.
 CI своей ветки и строгий Clippy не подтверждены. Установщик не собирался.
+
+## Проверенная основа этапа 1
+
+[Quality 40869695219](https://github.com/lovlyDev/FormaCAD/actions/runs/40869695219)
+успешен на head `1ad4937569edb2aaf86ba3f7407b48c2f7b6cb34`: Windows, Linux,
+macOS ARM/Intel, frontend, CAD Python и security. Rust library Windows/Linux:
+249 passed, 0 failed, 3 ignored (benchmark и служебные helpers). Strict Clippy
+и fmt прошли. Frontend: 215 тестов / 75 файлов; browser 45 passed / 35 skipped
+без нативных fixtures, поэтому installed/native UI этим не подтверждён.
+[Storage comparison 40869695213](https://github.com/lovlyDev/FormaCAD/actions/runs/40869695213)
+на том же head прошёл strict Clippy с `native-worker-client` и benchmark.
+
+Настоящий Linux worker отдельно проверен в
+[Quality 40868152101](https://github.com/lovlyDev/FormaCAD/actions/runs/40868152101),
+job 123428058352, head `147a0dd05e1a15c94c7656b9569eca4f028b795c`:
+292 library passed / 0 failed / 3 ignored и 11 worker passed. Включена новая
+`close_and_reopen_after_real_worker_rejects_unchanged_measurement_source`.
+Шесть согласованных файлов измерений между `147a0dd` и `1ad4937` идентичны;
+это проверка соответствующего маршрута, а не всего более позднего head.
+В этом старом Quality другие jobs падали на уже исправленном benchmark lint;
+весь старый run не объявляется зелёным.
+
+После этой основы этап 2 продолжается; локальные правки SQL-компаратора ещё
+не входят в указанное подтверждение. USB/NAS, полный новый folder write маршрут,
+поздние pair/face ответы и установленный UI остаются отдельными gates.

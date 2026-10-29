@@ -44,7 +44,8 @@ Unsupported Windows file-ID queries fail closed without timestamp fallback.
 Retained handles do not establish NAS guarantees. AccessRegistry
 keys by project ID rather than backend/location. These require separate changes
 before the next stage is ready. External folders are not independent backends.
-Neither stage 1 nor the complete program is declared finished.
+Stage 1 baseline checks are complete on the SHA below; acceptance and merge
+remain with lovlyDev. The complete program is unfinished.
 
 ## Reproduction
 
@@ -61,7 +62,8 @@ cursor capture checks the original token after both SQL awaits.
 `project_repository/location/tests.rs` covers unchanged/missing paths,
 leaf/parent/root replacement, traversal, regular files and platform links.
 Two snapshot regressions cover directory replacement with unchanged SQL and
-identical project IDs/payloads at different roots. CI results remain required.
+identical project IDs/payloads at different roots. They passed Quality on `1ad4937`;
+later changes require their own run.
 
 History write validation is extracted into pure `project_history::prepare_commit`.
 It returns a privately constructed cursor/event payload; the SQL writer uses the
@@ -90,3 +92,28 @@ Rust tests did not execute: after dependencies downloaded, compilation stopped
 at `linker link.exe not found`. The standard `scripts/windows-env.ps1` also
 stopped because `C:\Program Files (x86)\Windows Kits\10\Lib` is absent.
 Branch CI and strict Clippy remain unverified. No installer was built.
+
+## Verified stage 1 baseline
+
+[Quality 40869695219](https://github.com/lovlyDev/FormaCAD/actions/runs/40869695219)
+succeeded for head `1ad4937569edb2aaf86ba3f7407b48c2f7b6cb34`: Windows, Linux,
+macOS ARM/Intel, frontend, Python CAD and security. Windows/Linux Rust library:
+249 passed, 0 failed, 3 ignored (benchmark and service helpers). Strict Clippy
+and fmt passed. Frontend: 215 tests / 75 files; browser: 45 passed / 35 skipped
+without native fixtures, which does not establish installed/native UI acceptance.
+[Storage comparison 40869695213](https://github.com/lovlyDev/FormaCAD/actions/runs/40869695213)
+on the same head passed strict `native-worker-client` Clippy and the benchmark.
+
+Real Linux worker coverage ran separately in
+[Quality 40868152101](https://github.com/lovlyDev/FormaCAD/actions/runs/40868152101),
+job 123428058352, head `147a0dd05e1a15c94c7656b9569eca4f028b795c`:
+292 library passed / 0 failed / 3 ignored and 11 worker passed. This includes
+`close_and_reopen_after_real_worker_rejects_unchanged_measurement_source`.
+The six agreed measurement files are identical between `147a0dd` and `1ad4937`;
+this verifies that route, not the entire later head. Other jobs in that older
+Quality run failed on the since-corrected benchmark lint; the whole old run is
+not described as successful.
+
+Stage 2 continues after this baseline. Local SQL-comparator corrections are not
+covered by that evidence. USB/NAS, the full new folder-write route, late pair/face
+responses and installed UI remain separate gates.
