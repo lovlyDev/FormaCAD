@@ -1,4 +1,6 @@
 //! Shared repository boundaries; managed projects retain their existing SQL authority.
+#[cfg(test)]
+mod benchmark;
 pub mod legacy;
 mod location;
 mod session;

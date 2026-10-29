@@ -81,3 +81,4 @@ These guides describe the consolidated 1.2.6 candidate and its limits. Final pac
 - [Shared 2.0 scope and acceptance](../architecture-2.0.md).
 - [AI prompt for alternating development](collaboration-ai-prompt.md).
 - [Storage program: audit and limits](storage-program.md).
+- [Storage format comparison](storage-formats.md).
