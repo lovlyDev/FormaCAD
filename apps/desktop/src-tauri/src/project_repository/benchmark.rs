@@ -34,10 +34,9 @@ async fn compare_storage_representations() {
         std::fs::create_dir(&sql_root).unwrap();
         let (pool, project, assets) =
             fixture::build(&sql_root, revisions, attachments, asset_bytes).await;
-        let archive =
-            project_history::export_history(&mut pool.acquire().await.unwrap(), &project)
-                .await
-                .unwrap();
+        let archive = project_history::export_history(&mut pool.acquire().await.unwrap(), &project)
+            .await
+            .unwrap();
         project_history::validate_archive(&project, &archive).unwrap();
         let mut staged = folder::stage_with(&manifest_root, &project, |file| {
             Ok(assets[file.sha256.as_ref().unwrap()].clone())

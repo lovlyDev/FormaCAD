@@ -41,6 +41,35 @@ an OS cold-cache or new-process measurement; those gaps are explicitly recorded.
 Unsupported complete copy/export/crash recovery routes receive no invented timings.
 Final raw results and a format decision require actual execution.
 
+### First executed comparison
+
+[Storage comparison 40867790068](https://github.com/lovlyDev/FormaCAD/actions/runs/40867790068)
+succeeded for head `250016c6c9d69b12d7016bf5341a504603b685da`;
+the PR merge checkout was `ed96fbffbbb85f959b8db2abb8fa8d7cbba0a500`.
+Saved evidence: [raw JSON](../storage-benchmark/250016c-linux.jsonl),
+[environment](../storage-benchmark/250016c-environment.txt) and
+[whole-process resources](../storage-benchmark/250016c-process-resources.txt).
+Ubuntu 22.04 / Linux Azure, AMD EPYC 7763, 4 vCPU; virtual disk with lsblk ROTA=1,
+physical storage type unverified. Rust 1.97.1.
+
+| Large fixture, single observation, ms | Full manifest v2 | Metadata reader v2 | SQLite candidate |
+| --- | ---: | ---: | ---: |
+| First API open | 526.348 | 16.335 | 7.772 |
+| History status | 1054.811 | 31.048 | 0.936 |
+| Metadata save | 2109.459 | No separate writer | 14.922 |
+
+Large has 128 revisions, 256 references to 128 unique 128-KiB assets, a 32355-byte
+archive and 133911-byte metadata. Saving again retained exactly 128 assets.
+Validation work differs: SQL status does not hash all assets/archive; SQL opening
+uses existing migration/recovery and is not yet a pure-reader adapter. These are
+costs of actual primitives, not a winner with equivalent guarantees. Process/cache
+cold open, full copy/export, crash recovery and per-operation peak memory remain
+unmeasured. This run does not verify later heads or complete stage 2.
+
+Strict CI on `147a0dd` failed at benchmark export_history's explicit_auto_deref;
+the original failure remains in repository job 123427829406. Fix `93956b1` removes
+the unnecessary dereference without weakening lint.
+
 ## Shared integration
 
 The [measurement contract and exact patch](../integration/storage-measurement-session.md)

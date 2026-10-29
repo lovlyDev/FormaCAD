@@ -41,6 +41,36 @@ project.json, проверяет ограниченные размеры, SHA и
 полные copy/export/crash recovery не получают выдуманного времени.
 Окончательные raw результаты и решение публикуются только после исполнения.
 
+### Первый выполненный прогон
+
+[Storage comparison 40867790068](https://github.com/lovlyDev/FormaCAD/actions/runs/40867790068)
+успешен для head `250016c6c9d69b12d7016bf5341a504603b685da`;
+checkout PR merge — `ed96fbffbbb85f959b8db2abb8fa8d7cbba0a500`.
+Сохранены [сырые JSON](../storage-benchmark/250016c-linux.jsonl),
+[окружение](../storage-benchmark/250016c-environment.txt) и
+[ресурсы процесса](../storage-benchmark/250016c-process-resources.txt).
+Ubuntu 22.04 / Linux Azure, AMD EPYC 7763, 4 vCPU; диск виртуальный, `lsblk`
+сообщает ROTA=1, физический тип накопителя не подтверждён. Rust 1.97.1.
+
+| Large, один замер, мс | Полный manifest v2 | Metadata reader v2 | SQLite-кандидат |
+| --- | ---: | ---: | ---: |
+| Первый вызов API открытия | 526.348 | 16.335 | 7.772 |
+| Статус истории | 1054.811 | 31.048 | 0.936 |
+| Сохранение metadata | 2109.459 | Не отдельный writer | 14.922 |
+
+Large: 128 ревизий, 256 ссылок на 128 уникальных assets по 128 КиБ,
+архив 32355 байт, metadata 133911 байт. Повторное сохранение оставило 128 assets.
+Эти операции делают разный объём проверки: SQL status не хеширует все assets и
+архив; SQLite open использует имеющийся migration/recovery маршрут и ещё не pure
+reader. Поэтому таблица показывает стоимость текущих примитивов, а не выбор
+победителя с равными гарантиями. Cold-process/cache, полный copy/export, crash
+recovery и peak memory отдельной операции остаются незамеренными. Прогон не
+подтверждает более поздний head или весь этап 2.
+
+Строгий CI на `147a0dd` остановился на Clippy explicit_auto_deref в benchmark
+строке export_history; исходное падение сохранено в job 123427829406 того же
+репозитория. Исправление `93956b1` убирает лишний deref, не ослабляя lint.
+
 ## Общая интеграция
 
 Для измерений подготовлены [контракт и точный патч](../integration/storage-measurement-session.md)
