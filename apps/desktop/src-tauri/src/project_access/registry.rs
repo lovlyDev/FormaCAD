@@ -20,14 +20,16 @@ enum Session {
     ReadOnly,
 }
 #[derive(Default)]
-struct RegistryState {
-    sessions: HashMap<String, Session>,
-    in_flight: HashMap<String, Weak<File>>,
-    read_epochs: HashMap<String, uuid::Uuid>,
+struct ProjectState {
+    session: Option<Session>,
+    in_flight: Weak<File>,
+    read_epoch: Option<uuid::Uuid>,
 }
 #[derive(Default)]
 pub struct AccessRegistry {
-    state: Mutex<RegistryState>,
+    // The map lock only resolves a per-project gate. Disk and lease operations
+    // hold that gate, so a slow source cannot block unrelated project lifecycles.
+    projects: Mutex<HashMap<String, Arc<Mutex<ProjectState>>>>,
 }
 /// Holding this guard prevents release during a nested commit or long-running task.
 #[derive(Debug)]
@@ -35,6 +37,14 @@ pub struct WriteGuard {
     _file: Arc<File>,
 }
 impl AccessRegistry {
+    fn project(&self, id: &str) -> Result<Arc<Mutex<ProjectState>>> {
+        crate::security::valid_id(id)?;
+        let mut projects = self
+            .projects
+            .lock()
+            .map_err(|_| AppError::Invalid("PROJECT_ACCESS_UNAVAILABLE".into()))?;
+        Ok(Arc::clone(projects.entry(id.into()).or_default()))
+    }
     fn owner(root: &Path, id: &str) -> Option<u32> {
         let path =
             crate::security::guarded(root, Path::new(&format!(".project-access/{id}.owner.json")))
@@ -102,41 +112,38 @@ impl AccessRegistry {
         }
     }
     pub fn acquire(&self, root: &Path, id: &str) -> Result<AccessStatus> {
-        crate::security::valid_id(id)?;
-        let mut state = self
-            .state
+        let project = self.project(id)?;
+        let mut state = project
             .lock()
             .map_err(|_| AppError::Invalid("PROJECT_ACCESS_UNAVAILABLE".into()))?;
-        if matches!(state.sessions.get(id), Some(Session::Writer(_))) {
-            return Ok(Self::describe(root, id, state.sessions.get(id)));
+        if matches!(state.session, Some(Session::Writer(_))) {
+            return Ok(Self::describe(root, id, state.session.as_ref()));
         }
-        let session = if let Some(file) = state.in_flight.get(id).and_then(Weak::upgrade) {
+        let session = if let Some(file) = state.in_flight.upgrade() {
             Session::Writer(file)
         } else {
             Self::open(root, id)?
         };
-        state.sessions.insert(id.into(), session);
-        if let Some(epoch) = state.read_epochs.get_mut(id) {
+        state.session = Some(session);
+        if let Some(epoch) = &mut state.read_epoch {
             *epoch = uuid::Uuid::new_v4();
         }
-        Ok(Self::describe(root, id, state.sessions.get(id)))
+        Ok(Self::describe(root, id, state.session.as_ref()))
     }
     pub fn status(&self, root: &Path, id: &str) -> Result<AccessStatus> {
-        crate::security::valid_id(id)?;
-        let state = self
-            .state
+        let project = self.project(id)?;
+        let state = project
             .lock()
             .map_err(|_| AppError::Invalid("PROJECT_ACCESS_UNAVAILABLE".into()))?;
-        Ok(Self::describe(root, id, state.sessions.get(id)))
+        Ok(Self::describe(root, id, state.session.as_ref()))
     }
     pub fn release(&self, id: &str) -> Result<()> {
-        crate::security::valid_id(id)?;
-        let mut state = self
-            .state
+        let project = self.project(id)?;
+        let mut state = project
             .lock()
             .map_err(|_| AppError::Invalid("PROJECT_ACCESS_UNAVAILABLE".into()))?;
-        state.sessions.remove(id);
-        if let Some(epoch) = state.read_epochs.get_mut(id) {
+        state.session = None;
+        if let Some(epoch) = &mut state.read_epoch {
             *epoch = uuid::Uuid::new_v4();
         }
         // Never unlink: an old live inode and recreated lock path could have simultaneous owners.
@@ -144,27 +151,22 @@ impl AccessRegistry {
     }
     /// Memory-only lifecycle token; never opens a lock file or grants write access.
     pub(crate) fn read_epoch(&self, id: &str) -> Result<uuid::Uuid> {
-        crate::security::valid_id(id)?;
-        let mut state = self
-            .state
+        let project = self.project(id)?;
+        let mut state = project
             .lock()
             .map_err(|_| AppError::Invalid("PROJECT_ACCESS_UNAVAILABLE".into()))?;
-        Ok(*state
-            .read_epochs
-            .entry(id.into())
-            .or_insert_with(uuid::Uuid::new_v4))
+        Ok(*state.read_epoch.get_or_insert_with(uuid::Uuid::new_v4))
     }
     pub fn ensure_write(&self, root: &Path, id: &str) -> Result<WriteGuard> {
-        crate::security::valid_id(id)?;
-        let mut state = self
-            .state
+        let project = self.project(id)?;
+        let mut state = project
             .lock()
             .map_err(|_| AppError::Invalid("PROJECT_ACCESS_UNAVAILABLE".into()))?;
-        let file = match state.sessions.get(id) {
+        let file = match state.session.as_ref() {
             Some(Session::Writer(file)) => Arc::clone(file),
             Some(Session::ReadOnly) => return Err(AppError::Invalid("PROJECT_READ_ONLY".into())),
             None => {
-                if let Some(file) = state.in_flight.get(id).and_then(Weak::upgrade) {
+                if let Some(file) = state.in_flight.upgrade() {
                     file
                 } else {
                     match Self::open(root, id)? {
@@ -176,10 +178,11 @@ impl AccessRegistry {
                 }
             }
         };
-        state
-            .in_flight
-            .retain(|_, reference| reference.strong_count() > 0);
-        state.in_flight.insert(id.into(), Arc::downgrade(&file));
+        state.in_flight = Arc::downgrade(&file);
         Ok(WriteGuard { _file: file })
     }
 }
+
+#[cfg(test)]
+#[path = "registry_tests.rs"]
+mod tests;
