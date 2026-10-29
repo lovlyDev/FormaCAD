@@ -144,3 +144,63 @@ async fn input_corruption_after_real_worker_is_rejected_by_final_host_check() {
     .unwrap();
     assert_eq!(valid.report.revision_id, baseline.current_revision.unwrap());
 }
+
+#[tokio::test]
+async fn close_and_reopen_after_real_worker_rejects_unchanged_measurement_source() {
+    let root = tempfile::tempdir().unwrap();
+    let (state, baseline) = fixture::fixture(root.path()).await;
+    state
+        .project_access
+        .acquire(&state.root, &baseline.id)
+        .unwrap();
+    let before = fixture::snapshot(&state, &baseline.id).await;
+    let called = AtomicBool::new(false);
+    let reopen_after_worker = || {
+        called.store(true, Ordering::Relaxed);
+        state.project_access.release(&baseline.id).unwrap();
+        state
+            .project_access
+            .acquire(&state.root, &baseline.id)
+            .unwrap();
+    };
+    let error = measure_inner(
+        &state,
+        &baseline.id,
+        baseline.current_revision.as_deref().unwrap(),
+        "body",
+        &MeasurementQuery::BodyMetrics {},
+        fixture::token(),
+        fixture::executable(),
+        PhaseHook {
+            after_worker: Some(&reopen_after_worker),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap_err();
+    assert!(
+        called.load(Ordering::Relaxed),
+        "The real worker must finish before reopen"
+    );
+    assert!(error.to_string().contains("MEASUREMENT_STALE"), "{error}");
+    assert_eq!(fixture::snapshot(&state, &baseline.id).await, before);
+    fixture::clean(&state).await;
+    assert_eq!(
+        std::fs::read_dir(state.root.join(".transient/reference-measurements"))
+            .unwrap()
+            .count(),
+        0
+    );
+    let fresh = measure_with_executable(
+        &state,
+        &baseline.id,
+        baseline.current_revision.as_deref().unwrap(),
+        "body",
+        &MeasurementQuery::BodyMetrics {},
+        fixture::token(),
+        fixture::executable(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(fresh.report.revision_id, baseline.current_revision.unwrap());
+}

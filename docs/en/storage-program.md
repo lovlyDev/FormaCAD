@@ -30,7 +30,7 @@ project and retry. Readers acquire no writer lease and perform no recovery.
 | STEP properties | capture_project → worker → recheck | Native consumer code unchanged |
 | Preview | capture_project → worker → recheck | Later awaited cleanup is not atomic delivery |
 | Sections | capture_project → recheck and artifact checks | Consumer code unchanged |
-| Measurements | snapshot::read → project | Drops token; requires an agreed integration patch |
+| Measurements | snapshot::read → CommittedSnapshot → worker → recheck | Agreed patch retains original token; real-worker validation remains required |
 
 ## Limits and remaining work
 

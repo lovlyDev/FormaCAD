@@ -44,6 +44,7 @@ Final raw results and a format decision require actual execution.
 ## Shared integration
 
 The [measurement contract and exact patch](../integration/storage-measurement-session.md)
-target the current main baseline. They have not been applied: shared/native files
-require lovlyDev agreement under the specification. Issue #3, worker protocol and
-Cargo files remain outside task edits.
+target the current main baseline. lovlyDev separately authorized the six listed
+files on 29 October 2026, and the patch is applied in the task branch. Compilation
+and real-worker results remain required. Other Issue #3 files, worker protocol and
+Cargo remain outside task edits.

@@ -32,7 +32,7 @@ PR №5 подтверждён объединённым через API; 29 ок�
 | Свойства STEP | capture_project → worker → recheck | Код native-потребителя не изменён |
 | Preview | capture_project → worker → recheck | Последующий await cleanup не является атомарной доставкой |
 | Сечения | capture_project → recheck и artifact checks | Код потребителя не изменён |
-| Измерения | snapshot::read → project | Token теряется; нужен согласованный патч интеграции |
+| Измерения | snapshot::read → CommittedSnapshot → worker → recheck | Согласованный патч удерживает исходный token; real-worker проверка ещё требуется |
 
 ## Ограничения и следующая работа
 

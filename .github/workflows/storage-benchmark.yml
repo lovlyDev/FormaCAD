@@ -19,6 +19,8 @@ jobs:
           node-version: 22
           cache: npm
       - uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          components: clippy
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/desktop/src-tauri -> target
@@ -26,6 +28,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - run: npm ci
       - run: npm run build
+      - name: Compile shared measurement integration with strict lint
+        run: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --all-targets --features native-worker-client -- -D warnings
       - name: Runner environment
         run: |
           mkdir -p storage-evidence
