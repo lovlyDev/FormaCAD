@@ -7,7 +7,9 @@ const expected = {
   revisionId: "r",
   sceneToken: "s",
   sourceSha256: "a".repeat(64),
+  sourceSize: 128,
   documentSha256: "b".repeat(64),
+  importedAssetSeals: [],
   bodyId: "body",
 };
 const candidate = {
@@ -21,8 +23,33 @@ const candidate = {
   },
   pointMm: [10, 20, 30],
 };
-const sample = { ...expected, engine: "occt", candidates: [candidate] };
+const sample = {
+  ...expected,
+  evaluationSource: "rebuiltAuthoredBody",
+  engine: "occt",
+  candidates: [candidate],
+};
 describe("snap source ownership", () => {
+  it("binds every imported asset seal to the captured native inputs", () => {
+    const seal = {
+      assetId: `step_${"c".repeat(64)}`,
+      sha256: "c".repeat(64),
+      size: 1024,
+    };
+    const binding = { ...expected, importedAssetSeals: [seal] };
+    const report = { ...sample, ...binding };
+    expect(readExactSnap(report, binding, binding)).not.toBeNull();
+    expect(
+      readExactSnap(
+        { ...report, importedAssetSeals: [{ ...seal, size: 1025 }] },
+        binding,
+        binding,
+      ),
+    ).toBeNull();
+    expect(
+      readExactSnap(report, binding, { ...binding, importedAssetSeals: [] }),
+    ).toBeNull();
+  });
   it("accepts only a bounded native result for the exact captured source and scene", () => {
     expect(
       readExactSnap(sample, expected, expected)?.candidates[0].pointMm,
@@ -39,6 +66,22 @@ describe("snap source ownership", () => {
       ).toBeNull();
     expect(
       readExactSnap(sample, expected, { ...expected, sceneToken: "new" }),
+    ).toBeNull();
+    expect(
+      readExactSnap(sample, expected, {
+        ...expected,
+        sourceSha256: "c".repeat(64),
+      }),
+    ).toBeNull();
+    expect(
+      readExactSnap({ ...sample, sourceSize: 129 }, expected, expected),
+    ).toBeNull();
+    expect(
+      readExactSnap(
+        { ...sample, evaluationSource: "mesh" },
+        expected,
+        expected,
+      ),
     ).toBeNull();
     expect(
       readExactSnap({ ...sample, engine: "mesh" }, expected, expected),
