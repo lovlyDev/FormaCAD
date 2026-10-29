@@ -28,8 +28,6 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - run: npm ci
       - run: npm run build
-      - name: Compile shared measurement integration with strict lint
-        run: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --all-targets --features native-worker-client -- -D warnings
       - name: Runner environment
         run: |
           mkdir -p storage-evidence
@@ -38,6 +36,10 @@ jobs:
           lsblk -o NAME,TYPE,SIZE,ROTA,MOUNTPOINTS >> storage-evidence/environment.txt
           rustc --version >> storage-evidence/environment.txt
           git rev-parse HEAD >> storage-evidence/environment.txt
+      - name: Compile shared measurement integration with strict lint
+        run: |
+          set -o pipefail
+          cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --all-targets --features native-worker-client -- -D warnings 2>&1 | tee storage-evidence/clippy.log
       - name: Compare real storage primitives
         env:
           TMPDIR: ${{ runner.temp }}
