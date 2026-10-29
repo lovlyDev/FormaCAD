@@ -1,0 +1,47 @@
+name: Storage comparison
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/desktop/src-tauri/src/project_repository/**'
+      - 'apps/desktop/src-tauri/src/project_history/**'
+      - '.github/workflows/storage-benchmark.yml'
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+      - name: Webview dependencies
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - run: npm ci
+      - run: npm run build
+      - name: Runner environment
+        run: |
+          mkdir -p storage-evidence
+          uname -a > storage-evidence/environment.txt
+          lscpu >> storage-evidence/environment.txt
+          lsblk -o NAME,TYPE,SIZE,ROTA,MOUNTPOINTS >> storage-evidence/environment.txt
+          rustc --version >> storage-evidence/environment.txt
+          git rev-parse HEAD >> storage-evidence/environment.txt
+      - name: Compare real storage primitives
+        env:
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          set -o pipefail
+          /usr/bin/time -v -o storage-evidence/process-resources.txt cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib project_repository::benchmark::compare_storage_representations -- --ignored --nocapture 2>&1 | tee storage-evidence/benchmark.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: storage-comparison-${{ github.event.pull_request.head.sha }}
+          path: storage-evidence/
