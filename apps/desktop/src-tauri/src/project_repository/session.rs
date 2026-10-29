@@ -1,6 +1,7 @@
 //! Internal read identity. A lifecycle token is not an OS lease or a write capability.
+use super::location::LocationIdentity;
 use crate::core::{AppState, Result};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[derive(Debug, PartialEq, Eq)]
 enum Backend {
@@ -12,7 +13,7 @@ enum Backend {
 pub(crate) struct ReadSession {
     backend: Backend,
     project_id: String,
-    location: PathBuf,
+    location: LocationIdentity,
     epoch: uuid::Uuid,
 }
 
@@ -22,7 +23,7 @@ impl ReadSession {
         Ok(Self {
             backend: Backend::LegacyManaged,
             project_id: project_id.into(),
-            location: crate::security::guarded(&state.root, Path::new(project_id))?,
+            location: LocationIdentity::capture(&state.root, Path::new(project_id))?,
             epoch: state.project_access.read_epoch(project_id)?,
         })
     }
@@ -31,7 +32,7 @@ impl ReadSession {
         if self.project_id != project_id
             || self.backend != Backend::LegacyManaged
             || self.epoch != state.project_access.read_epoch(project_id)?
-            || self.location != crate::security::guarded(&state.root, Path::new(project_id))?
+            || !self.location.recheck(&state.root, Path::new(project_id))?
         {
             return Err(super::legacy::changed());
         }

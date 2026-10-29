@@ -3,6 +3,46 @@ use super::{capture_project, capture_with_history, read_test_fixture as fixture,
 use std::{future::Future, task::Poll};
 
 #[tokio::test]
+async fn replaced_directory_at_the_same_path_rejects_snapshot_with_identical_sql() {
+    let temp = tempfile::tempdir().unwrap();
+    let state = fixture::state(temp.path()).await;
+    let project = fixture::project(&state, 16).await;
+    let path = state.root.join(&project.id);
+    std::fs::create_dir(&path).unwrap();
+    let snapshot = capture_project(&state, &project.id).await.unwrap();
+    let before = fixture::logical(&state, &project.id).await;
+    std::fs::rename(&path, state.root.join("old-source")).unwrap();
+    std::fs::create_dir(&path).unwrap();
+    let files = fixture::files(temp.path());
+    assert_eq!(
+        recheck(&state, &snapshot).await.err().unwrap().to_string(),
+        "PROJECT_SNAPSHOT_CHANGED"
+    );
+    assert_eq!(fixture::logical(&state, &project.id).await, before);
+    assert_eq!(fixture::files(temp.path()), files);
+    recheck(&state, &capture_project(&state, &project.id).await.unwrap())
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn equal_project_ids_and_payloads_at_different_roots_do_not_exchange_snapshots() {
+    let first = tempfile::tempdir().unwrap();
+    let second = tempfile::tempdir().unwrap();
+    let state = fixture::state(first.path()).await;
+    let other = fixture::state(second.path()).await;
+    let project = fixture::project(&state, 16).await;
+    fixture::replace(&other, &project, true).await;
+    let snapshot = capture_project(&state, &project.id).await.unwrap();
+    let before = fixture::logical(&other, &project.id).await;
+    assert_eq!(
+        recheck(&other, &snapshot).await.err().unwrap().to_string(),
+        "PROJECT_SNAPSHOT_CHANGED"
+    );
+    assert_eq!(fixture::logical(&other, &project.id).await, before);
+}
+
+#[tokio::test]
 async fn close_and_reopen_reject_both_project_and_archive_snapshots_without_writes() {
     let temp = tempfile::tempdir().unwrap();
     let state = fixture::state(temp.path()).await;

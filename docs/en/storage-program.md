@@ -35,8 +35,13 @@ project and retry. Readers acquire no writer lease and perform no recovery.
 ## Limits and remaining work
 
 Checks are optimistic observations at specific points; they do not block changes
-after the final check. Paths do not yet provide OS directory identity: replacing
-a directory at the same path with identical bytes is undetected. AccessRegistry
+after the final check. Sessions now retain OS identity for the root and existing
+source directories: Windows volume/file ID or Unix device/inode. Read handles
+prevent reuse of the retained identity and grant no writer lease. Rename,
+same-path replacement and appearance of a previously missing directory invalidate
+the old snapshot. Root/path symlinks, reparse points and junctions are rejected.
+Unsupported Windows file-ID queries fail closed without timestamp fallback.
+Retained handles do not establish NAS guarantees. AccessRegistry
 keys by project ID rather than backend/location. These require separate changes
 before the next stage is ready. External folders are not independent backends.
 Neither stage 1 nor the complete program is declared finished.
@@ -52,6 +57,19 @@ New `project_access/registry_tests.rs` regressions cover another project operati
 while the first gate is held, release/reacquire with a surviving guard, and
 transient writes. An additional history regression closes during SQL recheck;
 cursor capture checks the original token after both SQL awaits.
+
+`project_repository/location/tests.rs` covers unchanged/missing paths,
+leaf/parent/root replacement, traversal, regular files and platform links.
+Two snapshot regressions cover directory replacement with unchanged SQL and
+identical project IDs/payloads at different roots. CI results remain required.
+
+History write validation is extracted into pure `project_history::prepare_commit`.
+It returns a privately constructed cursor/event payload; the SQL writer uses the
+same function inside its transaction. Append, metadata, undo/redo, revision
+immutability and original PreparedHistory fencing remain intact. This is adapter
+groundwork, not a new write route: external folders are not wired yet.
+Eight tests cover these rules and actual SQL state/event persistence with rollback
+preserving the original source.
 
 New tests in `project_repository/legacy/session_tests.rs` cover close/reopen for
 project/archive snapshots and closure during SQL capture and recheck. They exhaust
