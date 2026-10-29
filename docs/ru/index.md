@@ -76,3 +76,4 @@
 
 - [Общее ТЗ и критерии 2.0](../architecture-2.0.md).
 - [Промпт AI для работы по очереди](collaboration-ai-prompt.md).
+- [Программа хранения: аудит и ограничения](storage-program.md).
