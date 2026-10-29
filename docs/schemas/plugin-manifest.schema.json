@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://formacad.ru/schemas/plugin-manifest-0.1.json",
+  "title": "FormaCAD plugin manifest (plugin-api 0.1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "version", "description", "categories", "author", "repository", "license", "minAppVersion", "api", "entry", "permissions", "contributes"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$", "minLength": 3, "maxLength": 64 },
+    "name": { "type": "string", "minLength": 1, "maxLength": 50 },
+    "version": { "type": "string", "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$" },
+    "description": { "type": "string", "minLength": 1, "maxLength": 140 },
+    "about": { "type": "string", "maxLength": 1000 },
+    "highlights": {
+      "type": "array", "maxItems": 4,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["icon", "label"],
+        "properties": {
+          "icon": { "type": "string", "pattern": "^[a-z0-9-]{1,40}$" },
+          "label": { "type": "string", "minLength": 1, "maxLength": 24 }
+        }
+      }
+    },
+    "categories": {
+      "type": "array", "minItems": 1, "maxItems": 3, "uniqueItems": true,
+      "items": { "enum": ["modeling", "sketching", "import-export", "measurement", "manufacturing", "automation", "ai", "ui", "library", "other"] }
+    },
+    "author": {
+      "type": "object", "additionalProperties": false, "required": ["name", "github"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "github": { "type": "string", "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$" }
+      }
+    },
+    "repository": { "type": "string", "pattern": "^https://github\\.com/[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}$" },
+    "license": { "type": "string", "pattern": "^[A-Za-z0-9.+-]{2,40}$" },
+    "icon": { "type": "string", "pattern": "^(lucide:[a-z0-9-]{1,40}|[a-z0-9_/-]{1,80}\\.png)$" },
+    "iconColor": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+    "screenshots": {
+      "type": "array", "maxItems": 8,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["src"],
+        "properties": {
+          "src": { "type": "string", "pattern": "^[A-Za-z0-9._/-]{1,200}\\.(png|webp|jpe?g)$" },
+          "caption": { "type": "string", "maxLength": 120 },
+          "theme": { "enum": ["light", "dark", "any"] }
+        }
+      }
+    },
+    "minAppVersion": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "api": { "type": "string", "pattern": "^\\d+\\.\\d+$" },
+    "entry": { "type": "string", "pattern": "^[a-z0-9_-]{1,60}\\.wasm$" },
+    "permissions": {
+      "type": "array", "uniqueItems": true, "maxItems": 16,
+      "items": {
+        "type": "string",
+        "pattern": "^(model\\.read|model\\.write|selection\\.read|file\\.import|file\\.export|storage|notifications|viewport\\.capture|network:[a-z0-9.-]{1,253})$"
+      }
+    },
+    "contributes": {
+      "type": "object", "additionalProperties": false, "minProperties": 1,
+      "properties": {
+        "features": { "type": "array", "maxItems": 32, "items": { "$ref": "#/$defs/feature" } },
+        "commands": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/command" } },
+        "importers": { "type": "array", "maxItems": 16, "items": { "$ref": "#/$defs/format" } },
+        "exporters": { "type": "array", "maxItems": 16, "items": { "$ref": "#/$defs/format" } },
+        "panels": { "type": "array", "maxItems": 8, "items": { "$ref": "#/$defs/panel" } },
+        "settings": { "$ref": "#/$defs/form" }
+      }
+    },
+    "links": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "homepage": { "$ref": "#/$defs/https" },
+        "funding": { "$ref": "#/$defs/https" },
+        "issues": { "$ref": "#/$defs/https" }
+      }
+    },
+    "locales": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z]{2}(-[A-Z]{2})?$" } }
+  },
+  "$defs": {
+    "https": { "type": "string", "pattern": "^https://[^\\s]{3,300}$" },
+    "key": { "type": "string", "pattern": "^[a-z][a-zA-Z0-9_]{0,40}$" },
+    "label": { "type": "string", "minLength": 1, "maxLength": 60 },
+    "feature": {
+      "type": "object", "additionalProperties": false, "required": ["id", "title", "params"],
+      "properties": {
+        "id": { "$ref": "#/$defs/key" },
+        "title": { "$ref": "#/$defs/label" },
+        "icon": { "type": "string", "pattern": "^[a-z0-9-]{1,40}$" },
+        "params": { "$ref": "#/$defs/form" }
+      }
+    },
+    "command": {
+      "type": "object", "additionalProperties": false, "required": ["id", "title"],
+      "properties": {
+        "id": { "$ref": "#/$defs/key" },
+        "title": { "$ref": "#/$defs/label" },
+        "icon": { "type": "string", "pattern": "^[a-z0-9-]{1,40}$" },
+        "when": { "enum": ["always", "model", "selection"] },
+        "params": { "$ref": "#/$defs/form" }
+      }
+    },
+    "format": {
+      "type": "object", "additionalProperties": false, "required": ["id", "title", "extensions"],
+      "properties": {
+        "id": { "$ref": "#/$defs/key" },
+        "title": { "$ref": "#/$defs/label" },
+        "extensions": { "type": "array", "minItems": 1, "maxItems": 8, "items": { "type": "string", "pattern": "^\\.[a-z0-9]{1,10}$" } },
+        "params": { "$ref": "#/$defs/form" }
+      }
+    },
+    "panel": {
+      "type": "object", "additionalProperties": false, "required": ["id", "title", "location"],
+      "properties": {
+        "id": { "$ref": "#/$defs/key" },
+        "title": { "$ref": "#/$defs/label" },
+        "icon": { "type": "string", "pattern": "^[a-z0-9-]{1,40}$" },
+        "location": { "enum": ["sidebar", "inspector"] }
+      }
+    },
+    "form": {
+      "type": "array", "maxItems": 40,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["key", "type", "label"],
+        "properties": {
+          "key": { "$ref": "#/$defs/key" },
+          "type": { "enum": ["length", "angle", "number", "integer", "boolean", "choice", "text"] },
+          "label": { "$ref": "#/$defs/label" },
+          "help": { "type": "string", "maxLength": 200 },
+          "default": {},
+          "min": { "type": "number" },
+          "max": { "type": "number" },
+          "options": { "type": "array", "maxItems": 50, "items": { "type": "object", "additionalProperties": false, "required": ["value", "label"], "properties": { "value": { "type": "string", "maxLength": 40 }, "label": { "$ref": "#/$defs/label" } } } }
+        }
+      }
+    }
+  }
+}

@@ -16,6 +16,7 @@ interface Props {
   onParameters: () => void;
   onAsk: () => void;
   onSettings: () => void;
+  extraCommands?: { label: string; run: () => void }[];
 }
 
 export function CommandPalette({
@@ -31,6 +32,7 @@ export function CommandPalette({
   onParameters,
   onAsk,
   onSettings,
+  extraCommands = [],
 }: Props) {
   const query = search.toLowerCase();
   const commands = [
@@ -40,6 +42,7 @@ export function CommandPalette({
     { label: t("Edit model parameters"), shortcut: "", run: onParameters },
     { label: t("Ask AI"), shortcut: "Ctrl Enter", run: onAsk },
     { label: t("Open settings"), shortcut: "", run: onSettings },
+    ...extraCommands.map((command) => ({ ...command, shortcut: "" })),
   ];
   return (
     <Modal

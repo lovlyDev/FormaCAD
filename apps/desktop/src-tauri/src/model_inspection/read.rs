@@ -107,5 +107,6 @@ fn checked_bytes(state: &AppState, id: &str, file: &crate::models::ProjectFile) 
     Ok(bytes)
 }
 
-#[cfg(test)]
+// This fixture constructs STEP directly with OCCT; client-only coverage uses worker IPC.
+#[cfg(all(test, feature = "native-occt"))]
 mod tests;

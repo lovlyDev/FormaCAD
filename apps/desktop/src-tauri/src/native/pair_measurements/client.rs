@@ -110,8 +110,12 @@ pub async fn measure_with_executable(
         Duration::from_secs(120),
     )
     .await?;
-    let response = super::execute::checked_bytes(cwd, Path::new("result.json"), 64 * 1024)
-        .map_err(|e| invalid(e.detail))?;
+    let response = crate::native::reference_measurements::inputs::checked_bytes(
+        cwd,
+        Path::new("result.json"),
+        64 * 1024,
+    )
+    .map_err(|e| invalid(e.detail))?;
     let decoded: Response =
         serde_json::from_slice(&response).map_err(|e| invalid(e.to_string()))?;
     if decoded.protocol_version != 1 || decoded.request_id != request_id {
@@ -147,7 +151,7 @@ pub async fn measure_with_executable(
             serde_json::json!({"code":decoded.code,"message":decoded.detail}).to_string(),
         ));
     }
-    let report = super::execute::checked_bytes(
+    let report = crate::native::reference_measurements::inputs::checked_bytes(
         cwd,
         Path::new("pair-measurement.json"),
         MAX_PAIR_REPORT_BYTES,

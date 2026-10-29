@@ -74,5 +74,5 @@ done
 
 cd "$workspace"
 npm run tauri -w apps/desktop -- build \
-  --target "$target" --features native-occt --bundles "$bundles" \
+  --target "$target" --features native-worker-client --bundles "$bundles" \
   --config "$tauri_root/tauri.native.unix.conf.json"

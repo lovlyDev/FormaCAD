@@ -1,13 +1,13 @@
 use super::protocol::public_event;
 use super::selection::SelectionContext;
 use super::PlanResult;
-#[cfg(not(feature = "native-occt"))]
+#[cfg(not(feature = "native-worker-client"))]
 use super::{check_cad, parse_output};
 use crate::{
     core::{AppError, AppState, Result},
     processes,
 };
-#[cfg(not(feature = "native-occt"))]
+#[cfg(not(feature = "native-worker-client"))]
 use std::time::Duration;
 use std::{
     path::Path,
@@ -66,9 +66,9 @@ pub async fn plan_model(
         }
         images.push((ext, crate::artifacts::read(&state, &project_id, file)?));
     }
-    #[cfg(feature = "native-occt")]
-    super::health::check_native_cad()?;
-    #[cfg(not(feature = "native-occt"))]
+    #[cfg(feature = "native-worker-client")]
+    super::health::check_native_cad().await?;
+    #[cfg(not(feature = "native-worker-client"))]
     check_cad(&state.root).await?;
     crate::permissions::consume(&state, &project_id, "run_agent").await?;
     let _access = crate::project_access::ensure_write(&state, &project_id)?;
@@ -91,19 +91,19 @@ pub async fn plan_model(
  let custom=if project.agent=="custom" { Some(super::custom::load(&state.pool).await?.ok_or_else(||AppError::Invalid("Custom CLI is not configured".into()))?) } else { None };
  let spec = super::cli_spec::prepare(&project.agent, custom.as_ref(), &cwd, &images)?;
  let context = super::context::project_context(&project, &prompt, &image_names, selection.as_ref());
- #[cfg(feature = "native-occt")]
+ #[cfg(feature = "native-worker-client")]
  let instructions=include_str!("../../scripts/native_protocol.txt");
- #[cfg(not(feature = "native-occt"))]
+ #[cfg(not(feature = "native-worker-client"))]
  let instructions=concat!(include_str!("../../scripts/cad_protocol.txt"), "\n", include_str!("../../scripts/model_protocol.txt"));
  let event_app=app.clone();let event_project=project_id.clone();let event_session=session.clone();
  let listener:processes::OutputListener=Arc::new(move |line|{if let Some((kind,text))=public_event(line){let _=event_app.emit("agent://progress",serde_json::json!({"projectId":event_project,"sessionId":event_session,"kind":kind,"text":text}));}});
  let input=format!("{instructions}{context}");
  if let Some(selected) = &selection { super::selection::trusted::recheck(&state, &project, selected).await?; }
- #[cfg(feature = "native-occt")]
+ #[cfg(feature = "native-worker-client")]
  { let current = context["currentProgram"].as_str().and_then(|source| serde_json::from_str::<crate::cad_ir::Document>(source).ok());
    let current = current.filter(|document| Some(document.revision_id.as_str()) == project.current_revision.as_deref());
    super::repair::plan_with_two_repairs(&project.agent,&spec,&input,cancel,listener,super::repair::RepairSnapshot {current:current.as_ref(),state:&state,captured:&project}).await }
- #[cfg(not(feature = "native-occt"))]
+ #[cfg(not(feature = "native-worker-client"))]
  { let output=processes::run_stream(&spec,&input,cancel,Duration::from_secs(180),Some(listener)).await?; parse_output(&project.agent,&output) }
  }.await;
     state.tasks.lock().await.remove(&project_id);

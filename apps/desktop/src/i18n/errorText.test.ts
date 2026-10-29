@@ -27,3 +27,11 @@ it.each(["ru", "en"] as const)("localizes pure project snapshot failures in %s w
     expect(rawError(new Error(diagnostic))).toBe(diagnostic);
   }
 });
+
+it.each(["ru", "en"] as const)("localizes unavailable CAD loader diagnostics in %s", locale => {
+  setLocale(locale);
+  const diagnostic = JSON.stringify({ code: "NATIVE_KERNEL_UNAVAILABLE", message: "TKernel.dll loader policy failure at private-install-path" });
+  expect(errorText(diagnostic)).toBe(`NATIVE_KERNEL_UNAVAILABLE: ${t("NATIVE_KERNEL_UNAVAILABLE")}`);
+  expect(errorText(diagnostic)).not.toContain("private-install-path");
+  expect(rawError(diagnostic)).toBe(diagnostic);
+});

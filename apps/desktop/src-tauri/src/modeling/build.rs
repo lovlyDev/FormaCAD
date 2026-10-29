@@ -16,7 +16,7 @@ pub(super) struct GeneratedModel {
     pub program_base: Option<String>,
 }
 
-#[cfg(feature = "native-occt")]
+#[cfg(feature = "native-worker-client")]
 fn native_document(program: &str, prepared: &PreparedProgram) -> Result<Option<Document>> {
     if !prepared.typed {
         return Ok(None);
@@ -67,13 +67,13 @@ pub(super) async fn build(
         let bytes = crate::artifacts::read(state, &original.id, file)?;
         crate::artifacts::immutable_write(cwd, Path::new("base.step"), &bytes)?;
     }
-    #[cfg(feature = "native-occt")]
+    #[cfg(feature = "native-worker-client")]
     let document = native_document(program, prepared)?;
-    #[cfg(feature = "native-occt")]
+    #[cfg(feature = "native-worker-client")]
     if let Some(document) = &document {
         crate::native::assets::stage_project_assets(state, original, document, cwd)?;
     }
-    #[cfg(feature = "native-occt")]
+    #[cfg(feature = "native-worker-client")]
     let native = if document.is_none() {
         false
     } else if let Some(executable) = executable {
@@ -82,7 +82,7 @@ pub(super) async fn build(
     } else {
         crate::native::worker::build_if_ir_v2(program, cwd, cancel.clone()).await?
     };
-    #[cfg(not(feature = "native-occt"))]
+    #[cfg(not(feature = "native-worker-client"))]
     let native = {
         let _ = executable;
         false
@@ -123,7 +123,7 @@ pub(super) async fn build(
     })
 }
 
-#[cfg(all(test, feature = "native-occt"))]
+#[cfg(all(test, feature = "native-worker-client"))]
 mod tests {
     use super::*;
     #[test]

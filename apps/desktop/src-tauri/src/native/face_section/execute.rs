@@ -9,7 +9,7 @@ use crate::{
     },
     native::{
         build_body_with_assets,
-        reference_measurements::execute::{checked_bytes, imported_seals},
+        reference_measurements::inputs::{checked_bytes, imported_seals},
         NativeError, Solid,
     },
 };

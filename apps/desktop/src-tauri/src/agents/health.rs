@@ -18,16 +18,16 @@ pub struct Health {
 #[tauri::command]
 pub async fn detect_environment(state: State<'_, AppState>) -> Result<Vec<Health>> {
     let mut result = Vec::new();
-    #[cfg(feature = "native-occt")]
+    #[cfg(feature = "native-worker-client")]
     {
-        let worker = std::env::current_exe()?
-            .parent()
-            .ok_or_else(|| AppError::Invalid("CAD worker path is unavailable".into()))?
-            .join(format!("forma-cad-worker{}", std::env::consts::EXE_SUFFIX));
+        let readiness = crate::native::health::probe(Arc::new(AtomicBool::new(false))).await;
         result.push(Health {
             name: "OpenCascade kernel".into(),
-            available: worker.is_file(),
-            detail: worker.display().to_string(),
+            available: readiness.is_ok(),
+            detail: match readiness {
+                Ok(response) => response.worker_version,
+                Err(error) => error.to_string(),
+            },
         });
     }
     for (name, path) in [
@@ -95,7 +95,7 @@ pub async fn detect_environment(state: State<'_, AppState>) -> Result<Vec<Health
     } else {
         None
     };
-    result.push(Health{name:if cfg!(feature = "native-occt") { "Legacy CadQuery (optional)" } else { "CadQuery kernel" }.into(),available:installed.is_some(),detail:installed.unwrap_or_else(||"Install cadquery in a dedicated Python environment; set FORMA_PYTHON to its executable.".into())});
+    result.push(Health{name:if cfg!(feature = "native-worker-client") { "Legacy CadQuery (optional)" } else { "CadQuery kernel" }.into(),available:installed.is_some(),detail:installed.unwrap_or_else(||"Install cadquery in a dedicated Python environment; set FORMA_PYTHON to its executable.".into())});
     for skill in [
         "cad",
         "cad-viewer",
@@ -133,16 +133,11 @@ pub async fn check_cad(root: &Path) -> Result<PathBuf> {
     check_python(root, &executable).await?;
     Ok(executable)
 }
-#[cfg(feature = "native-occt")]
-pub fn check_native_cad() -> Result<()> {
-    let worker = std::env::current_exe()?
-        .parent()
-        .ok_or_else(|| AppError::Invalid("CAD worker path is unavailable".into()))?
-        .join(format!("forma-cad-worker{}", std::env::consts::EXE_SUFFIX));
-    if !worker.is_file() {
-        return Err(AppError::Invalid("Native CAD kernel is unavailable".into()));
-    }
-    Ok(())
+#[cfg(feature = "native-worker-client")]
+pub async fn check_native_cad() -> Result<()> {
+    crate::native::health::probe(Arc::new(AtomicBool::new(false)))
+        .await
+        .map(|_| ())
 }
 async fn check_python(root: &Path, executable: &Path) -> Result<()> {
     processes::run(&CommandSpec {

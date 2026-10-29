@@ -2,6 +2,30 @@
 
 [Documentation](index.md) · [Русский](../ru/status.md) · [Roadmap](roadmap.md)
 
+## Changes in 1.5.1
+
+Plugin actions in the 3D-view toolbar: own buttons for actions with an icon and a “Plugin actions” menu for the rest, without the command palette. Details: [1.5.1 release](../releases/1.5.1.md).
+
+## Changes in 1.5.0
+
+plugin-api 0.2: the `viewport.capture` permission — a plugin can ask FormaCAD to record a turntable video of the model in the 3D view (MP4/WebM, up to 4K and 120 fps); FormaCAD renders and encodes the frames itself, and the plugin never sees the model or the file. Commands that do not change the model no longer need `model.write`. Details: [1.5.0 release](../releases/1.5.0.md) and the [plugins article](plugins.md#turntable-video-recording).
+
+## Changes in 1.4.0
+
+Plugins: installing `.cadplugin` from a file and from the [plugins.formacad.ru](https://plugins.formacad.ru) catalog with signature checks, a Wasmtime sandbox with permissions, a consent window, palette actions, plugin log and settings. Details and verification scope: [1.4.0 release](../releases/1.4.0.md), the [plugins article](plugins.md) and the [author guide](plugin-authoring.md). Windows x64, Linux x64 and macOS ARM installers built in GitHub Actions are published (macOS Intel is not part of the release): [v1.4.0 release](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.4.0). The [plugins.formacad.ru](https://plugins.formacad.ru) catalog is open to everyone.
+
+## Changes in 1.3.3
+
+Optional FormaCAD account sign-in from the app through the system browser (VK ID, Yandex ID, GitHub, passkey), signed rights with a bounded offline period, fixed project deletion on Windows and merged wenlixxq work on history sessions. Details and verification scope: [1.3.3 release](../releases/1.3.3.md) and the [account guide](account.md). The Windows x64 installer is published: [v1.3.3 release](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.3.3).
+
+## Changes in 1.3.2
+
+The desktop is separated from OCCT: the UI builds with `native-worker-client`, and the separate CAD process with `native-occt`. Building, STEP, measurements and sections retain their native routes. Readiness runs a real unit box inside the worker with a time limit and translates unavailable-kernel errors. Windows packaging includes verified Microsoft runtime files; the build rejects unknown host imports and unsuitable DLLs. This addresses confirmed packaging deficiencies in 1.3.0 without claiming the cause of the error on another PC.
+
+`FORMA_DATA_DIR` redirects the entire profile through Tauri 2.12: database, projects, logs, window state and the default WebView directory. Invalid paths fail before profile creation. Appearance, privacy and permissions settings no longer launch external health commands. Usage, storage and verification are described in the [development guide](development.md).
+
+These changes do not establish complete architectural 2.0 readiness, installed WebView acceptance on clean Windows, Smart App Control compatibility, NAS guarantees or other operating systems. Previous installers remain preserved; publishing source code does not install the application. Verification of the specific new artifact is reported separately in the [1.3.2 release](../releases/1.3.2.md).
+
 ## Verified 1.3.0 package
 
 The Windows 1.3.0 installer is built and verified: 19,027,793 bytes, SHA-256 `FA7923F235E64D19B3DE6FDB44EC035EC344646AA06016BEDA247AF363010D00`. Its updater signature was independently verified against the application public key. The app, one worker, 25 OCCT DLLs and both separately named licenses were extracted without executing the installer and their contents verified. App comparison permits only the exact standard Tauri `UNK` to `NSS` token patch; all other bytes match the build output.

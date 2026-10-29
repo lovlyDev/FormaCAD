@@ -1,0 +1,22 @@
+[package]
+name = "simple-gear"
+version = "0.1.0"
+edition = "2021"
+description = "Example FormaCAD plugin: a parametric gear-like cog"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = { version = "0.63", default-features = false, features = ["macros", "realloc"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+codegen-units = 1
+panic = "abort"

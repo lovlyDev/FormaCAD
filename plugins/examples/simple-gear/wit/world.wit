@@ -1,0 +1,7 @@
+package example:simple-gear;
+
+// Everything the host may provide; only what the code calls becomes an import.
+world simple-gear {
+    include formacad:plugin/host@0.1.0;
+    export formacad:plugin/feature@0.1.0;
+}

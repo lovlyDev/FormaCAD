@@ -1,19 +1,19 @@
-#[cfg(not(feature = "native-occt"))]
+#[cfg(not(feature = "native-worker-client"))]
 use crate::processes::{self, CommandSpec};
 use crate::{
     core::{AppError, AppState, Result},
     models::{Project, ProjectFile, Revision},
 };
-#[cfg(not(feature = "native-occt"))]
+#[cfg(not(feature = "native-worker-client"))]
 use sha2::{Digest, Sha256};
-#[cfg(not(feature = "native-occt"))]
+#[cfg(not(feature = "native-worker-client"))]
 use std::time::Duration;
 use std::{
     path::Path,
     sync::{atomic::AtomicBool, Arc},
 };
 use tauri::State;
-#[cfg(feature = "native-occt")]
+#[cfg(feature = "native-worker-client")]
 mod import_document;
 
 #[tauri::command]
@@ -55,12 +55,12 @@ pub async fn convert_step(
             .await?;
         let bytes = crate::artifacts::read(&state, &project_id, file)?;
         let job = uuid::Uuid::new_v4().to_string();
-        #[cfg(feature = "native-occt")]
+        #[cfg(feature = "native-worker-client")]
         let cwd = crate::security::guarded(
             &state.root,
             Path::new(&format!("{project_id}/cache/step-{job}")),
         )?;
-        #[cfg(not(feature = "native-occt"))]
+        #[cfg(not(feature = "native-worker-client"))]
         let cwd = {
             let mut digest = Sha256::new();
             digest.update(&bytes);
@@ -74,9 +74,9 @@ pub async fn convert_step(
         std::fs::create_dir_all(&cwd)?;
         crate::artifacts::immutable_write(&cwd, Path::new("source.step"), &bytes)?;
         let output = crate::security::guarded(&cwd, Path::new("preview.glb"))?;
-        #[cfg(feature = "native-occt")]
+        #[cfg(feature = "native-worker-client")]
         crate::native::worker::import_step(&cwd, cancel.clone()).await?;
-        #[cfg(not(feature = "native-occt"))]
+        #[cfg(not(feature = "native-worker-client"))]
         {
             let completed = crate::security::guarded(&cwd, Path::new("complete"))?;
             if !completed.is_file() || !output.is_file() {
@@ -127,9 +127,9 @@ pub async fn convert_step(
             sha256: None,
         });
         let now = chrono::Utc::now().to_rfc3339();
-        #[cfg(feature = "native-occt")]
+        #[cfg(feature = "native-worker-client")]
         let imported_program = Some(import_document::source(&job, &name, &bytes)?);
-        #[cfg(not(feature = "native-occt"))]
+        #[cfg(not(feature = "native-worker-client"))]
         let imported_program = None;
         project.revisions.push(Revision {
             program: imported_program,

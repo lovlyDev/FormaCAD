@@ -105,14 +105,14 @@ pub async fn delete_project(id: String, state: State<'_, AppState>) -> Result<()
         ));
     }
     let moved = project_dir.exists();
-    let _storage_lock = if moved {
-        Some(crate::project_storage_v2::ProjectLock::acquire(
-            &project_dir,
-        )?)
-    } else {
-        None
-    };
     if moved {
+        // The storage lock proves no other writer holds the project. Its file lives inside
+        // the project directory, and Windows refuses to rename a directory with an open
+        // file in it (os error 5), so the lock is released before the rename. If another
+        // process grabs the project in between, the rename fails and nothing is lost.
+        drop(crate::project_storage_v2::ProjectLock::acquire(
+            &project_dir,
+        )?);
         std::fs::rename(&project_dir, &staged)?;
     }
     let deleted = async {

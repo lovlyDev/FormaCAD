@@ -157,7 +157,7 @@ fn read_bundle(path: &Path) -> Result<BundleContents> {
     let mut total = 0u64;
     for index in 0..archive.len() {
         let mut entry = archive.by_index(index).map_err(zip_error)?;
-        let name = entry.name().to_owned();
+        let name = entry.name().map_err(zip_error)?.into_owned();
         if entry.is_dir() || entry.encrypted() || entries.contains_key(&name) {
             return Err(invalid("Invalid or duplicate project bundle entry"));
         }

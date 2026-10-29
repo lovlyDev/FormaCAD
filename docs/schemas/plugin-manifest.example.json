@@ -1,0 +1,47 @@
+{
+  "$schema": "./plugin-manifest.schema.json",
+  "id": "spur-gear",
+  "name": "Spur Gear",
+  "version": "1.2.0",
+  "description": "Parametric involute spur gears with a bore and keyway.",
+  "about": "Generate exact involute spur gears from module, tooth count and pressure angle. Add a bore, a keyway and a hub, then change any value later — the gear rebuilds like any other operation.",
+  "highlights": [
+    { "icon": "cog", "label": "Gears" },
+    { "icon": "ruler", "label": "Parametric" }
+  ],
+  "categories": ["modeling", "library"],
+  "author": { "name": "Ivan Petrov", "github": "ivan-petrov" },
+  "repository": "https://github.com/ivan-petrov/formacad-spur-gear",
+  "license": "MIT",
+  "icon": "lucide:cog",
+  "iconColor": "#7c3aed",
+  "screenshots": [
+    { "src": "docs/gear-dark.webp", "caption": "Gear with keyway", "theme": "dark" },
+    { "src": "docs/gear-light.webp", "caption": "Gear with keyway", "theme": "light" }
+  ],
+  "minAppVersion": "2.12.0",
+  "api": "0.1",
+  "entry": "plugin.wasm",
+  "permissions": ["model.read", "model.write"],
+  "contributes": {
+    "features": [
+      {
+        "id": "spurGear",
+        "title": "Spur gear",
+        "icon": "cog",
+        "params": [
+          { "key": "module", "type": "length", "label": "Module", "default": 2, "min": 0.2, "max": 20 },
+          { "key": "teeth", "type": "integer", "label": "Teeth", "default": 20, "min": 6, "max": 300 },
+          { "key": "pressureAngle", "type": "angle", "label": "Pressure angle", "default": 20, "min": 14.5, "max": 25 },
+          { "key": "width", "type": "length", "label": "Face width", "default": 10, "min": 1 },
+          { "key": "bore", "type": "length", "label": "Bore diameter", "default": 8, "min": 0 }
+        ]
+      }
+    ],
+    "commands": [
+      { "id": "insertGearPair", "title": "Insert meshing gear pair", "icon": "cog", "when": "model" }
+    ]
+  },
+  "links": { "issues": "https://github.com/ivan-petrov/formacad-spur-gear/issues" },
+  "locales": ["en", "ru"]
+}

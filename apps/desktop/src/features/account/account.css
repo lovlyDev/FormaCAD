@@ -1,0 +1,48 @@
+.account-avatar { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; }
+.account-initial { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; font-size: 11px; font-weight: 650; color: var(--light-accent-ink, #b791f5); background: var(--light-accent-surface, #352647); }
+.account-panel { display: grid; gap: 14px; }
+
+.account-profile { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel2); }
+.account-profile-avatar { width: 42px; height: 42px; flex: none; display: grid; place-items: center; overflow: hidden; border-radius: 50%; color: var(--light-accent-ink, #b791f5); background: var(--light-accent-surface, #352647); font-size: 16px; font-weight: 650; }
+.account-profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.account-profile-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.account-profile-text strong { color: var(--text); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-profile-text span { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.account-plan { flex: none; padding: 3px 9px; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: .04em; color: var(--light-accent-ink, #b791f5); background: var(--light-accent-surface, #352647); }
+
+.account-facts { display: grid; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.account-fact { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; font-size: 12px; }
+.account-fact + .account-fact { border-top: 1px solid var(--line); }
+.account-fact > span { color: var(--muted); }
+.account-fact > strong { color: var(--text); font-weight: 600; text-align: right; }
+.account-state { display: inline-flex; align-items: center; gap: 6px; }
+.account-state.ok { color: var(--light-success-ink, #9cc4ad); }
+.account-state.warn { color: #e2b25c; }
+.account-state.bad { color: #e07a7a; }
+
+.account-intro { display: flex; gap: 14px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel2); }
+.account-intro-icon { width: 42px; height: 42px; flex: none; display: grid; place-items: center; border-radius: 11px; color: var(--light-accent-ink, #b791f5); background: var(--light-accent-surface, #352647); }
+.account-intro-text { display: grid; gap: 8px; min-width: 0; }
+.account-intro-text strong { color: var(--text); font-size: 13px; }
+.account-intro-text ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.account-intro-text li { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+.account-intro-text li svg { color: var(--light-accent-ink, #b791f5); }
+
+.account-waiting { display: flex; align-items: center; gap: 14px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel2); color: var(--light-accent-ink, #b791f5); }
+.account-waiting div { display: grid; gap: 3px; }
+.account-waiting strong { color: var(--text); font-size: 13px; }
+.account-waiting span { color: var(--muted); font-size: 12px; }
+
+.account-notice { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 10px; font-size: 12px; line-height: 1.5; }
+.account-notice svg { flex: none; margin-top: 1px; }
+.account-notice.bad { color: #f0a3a3; background: #3a1d2080; border: 1px solid #5a2a2e; }
+.account-notice.warn { color: #e9c27a; background: #3b2a1280; border: 1px solid #5a4319; }
+[data-theme="light"] .account-notice.bad { color: #9b1c1c; background: #fbe3e3; border-color: #f2c4c4; }
+[data-theme="light"] .account-notice.warn { color: #7a4f05; background: #fbf0dc; border-color: #f0dcb3; }
+[data-theme="light"] .account-state.warn { color: #8a5a06; }
+[data-theme="light"] .account-state.bad { color: #b42323; }
+
+.account-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.account-actions .account-main { flex: 1; }
+.account-actions .account-link { margin-left: auto; }
+.account-local-note { display: flex; align-items: center; gap: 6px; color: var(--light-success-ink, #819b8c); font-size: 11px; }

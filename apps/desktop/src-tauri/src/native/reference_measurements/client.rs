@@ -109,7 +109,7 @@ pub async fn measure_with_executable(
         Duration::from_secs(120),
     )
     .await?;
-    let response = super::execute::checked_bytes(cwd, Path::new("result.json"), 64 * 1024)
+    let response = super::inputs::checked_bytes(cwd, Path::new("result.json"), 64 * 1024)
         .map_err(|e| invalid(e.detail))?;
     let decoded: Response =
         serde_json::from_slice(&response).map_err(|e| invalid(e.to_string()))?;
@@ -146,9 +146,8 @@ pub async fn measure_with_executable(
             serde_json::json!({"code":decoded.code,"message":decoded.detail}).to_string(),
         ));
     }
-    let report =
-        super::execute::checked_bytes(cwd, Path::new("measurement.json"), MAX_REPORT_BYTES)
-            .map_err(|e| invalid(e.detail))?;
+    let report = super::inputs::checked_bytes(cwd, Path::new("measurement.json"), MAX_REPORT_BYTES)
+        .map_err(|e| invalid(e.detail))?;
     verify_report(&response, &report, &request_id, binding, query)
 }
 
