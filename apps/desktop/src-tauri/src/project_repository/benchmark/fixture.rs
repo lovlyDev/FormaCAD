@@ -59,7 +59,7 @@ pub(super) async fn build(
     for (hash, bytes) in &assets {
         artifacts::immutable_write(root, Path::new(&format!("assets/{hash}")), bytes).unwrap();
     }
-    let pool = crate::storage::open(&root.join("project.sqlite"))
+    let pool = super::candidate::create(&root.join("project.sqlite"))
         .await
         .unwrap();
     persist(&pool, None, &project).await;
