@@ -2,11 +2,13 @@
 //! only a logical cursor changes, atomically with the saved project payload.
 pub mod activity;
 mod artifacts;
+pub(crate) mod commit;
 mod persistence;
 mod portable;
 mod read_state;
 mod state;
 mod status;
+pub(crate) use commit::prepare_commit;
 pub(crate) use read_state::from_json as state_from_json;
 pub use status::status_for;
 
