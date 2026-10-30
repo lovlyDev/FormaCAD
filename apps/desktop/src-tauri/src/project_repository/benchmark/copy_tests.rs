@@ -333,7 +333,12 @@ async fn inside_root_asset_directory_symlink_is_refused_without_changing_source_
     let error = super::read_asset(&sql_root, &project.files[0])
         .err()
         .unwrap();
-    assert_eq!(error.to_string(), "PROJECT_SNAPSHOT_CHANGED");
+    // The shared path guard rejects this link before location capture can
+    // produce its stale-snapshot error. Preserve that existing refusal.
+    assert_eq!(
+        error.to_string(),
+        "Symbolic links are not allowed in managed project paths"
+    );
     let destination = parent.path().join("refused-symlink-copy");
     assert!(copy_sql(&sql_root, &destination).await.is_err());
     assert!(!destination.join("project.sqlite").exists());
