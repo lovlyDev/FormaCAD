@@ -10,6 +10,17 @@ If another operation changed the revision or a build/preview is active, undo can
 
 ## Technical route
 
+Structural comparison of two saved CAD IR revisions uses one
+`ProjectRepository::managed` snapshot for both programs. It rechecks that same
+original snapshot before returning a diff or legacy `None`. Comparison never
+runs recovery, clears journals, acquires a writer lease or persists a model
+result. If the source closes/reopens or changes, refresh and retry. Pending
+recovery requires a separate explicit open/recovery action. Legacy scripts,
+missing programs and JSON without schemaVersion retain `None`. This compares
+document structure, not BREP. New `cad_ir::history::session_tests` cover purity,
+close/reopen during SQL recheck, pending journal, another root and read-only;
+actual execution results are recorded separately in CI.
+
 `project_history` separates its state machine, SQL persistence, portable archive and IPC. `history_status` returns `canUndo`, `canRedo`, and `expectedRevision`. `undo_model`/`redo_model` receive the project ID and expected revision, including `null` for an empty model. Under `AppState.writes`, they verify the expected revision and absence of a running task, then prepare a project copy and a private `PreparedHistory`. The `modify_project` approval is consumed only after checking saved artifacts.
 
 Undo/redo of an existing model copy its parameters, source and exact STEP/GLB references into a new revision with a fresh UUID and the previous current revision as parent. Only `revisionId` changes in CAD IR, followed by document validation. BREP is not rebuilt: the operation reuses a previously committed immutable snapshot with SHA-256-verified files. Face/edge selection belongs to the current revision; old selection is not a valid reference for the new revision. Returning to the empty model sets the current pointer to `null` while retaining all old records.
