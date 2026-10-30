@@ -2,7 +2,7 @@
 
 [Documentation](index.md) · [Русский](../ru/storage-formats.md) · [Program](storage-program.md)
 
-The independent folder backend format has not been selected. Candidates are the
+The target format is selected in the [decision](storage-format-decision.md); the production backend is not connected yet. Compared candidates are the
 existing v2 manifest/generations representation and experimental project-local
 SQLite. The SQL candidate now uses minimal project/history tables and typed history; the global app
 database does not supply its synthetic data. This is a benchmark, not a user-facing

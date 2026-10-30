@@ -53,6 +53,8 @@ Start with the [documentation index](docs/en/index.md). Detailed guides cover [u
 
 ## Data and privacy
 
+Repository work in progress: [storage format decision and verification gates](docs/en/storage-format-decision.md).
+
 Projects, settings and backups stay in the application data directory. Updates preserve the application identifier and data paths. Before installation, Forma saves workspace preferences and backs up SQLite. Camera state, display options, panels and drafts are persisted per project. See [data storage](docs/en/data.md).
 
 Update checks contact GitHub. AI requests go to the selected CLI provider when the relevant action is permitted. Project data is not sent to a Forma backend. See [security](SECURITY.md).
