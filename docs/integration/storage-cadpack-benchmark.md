@@ -65,7 +65,7 @@ tempdir, не в пользовательский экспорт. Hook не до
 
 Проверено при подготовке: rustfmt временных копий и
 `git apply --check docs/integration/storage-cadpack-benchmark.patch`.
-Патч применён после явного разрешения lovlyDev. Форматирование проверено; компиляция и выполнение новых тестов ожидают CI. Команды воспроизведения:
+Патч применён после явного разрешения lovlyDev. Компиляция, строгий Clippy и шесть benchmark round-trips прошли в [Storage comparison 41133991241](https://github.com/lovlyDev/FormaCAD/actions/runs/41133991241) на `4f8b394`; отдельные unit-тесты проверяются в Quality. Команды воспроизведения:
 
 ```sh
 git apply --reverse --check docs/integration/storage-cadpack-benchmark.patch
@@ -110,8 +110,10 @@ source hash preserving the previous destination, declared budget rejection
 before source reads/writes, and malformed-history rejection before publication.
 Keep existing CADPACK privacy/history/geometry tests as well.
 
-The owner explicitly approved the three files and the patch is applied on the task branch. Formatting has been checked. No build
-or execution is claimed. The owned unit-test benchmark now calls the hook.
+The owner explicitly approved the three files and the patch is applied on the task branch.
+Compilation, strict Clippy and six benchmark round-trips passed in
+[Storage comparison 41133991241](https://github.com/lovlyDev/FormaCAD/actions/runs/41133991241)
+on `4f8b394`; separate unit tests are checked by Quality. The benchmark calls the hook.
 Run the commands above and record actual raw results
 at the same SHA for both candidate representations. Name the combined measurement
 `cadpack_round_trip`: it includes writer, sync, read-back and validation time;

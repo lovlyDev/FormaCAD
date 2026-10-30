@@ -7,7 +7,10 @@ use crate::{
     project_history, project_storage_v2 as folder,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions, SqliteSynchronous};
+use sqlx::{
+    sqlite::{SqliteConnectOptions, SqlitePoolOptions, SqliteSynchronous},
+    SqlitePool,
+};
 use std::{
     collections::BTreeMap,
     fs::{self, File},
@@ -94,24 +97,27 @@ struct OwnedChild {
 }
 
 impl OwnedChild {
-    fn kill_reap(&mut self) -> Result<()> {
+    /// True only when this owner successfully requested kill and then reaped
+    /// the child. Cleanup remains idempotent, but an already exited process is
+    /// not evidence of a parent-induced crash at the selected boundary.
+    fn kill_reap(&mut self) -> Result<bool> {
         if self.reaped {
-            return Ok(());
+            return Ok(false);
         }
-        if let Ok(Some(_)) = self.child.try_wait() {
+        if self.child.try_wait()?.is_some() {
             self.reaped = true;
-            return Ok(());
+            return Ok(false);
         }
         if let Err(error) = self.child.kill() {
             if let Ok(Some(_)) = self.child.try_wait() {
                 self.reaped = true;
-                return Ok(());
+                return Ok(false);
             }
             return Err(error.into());
         }
         self.child.wait()?;
         self.reaped = true;
-        Ok(())
+        Ok(true)
     }
 
     fn wait_ready(&mut self, protocol: &Protocol) -> Result<()> {
@@ -207,8 +213,37 @@ fn kill_at_boundary(protocol: &Protocol) -> Result<u32> {
             String::from_utf8_lossy(&detail)
         )));
     }
-    owned.kill_reap()?;
+    if !owned.kill_reap()? {
+        return Err(invalid(
+            "owned child exited before the parent requested kill",
+        ));
+    }
     Ok(pid)
+}
+
+/// Bound the payload in the same SELECT that fetches it, so an unexpected
+/// fixture failure is a Result and callers can still close their pools.
+async fn read_project(pool: &SqlitePool, expected_id: &str) -> Result<Project> {
+    const MAX_METADATA: i64 = 32 * 1024 * 1024;
+    crate::security::valid_id(expected_id)?;
+    let (size, payload): (i64, Option<String>) = sqlx::query_as(
+        "SELECT length(CAST(payload AS BLOB)), CASE WHEN length(CAST(payload AS BLOB))<=? THEN payload END FROM projects WHERE id=?",
+    )
+    .bind(MAX_METADATA)
+    .bind(expected_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| invalid("fixture project is missing"))?;
+    if !(0..=MAX_METADATA).contains(&size) {
+        return Err(invalid("fixture project metadata exceeds its limit"));
+    }
+    let payload = payload.ok_or_else(|| invalid("fixture project payload is missing"))?;
+    let project: Project = serde_json::from_str(&payload)?;
+    project.validate()?;
+    if project.id != expected_id {
+        return Err(invalid("fixture project identity mismatch"));
+    }
+    Ok(project)
 }
 
 /// Explicitly selected repair of a known, parent-owned benchmark SQLite DB.
@@ -254,7 +289,7 @@ async fn explicit_sqlite_recovery(path: &Path, expected_id: &str) -> Result<(Pro
         if integrity != "ok" {
             return Err(invalid("SQLite recovery integrity failure"));
         }
-        let project = super::fixture::read_project(&pool, expected_id).await;
+        let project = read_project(&pool, expected_id).await?;
         let history = {
             let mut connection = pool.acquire().await?;
             project_history::export_history(&mut connection, &project).await?
@@ -364,16 +399,21 @@ pub(super) async fn measure() -> Result<()> {
                 (recovered, true, true, hot)
             } else {
                 let reader = super::candidate::open_reader(&source.join("project.sqlite")).await?;
-                let actual = super::fixture::read_project(&reader, &project.id).await;
-                let history = {
-                    let mut connection = reader.acquire().await?;
-                    project_history::export_history(&mut connection, &actual).await?
-                };
+                let observed: Result<(Project, Vec<u8>)> = async {
+                    let actual = read_project(&reader, &project.id).await?;
+                    let history = {
+                        let mut connection = reader.acquire().await?;
+                        project_history::export_history(&mut connection, &actual).await?
+                    };
+                    project_history::validate_archive(&actual, &history)?;
+                    Ok((actual, history))
+                }
+                .await;
+                reader.close().await;
+                let (actual, history) = observed?;
                 if history != archive {
-                    reader.close().await;
                     return Err(invalid("postcommit metadata update changed history"));
                 }
-                reader.close().await;
                 if files(&source)? != after_kill {
                     return Err(invalid("postcommit reader changed source"));
                 }
@@ -479,7 +519,7 @@ async fn run_child(protocol: &Protocol) -> Result<()> {
             sqlx::query("PRAGMA cache_spill = ON")
                 .execute(&writer)
                 .await?;
-            let project = super::fixture::read_project(&writer, &protocol.project_id).await;
+            let project = read_project(&writer, &protocol.project_id).await?;
             let next = changed(&project);
             let mut transaction = writer.begin().await?;
             sqlx::query("UPDATE projects SET name=?,payload=?,updated_at=? WHERE id=?")
