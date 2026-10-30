@@ -48,8 +48,18 @@ observation does not establish a latency distribution.
 The Storage comparison workflow saves benchmark.log, CPU/OS/disk metadata and
 process-resources.txt. Resource totals include compilation and the entire test
 process, not the peak memory of an individual operation. First API open is not
-an OS cold-cache or new-process measurement; those gaps are explicitly recorded.
-Unsupported complete copy/export/crash recovery routes receive no invented timings.
+an OS cold-cache measurement. A new test route starts a separate child test
+executable and verifies PID, nonce, metadata hash, history and one asset; process
+startup time is separate from reader operations. OS cache remains uncontrolled.
+The `verified_save_copy` prototype creates a new UUID, transfers history/assets,
+rechecks the source and reads back the destination. Sources remain unchanged;
+failure can leave owned staging without a published project. Regressions cover
+corrupt assets, changed SQL sources and budget rejection before asset reads.
+The approved [CADPACK test hook](../integration/storage-cadpack-benchmark.md)
+times the actual writer, sync, reader and content validation as
+`cadpack_round_trip`. Destinations are disposable synthetic fixtures, not a
+production copy/export transaction. New observations await CI execution; crash
+recovery, cold-cache and production publication receive no invented timings.
 Final raw results and a format decision require actual execution.
 
 ### First executed comparison

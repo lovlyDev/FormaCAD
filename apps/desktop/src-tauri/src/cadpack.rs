@@ -311,3 +311,6 @@ pub async fn import_project_bundle(
 mod privacy_tests;
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+pub(crate) mod benchmark_api;
