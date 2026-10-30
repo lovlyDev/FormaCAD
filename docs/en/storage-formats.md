@@ -49,7 +49,7 @@ SQL transaction must leave a real hot-journal header and changed database pages;
 the reader must refuse without writes. A separately selected SQLite recovery
 then runs only on the test-owned fixture and verifies old metadata, the exact
 history archive and CAS. After commit, new metadata must survive. Output separates
-process wall time, read/recovery and explicit SQL recovery. Execution awaits CI;
+process wall time, read/recovery and explicit SQL recovery. Initial execution is recorded below;
 this is process death, not power loss, production recovery or evidence of an
 actual CAD model commit/USB/NAS.
 
@@ -90,9 +90,40 @@ corrupt assets, changed SQL sources and budget rejection before asset reads.
 The approved [CADPACK test hook](../integration/storage-cadpack-benchmark.md)
 times the actual writer, sync, reader and content validation as
 `cadpack_round_trip`. Destinations are disposable synthetic fixtures, not a
-production copy/export transaction. New observations await CI execution; crash
+production copy/export transaction. Executed copy/export observations appear below; crash
 recovery, cold-cache and production publication receive no invented timings.
 Final raw results and a format decision require actual execution.
+
+### Executed crash boundaries
+
+[Storage comparison 41134254937](https://github.com/lovlyDev/FormaCAD/actions/runs/41134254937)
+succeeded on `d08a99efb07ff6e3427ba2eb8e9b6d5222d8668a`.
+[Raw JSON](../storage-benchmark/d08a99e-linux.jsonl),
+[environment](../storage-benchmark/d08a99e-environment.txt),
+[whole-process resources](../storage-benchmark/d08a99e-process-resources.txt).
+All four boundaries passed. Before commit, SQL left a real hot journal and
+changed pages; the reader refused without modifying files. Explicit recovery
+took 5.300 ms and restored original metadata/history. Before publish, manifest
+retained its old commit; after commit both representations returned new metadata
+with unchanged assets. Further harness hardening requires a separately confirmed
+kill request and closes pools on errors; its result needs a new SHA check.
+
+### Executed copies, CADPACK and child processes
+
+[Storage comparison 41133991241](https://github.com/lovlyDev/FormaCAD/actions/runs/41133991241)
+succeeded on `4f8b394f3312454ba69093e02b481204c8169d93`, PR merge checkout
+`3b890cc06d31324264ebec34da66b063ea4d3bfa`. Saved
+[JSON](../storage-benchmark/4f8b394-linux.jsonl),
+[environment](../storage-benchmark/4f8b394-environment.txt) and
+[whole-process resources](../storage-benchmark/4f8b394-process-resources.txt).
+Strict Clippy with native-worker-client passed. The benchmark proved 6 CADPACK
+round-trips and 15 separate process starts for original sources and independent
+copies. Both large backends produced identical metadata/history hashes and 128
+unique assets from 256 references; CADPACK size was 16973180 bytes. Verified
+prototype copy: manifest 4364.363 ms, SQL 676.135 ms. These are single observations
+on virtual AMD EPYC 9V45 / 4 vCPU / Rust 1.97.1 with uncontrolled OS cache.
+This run executed only the opt-in benchmark; all unit tests and Quality on a
+newer head require separate evidence. The crash benchmark was added later.
 
 ### Isolated SQLite comparison
 

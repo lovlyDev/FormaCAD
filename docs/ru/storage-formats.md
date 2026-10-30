@@ -50,7 +50,7 @@ journal; явное восстановление и аварийные точк�
 вызывается SQLite recovery только на принадлежащей тесту фикстуре и проверяются
 старые metadata, точный архив истории и CAS. После commit ожидается новое
 metadata. Вывод разделяет время процесса, read/recovery и явного SQL recovery.
-Проверка ожидает CI; это process death, а не обесточивание, production recovery
+Первый выполненный результат приведён ниже; это process death, а не обесточивание, production recovery
 или свидетельство реального CAD commit/USB/NAS.
 
 Новый `project_storage_v2::reader::FolderSnapshot` захватывает manifest и
@@ -90,9 +90,40 @@ PID, nonce, hash metadata, историю и один asset; время запу
 Согласованный [тестовый hook CADPACK](../integration/storage-cadpack-benchmark.md)
 измеряет настоящий writer, sync, reader и проверку содержимого как
 `cadpack_round_trip`. Это временные синтетические назначения, а не production
-copy/export transaction. Новые измерения ожидают исполнения CI; crash recovery,
+copy/export transaction. Выполненные copy/export измерения приведены ниже; crash recovery,
 холодный кеш и production publication не получают выдуманного времени.
 Окончательные raw результаты и решение публикуются только после исполнения.
+
+### Выполненные аварийные границы
+
+[Storage comparison 41134254937](https://github.com/lovlyDev/FormaCAD/actions/runs/41134254937)
+успешен на `d08a99efb07ff6e3427ba2eb8e9b6d5222d8668a`.
+[Raw JSON](../storage-benchmark/d08a99e-linux.jsonl),
+[окружение](../storage-benchmark/d08a99e-environment.txt),
+[ресурсы процесса](../storage-benchmark/d08a99e-process-resources.txt).
+Все четыре границы прошли. SQL до commit оставил настоящий hot journal и
+изменённые страницы; reader отказал без изменения файлов. Явное recovery за
+5,300 мс вернуло исходные metadata/history. Manifest до publish сохранил старый
+commit; после commit оба представления вернули новое metadata с прежними assets.
+Дальнейшее уточнение harness требует отдельного подтверждения kill request и
+закрывает pools на ошибках; его результат нужно проверять на новом SHA.
+
+### Выполненные копии, CADPACK и дочерние процессы
+
+[Storage comparison 41133991241](https://github.com/lovlyDev/FormaCAD/actions/runs/41133991241)
+успешен на `4f8b394f3312454ba69093e02b481204c8169d93`, checkout PR merge
+`3b890cc06d31324264ebec34da66b063ea4d3bfa`. Сохранены
+[JSON](../storage-benchmark/4f8b394-linux.jsonl),
+[окружение](../storage-benchmark/4f8b394-environment.txt) и
+[ресурсы процесса](../storage-benchmark/4f8b394-process-resources.txt).
+Строгий Clippy с native-worker-client прошёл. Benchmark подтвердил 6 CADPACK
+proof и 15 запусков отдельного процесса для исходников и независимых копий.
+Для large оба backend дали одинаковые hashes metadata/history и 128 уникальных
+assets из 256 ссылок; CADPACK — 16973180 байт. Проверенная prototype copy:
+manifest 4364,363 мс, SQL 676,135 мс. Это однократные наблюдения на виртуальном
+AMD EPYC 9V45 / 4 vCPU / Rust 1.97.1 с неконтролируемым кешем.
+Run исполнил только opt-in benchmark; прохождение всех unit-тестов и Quality
+на более новом head нужно подтверждать отдельно. Crash benchmark добавлен позже.
 
 ### Прогон изолированной SQLite
 
