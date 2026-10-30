@@ -1,8 +1,11 @@
 //! Opt-in storage representation comparison, not a production folder backend.
 //! Run with --ignored --nocapture; every output line starts STORAGE_BENCHMARK.
 mod candidate;
+mod copy;
+mod export;
 mod fixture;
 mod measurement;
+mod process;
 
 use crate::{project_history, project_storage_v2 as folder};
 use measurement::{bytes_on_disk, measured, row};
@@ -165,6 +168,58 @@ async fn compare_storage_representations() {
             "manifest_assets_after":std::fs::read_dir(manifest_root.join("assets")).unwrap().count(),
             "expected_unique_assets":assets.len()})
         );
+        writer.close().await;
+        let started = Instant::now();
+        let manifest_copy = root.path().join("manifest-copy");
+        let copied_manifest = copy::copy_manifest(&manifest_root, &manifest_copy)
+            .await
+            .unwrap();
+        row(label, "manifest-v2-metadata", "verified_save_copy", started.elapsed(), "new independent UUID, preserved revisions/history, source rechecked, destination fully verified; controlled prototype, not UI");
+        assert_ne!(copied_manifest.id, renamed.id);
+        assert_eq!(copied_manifest.revisions, renamed.revisions);
+        let started = Instant::now();
+        let sql_copy = root.path().join("sql-copy");
+        let copied_sql = copy::copy_sql(&sql_root, &sql_copy).await.unwrap();
+        row(label, "sqlite-delete-prototype", "verified_save_copy", started.elapsed(), "new independent project-only DB/assets, typed archive import, original source rechecked and target fully verified; controlled prototype");
+        assert_ne!(copied_sql.id, renamed.id);
+        assert_eq!(copied_sql.revisions, renamed.revisions);
+        let started = Instant::now();
+        let proof =
+            export::manifest(&manifest_root, &root.path().join("manifest.cadpack")).unwrap();
+        row(label, "manifest-v2-metadata", "cadpack_round_trip", started.elapsed(), "real CADPACK writer plus validated read-back; includes original-source checks, not a production stale-publication test");
+        export::print_proof(label, "manifest-v2-metadata", &proof);
+        let started = Instant::now();
+        let proof = export::sqlite(&sql_root, &root.path().join("sql.cadpack"))
+            .await
+            .unwrap();
+        row(label, "sqlite-delete-prototype", "cadpack_round_trip", started.elapsed(), "same actual CADPACK writer/reader with project-only SQL snapshot and bounded assets; source rechecked");
+        export::print_proof(label, "sqlite-delete-prototype", &proof);
+        process::measure(
+            &format!("{label}-copied"),
+            "manifest-v2-metadata",
+            &manifest_copy,
+            &copied_manifest,
+        )
+        .unwrap();
+        process::measure(
+            &format!("{label}-copied"),
+            "sqlite-delete-prototype",
+            &sql_copy,
+            &copied_sql,
+        )
+        .unwrap();
+        for backend in [
+            "manifest-v2",
+            "manifest-v2-metadata",
+            "sqlite-delete-prototype",
+        ] {
+            let source = if backend == "sqlite-delete-prototype" {
+                &sql_root
+            } else {
+                &manifest_root
+            };
+            process::measure(label, backend, source, &renamed).unwrap();
+        }
         for backend in [
             "manifest-v2",
             "manifest-v2-metadata",
@@ -172,9 +227,9 @@ async fn compare_storage_representations() {
         ] {
             for operation in [
                 "single_attachment_public_api",
-                "copy_export_transaction",
+                "production_copy_export_publication",
                 "crash_recovery",
-                "process_cold_open",
+                "os_cold_cache_open",
                 "peak_memory",
                 "live_wal_reader_purity",
             ] {
@@ -189,7 +244,6 @@ async fn compare_storage_representations() {
                 );
             }
         }
-        writer.close().await;
         assert_eq!(
             std::fs::read_dir(manifest_root.join("assets"))
                 .unwrap()
