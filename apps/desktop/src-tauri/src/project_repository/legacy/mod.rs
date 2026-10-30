@@ -73,18 +73,29 @@ fn missing_to_changed(error: AppError) -> AppError {
         other => other,
     }
 }
-/// Revalidate before using captured bytes; this does not lock a later publication.
-pub async fn recheck(state: &AppState, snapshot: &CommittedSnapshot) -> Result<()> {
+/// Validate only the ORIGINAL opening/location and captured payload integrity.
+/// This does not compare the current saved payload, cursor or manifest and is
+/// NOT a replacement for full `recheck`. Geometry-specific consumers must also
+/// recapture and validate their original revision, artifacts and result seals.
+/// Metadata-only saved changes can retain this lifecycle while close/reopen or
+/// source replacement cannot. This grants no writer lease and performs no SQL.
+pub fn recheck_lifecycle(state: &AppState, snapshot: &CommittedSnapshot) -> Result<()> {
     snapshot.session.recheck(state, &snapshot.project.id)?;
     if serde_json::to_vec(&snapshot.project)? != snapshot.project_bytes
         || snapshot.history != snapshot.raw.history
     {
         return Err(changed());
     }
+    Ok(())
+}
+
+/// Revalidate before using captured bytes; this does not lock a later publication.
+pub async fn recheck(state: &AppState, snapshot: &CommittedSnapshot) -> Result<()> {
+    recheck_lifecycle(state, snapshot)?;
     let latest = capture(state, &snapshot.project.id, snapshot.history.is_some())
         .await
         .map_err(missing_to_changed)?;
-    snapshot.session.recheck(state, &snapshot.project.id)?;
+    recheck_lifecycle(state, snapshot)?;
     if latest.raw != snapshot.raw
         || latest.folder != snapshot.folder
         || latest.project_bytes != snapshot.project_bytes

@@ -234,7 +234,7 @@ pub(crate) fn source_bytes(state: &AppState, captured: &CapturedMeasurement) -> 
 }
 
 pub(crate) async fn recheck(state: &AppState, captured: &CapturedMeasurement) -> Result<()> {
-    super::snapshot::recheck(state, &captured.snapshot).await?;
+    super::snapshot::recheck_lifecycle(state, &captured.snapshot)?;
     let latest = capture(
         state,
         &captured.snapshot.project.id,
@@ -242,7 +242,7 @@ pub(crate) async fn recheck(state: &AppState, captured: &CapturedMeasurement) ->
         &captured.binding.body_id,
     )
     .await?;
-    super::snapshot::recheck(state, &captured.snapshot).await?;
+    super::snapshot::recheck_lifecycle(state, &captured.snapshot)?;
     if latest.revision != captured.revision
         || latest.binding != captured.binding
         || latest.preview != captured.preview

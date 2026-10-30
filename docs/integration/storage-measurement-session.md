@@ -1,110 +1,78 @@
-# Согласование сеанса точных измерений / Exact measurement session integration
+# Сеанс точных измерений / Exact measurement session
 
 ## Русский
 
-Статус: **согласовано lovlyDev 29 октября 2026 и применено к шести файлам в задачной ветке**.
-Результаты compile/worker тестов ещё требуются. Приёмка и
-владелец общей интеграции — lovlyDev; область native/worker закреплена в Issue #3.
-Исполнитель предложения — wenlixxq. [Точный патч](storage-measurement-session.patch)
-подготовлен относительно `main` @ `4834e1020f755d4a158a105fc63965315d9c78c1`.
-Для гарантии lifecycle он зависит от исправления общего `CommittedSnapshot`
-в коммите `90d37dd10e0ab1c18c6092363006ce9213ca6374` ветки `codex/storage-week`:
-этот снимок должен удерживать исходный `ReadSession` и проверять его при recheck.
-Патч не заменяет указанную зависимость и сам по себе на прежнем адаптере
-не доказывает отклонение close/reopen.
+lovlyDev разрешил и применён точный первоначальный [патч](storage-measurement-session.patch)
+для шести файлов: `model_measurement/{snapshot,capture,build,build_tests}.rs`,
+`model_pair_measurement/build.rs`, `model_face_section/build.rs`. Исходная база —
+`main` @ `4834e1020f755d4a158a105fc63965315d9c78c1`; приёмка остаётся у lovlyDev.
+Патч — исторический артефакт согласования, а не текущий полный diff.
 
-Проблема: `model_measurement::snapshot::read` оставляет только `Project`, удаляя
-исходный сеанс. Финальная проверка заново захватывает проект; если модель и её
-контрольные суммы не менялись, ответ старого worker переживает close/reopen.
+`CapturedMeasurement` удерживает исходный `CommittedSnapshot` через ожидание
+очереди и работу worker. Старый ответ не получает новый сеанс при recapture.
+Сохраняются expected revision/body, document/source hash и размер STEP, preview
+seal, imported asset seals, request/report echo и cancellation. Native protocol,
+C++/Cargo, IPC и пользовательские строки не меняются.
 
-Предложение сохраняет весь `CommittedSnapshot` в `CapturedMeasurement`, не
-клонируя ещё один `Project` или STEP-буфер. Исходный token проверяется после чтения
-исходных файлов и до/после повторного захвата измерительных входов. Имеющийся
-финальный `capture::recheck` после worker поэтому проверяет именно исходный
-сеанс. Тот же capture используется парными измерениями и сечением по грани:
-их изменения ограничены доступом к проекту внутри сохранённого снимка.
+Коррекция поведения 31 октября: при первоначальном capture остаётся полная
+проверка согласованного сохранённого snapshot. При повторной проверке геометрии
+исходный `recheck_lifecycle` вызывается до и после нового capture. Он проверяет
+исходные opening/epoch/location и неизменность захваченных данных в памяти, но
+не требует совпадения всего текущего payload. Затем сравниваются revision,
+binding и preview. Сохранение сообщения при неизменной геометрии должно оставлять
+запрос действительным; close/reopen, подмена источника и изменение геометрических
+входов по-прежнему отклоняют результат. Нельзя заменять этим lifecycle-only
+методом полную проверку сохранённого состояния для copy/export/history.
 
-Сохраняются проверки expected revision, authored body, document/source hash и
-размера STEP, preview seal, imported assets, request/report echo и cancellation.
-Worker protocol и C++/OCCT не изменяются. Ошибки проходят прежний перевод
-`MEASUREMENT_STALE` / `MEASUREMENT_RECOVERY_REQUIRED`; новых пользовательских
-строк, IPC, настроек или изменений SQL нет. Отказ ничего не прикрепляет к модели.
-Общий снимок строже прежнего сравнения геометрии: изменение метаданных проекта
-тоже может потребовать повторного запроса. Гарантия optimistic, после последней
-проверки блокировка внешнего писателя не удерживается.
+Причина коррекции: первоначальная полная legacy::recheck в финальном
+measurement recheck отклоняла и metadata-only save. Это противоречило трём
+существующим `queued_metadata_only_save_preserves_messages_and_does_not_invalidate_inputs`
+в host integration suites. Прежний native прогон исполнял только lib/native_worker,
+а compile all-targets не означал исполнения этих трёх suites.
 
-Патч затрагивает ровно шесть файлов: `model_measurement/{snapshot,capture,build,build_tests}.rs`,
-`model_pair_measurement/build.rs`, `model_face_section/build.rs`. Он включает
-регрессию с настоящим worker: hook вызывается после успешной проверки отчёта,
-закрывает/открывает исходник без изменения сохранённых байтов, старый ответ
-отклоняется, SQL/история/артефакты остаются прежними, новый запрос проходит.
-Снимок фикстуры намеренно сравнивает данные проекта, а не меняющуюся подсказку
-owner JSON. Дочерние процессы создаёт штатная CAD-фикстура; чужие процессы
-не завершаются.
-
-Проверено только: `git apply --check docs/integration/storage-measurement-session.patch`
-на текущих неизменённых shared-файлах и rustfmt временных копий. Патч **не
-скомпилирован и не исполнен**, PASS для S28 не заявлен. После согласования
-владелец интеграции применяет его к точной совместимой основе и выполняет:
-
-```sh
-git apply --check docs/integration/storage-measurement-session.patch
-git apply docs/integration/storage-measurement-session.patch
-cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml --check
-cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets --features native-worker-client -- -D warnings
-cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --features native-worker-client --lib model_measurement::build::tests
-```
-
-Последней команде нужен реально собранный совместимый worker и его DLL в
-штатном расположении либо `FORMA_MEASUREMENT_TEST_WORKER`. Пропуск или отсутствие
-worker не является проверкой. Дополнительно нужны существующие geometry,
-invalid-report, corruption, cancellation, pair-measurement и face-section suites;
-добавить close/reopen после worker для парного измерения и сечения по грани,
-закрытие в очереди и смену источника при одинаковых IDs. Провести UI-проверку
-прежнего сообщения stale и отсутствие принятого результата на RU/EN. Зафиксировать
-SHA, feature set, реальные passed/failed/skipped и ограничения оборудования.
+[Native job 123428058352](https://github.com/lovlyDev/FormaCAD/actions/runs/40868152101/job/123428058352)
+на `147a0dd` подтвердил исходную close/reopen регрессию с настоящим worker.
+Это не результат исправленного head. Новый workflow `Storage native consumers`
+использует существующий build-native-unix.sh в TEST_ONLY режиме и дополнительно
+исполняет `reference_measurements_host`, `pair_measurements_host` и
+`face_sections_host`. Он не собирает установщик и не меняет скрипт владельца.
+Результат коррекции ожидает исполнения. Гарантия остаётся optimistic; реальный
+NAS/USB и установленное приложение этим не подтверждаются.
 
 ## English
 
-Status: **proposed integration, not applied**. lovlyDev owns acceptance and the
-shared integration; Issue #3 owns native/worker code. wenlixxq prepared the
-[exact patch](storage-measurement-session.patch) against `main` commit
-`4834e1020f755d4a158a105fc63965315d9c78c1`. Lifecycle fencing also requires the
-shared `CommittedSnapshot` fix from `90d37dd10e0ab1c18c6092363006ce9213ca6374`
-on `codex/storage-week`, which retains and rechecks the original `ReadSession`.
-Applying this patch alone to the old adapter does not establish close/reopen safety.
+lovlyDev approved the initial [patch](storage-measurement-session.patch), applied
+to six files: `model_measurement/{snapshot,capture,build,build_tests}.rs`,
+`model_pair_measurement/build.rs` and `model_face_section/build.rs`. Its original
+base was `main` @ `4834e1020f755d4a158a105fc63965315d9c78c1`; lovlyDev retains
+acceptance. The patch is the historical approval artifact, not the current full diff.
 
-The current measurement reader drops its snapshot and retains only `Project`.
-Recapturing identical bytes later therefore accepts a result from an earlier
-opening. The patch keeps the original `CommittedSnapshot` inside
-`CapturedMeasurement`, without an additional full project/STEP clone, checks it
-after file reads and before/after recapture, and uses the existing post-worker
-acceptance check. Pair measurements and face sections share this capture; their
-edits only access the project nested inside the retained snapshot.
+`CapturedMeasurement` retains its original `CommittedSnapshot` across queue waits
+and worker execution. Recapture cannot grant a new session to an old result.
+Expected revision/body, document/source hash and STEP size, preview seal,
+imported asset seals, request/report echo and cancellation checks remain.
+No native protocol, C++/Cargo, IPC or user strings change.
 
-Expected revision, authored body, document/source checksum and STEP size,
-preview/import seals, request/report echo and cancellation checks remain. No
-worker protocol, C++/OCCT, IPC, SQL or UI settings change. Existing localized
-`MEASUREMENT_STALE` and `MEASUREMENT_RECOVERY_REQUIRED` errors remain. Rejection
-does not attach results to the model. Full snapshot validation is stricter than
-geometry-only checks: metadata edits may require retry. Rechecks are optimistic
-observations, not a lease against later external changes.
+October 31 behavior correction: initial capture retains complete consistent
+saved-state verification. Geometry recheck now calls the original
+`recheck_lifecycle` before and after recapture. It verifies original
+opening/epoch/location and captured in-memory data integrity, without requiring
+all current payload bytes to match. Revision, binding and preview are then
+compared. A message-only save with unchanged geometry must preserve the request;
+close/reopen, source replacement and geometry input changes still reject it.
+Lifecycle-only checks must not replace saved-state checks for copy/export/history.
 
-The six-file patch includes a real-worker regression: reopen after a verified
-report, reject the old result, compare unchanged project/SQL/history/artifacts,
-then accept a fresh request. Its fixture excludes changing owner hints from the
-saved-data comparison. It uses the existing isolated worker fixture and never
-terminates unrelated processes.
+The initial final legacy::recheck also rejected metadata-only saves, contrary to
+three existing host integration regressions named
+`queued_metadata_only_save_preserves_messages_and_does_not_invalidate_inputs`.
+Earlier native execution covered lib/native_worker only; compiling all targets
+did not execute these three suites.
 
-lovlyDev authorized these six files on 29 October 2026; the patch is now applied
-in the task branch. Compilation and real-worker results are still required.
-Initially only patch applicability and rustfmt of temporary copies were checked. **No
-compilation or execution is claimed**, and S28 remains unverified. After owner
-agreement, use the commands above against the exact integration SHA. The test
-requires a compatible real worker and DLLs in the normal location or via
-`FORMA_MEASUREMENT_TEST_WORKER`; missing/skipped worker coverage is not PASS.
-Run existing geometry, invalid-report, corruption, cancellation, pair and face
-section suites as well. Add late close/reopen tests for pair measurements and
-face sections, closure while queued, and source switches with identical IDs.
-Check stale UI behavior in RU/EN and record SHA, features, passed/failed/skipped
-counts and actual hardware limits.
+[Native job 123428058352](https://github.com/lovlyDev/FormaCAD/actions/runs/40868152101/job/123428058352)
+on `147a0dd` proved the original real-worker close/reopen regression. It does not
+verify the corrected head. The new `Storage native consumers` workflow uses the
+existing build-native-unix.sh TEST_ONLY route and additionally executes
+`reference_measurements_host`, `pair_measurements_host` and `face_sections_host`.
+It neither builds an installer nor modifies the owner's script. Correction
+execution is pending. Guarantees remain optimistic; real NAS/USB and an installed
+application are not established by these checks.

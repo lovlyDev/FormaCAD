@@ -24,13 +24,21 @@ project and retry. Readers acquire no writer lease and perform no recovery.
 | Consumer | Route | Boundary |
 | --- | --- | --- |
 | History status | capture_history_state → recheck_history_state | Original token and typed SQL cursor; archive separate |
+| Description and revision list | listProjects → list_projects → reconcile | Not converted: raw SQL and possible recovery; no lifecycle regression |
+| Structural revision diff | compare_ir_revisions → projects::get → reconcile | Not converted: possible recovery; needs a separately agreed patch |
 | Attachments | capture_project → bounded read/hash → recheck | Inherits shared lifecycle checks |
 | Copy | capture_with_history → artifacts → recheck → persist | Destination write is separate |
 | CADPACK | capture_with_history → artifacts → recheck → publish | Publication follows optimistic recheck |
 | STEP properties | capture_project → worker → recheck | Native consumer code unchanged |
 | Preview | capture_project → worker → recheck | Later awaited cleanup is not atomic delivery |
 | Sections | capture_project → recheck and artifact checks | Consumer code unchanged |
-| Measurements | snapshot::read → CommittedSnapshot → worker → recheck | Agreed patch retains original token; real-worker validation remains required |
+| Measurements | snapshot::read → CommittedSnapshot → worker → recheck | Original lifecycle plus separate geometry seals; metadata-only saves preserve the request |
+
+The measurement correction retains original lifecycle before/after geometry
+recapture while preserving metadata-only save behavior. See the
+[integration note](../integration/storage-measurement-session.md) for native
+validation boundaries. New `Storage native consumers` runs three host suites;
+workflow presence does not establish success for the corrected head.
 
 ## Limits and remaining work
 
