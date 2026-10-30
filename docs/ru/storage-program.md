@@ -26,13 +26,21 @@ PR №5 подтверждён объединённым через API; 29 ок�
 | Потребитель | Маршрут | Граница |
 | --- | --- | --- |
 | Статус истории | capture_history_state → recheck_history_state | Исходный token и типизированный SQL-курсор; архив отдельно |
+| Описание и список ревизий | listProjects → list_projects → reconcile | Ещё не переведены: raw SQL, возможный recovery; lifecycle-регрессии нет |
+| Структурный diff ревизий | compare_ir_revisions → projects::get → reconcile | Ещё не переведён: возможный recovery; нужен отдельный согласованный патч |
 | Вложения | capture_project → ограниченное чтение/hash → recheck | Получает общий lifecycle-контроль |
 | Копирование | capture_with_history → artifacts → recheck → persist | Запись назначения выполняется отдельно |
 | CADPACK | capture_with_history → artifacts → recheck → publish | Публикация после optimistic recheck |
 | Свойства STEP | capture_project → worker → recheck | Код native-потребителя не изменён |
 | Preview | capture_project → worker → recheck | Последующий await cleanup не является атомарной доставкой |
 | Сечения | capture_project → recheck и artifact checks | Код потребителя не изменён |
-| Измерения | snapshot::read → CommittedSnapshot → worker → recheck | Согласованный патч удерживает исходный token; real-worker проверка ещё требуется |
+| Измерения | snapshot::read → CommittedSnapshot → worker → recheck | Исходный lifecycle и отдельное сравнение geometry seals; metadata-only save сохраняет запрос |
+
+Коррекция измерений удерживает исходный lifecycle до/после geometry recapture,
+сохраняя существующее поведение metadata-only save. Подробности и границы
+native-проверок — [в согласовании](../integration/storage-measurement-session.md).
+Новый workflow `Storage native consumers` исполняет три host suites; наличие
+workflow ещё не означает успешный результат исправленного head.
 
 ## Ограничения и следующая работа
 

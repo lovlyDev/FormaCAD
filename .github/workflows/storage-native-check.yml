@@ -1,0 +1,65 @@
+name: Storage native consumers
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/storage-native-check.yml'
+      - 'apps/desktop/src-tauri/src/model_measurement/**'
+      - 'apps/desktop/src-tauri/src/model_pair_measurement/**'
+      - 'apps/desktop/src-tauri/src/model_face_section/**'
+      - 'apps/desktop/src-tauri/src/project_repository/**'
+      - 'apps/desktop/src-tauri/src/project_access/**'
+      - 'apps/desktop/src-tauri/src/project_storage_v2/**'
+      - 'apps/desktop/src-tauri/src/project_history/**'
+      - 'apps/desktop/src-tauri/tests/*measurements_host*'
+      - 'apps/desktop/src-tauri/tests/*measurements_host/**'
+      - 'apps/desktop/src-tauri/tests/face_sections_host*'
+      - 'apps/desktop/src-tauri/tests/face_sections_host/**'
+  workflow_dispatch:
+concurrency:
+  group: storage-native-consumers-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  measurement-lifecycle:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          targets: x86_64-unknown-linux-gnu
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .local/occt-build-unix-x86_64-unknown-linux-gnu
+            .local/occt-install-unix-x86_64-unknown-linux-gnu
+          key: occt-V8_0_1-x86_64-unknown-linux-gnu-v1
+      - name: Build prerequisites
+        run: sudo apt-get update && sudo apt-get install -y cmake g++ make libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - name: Existing native build and smoke route
+        env:
+          FORMA_NATIVE_TEST_ONLY: '1'
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          mkdir -p storage-native-evidence
+          set -o pipefail
+          bash scripts/build-native-unix.sh x86_64-unknown-linux-gnu app 2>&1 | tee storage-native-evidence/native-smoke.log
+      - name: Execute host consumer suites with the real CAD worker
+        env:
+          FORMA_OCCT_ROOT: ${{ github.workspace }}/.local/occt-install-unix-x86_64-unknown-linux-gnu
+          FORMA_MEASUREMENT_TEST_WORKER: ${{ github.workspace }}/apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/forma-cad-worker
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          set -o pipefail
+          git rev-parse HEAD > storage-native-evidence/source-sha.txt
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target x86_64-unknown-linux-gnu --features native-occt --test reference_measurements_host --test pair_measurements_host --test face_sections_host -- --nocapture 2>&1 | tee storage-native-evidence/host-consumers.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: storage-native-consumers-${{ github.sha }}
+          path: storage-native-evidence/
