@@ -2,6 +2,7 @@
 //! Run with --ignored --nocapture; every output line starts STORAGE_BENCHMARK.
 mod candidate;
 mod copy;
+mod crash;
 mod export;
 mod fixture;
 mod measurement;
@@ -259,4 +260,5 @@ async fn compare_storage_representations() {
         root.close().unwrap();
     }
     fixture::reject_limits();
+    crash::measure().await.unwrap();
 }

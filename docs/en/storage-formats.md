@@ -43,6 +43,16 @@ The SQL candidate is not proven either: its normal opener refuses journals;
 explicit recovery and crash boundaries still need separate execution. Shorter
 metadata-save time alone cannot select the format.
 
+A new opt-in crash benchmark kills its own child test process at four boundaries:
+manifest staging/after publish and SQL transaction/after commit. The unfinished
+SQL transaction must leave a real hot-journal header and changed database pages;
+the reader must refuse without writes. A separately selected SQLite recovery
+then runs only on the test-owned fixture and verifies old metadata, the exact
+history archive and CAS. After commit, new metadata must survive. Output separates
+process wall time, read/recovery and explicit SQL recovery. Execution awaits CI;
+this is process death, not power loss, production recovery or evidence of an
+actual CAD model commit/USB/NAS.
+
 New `project_storage_v2::reader::FolderSnapshot` captures manifest/project.json,
 checking bounded lengths, hashes and metadata references. It does not load unrelated
 assets or the event archive. `read_asset` accepts an exact captured descriptor and
