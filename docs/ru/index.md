@@ -87,4 +87,5 @@
 - [Подготовка переноса приёмов Blender](blender-parity.md): исследование, локальные доказательства, проверки и ограничения; [тематические заметки](../parity/blender/README.md) и [аудит готовности 2.0](../parity/blender/readiness.md).
 - [Программа хранения: аудит и ограничения](storage-program.md).
 - [Сравнение форматов хранения](storage-formats.md).
+- [Решение о формате папки](storage-format-decision.md).
 - [Контракт чтения репозитория](storage-contract.md).
