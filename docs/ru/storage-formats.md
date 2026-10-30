@@ -43,6 +43,16 @@ SQL-кандидат тоже ещё не получает гарантию: е�
 journal; явное восстановление и аварийные точки требуют отдельного исполнения.
 Выбор не может опираться только на более короткое время metadata save.
 
+Новый opt-in crash benchmark завершает собственный дочерний test process
+в четырёх точках: manifest staging/после publish и SQL transaction/после commit.
+Для незавершённой SQL transaction требуется реальный hot-journal header и
+изменённые страницы БД; reader обязан отказать без записи. Затем отдельно
+вызывается SQLite recovery только на принадлежащей тесту фикстуре и проверяются
+старые metadata, точный архив истории и CAS. После commit ожидается новое
+metadata. Вывод разделяет время процесса, read/recovery и явного SQL recovery.
+Проверка ожидает CI; это process death, а не обесточивание, production recovery
+или свидетельство реального CAD commit/USB/NAS.
+
 Новый `project_storage_v2::reader::FolderSnapshot` захватывает manifest и
 project.json, проверяет ограниченные размеры, SHA и ссылки metadata. Он не читает
 посторонние assets и архив событий. `read_asset` принимает только точный descriptor

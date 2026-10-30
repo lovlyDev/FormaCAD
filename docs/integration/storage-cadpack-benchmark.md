@@ -68,8 +68,7 @@ tempdir, не в пользовательский экспорт. Hook не до
 Патч применён после явного разрешения lovlyDev. Форматирование проверено; компиляция и выполнение новых тестов ожидают CI. Команды воспроизведения:
 
 ```sh
-git apply --check docs/integration/storage-cadpack-benchmark.patch
-git apply docs/integration/storage-cadpack-benchmark.patch
+git apply --reverse --check docs/integration/storage-cadpack-benchmark.patch
 cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml --check
 cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --lib cadpack::benchmark_api::tests
 cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
@@ -112,8 +111,8 @@ before source reads/writes, and malformed-history rejection before publication.
 Keep existing CADPACK privacy/history/geometry tests as well.
 
 The owner explicitly approved the three files and the patch is applied on the task branch. Formatting has been checked. No build
-or execution is claimed. After owner agreement, run the commands above and
-integrate it from the owned unit-test benchmark module. Record actual raw results
+or execution is claimed. The owned unit-test benchmark now calls the hook.
+Run the commands above and record actual raw results
 at the same SHA for both candidate representations. Name the combined measurement
 `cadpack_round_trip`: it includes writer, sync, read-back and validation time;
 it is not a write-only timing. The copy/export gate remains unverified until the
