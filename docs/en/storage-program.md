@@ -25,7 +25,7 @@ project and retry. Readers acquire no writer lease and perform no recovery.
 | --- | --- | --- |
 | History status | capture_history_state → recheck_history_state | Original token and typed SQL cursor; archive separate |
 | Description and revision list | listProjects → list_projects → reconcile | Not converted: raw SQL and possible recovery; no lifecycle regression |
-| Structural revision diff | compare_ir_revisions → projects::get → reconcile | Not converted: possible recovery; needs a separately agreed patch |
+| Structural revision diff | compare_ir_revisions → ProjectRepository → capture → recheck | Agreed patch applied; consumer stale/purity tests await CI |
 | Attachments | capture_project → bounded read/hash → recheck | Inherits shared lifecycle checks |
 | Copy | capture_with_history → artifacts → recheck → persist | Destination write is separate |
 | CADPACK | capture_with_history → artifacts → recheck → publish | Publication follows optimistic recheck |

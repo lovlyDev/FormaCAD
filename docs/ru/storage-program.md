@@ -27,7 +27,7 @@ PR №5 подтверждён объединённым через API; 29 ок�
 | --- | --- | --- |
 | Статус истории | capture_history_state → recheck_history_state | Исходный token и типизированный SQL-курсор; архив отдельно |
 | Описание и список ревизий | listProjects → list_projects → reconcile | Ещё не переведены: raw SQL, возможный recovery; lifecycle-регрессии нет |
-| Структурный diff ревизий | compare_ir_revisions → projects::get → reconcile | Ещё не переведён: возможный recovery; нужен отдельный согласованный патч |
+| Структурный diff ревизий | compare_ir_revisions → ProjectRepository → capture → recheck | Согласованный патч применён; отдельные stale/purity тесты ожидают CI |
 | Вложения | capture_project → ограниченное чтение/hash → recheck | Получает общий lifecycle-контроль |
 | Копирование | capture_with_history → artifacts → recheck → persist | Запись назначения выполняется отдельно |
 | CADPACK | capture_with_history → artifacts → recheck → publish | Публикация после optimistic recheck |
