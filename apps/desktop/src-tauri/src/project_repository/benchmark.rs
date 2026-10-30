@@ -80,6 +80,12 @@ async fn compare_storage_representations() {
             serde_json::to_vec(&current).unwrap(),
             serde_json::to_vec(&project).unwrap()
         );
+        let started = Instant::now();
+        let asset = copy::read_asset(&sql_root, &current.files[0]).unwrap();
+        assert_eq!(asset.len() as u64, current.files[0].size);
+        std::hint::black_box(asset);
+        row(label, "sqlite-delete-prototype", "single_attachment_bounded_primitive", started.elapsed(),
+            "captured descriptor; bounded regular-file size/hash validation only; no production session or metadata recheck; not equivalent to repository read_asset");
         measured(label, "manifest-v2", "history_status", || {
             let saved = folder::read_folder(&manifest_root).unwrap();
             let bytes = folder::read_history(&manifest_root).unwrap().unwrap();

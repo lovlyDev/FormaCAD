@@ -18,8 +18,30 @@ This is a benchmark prototype, not a production writer API. Four regressions
 cover byte preservation, absence of app tables, write refusal and controlled
 foreign/future/WAL format rejection. Writer startup is timed separately from
 metadata save.
+SQL copy/export preflight conservatively budgets JSON escaping at six bytes per
+text byte. Valid near-limit archives can therefore be refused before the common
+16 MiB archive limit. Both candidates use the same small/medium/large fixtures;
+this is a prototype restriction, not a new general limit on user history.
 
 ## Read boundaries
+
+### Checks required before format selection
+
+The existing v2 crash-safety audit identified two boundaries. Shared CAS objects
+are created directly at their final `assets/<hash>` names: a partial write can
+leave an invalid object that a retry refuses. The old published manifest does
+not turn that object into a new commit. A future fix must write and verify an
+owned temporary file before installing a final name without replacing existing
+CAS. Readers do not remove or recover leftovers. File `sync_all` alone does not
+establish directory-entry durability under power loss.
+
+Legacy recovery compares the source manifest before taking the storage lock.
+Publication needs a repeated comparison under that lock, and journal cleanup
+must identify the pending target actually handled. Otherwise a newer external
+commit can be replaced by an older one. This finding is not a recovery fix.
+The SQL candidate is not proven either: its normal opener refuses journals;
+explicit recovery and crash boundaries still need separate execution. Shorter
+metadata-save time alone cannot select the format.
 
 New `project_storage_v2::reader::FolderSnapshot` captures manifest/project.json,
 checking bounded lengths, hashes and metadata references. It does not load unrelated
@@ -61,6 +83,23 @@ times the actual writer, sync, reader and content validation as
 production copy/export transaction. New observations await CI execution; crash
 recovery, cold-cache and production publication receive no invented timings.
 Final raw results and a format decision require actual execution.
+
+### Isolated SQLite comparison
+
+[Storage comparison 40945699832](https://github.com/lovlyDev/FormaCAD/actions/runs/40945699832)
+and [Quality 40945699710](https://github.com/lovlyDev/FormaCAD/actions/runs/40945699710)
+succeeded for `de735801142dbdda56d9b5a0fe4f12cb0ad34681`;
+PR merge checkout was `0454ce6d0a99d5a786f44ef232962bc7732e3331`.
+Saved [raw JSON](../storage-benchmark/de73580-linux.jsonl),
+[environment](../storage-benchmark/de73580-environment.txt) and
+[whole-process resources](../storage-benchmark/de73580-process-resources.txt).
+Ubuntu 22.04 / Linux Azure, AMD EPYC 9V45, 4 vCPU; virtual NVMe with ROTA=0,
+physical storage type unverified. Rust 1.97.1. Large single-observation metadata
+open: full manifest 313.520 ms, metadata reader 9.627 ms, SQL 4.013 ms;
+history status: 628.322 / 18.342 / 0.782 ms respectively. Metadata save:
+manifest 1327.064 ms, SQL 8.852 ms plus separate writer startup 1.523 ms.
+Work and validation scopes differ, with no cache flush; this does not select a winner.
+New copy/CADPACK/child-process checks were added later and are not verified by this SHA.
 
 ### First executed comparison
 

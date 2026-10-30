@@ -40,6 +40,7 @@ async fn copy_manifest_inner(
     let mut copied = captured.project().clone();
     copied.id = uuid::Uuid::new_v4().to_string();
     copied.validate()?;
+    let copied_files = unique_files(&copied)?;
     let destination = create_destination(source_root, dest_new_root)?;
     let mut staged = storage::stage_with(dest_new_root, &copied, |file| {
         source.read_asset(&captured, file)
@@ -60,7 +61,7 @@ async fn copy_manifest_inner(
     {
         return Err(changed());
     }
-    for file in unique_files(&copied)? {
+    for file in copied_files {
         reader.read_asset(&actual, file)?;
     }
     reader.recheck(&actual)?;
@@ -221,7 +222,7 @@ async fn capture_sql(reader: &SqlitePool) -> Result<SqlSnapshot> {
                 .and_then(|cursor| value.checked_add(cursor))
         })
         .and_then(|value| value.checked_add(256));
-    if count > 30000 || archive_bound.is_none_or(|bound| bound > MAX_CURSOR || bound < 0) {
+    if count > 30000 || archive_bound.is_none_or(|bound| !(0..=MAX_CURSOR).contains(&bound)) {
         return Err(AppError::Invalid("HISTORY_ARCHIVE_TOO_LARGE".into()));
     }
     let cursor: Option<String> =
@@ -279,6 +280,7 @@ pub(super) fn read_asset(root: &Path, file: &ProjectFile) -> Result<Vec<u8>> {
     if file.size > crate::artifacts::MAX_FILE_BYTES as u64 {
         return Err(changed());
     }
+    let location = LocationIdentity::capture(root, Path::new("assets"))?;
     let path = crate::security::guarded(root, &asset_relative(file)?)?;
     let metadata = fs::symlink_metadata(&path)?;
     if !metadata.is_file() || metadata.len() != file.size {
@@ -300,6 +302,7 @@ pub(super) fn read_asset(root: &Path, file: &ProjectFile) -> Result<Vec<u8>> {
     source.take(file.size + 1).read_to_end(&mut bytes)?;
     if bytes.len() as u64 != file.size
         || file.sha256.as_deref() != Some(crate::artifacts::digest(&bytes).as_str())
+        || !location.recheck(root, Path::new("assets"))?
     {
         return Err(changed());
     }
