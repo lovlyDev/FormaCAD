@@ -65,6 +65,47 @@ async fn excessive_asset_references_are_refused_without_reading_or_creating_asse
     assert_eq!(files(&sql_root), before);
 }
 
+#[tokio::test]
+async fn manifest_reference_budget_is_rejected_before_creating_or_publishing_destination() {
+    let parent = tempfile::tempdir().unwrap();
+    let seed = parent.path().join("sql-seed");
+    let source = parent.path().join("manifest-source");
+    fs::create_dir(&seed).unwrap();
+    fs::create_dir(&source).unwrap();
+    let (writer, mut project, assets) = fixture::build(&seed, 3, 2, 64 * 1024).await;
+    project.files.truncate(1);
+    // 1601 references cross 100 MiB, but all point to one valid 64 KiB CAS
+    // object. Count, per-file and manifest unique-byte limits still pass.
+    // No oversized attachment buffer is allocated for this admission test.
+    for index in 0..1600 {
+        let mut file = project.files[0].clone();
+        file.name = format!("repeated-{index}.step");
+        project.files.push(file);
+    }
+    project.validate().unwrap();
+    let history =
+        crate::project_history::export_history(&mut writer.acquire().await.unwrap(), &project)
+            .await
+            .unwrap();
+    let mut staged = folder::stage_with(&source, &project, |file| {
+        Ok(assets[file.sha256.as_ref().unwrap()].clone())
+    })
+    .unwrap();
+    folder::stage_history(&source, &mut staged, &history).unwrap();
+    folder::publish(&source, staged).unwrap();
+    writer.close().await;
+    // Full production read verifies the source itself is intact; refusal must
+    // be the copy admission budget, not missing or corrupt attachment bytes.
+    assert_eq!(folder::read_folder(&source).unwrap().files.len(), 1601);
+    let before = files(&source);
+    let destination = parent.path().join("refused-manifest-copy");
+    let error = copy_manifest(&source, &destination).await.err().unwrap();
+    assert_eq!(error.to_string(), "PROJECT_SNAPSHOT_CHANGED");
+    assert!(!destination.exists());
+    assert_eq!(files(&source), before);
+    parent.close().unwrap();
+}
+
 fn files(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
     fn walk(root: &Path, current: &Path, result: &mut BTreeMap<PathBuf, Vec<u8>>) {
         for entry in fs::read_dir(current).unwrap() {
@@ -269,5 +310,34 @@ async fn typed_source_commit_during_copy_is_preserved_and_destination_transactio
     let latest = read_sql(&sql_root).await.unwrap();
     assert_eq!(latest.project.name, changed.name);
     assert!(!sql_has_project(&destination).await);
+    parent.close().unwrap();
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn inside_root_asset_directory_symlink_is_refused_without_changing_source_bytes() {
+    let parent = tempfile::tempdir().unwrap();
+    let (sql_root, _, project, _) = sources(parent.path()).await;
+    let assets = sql_root.join("assets");
+    let original_assets = sql_root.join("assets-original");
+    // Both paths are inside this test's newly created source. Preserve the
+    // real asset directory and introduce only an owned, non-cyclic alias.
+    fs::rename(&assets, &original_assets).unwrap();
+    std::os::unix::fs::symlink("assets-original", &assets).unwrap();
+    assert!(assets
+        .canonicalize()
+        .unwrap()
+        .starts_with(sql_root.canonicalize().unwrap()));
+    let before = files(&sql_root);
+    let before_link = fs::read_link(&assets).unwrap();
+    let error = super::read_asset(&sql_root, &project.files[0])
+        .err()
+        .unwrap();
+    assert_eq!(error.to_string(), "PROJECT_SNAPSHOT_CHANGED");
+    let destination = parent.path().join("refused-symlink-copy");
+    assert!(copy_sql(&sql_root, &destination).await.is_err());
+    assert!(!destination.join("project.sqlite").exists());
+    assert_eq!(fs::read_link(&assets).unwrap(), before_link);
+    assert_eq!(files(&sql_root), before);
     parent.close().unwrap();
 }

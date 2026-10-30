@@ -75,7 +75,7 @@ cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --lib cadp
 cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
 ```
 
-Затем подключить hook из owned benchmark и получить отдельные сырые результаты
+Hook подключён из owned benchmark; получить отдельные сырые результаты
 для каждого сравниваемого представления на одном SHA. Строку назвать
 `cadpack_round_trip` и явно включить в её стоимость write, sync, read-back и
 валидацию; не выдавать её за чистое время записи. До реального выполнения
