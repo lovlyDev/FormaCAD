@@ -73,3 +73,9 @@ Copying a current managed project retains validated history and revision IDs und
 The frontend regression in `apps/desktop/src/i18n/errorText.test.ts` checks all three new codes in Russian and English, localized messages and separate preservation of raw diagnostics. Native shared-snapshot, copy, export and measurement-compatibility checks run separately; release evidence is recorded after they finish. A translation test does not prove OS locking or crash recovery. This step does not establish overall 2.0 storage readiness.
 
 Implementation: [project_repository/legacy](../../apps/desktop/src-tauri/src/project_repository/legacy/mod.rs), `capture_project` / `capture_with_history`.
+
+### Directory-only Unix opening
+
+The Unix identity adapter uses `O_DIRECTORY | O_NOFOLLOW`, rather than opening an arbitrary file and inspecting metadata afterward. This rejects symlinks and avoids the [SQLite-documented](https://www.sqlite.org/howtocorrupt.html) process-wide POSIX lock loss caused by closing an unrelated descriptor for the same database. Unsupported Unix ABIs do not get guessed numeric flags. Flags cover Linux x86-64/AArch64 and macOS; Windows retains its separate handle route.
+
+A regression holds a real SQLite `BEGIN IMMEDIATE`, rejects its database path through the directory adapter, and checks kernel contention from an owned child test process: busy before rejection, busy afterward, acquisition after rollback. It tests more than SQLite in-process bookkeeping. The child uses an exact test name, owned database and nonce; runtime PASS still requires new CI. This does not establish NAS/USB/power-loss or standalone folder commit support.
