@@ -94,6 +94,9 @@ pub(crate) async fn capture_controls(state: &AppState, id: &str) -> Result<Contr
     if model.id != id {
         return Err(changed());
     }
+    if model.supported() {
+        model.validate()?;
+    }
     let has_manifest = state.root.join(id).join("manifest.json").try_exists()?;
     let folder = if model.supported() && has_manifest {
         FolderSeal::capture(state, &model, &payload_hash, raw.project.project.len())?
@@ -102,7 +105,6 @@ pub(crate) async fn capture_controls(state: &AppState, id: &str) -> Result<Contr
     };
     let supported = model.supported() && (!has_manifest || folder.is_some());
     let (status, fallback) = if supported {
-        model.validate()?;
         let context = model.context();
         let history =
             crate::project_history::state_from_context_json(&context, raw.state.as_deref())?;

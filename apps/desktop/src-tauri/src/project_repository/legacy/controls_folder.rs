@@ -69,13 +69,21 @@ impl FolderSeal {
         if entry.sha256 != payload_hash || entry.size != payload_len as u64 {
             return Ok(None);
         }
+        let attachments: std::collections::HashMap<_, _> = manifest
+            .files
+            .iter()
+            .filter_map(|entry| {
+                entry
+                    .path
+                    .strip_prefix("attachments/")
+                    .map(|hash| (hash, entry))
+            })
+            .collect();
         if projection.files.iter().any(|file| {
             file.sha256.as_ref().is_none_or(|hash| {
-                !manifest.files.iter().any(|entry| {
-                    entry.path == format!("attachments/{hash}")
-                        && entry.sha256 == *hash
-                        && entry.size == file.size
-                })
+                attachments
+                    .get(hash.as_str())
+                    .is_none_or(|entry| entry.sha256 != *hash || entry.size != file.size)
             })
         }) {
             return Err(changed());
