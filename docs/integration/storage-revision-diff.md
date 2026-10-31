@@ -2,7 +2,7 @@
 
 ## Русский
 
-Статус: **lovlyDev разрешил два файла; точный патч применён, исполнение тестов ещё не подтверждено**.
+Статус: **lovlyDev разрешил два файла; патч применён, все шесть регрессий прошли на d089e6c**.
 Автор предложения — wenlixxq. Владелец общей интеграции и приёмки — lovlyDev.
 [Патч](storage-revision-diff.patch) подготовлен относительно
 `a12064e7a6b32fe180b0dd1f773f6e9e689790f2` задачной ветки. Этот SHA содержит
@@ -62,7 +62,10 @@ worker, миграций, версий или выпуска. Пользоват
 
 При подготовке прошли только rustfmt временных копий и
 `git apply --check docs/integration/storage-revision-diff.patch`. Рабочие shared
-файлы затем изменены только после разрешения. Нет утверждения о compile/Clippy/test PASS.
+файлы затем изменены только после разрешения. Исполнение подтверждено позже:
+[Quality 41137407828](https://github.com/lovlyDev/FormaCAD/actions/runs/41137407828)
+на `d089e6c` прошло все шесть consumer regression tests, strict Clippy и
+функциональные jobs четырёх платформ. Весь Quality имеет отдельный security failure.
 Проверка применённого патча и исполнения:
 
 ```sh
@@ -83,7 +86,7 @@ backend и не готовность всех consumers этапа 3.
 
 ## English
 
-Status: **lovlyDev approved both files; patch applied, tests not yet executed**. wenlixxq prepared
+Status: **lovlyDev approved both files; applied, all six regressions passed on d089e6c**. wenlixxq prepared
 the [two-file patch](storage-revision-diff.patch) against
 `a12064e7a6b32fe180b0dd1f773f6e9e689790f2`. lovlyDev owns integration and acceptance.
 The storage specification §5 requires agreement on this concrete shared scope
@@ -113,8 +116,10 @@ replace timing assumptions. The fixtures use real isolated SQLite and synthetic
 typed IR; they do not need the CAD worker or prove installed UI acceptance.
 
 Only temporary-copy rustfmt and patch applicability passed during preparation.
-The patch was applied after explicit owner agreement. No compilation or test
-execution is claimed. Run the commands above plus repository lifecycle and CAD diff
+The patch was applied after explicit owner agreement. Subsequent
+[Quality 41137407828](https://github.com/lovlyDev/FormaCAD/actions/runs/41137407828)
+on `d089e6c` passed all six consumer tests, strict Clippy and four functional
+platform jobs; the whole run has a separate security failure. Reproduce with the commands above and CAD diff
 tests. Record the exact final SHA and passed/failed/skipped evidence in Issue/PR,
 then update operational RU/EN documentation. This proposal does not migrate the
 whole project list, provide folder writes, or complete stage 3 by itself.

@@ -69,6 +69,16 @@ project.json, проверяет ограниченные размеры, SHA и
 
 ## Воспроизведение и свидетельства
 
+Итоговая профильная проверка этапа 2:
+[Storage comparison 41137407683](https://github.com/lovlyDev/FormaCAD/actions/runs/41137407683)
+на `d089e6c016cb5e03efb9c6d391a2d475ec36b0fe` успешна: строгий Clippy,
+6 CADPACK proofs, 15 fresh-process probes и 4 process-death границы.
+[Raw JSON](../storage-benchmark/d089e6c-linux.jsonl),
+[окружение](../storage-benchmark/d089e6c-environment.txt),
+[общие ресурсы](../storage-benchmark/d089e6c-process-resources.txt).
+Функциональная матрица и отдельный security failure описаны
+в [программе](storage-program.md); приёмка и подключение production backend остаются отдельными.
+
 `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib project_repository::benchmark::compare_storage_representations -- --ignored --nocapture`
 
 Фикстуры small/medium/large содержат 4/32/128 сохранённых ревизий, переписку,

@@ -69,6 +69,16 @@ that archive is not presented as constant-time history status.
 
 ## Reproduction and evidence
 
+Final scoped stage 2 verification:
+[Storage comparison 41137407683](https://github.com/lovlyDev/FormaCAD/actions/runs/41137407683)
+succeeded on `d089e6c016cb5e03efb9c6d391a2d475ec36b0fe`: strict Clippy,
+6 CADPACK proofs, 15 fresh-process probes and 4 process-death boundaries.
+[Raw JSON](../storage-benchmark/d089e6c-linux.jsonl),
+[environment](../storage-benchmark/d089e6c-environment.txt),
+[whole-process resources](../storage-benchmark/d089e6c-process-resources.txt).
+The functional matrix and separate security failure are recorded in the
+[program](storage-program.md); acceptance and production-backend integration remain separate.
+
 `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib project_repository::benchmark::compare_storage_representations -- --ignored --nocapture`
 
 Small/medium/large fixtures have 4/32/128 persisted revisions, chat and repeated
