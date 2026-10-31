@@ -281,7 +281,7 @@ diff --git a/apps/desktop/src-tauri/src/modeling.rs b/apps/desktop/src-tauri/src
 index af8cd2d..f4f3b99 100644
 --- a/apps/desktop/src-tauri/src/modeling.rs
 +++ b/apps/desktop/src-tauri/src/modeling.rs
-@@ -8,6 +8,7 @@ mod build;
+@@ -8,5 +8,6 @@ mod build;
  pub mod commands;
  mod commit;
  mod legacy;
