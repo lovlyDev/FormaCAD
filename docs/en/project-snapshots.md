@@ -12,6 +12,16 @@ Exact measurements and sections using their capture retain compatible `MEASUREME
 
 ## Route and storage boundary
 
+Late preview results recheck their original snapshot after the final cleanup
+mutex wait; the task-map mutex is released before SQL/recheck. Manual sections
+repeat full verification after reading sealed STEP input. Stale failure does
+not return geometry for adoption by another opening. Exact measurement retains
+separate geometry-seal comparison, so a message save with unchanged inputs does
+not cancel the query. Late close/reopen regressions for STEP properties, preview,
+manual section, pair and face measurement use actual workers; another preview
+test holds the real cleanup mutex after a verified worker packet. These new
+checks await execution on their own head.
+
 The shared adapter captures the project description and logical history from one consistent SQL snapshot, then checks the corresponding immutable folder generation. Copy and export consume this pair instead of separate reads between which the history cursor could move. A changed state or pending recovery causes an explicit failure without implicit reconciliation. Consumers retain their attachment and history validation; a consistent SQL snapshot alone does not verify files.
 
 Persisted attachments are opened through a bounded reader: the file must be regular and match its declared size before allocation, then at most that size plus one byte is read and its checksum is checked. This prevents a corrupted or growing attachment mirror from causing an unbounded read. The existing40MiB per-file limit remains. Copy also checks decoded inline legacy bytes against their declared size and any saved checksum. Package export prepares verified bytes within its existing150MiB archive budget and rechecks the snapshot before invoking the existing temporary-file archive publisher; an invalid source leaves an existing destination intact. These checks do not claim protection against every hostile filesystem race.

@@ -103,5 +103,10 @@ pub(super) async fn recheck(state: &AppState, captured: &CapturedSection) -> Res
             "CAD section source differs from its committed seal",
         ));
     }
+    // Asset IO can outlive the earlier observation. Revalidate the ORIGINAL
+    // opening and saved state after those sealed bytes were checked as well.
+    legacy::recheck(state, &captured.snapshot)
+        .await
+        .map_err(snapshot_error)?;
     Ok(())
 }

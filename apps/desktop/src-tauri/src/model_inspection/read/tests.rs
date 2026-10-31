@@ -159,3 +159,62 @@ async fn cancellation_after_genuine_worker_completion_rejects_properties_and_kee
     assert_eq!(fixture::logical(&state, &project.id).await, before);
     assert_eq!(fixture::files(root.path()), files);
 }
+
+#[tokio::test]
+async fn close_and_reopen_after_verified_worker_rejects_late_step_properties() {
+    let root = tempfile::tempdir().unwrap();
+    let state = fixture::state(root.path()).await;
+    let project = saved_step(&state).await;
+    let source = state.root.join(&project.id);
+    std::fs::create_dir(&source).unwrap();
+    std::fs::write(source.join("sentinel.txt"), b"unchanged measurement source").unwrap();
+    let before = fixture::logical(&state, &project.id).await;
+    let files = fixture::files(&source);
+    let called = AtomicBool::new(false);
+    let result = run(
+        &state,
+        &project.id,
+        project.current_revision.as_deref().unwrap(),
+        |cwd, cancel| {
+            let state = &state;
+            let id = &project.id;
+            let called = &called;
+            async move {
+                let properties =
+                    crate::native::inspection::inspect_with_executable(&cwd, cancel, &worker())
+                        .await?;
+                assert!((properties.volume_mm3 - 8000.).abs() < 1e-6);
+                called.store(true, Ordering::Relaxed);
+                state.project_access.release(id).unwrap();
+                state.project_access.acquire(&state.root, id).unwrap();
+                Ok(properties)
+            }
+        },
+    )
+    .await;
+    assert!(
+        called.load(Ordering::Relaxed),
+        "The actual inspection worker must finish before reopen"
+    );
+    assert!(
+        matches!(result, Err(AppError::Invalid(ref code)) if code == "PROJECT_SNAPSHOT_CHANGED")
+    );
+    assert_eq!(fixture::logical(&state, &project.id).await, before);
+    assert_eq!(fixture::files(&source), files);
+    assert!(state.cad_tasks.status().unwrap().is_empty());
+    let fresh = run(
+        &state,
+        &project.id,
+        project.current_revision.as_deref().unwrap(),
+        |cwd, cancel| async move {
+            crate::native::inspection::inspect_with_executable(&cwd, cancel, &worker()).await
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert!((fresh.volume_mm3 - 8000.).abs() < 1e-6);
+    assert_eq!(fixture::logical(&state, &project.id).await, before);
+    assert_eq!(fixture::files(&source), files);
+    state.project_access.release(&project.id).unwrap();
+}

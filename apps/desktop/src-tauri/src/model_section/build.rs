@@ -21,6 +21,34 @@ pub async fn section_with_executable(
     cancel: Arc<AtomicBool>,
     executable: &Path,
 ) -> Result<SectionReport> {
+    section_inner(
+        state,
+        project_id,
+        expected_revision,
+        plane,
+        cancel,
+        executable,
+        PhaseHook::default(),
+    )
+    .await
+}
+
+#[derive(Default)]
+struct PhaseHook<'a> {
+    #[cfg(test)]
+    after_worker: Option<&'a (dyn Fn() + Send + Sync)>,
+    _lifetime: std::marker::PhantomData<&'a ()>,
+}
+
+async fn section_inner(
+    state: &AppState,
+    project_id: &str,
+    expected_revision: &str,
+    plane: &SectionPlane,
+    cancel: Arc<AtomicBool>,
+    executable: &Path,
+    hook: PhaseHook<'_>,
+) -> Result<SectionReport> {
     plane.normalized().map_err(|e| {
         AppError::Invalid(serde_json::json!({"code":e.code,"message":e.detail}).to_string())
     })?;
@@ -73,6 +101,12 @@ pub async fn section_with_executable(
     if cancel.load(Ordering::Relaxed) {
         return Err(super::failure("SECTION_CANCELLED", "CAD section cancelled"));
     }
+    #[cfg(test)]
+    if let Some(after_worker) = hook.after_worker {
+        after_worker();
+    }
+    #[cfg(not(test))]
+    let _ = hook;
     capture::recheck(state, &captured).await?;
     if cancel.load(Ordering::Relaxed) {
         return Err(super::failure("SECTION_CANCELLED", "CAD section cancelled"));
@@ -82,3 +116,7 @@ pub async fn section_with_executable(
 fn stale() -> AppError {
     AppError::Invalid(serde_json::json!({"code":"SECTION_STALE","message":"Project revision changed; recompute the section"}).to_string())
 }
+
+#[cfg(test)]
+#[path = "build_tests.rs"]
+mod tests;
