@@ -27,7 +27,7 @@ PR №5 подтверждён объединённым через API; 29 ок�
 | --- | --- | --- |
 | Статус истории | capture_history_state → recheck_history_state | Исходный token и типизированный SQL-курсор; архив отдельно |
 | Описание и список ревизий | listProjects → list_projects → reconcile | Ещё не переведены: raw SQL, возможный recovery; lifecycle-регрессии нет |
-| Структурный diff ревизий | compare_ir_revisions → ProjectRepository → capture → recheck | Согласованный патч применён; отдельные stale/purity тесты ожидают CI |
+| Структурный diff ревизий | compare_ir_revisions → ProjectRepository → capture → recheck | Шесть stale/purity регрессий прошли на d089e6c |
 | Вложения | capture_project → ограниченное чтение/hash → recheck | Получает общий lifecycle-контроль |
 | Копирование | capture_with_history → artifacts → recheck → persist | Запись назначения выполняется отдельно |
 | CADPACK | capture_with_history → artifacts → recheck → publish | Публикация после optimistic recheck |
@@ -41,6 +41,19 @@ PR №5 подтверждён объединённым через API; 29 ок�
 native-проверок — [в согласовании](../integration/storage-measurement-session.md).
 Новый workflow `Storage native consumers` исполняет три host suites; наличие
 workflow ещё не означает успешный результат исправленного head.
+
+Проверка `d089e6c016cb5e03efb9c6d391a2d475ec36b0fe` завершена:
+[Quality 41137407828](https://github.com/lovlyDev/FormaCAD/actions/runs/41137407828)
+прошёл функциональные Windows/Linux/macOS ARM/Intel jobs, frontend и CAD;
+весь run имеет failure из-за отдельного security job с существующим
+Wasmtime 50.0.0 (RUSTSEC-2026-0422/0423/0424). Linux library: 274 PASS,
+0 FAIL, 5 ignored. Все шесть structural diff tests и две новые lifecycle
+регрессии прошли.
+[Storage native consumers 41137407525](https://github.com/lovlyDev/FormaCAD/actions/runs/41137407525)
+подтвердил 330 library PASS / 5 ignored, 11 worker PASS, face host 7,
+pair host 7, reference host 9 PASS. Все три metadata-only queue regressions
+и close/reopen после настоящего worker прошли. Это проверенная основа следующего
+потребителя этапа 3; вся программа не завершена, приёмка остаётся у lovlyDev.
 
 ## Ограничения и следующая работа
 

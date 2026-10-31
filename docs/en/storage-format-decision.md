@@ -78,6 +78,8 @@ Actual USB/NAS, FAT/exFAT, network locks and power loss are unverified; tempdir 
 does not establish support. Agree the concrete storage matrix before promising
 support to users.
 
-Stage 2 still requires final-head checks and recorded Issue limitations.
+Scoped stage 2 checks passed on `d089e6c`; links and actual evidence are recorded
+in the [program](storage-program.md) and Issue #29. lovlyDev retains acceptance
+of the format and production integration.
 Security CI separately reports existing Wasmtime vulnerabilities in Issue #3's
 area; this task branch neither changes that dependency nor suppresses the audit.

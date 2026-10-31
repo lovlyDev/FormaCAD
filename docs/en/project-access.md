@@ -22,4 +22,11 @@ A read-only workspace explains the restriction and offers Retry editing access a
 
 ## Pure reads for copying and exporting
 
+`project_access::copy::tests` exercises actual `copy_for_editing`: close/reopen
+while the SQL pool is held rejects an old request before destination creation;
+pending recovery preserves the original journal. Checks cover payload, cursor,
+events, project IDs, manifest and assets, including absence of new directories.
+Informational owner/lock hints are not model bytes. These new tests require
+separate CI execution and do not establish external-folder writing.
+
 Copying a current managed project and exporting `.cadpack` use a [shared project/history snapshot](project-snapshots.md) from one SQL snapshot, with folder-generation checks and a recheck after attachment reads before publication. These operations do not implicitly recover the source. Reopen a project that requires recovery, then retry. Measurements retain their compatible error codes. Saving a new copy inserts a new project into shared SQLite; the source project remains unchanged, but the complete database file need not remain byte-identical. This changes the managed backend, not external-folder in-place opening or editable-history conversion of a genuine 1.1 project.

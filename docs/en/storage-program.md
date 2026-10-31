@@ -25,7 +25,7 @@ project and retry. Readers acquire no writer lease and perform no recovery.
 | --- | --- | --- |
 | History status | capture_history_state → recheck_history_state | Original token and typed SQL cursor; archive separate |
 | Description and revision list | listProjects → list_projects → reconcile | Not converted: raw SQL and possible recovery; no lifecycle regression |
-| Structural revision diff | compare_ir_revisions → ProjectRepository → capture → recheck | Agreed patch applied; consumer stale/purity tests await CI |
+| Structural revision diff | compare_ir_revisions → ProjectRepository → capture → recheck | Six stale/purity regressions passed on d089e6c |
 | Attachments | capture_project → bounded read/hash → recheck | Inherits shared lifecycle checks |
 | Copy | capture_with_history → artifacts → recheck → persist | Destination write is separate |
 | CADPACK | capture_with_history → artifacts → recheck → publish | Publication follows optimistic recheck |
@@ -39,6 +39,18 @@ recapture while preserving metadata-only save behavior. See the
 [integration note](../integration/storage-measurement-session.md) for native
 validation boundaries. New `Storage native consumers` runs three host suites;
 workflow presence does not establish success for the corrected head.
+
+Verification completed for `d089e6c016cb5e03efb9c6d391a2d475ec36b0fe`:
+[Quality 41137407828](https://github.com/lovlyDev/FormaCAD/actions/runs/41137407828)
+passed functional Windows/Linux/macOS ARM/Intel jobs, frontend and CAD. The whole
+run is failure because its separate security job reports existing Wasmtime
+50.0.0 (RUSTSEC-2026-0422/0423/0424). Linux library: 274 PASS, 0 FAIL,
+5 ignored. All six structural diff tests and both new lifecycle regressions passed.
+[Storage native consumers 41137407525](https://github.com/lovlyDev/FormaCAD/actions/runs/41137407525)
+proved 330 library PASS / 5 ignored, 11 worker PASS, face host 7, pair host 7
+and reference host 9 PASS. All three queued metadata-only regressions and the
+real-worker close/reopen test passed. This is the verified basis for the next
+stage 3 consumer; the whole program is unfinished and lovlyDev retains acceptance.
 
 ## Limits and remaining work
 

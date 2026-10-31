@@ -36,7 +36,10 @@ measurement recheck отклоняла и metadata-only save. Это проти�
 использует существующий build-native-unix.sh в TEST_ONLY режиме и дополнительно
 исполняет `reference_measurements_host`, `pair_measurements_host` и
 `face_sections_host`. Он не собирает установщик и не меняет скрипт владельца.
-Результат коррекции ожидает исполнения. Гарантия остаётся optimistic; реальный
+Коррекция прошла [Storage native consumers 41137407525](https://github.com/lovlyDev/FormaCAD/actions/runs/41137407525)
+на `d089e6c`: 330 library PASS / 5 ignored, 11 worker PASS, face 7 / pair 7 /
+reference 9 host PASS. Все три metadata-only queue теста и close/reopen после
+настоящего worker прошли. Гарантия остаётся optimistic; реальный
 NAS/USB и установленное приложение этим не подтверждаются.
 
 ## English
@@ -74,5 +77,8 @@ verify the corrected head. The new `Storage native consumers` workflow uses the
 existing build-native-unix.sh TEST_ONLY route and additionally executes
 `reference_measurements_host`, `pair_measurements_host` and `face_sections_host`.
 It neither builds an installer nor modifies the owner's script. Correction
-execution is pending. Guarantees remain optimistic; real NAS/USB and an installed
+execution passed in [Storage native consumers 41137407525](https://github.com/lovlyDev/FormaCAD/actions/runs/41137407525)
+on `d089e6c`: 330 library PASS / 5 ignored, 11 worker PASS, face 7 / pair 7 /
+reference 9 host PASS. All three queued metadata-only tests and real-worker
+close/reopen passed. Guarantees remain optimistic; real NAS/USB and an installed
 application are not established by these checks.
