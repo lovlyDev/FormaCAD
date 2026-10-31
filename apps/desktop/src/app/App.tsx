@@ -2,6 +2,10 @@ import { applicationMenus } from "../features/main-menu/applicationMenus";
 import { useBodyVisibility } from "../features/visibility/useBodyVisibility";
 import { bodyVisible } from "../features/visibility/visibilityModel";
 import { copyProjectForEditing } from "../features/project-access/projectAccessApi";
+import { readProjectSnapshot } from "../features/project-catalog/api";
+import { invalidateProjectCatalog } from "../features/project-catalog/cache";
+import { useProjectCatalog } from "../features/project-catalog/useProjectCatalog";
+import { useProjectNavigation } from "../features/project-catalog/useProjectNavigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -83,7 +87,6 @@ import {
   health,
   importProjectBundle,
   interruptedSessions,
-  listProjects,
   native,
   needsConfirmation,
   plan,
@@ -92,13 +95,11 @@ import {
   resolveNativePermission,
   saveMesh,
   saveProject,
-  saveProjectThumbnail,
 } from "../lib/api";
 import { download, exportMesh, loadModel, readFile } from "../lib/files";
 import { buildModel, disposeModel, inspectModel } from "../lib/model";
 import { persist, usePersistentState } from "../lib/persistence";
 import { workspacePaletteCommands } from "../features/command-palette/workspaceCommands";
-import { renderThumbnail } from "../lib/thumbnail";
 import { readTypedCadDocument } from "../lib/typedCadDocument";
 import { currentParameters, useWorkspace } from "../stores/workspace";
 import { type Parameters, type Project, type ProjectFile } from "../types";
@@ -160,8 +161,10 @@ export default function App() {
     setSelected,
   } = useWorkspace();
   const projectAccess = useProjectAccess(project?.id, setError);
-  const editingBlocked = busy || !projectAccess.writable;
-  const projects = useQuery({ queryKey: ["projects"], queryFn: listProjects });
+  const openingProject = !!projectId && !!project && projectId !== project.id;
+  const editingBlocked = busy || !projectAccess.writable || openingProject;
+  const { catalog, projects, unavailable } = useProjectCatalog();
+  const openProject = useProjectNavigation(projectId, nav, setError);
   const recovery = useQuery({
     queryKey: ["recovery"],
     queryFn: interruptedSessions,
@@ -187,15 +190,12 @@ export default function App() {
     && project.currentRevision === datumTarget.revision;
   const torusTargetCurrent = !!torusTarget && project?.id === torusTarget.id
     && project.currentRevision === torusTarget.revision;
-  const stateKey = `forma.ui.project.${projectId ?? "home"}`;
+  const stateKey = `forma.ui.project.${project?.id ?? projectId ?? "home"}`;
   const [search, setSearch] = usePersistentState("forma.ui.search", "");
   const [renameTarget, setRenameTarget] = useState<Project | null>(null);
   const [renameName, setRenameName] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [deleteName, setDeleteName] = useState("");
-  const previewProjects = useRef<Project[]>([]);
-  const previewRunning = useRef(false);
-  const previewAttempted = useRef(new Set<string>());
   const [prompt, setPrompt] = usePersistentState(`${stateKey}.prompt`, "");
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [attachments, setAttachments] = usePersistentState<ProjectFile[]>(
@@ -427,73 +427,12 @@ export default function App() {
       unlisten?.();
     };
   }, [project?.id, setError]);
-  useEffect(() => {
-    if (projectId || !projects.data) return;
-    previewProjects.current = projects.data;
-    if (previewRunning.current) return;
-    previewRunning.current = true;
-    void (async () => {
-      while (true) {
-        const next = previewProjects.current.find((item) => {
-          const key = `${item.id}:${item.currentRevision}`;
-          return (
-            item.currentRevision &&
-            item.thumbnailRevision !== item.currentRevision &&
-            !previewAttempted.current.has(key)
-          );
-        });
-        if (!next || !next.currentRevision) break;
-        previewAttempted.current.add(`${next.id}:${next.currentRevision}`);
-        const revision = next.revisions.find(
-          (item) => item.id === next.currentRevision,
-        );
-        const file = next.files.find(
-          (item) => item.name === (revision?.preview ?? revision?.source),
-        );
-        let preview: THREE.Group | null = null;
-        try {
-          preview =
-            file && /\.(stl|obj|glb|3mf)$/i.test(file.name)
-              ? await loadModel(file, next.id)
-              : buildModel(currentParameters(next));
-          const thumbnail = renderThumbnail(preview);
-          if (!thumbnail) continue;
-          const saved = await saveProjectThumbnail(
-            next.id,
-            next.currentRevision,
-            thumbnail,
-          );
-          queryClient.setQueryData<Project[]>(["projects"], (current) =>
-            current?.map((item) => (item.id === saved.id ? saved : item)),
-          );
-        } catch (cause) {
-          console.warn("Project thumbnail could not be created", cause);
-        } finally {
-          if (preview) disposeModel(preview);
-        }
-      }
-    })().finally(() => {
-      previewRunning.current = false;
-    });
-  }, [projectId, projects.data, queryClient]);
   useEffect(
     () => () => {
       if (before) disposeModel(before);
     },
     [before],
   );
-  useEffect(() => {
-    const activeProject = useWorkspace.getState().project;
-    if (!projectId) {
-      if (activeProject) setProject(null);
-      return;
-    }
-    if (projects.data && activeProject?.id !== projectId) {
-      const p = projects.data.find((p) => p.id === projectId);
-      if (p) setProject(p);
-      else nav("/");
-    }
-  }, [projectId, projects.data, setProject, nav]);
   useEffect(() => {
     if (notice) {
       const t = setTimeout(() => setNotice(""), 5000);
@@ -521,9 +460,9 @@ export default function App() {
         fileInput.current?.click();
       } else if (e.code === "KeyS") {
         e.preventDefault();
-        if (project)
+        if (project && !openingProject)
           saveProject(project)
-            .then(() => setNotice(t("Project saved")))
+            .then(() => { refresh(); setNotice(t("Project saved")); })
             .catch((e) => setError(errorText(e)));
       } else if (e.code === "KeyE" && e.shiftKey) {
         e.preventDefault();
@@ -534,7 +473,7 @@ export default function App() {
     return () => window.removeEventListener("keydown", f);
   });
   function refresh() {
-    void queryClient.invalidateQueries({ queryKey: ["projects"] });
+    invalidateProjectCatalog(queryClient);
     void queryClient.invalidateQueries({ queryKey: ["model-history"] });
   }
   const historyAction = useHistoryAction(ask, refresh);
@@ -621,11 +560,6 @@ export default function App() {
     } finally {
       refresh();
     }
-  }
-  async function openProject(p: Project) {
-    if (busy) return;
-    setProject(p);
-    nav(`/project/${p.id}`);
   }
   async function importStepIntoScene(p: Project, name: string) {
     await ask(
@@ -1125,11 +1059,13 @@ export default function App() {
           }}
         />
       )}
+      {openingProject && <div className="error-inline" role="status">{t("Opening the selected project. The current model is kept until reading succeeds.")}</div>}
       {!project ? (
         <Dashboard
           projects={projects.data ?? []}
-          loading={projects.isLoading}
-          error={projects.error}
+          unavailable={unavailable}
+          loading={catalog.isLoading}
+          error={catalog.error}
           search={search}
           onSearch={setSearch}
           onSettings={() => setModal("settings")}
@@ -1519,15 +1455,12 @@ export default function App() {
           onSubmit={(event) => {
             event.preventDefault();
             if (!renameTarget || !renameName.trim()) return;
-            const latest =
-              (queryClient.getQueryData<Project[]>(["projects"]) ?? []).find(
-                (item) => item.id === renameTarget.id,
-              ) ?? renameTarget;
-            void saveProject({
-              ...latest,
-              name: renameName.trim(),
-              updatedAt: stamp(),
-            })
+            void readProjectSnapshot(renameTarget.id)
+              .then((latest) => saveProject({
+                ...latest,
+                name: renameName.trim(),
+                updatedAt: stamp(),
+              }))
               .then(() => {
                 setRenameTarget(null);
                 refresh();

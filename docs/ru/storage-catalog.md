@@ -3,7 +3,7 @@
 [Документация](index.md) · [English](../en/storage-catalog.md) · [Контракт](storage-contract.md)
 
 `project_repository::catalog` — backend API для перечисления сохранённых managed
-проектов без recovery и получения доступа на запись. IPC `list_projects` возвращает CatalogReport, а `read_project_snapshot` читает один проект без recovery. Пока Dashboard использует строгий compatibility adapter: наличие unavailable вызывает локализованную ошибку, записи не фильтруются молча. Карточки недоступных проектов и переключение workspace/model-apply на target-read ещё не подключены.
+проектов без recovery и получения доступа на запись. IPC `list_projects` возвращает CatalogReport, а `read_project_snapshot` читает один проект без recovery. Dashboard использует полный report, включая unavailable-карточки; workspace/model-apply/events выполняют чистое чтение выбранного проекта.
 
 ## Контракт
 
@@ -41,18 +41,12 @@ JavaScript `2^53` сохраняет уникальность. Недоступ�
 Бюджет относится к сумме готовых Project JSON, не включает envelope/index hints
 и не ограничивает peak memory. При гонке строки остаётся существующий bounded
 repository capture/recheck working set (raw до 128 МиБ) плюс принятый clone.
-Готовая запись содержит переписку, ревизии и файлы для совместимости будущего UI;
+Готовая запись содержит переписку, ревизии и файлы для совместимости UI;
 это не лёгкий metadata-only индекс и не доказательство скорости большого списка.
 
 ## Интеграция и проверка
 
-Для UI нужен согласованный shared-патч с обработкой недоступных карточек,
-сохранением рабочего workspace и явным действием recovery. Текущий Dashboard
-также автоматически сохраняет thumbnails: замена backend list сама по себе не
-сделает весь экран чистым. `PROJECT_CATALOG_LIMIT` и
-`PROJECT_CATALOG_UNAVAILABLE` пока внутренние; перед отображением добавить RU/EN
-переводы на границе UI, оставив технические details отдельно. Общий `Project`
-и намеренный opener `projects::get` не изменялись.
+Managed-каталог в UI использует описанный ниже report. Ошибки лимита и недоступности переведены в RU/EN; технические details отделены. Общий Project и намеренный projects::get не изменены.
 
 Девять SQL-регрессий проверяют смешанные ready/pending/corrupt записи,
 неизменность SQL/источников/journal, read-only без upgrade, лимиты, escaped JSON,
@@ -68,4 +62,15 @@ repository capture/recheck working set (raw до 128 МиБ) плюс приня
 
 ## Первый IPC-контракт и оставшаяся интеграция
 
-Host ограничивает ответ 1000 записями и 128 МиБ ready JSON; это не peak memory. `projects/catalog.rs` связывает чистый каталог и target-read с IPC, не меняя намеренный `projects::get`, persist или recovery. Target-read не выдаёт writer lease и не переносит session token в UI. Новый frontend API пока не подключён к App. Старые Project[] callers отклоняют частичный каталог целиком, сохраняя report в PartialCatalogError. Это промежуточная интеграция, а не готовый пользовательский каталог; App всё ещё автоматически сохраняет thumbnails на главной. Следующий патч должен показать все unavailable-карточки, сохранить workspace при ошибках и убрать фоновую запись.
+Host ограничивает ответ 1000 записями и 128 МиБ ready JSON; это не peak memory. `projects/catalog.rs` связывает чистый каталог и target-read с IPC, не меняя намеренный `projects::get`, persist или recovery. Target-read не выдаёт writer lease и не переносит session token в UI. Оставшиеся legacy Project[] callers сохраняют строгий compatibility adapter: частичный report вызывает ошибку, а не молчаливое скрытие строк. Сам Dashboard читает report напрямую.
+
+
+## Каталог в Dashboard
+
+Dashboard читает CatalogReport и показывает как ready-проекты, так и отдельные unavailable-карточки со статусом, ограниченными подсказками индекса и повтором чистого чтения. Строковый rowKey сохраняется без преобразования в число. Непроверенная запись не получает фиктивную модель, действия редактирования/экспорта/удаления или кнопку автоматического восстановления. Технические details раскрываются отдельно. Поиск включает имя/ID-подсказку недоступной строки.
+
+Список больше не создаёт и не сохраняет thumbnails в фоне: используются уже сохранённые изображения либо стандартная иконка. Открытие карточки и прямого маршрута читает только выбранный проект через read_project_snapshot; ошибка чужой строки не мешает здоровому target-read. Во время чтения прямого маршрута прежняя сцена и её собственное пространство UI-настроек сохраняются на экране; редактирование модели блокируется. При ошибке активный workspace сохраняется и восстанавливается его URL; сброса сцены и перенаправления на главную нет. Общая generation-проверка и сравнение исходного workspace отбрасывают поздний ответ после другого выбора или локального обновления. Model-apply и revision events тоже используют target-read с сохранением прежних guards. Catalog cache отделён от Project[] snapshot cache; мутации и события инвалидируют оба через общий helper. Закрепление и переименование сначала читают текущий target, а затем вызывают прежний writer API.
+
+Это managed-каталог, не самостоятельный внешний folder writer. Явный recovery UI остаётся отдельной интеграцией; Retry ничего не исправляет автоматически.
+
+Проверка UI 31 октября 2026: сборка и lint прошли; 227 unit-тестов в 79 файлах прошли с одним worker. Параллельный прогон имел таймаут существующего Sketch2d-теста; последовательный повтор проверил весь набор. [Браузерный отчёт](../storage-catalog/ui-check.json) подтверждает четыре статуса, поиск/retry/details, строковые rowKey и RU/EN с обеими темами на одном mount без изменения тестового project storage. Проверены снимки [RU dark](../storage-catalog/ru-dark.png) и [EN light](../storage-catalog/en-light.png). Это настоящий Dashboard с синтетическими props, не native IPC/recovery и не проверка сохранения CAD-сцены при смене темы.
