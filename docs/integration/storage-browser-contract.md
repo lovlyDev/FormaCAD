@@ -1,6 +1,6 @@
 # Browser catalog contract regressions / Browser-регрессии контракта каталога
 
-Base: `1ebfccde1b36f819657fbe4788f6873213b87723`. [Exact patch](storage-browser-contract.patch). NOT applied. Five existing e2e files, 23 insertions/10 deletions. git apply --check passes; tests after patch are not run before approval.
+Base: `1ebfccde1b36f819657fbe4788f6873213b87723`. [Exact patch](storage-browser-contract.patch). Applied after explicit lovlyDev approval of all five paths. Five existing e2e files, 23 insertions/10 deletions. git apply --check passes; after approval, all 10 prior failures passed (18.5 seconds) and the complete browser suite passed 45 tests / 35 skipped / 0 failed (3.5 minutes) on 1 November 2026 using existing Chrome with a fresh context. No native geometry fixtures were available locally.
 
 ## RU
 

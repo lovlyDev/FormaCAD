@@ -6,7 +6,9 @@ export async function mountReferenceMeasurementHarness(fixture:any){
   await mountModelApplyHarness(fixture);
   const globals=window as any,harness=globals.__applyHarness,internals=globals.__TAURI_INTERNALS__,original=internals.invoke;
   const {useWorkspace}=await import("../src/stores/workspace");
-  const projects=await original("list_projects",{});
+  const catalog=await original("list_projects",{});
+  if(catalog.entries.some((entry:any)=>entry.kind!=="ready"))throw Error("Measurement fixture requires verified ready projects");
+  const projects=catalog.entries.map((entry:any)=>entry.project);
   for(const project of projects){project.currentRevision=fixture.head;project.revisions[0].id=fixture.head;}
   useWorkspace.getState().setProject({...projects[0]});useWorkspace.getState().setSelected("body");
   let delayed=false,fail=false,finish:(()=>void)|null=null;

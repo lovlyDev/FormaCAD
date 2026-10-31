@@ -25,7 +25,26 @@ export async function mountModelApplyHarness(fixture: {
       listeners.set(++eventId, { event: args.event, handler: args.handler });
       return eventId;
     }
-    if (command === "list_projects") return Object.values(projects);
+    if (command === "list_projects") {
+      const values = Object.values(projects);
+      return {
+        entries: values.map((project) => ({
+          kind: "ready",
+          rowKey: `fixture:${project.id}`,
+          project,
+        })),
+        serializedProjectBytes: values.reduce(
+          (sum, project) =>
+            sum + new TextEncoder().encode(JSON.stringify(project)).length,
+          0,
+        ),
+      };
+    }
+    if (command === "read_project_snapshot") {
+      const project = projects[args.id];
+      if (!project) throw Error("PROJECT_SNAPSHOT_MISSING");
+      return project;
+    }
     if (
       command === "interrupted_sessions" ||
       command === "cad_task_status" ||
