@@ -3,9 +3,9 @@
 [Documentation](index.md) · [Русский](../ru/storage-catalog.md) · [Contract](storage-contract.md)
 
 `project_repository::catalog` is a backend API for enumerating saved managed
-projects without recovery or write access. It is not wired into `list_projects`,
-Dashboard or IPC. The user-facing list retains its previous route; no new button
-or setting advertises this capability.
+projects without recovery or write access. IPC `list_projects` returns CatalogReport and `read_project_snapshot` reads one project without recovery. Dashboard still uses a strict compatibility adapter: any unavailable row raises a localized error, without silently filtering entries. Unavailable cards and workspace/model-apply target-read integration remain pending.
+
+
 
 ## Contract
 
@@ -66,3 +66,8 @@ rowids above `2^53`. Reproduction:
 Test presence is not PASS; new-head execution is recorded separately in CI.
 Fixtures are temporary and synthetic. Real NAS/USB and user-facing UI acceptance
 are unverified.
+
+
+## Initial IPC contract and remaining integration
+
+The host limits responses to 1000 entries and 128 MiB of ready JSON, not peak memory. `projects/catalog.rs` binds the pure catalog and target read to IPC without changing intentional `projects::get`, persist or recovery. Target reads grant no writer lease and serialize no session token. The new frontend API is not yet connected to App. Existing Project[] callers reject a partial catalog as a whole, retaining the report in PartialCatalogError. This is transitional integration, not a completed user catalog; App still automatically saves thumbnails on home. The next patch must display unavailable cards, retain the workspace on failures and remove background writes.
