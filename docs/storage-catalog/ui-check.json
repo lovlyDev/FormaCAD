@@ -1,0 +1,50 @@
+{
+  "scope": "actual Dashboard rendered with synthetic mixed catalog props; callback retry only, no IPC/native acceptance",
+  "baseURL": "http://127.0.0.1:1421",
+  "captures": [
+    {
+      "locale": "ru",
+      "theme": "dark",
+      "image": "ru-dark.png",
+      "styles": {
+        "color": "rgb(229, 231, 233)",
+        "background": "rgb(37, 40, 43)",
+        "border": "rgb(50, 54, 58)"
+      }
+    },
+    {
+      "locale": "ru",
+      "theme": "light",
+      "image": "ru-light.png",
+      "styles": {
+        "color": "rgb(37, 43, 50)",
+        "background": "rgb(238, 241, 245)",
+        "border": "rgb(215, 221, 227)"
+      }
+    },
+    {
+      "locale": "en",
+      "theme": "dark",
+      "image": "en-dark.png",
+      "styles": {
+        "color": "rgb(229, 231, 233)",
+        "background": "rgb(37, 40, 43)",
+        "border": "rgb(50, 54, 58)"
+      }
+    },
+    {
+      "locale": "en",
+      "theme": "light",
+      "image": "en-light.png",
+      "styles": {
+        "color": "rgb(37, 43, 50)",
+        "background": "rgb(238, 241, 245)",
+        "border": "rgb(215, 221, 227)"
+      }
+    }
+  ],
+  "pageErrors": [],
+  "success": true,
+  "source": "b80e23f plus approved storage-catalog-ui.patch, before commit",
+  "frontend_tests": "227 passed / 79 files with maxWorkers=1; parallel run had one existing Sketch2d timeout"
+}

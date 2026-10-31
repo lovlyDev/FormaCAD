@@ -3,7 +3,7 @@
 [Documentation](index.md) · [Русский](../ru/storage-catalog.md) · [Contract](storage-contract.md)
 
 `project_repository::catalog` is a backend API for enumerating saved managed
-projects without recovery or write access. IPC `list_projects` returns CatalogReport and `read_project_snapshot` reads one project without recovery. Dashboard still uses a strict compatibility adapter: any unavailable row raises a localized error, without silently filtering entries. Unavailable cards and workspace/model-apply target-read integration remain pending.
+projects without recovery or write access. IPC `list_projects` returns CatalogReport and `read_project_snapshot` reads one project without recovery. Dashboard consumes the full report, including unavailable cards; workspace/model-apply/events use pure target reads.
 
 
 
@@ -43,18 +43,12 @@ cloning the admitted `Project`.
 The byte budget covers ready Project JSON only, excluding envelopes/index hints,
 and is not a peak-memory limit. A raced row still uses the existing bounded
 repository capture/recheck working set (up to 128 MiB raw) plus an admitted clone.
-Ready entries retain chat, revisions and files for future UI compatibility;
+Ready entries retain chat, revisions and files for UI compatibility;
 this is not a lightweight metadata-only index or a large-list performance proof.
 
 ## Integration and verification
 
-UI integration requires an agreed shared patch for unavailable cards, workspace
-preservation and explicit recovery. The current Dashboard also saves thumbnails
-automatically: replacing backend listing alone does not make the screen pure.
-`PROJECT_CATALOG_LIMIT` and `PROJECT_CATALOG_UNAVAILABLE` are internal for now;
-add RU/EN translations at the display boundary before wiring them to UI, keeping
-technical details separate. Shared `Project` and intentional `projects::get`
-opening behavior remain unchanged.
+The managed catalog UI consumes the report described below. Catalog-limit and unavailable errors have RU/EN translations; technical details remain separate. Shared Project and intentional projects::get behavior remain unchanged.
 
 Nine SQL regressions cover mixed ready/pending/corrupt rows, unchanged
 SQL/source/journal bytes, read-only without upgrade, limits, escaped JSON,
@@ -70,4 +64,15 @@ are unverified.
 
 ## Initial IPC contract and remaining integration
 
-The host limits responses to 1000 entries and 128 MiB of ready JSON, not peak memory. `projects/catalog.rs` binds the pure catalog and target read to IPC without changing intentional `projects::get`, persist or recovery. Target reads grant no writer lease and serialize no session token. The new frontend API is not yet connected to App. Existing Project[] callers reject a partial catalog as a whole, retaining the report in PartialCatalogError. This is transitional integration, not a completed user catalog; App still automatically saves thumbnails on home. The next patch must display unavailable cards, retain the workspace on failures and remove background writes.
+The host limits responses to 1000 entries and 128 MiB of ready JSON, not peak memory. `projects/catalog.rs` binds the pure catalog and target read to IPC without changing intentional `projects::get`, persist or recovery. Target reads grant no writer lease and serialize no session token. Remaining legacy Project[] callers retain the strict compatibility adapter, rejecting partial reports rather than hiding rows. Dashboard itself consumes the report directly.
+
+
+## Catalog in Dashboard
+
+Dashboard reads CatalogReport and displays both ready projects and separate unavailable cards with status, bounded index hints and pure-read retry. String rowKey values never pass through numeric conversion. Unverified rows receive no fabricated model, edit/export/delete action or automatic-recovery button. Technical details are expandable separately. Search includes an unavailable row’s name/ID hint.
+
+Listing no longer creates or saves thumbnails in the background; saved images or the default icon are displayed. Card and direct-route opening read only the selected project through read_project_snapshot; unrelated unavailable rows cannot block a healthy target read. During a direct-route target read, the previous scene and its own UI persistence namespace remain visible with model editing blocked. If reading fails, the active workspace is preserved and its URL is restored; no scene reset or redirect home occurs. A shared generation and original-workspace comparison reject late results after another choice or local update. Model-apply and revision events also use target reads while retaining their existing guards. Catalog and Project[] snapshot caches stay distinct; accepted mutations/events invalidate both using one helper. Pin and rename first read the current target before calling the existing writer API.
+
+This is the managed catalog, not an independent external-folder writer. Explicit recovery UI remains a separate integration; Retry performs no automatic repair.
+
+UI check on 31 October 2026: build and lint passed; 227 unit tests across 79 files passed with one worker. The parallel run hit an existing Sketch2d test timeout; the complete suite was rerun serially. The [browser report](../storage-catalog/ui-check.json) covers all four statuses, search/retry/details, string row keys and RU/EN with both themes on one mount without changing fixture project storage. [RU dark](../storage-catalog/ru-dark.png) and [EN light](../storage-catalog/en-light.png) screenshots were inspected. This is the actual Dashboard with synthetic props, not native IPC/recovery or CAD-scene preservation acceptance.

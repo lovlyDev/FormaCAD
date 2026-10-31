@@ -1,0 +1,7 @@
+.project-card-unavailable { color: var(--text); }
+.project-card-unavailable .project-card-info { align-items: flex-start; }
+.project-card-unavailable .project-card-info > div { min-width: 0; }
+.project-card-unavailable p, .project-card-unavailable strong { overflow-wrap: anywhere; }
+.project-card-unavailable p { font-size: 12px; line-height: 1.5; }
+.project-card-unavailable details { margin-top: 12px; font-size: 11px; }
+.project-card-unavailable pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow: auto; }
