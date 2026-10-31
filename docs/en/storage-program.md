@@ -23,15 +23,15 @@ project and retry. Readers acquire no writer lease and perform no recovery.
 
 | Consumer | Route | Boundary |
 | --- | --- | --- |
-| History status | capture_history_state → recheck_history_state | Original token and typed SQL cursor; archive separate |
-| Description and revision list | listProjects → list_projects → reconcile | Not converted: raw SQL and possible recovery; no lifecycle regression |
+| History status | capture_controls → model context/cursor → recheck | Original token/raw seals, no chat strings/CAS/archive; full inline/noncanonical fallback; seven regressions on 12acee6 |
+| Description and revision list | read_project_snapshot → ProjectRepository capture/recheck; list_managed catalog | Pure mixed-catalog/target test passed on e10c643; UI target reads/guards added in 7a6a91d, final CI separate |
 | Structural revision diff | compare_ir_revisions → ProjectRepository → capture → recheck | Six stale/purity regressions passed on d089e6c |
 | Attachments | capture_project → bounded read/hash → recheck | Inherits shared lifecycle checks |
 | Copy | capture_with_history → artifacts → recheck → persist | Destination write is separate |
 | CADPACK | capture_with_history → artifacts → recheck → publish | Publication follows optimistic recheck |
-| STEP properties | capture_project → worker → recheck | Native consumer code unchanged |
-| Preview | capture_project → worker → recheck | Later awaited cleanup is not atomic delivery |
-| Sections | capture_project → recheck and artifact checks | Consumer code unchanged |
+| STEP properties | capture_project → worker → recheck | Late close/reopen regression passed on f20a146/12acee6 |
+| Preview | capture_project → worker → cleanup → original recheck | Late close/reopen and held cleanup mutex covered; delivery remains optimistic |
+| Sections | capture_project → STEP IO/worker → original recheck and artifact seals | Late manual/face/pair regressions passed on f20a146/12acee6 |
 | Measurements | snapshot::read → CommittedSnapshot → worker → recheck | Original lifecycle plus separate geometry seals; metadata-only saves preserve the request |
 
 The measurement correction retains original lifecycle before/after geometry
@@ -137,3 +137,5 @@ not described as successful.
 Stage 2 continues after this baseline. Local SQL-comparator corrections are not
 covered by that evidence. USB/NAS, the full new folder-write route, late pair/face
 responses and installed UI remain separate gates.
+
+A navigation regression separately switches A/B with identical revision and body IDs in an opaque fixture model program: late A cannot replace B. All five navigation tests passed after strengthening the fixture. This checks frontend identity/generation, not CAD-document or kernel validity.
