@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { newProject, useWorkspace } from "../../stores/workspace";
-import type { Project } from "../../types";
+import { defaults, type Project } from "../../types";
 import { useProjectNavigation } from "./useProjectNavigation";
 const mock = vi.hoisted(() => ({ read: vi.fn() }));
 vi.mock("./api", () => ({ readProjectSnapshot: mock.read }));
@@ -19,8 +19,14 @@ it("preserves the active workspace when a different target cannot be read", asyn
   view.unmount();
 });
 
-it("rejects an older direct-route result after another route wins", async () => {
+it("rejects an older project result even when both projects share revision and body IDs", async () => {
   const a = project("A"), b = project("B"), navigate = vi.fn(), error = vi.fn();
+  // Navigation treats the model program as opaque; this is an identity fixture,
+  // not a kernel-valid CAD document or a geometry acceptance test.
+  const revision = { id: "shared-revision", parent: null, createdAt: a.createdAt,
+    prompt: "identity fixture", parameters: defaults, program: '{"bodyId":"shared-body"}' };
+  a.revisions = [revision]; b.revisions = [revision];
+  a.currentRevision = revision.id; b.currentRevision = revision.id;
   const finish = new Map<string, (value: Project) => void>();
   mock.read.mockImplementation((id: string) => new Promise<Project>(resolve => { finish.set(id, resolve); }));
   const view = renderHook(({ id }) => useProjectNavigation(id, navigate, error), { initialProps: { id: "A" } });

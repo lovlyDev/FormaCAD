@@ -25,15 +25,15 @@ PR №5 подтверждён объединённым через API; 29 ок�
 
 | Потребитель | Маршрут | Граница |
 | --- | --- | --- |
-| Статус истории | capture_history_state → recheck_history_state | Исходный token и типизированный SQL-курсор; архив отдельно |
-| Описание и список ревизий | listProjects → list_projects → reconcile | Ещё не переведены: raw SQL, возможный recovery; lifecycle-регрессии нет |
+| Статус истории | capture_controls → model context/cursor → recheck | Исходный token/raw seals, без строк чата/CAS/архива; полный fallback для inline/неканонического зеркала; семь регрессий на 12acee6 |
+| Описание и список ревизий | read_project_snapshot → ProjectRepository capture/recheck; каталог list_managed | Pure mixed-catalog/target тест прошёл на e10c643; UI target-read и guards добавлены в 7a6a91d, текущий CI отдельно |
 | Структурный diff ревизий | compare_ir_revisions → ProjectRepository → capture → recheck | Шесть stale/purity регрессий прошли на d089e6c |
 | Вложения | capture_project → ограниченное чтение/hash → recheck | Получает общий lifecycle-контроль |
 | Копирование | capture_with_history → artifacts → recheck → persist | Запись назначения выполняется отдельно |
 | CADPACK | capture_with_history → artifacts → recheck → publish | Публикация после optimistic recheck |
-| Свойства STEP | capture_project → worker → recheck | Код native-потребителя не изменён |
-| Preview | capture_project → worker → recheck | Последующий await cleanup не является атомарной доставкой |
-| Сечения | capture_project → recheck и artifact checks | Код потребителя не изменён |
+| Свойства STEP | capture_project → worker → recheck | Регрессия позднего close/reopen прошла на f20a146/12acee6 |
+| Preview | capture_project → worker → cleanup → original recheck | Поздний close/reopen и ожидание cleanup mutex проверены; доставка остаётся optimistic |
+| Сечения | capture_project → STEP IO/worker → original recheck и artifact seals | Поздние manual/face/pair регрессии прошли на f20a146/12acee6 |
 | Измерения | snapshot::read → CommittedSnapshot → worker → recheck | Исходный lifecycle и отдельное сравнение geometry seals; metadata-only save сохраняет запрос |
 
 Коррекция измерений удерживает исходный lifecycle до/после geometry recapture,
@@ -140,3 +140,5 @@ job 123428058352, head `147a0dd05e1a15c94c7656b9569eca4f028b795c`:
 После этой основы этап 2 продолжается; локальные правки SQL-компаратора ещё
 не входят в указанное подтверждение. USB/NAS, полный новый folder write маршрут,
 поздние pair/face ответы и установленный UI остаются отдельными gates.
+
+Навигационная регрессия отдельно переключает проекты A/B с одинаковыми revision ID и body ID в непрозрачном тестовом model program: поздний ответ A не заменяет B. Проверены пять navigation-тестов после усиления фикстуры. Это проверка frontend identity/generation, не корректности CAD-документа или ядра.
