@@ -1318,5 +1318,8 @@
   "PLUGIN_CAPTURE_WRITE": "The video file could not be written.",
   "PLUGIN_CAPTURE_CANCELLED": "Video recording cancelled",
   "PLUGIN_IMPORT_API_TOO_OLD": "The plugin uses functions of a newer plugin API but manifest.json declares an older version.",
-  "Plugin actions": "Plugin actions"
+  "Plugin actions": "Plugin actions",
+  "Some projects are unavailable. Refresh the catalog or explicitly reopen projects that require recovery.": "Some projects are unavailable. Refresh the catalog or explicitly reopen projects that require recovery.",
+  "PROJECT_CATALOG_LIMIT": "The project catalog exceeds the response limit. Reduce the number or size of managed projects and retry.",
+  "PROJECT_CATALOG_UNAVAILABLE": "The saved project could not be read. Refresh the catalog and check the project source."
 }

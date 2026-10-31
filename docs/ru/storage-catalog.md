@@ -3,9 +3,7 @@
 [Документация](index.md) · [English](../en/storage-catalog.md) · [Контракт](storage-contract.md)
 
 `project_repository::catalog` — backend API для перечисления сохранённых managed
-проектов без recovery и получения доступа на запись. Он пока не подключён к
-`list_projects`, Dashboard или IPC. Пользовательский список продолжает прежний
-маршрут; новая возможность не объявляется доступной кнопкой или настройкой.
+проектов без recovery и получения доступа на запись. IPC `list_projects` возвращает CatalogReport, а `read_project_snapshot` читает один проект без recovery. Пока Dashboard использует строгий compatibility adapter: наличие unavailable вызывает локализованную ошибку, записи не фильтруются молча. Карточки недоступных проектов и переключение workspace/model-apply на target-read ещё не подключены.
 
 ## Контракт
 
@@ -66,3 +64,8 @@ repository capture/recheck working set (raw до 128 МиБ) плюс приня
 Наличие тестов не означает PASS: результат нового head фиксируется отдельно в CI.
 Фикстуры временные и синтетические; реальный NAS/USB и пользовательская UI-приёмка
 не выполнялись.
+
+
+## Первый IPC-контракт и оставшаяся интеграция
+
+Host ограничивает ответ 1000 записями и 128 МиБ ready JSON; это не peak memory. `projects/catalog.rs` связывает чистый каталог и target-read с IPC, не меняя намеренный `projects::get`, persist или recovery. Target-read не выдаёт writer lease и не переносит session token в UI. Новый frontend API пока не подключён к App. Старые Project[] callers отклоняют частичный каталог целиком, сохраняя report в PartialCatalogError. Это промежуточная интеграция, а не готовый пользовательский каталог; App всё ещё автоматически сохраняет thumbnails на главной. Следующий патч должен показать все unavailable-карточки, сохранить workspace при ошибках и убрать фоновую запись.

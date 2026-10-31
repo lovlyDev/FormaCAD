@@ -1318,5 +1318,8 @@
   "PLUGIN_CAPTURE_WRITE": "Не удалось записать файл видео.",
   "PLUGIN_CAPTURE_CANCELLED": "Запись видео отменена",
   "PLUGIN_IMPORT_API_TOO_OLD": "Плагин использует функции новой версии API плагинов, но в manifest.json указана старая версия.",
-  "Plugin actions": "Действия плагинов"
+  "Plugin actions": "Действия плагинов",
+  "Some projects are unavailable. Refresh the catalog or explicitly reopen projects that require recovery.": "Некоторые проекты недоступны. Обновите каталог или явно откройте проекты, требующие восстановления.",
+  "PROJECT_CATALOG_LIMIT": "Каталог проектов превышает предел ответа. Уменьшите число или размер управляемых проектов и повторите попытку.",
+  "PROJECT_CATALOG_UNAVAILABLE": "Не удалось прочитать сохранённый проект. Обновите каталог и проверьте источник проекта."
 }
