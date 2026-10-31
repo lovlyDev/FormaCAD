@@ -5,6 +5,7 @@ mod copy;
 mod crash;
 mod export;
 mod fixture;
+mod legacy_status;
 mod measurement;
 mod process;
 
@@ -129,10 +130,18 @@ async fn compare_storage_representations() {
         row(
             label,
             "sqlite-delete-prototype",
-            "history_status",
+            "typed_cursor_from_loaded_project",
             started.elapsed(),
-            "validates typed cursor; does not hash assets or full event archive",
+            "primitive over already loaded/validated Project; validates typed cursor; excludes Project load and does not hash assets or full event archive",
         );
+        let started = Instant::now();
+        let status_project = fixture::read_project(&reopened, &project.id).await;
+        let status_cursor = project_history::load_state(&reopened, &status_project)
+            .await
+            .unwrap();
+        std::hint::black_box((status_cursor.can_undo(), status_cursor.can_redo()));
+        row(label,"sqlite-delete-prototype","history_status_with_project_load",started.elapsed(),
+            "prototype Project load+validation and typed cursor load inside timer; not the app history-status API or a transaction/lifecycle guarantee");
         reopened.close().await;
         let started = Instant::now();
         let writer = candidate::open_writer(&sql_root.join("project.sqlite"))
@@ -261,4 +270,5 @@ async fn compare_storage_representations() {
     }
     fixture::reject_limits();
     crash::measure().await.unwrap();
+    legacy_status::measure().await.unwrap();
 }
