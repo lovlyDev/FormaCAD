@@ -84,3 +84,4 @@ These guides describe the consolidated 1.2.6 candidate and its limits. Final pac
 - [Storage format comparison](storage-formats.md).
 - [Folder format decision](storage-format-decision.md).
 - [Repository read contract](storage-contract.md).
+- [Pure backend project catalog](storage-catalog.md).

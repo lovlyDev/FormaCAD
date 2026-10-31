@@ -2,6 +2,7 @@
 pub mod backend;
 #[cfg(test)]
 mod benchmark;
+pub mod catalog;
 pub mod folder;
 pub mod legacy;
 mod location;

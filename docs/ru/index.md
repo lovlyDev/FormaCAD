@@ -84,3 +84,4 @@
 - [Сравнение форматов хранения](storage-formats.md).
 - [Решение о формате папки](storage-format-decision.md).
 - [Контракт чтения репозитория](storage-contract.md).
+- [Чистый backend-каталог проектов](storage-catalog.md).
