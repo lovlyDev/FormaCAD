@@ -1,5 +1,7 @@
 use crate::core::{AppError, Result};
 use serde::Serialize;
+#[path = "writer_lease.rs"]
+mod writer_lease;
 use std::{
     collections::HashMap,
     fs::{File, OpenOptions, TryLockError},
@@ -7,6 +9,7 @@ use std::{
     path::Path,
     sync::{Arc, Mutex, Weak},
 };
+use writer_lease::WriterLease;
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -16,13 +19,13 @@ pub struct AccessStatus {
     pub owner_pid: Option<u32>,
 }
 enum Session {
-    Writer(Arc<File>),
+    Writer(Arc<WriterLease>),
     ReadOnly,
 }
 #[derive(Default)]
 struct ProjectState {
     session: Option<Session>,
-    in_flight: Weak<File>,
+    in_flight: Weak<WriterLease>,
     read_epoch: Option<uuid::Uuid>,
 }
 #[derive(Default)]
@@ -34,7 +37,7 @@ pub struct AccessRegistry {
 /// Holding this guard prevents release during a nested commit or long-running task.
 #[derive(Debug)]
 pub struct WriteGuard {
-    _file: Arc<File>,
+    _lease: Arc<WriterLease>,
 }
 impl AccessRegistry {
     fn project(&self, id: &str) -> Result<Arc<Mutex<ProjectState>>> {
@@ -78,7 +81,7 @@ impl AccessRegistry {
         let path =
             crate::security::guarded(root, Path::new(&format!(".project-access/{id}.lock")))?;
         std::fs::create_dir_all(path.parent().unwrap())?;
-        let mut file = OpenOptions::new()
+        let file = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
@@ -86,10 +89,13 @@ impl AccessRegistry {
             .open(path)?;
         match file.try_lock() {
             Ok(()) => {
-                file.set_len(0)?;
+                // Wrap immediately: every subsequent metadata failure must also
+                // explicitly release ownership before closing this descriptor.
+                let mut lease = WriterLease::new(file);
+                lease.file.set_len(0)?;
                 let owner = serde_json::json!({"pid":std::process::id(),"sessionId":uuid::Uuid::new_v4().to_string(),"acquiredAt":chrono::Utc::now().to_rfc3339()});
-                file.write_all(&serde_json::to_vec(&owner)?)?;
-                file.sync_all()?;
+                lease.file.write_all(&serde_json::to_vec(&owner)?)?;
+                lease.file.sync_all()?;
                 // Windows denies reading exclusively locked byte ranges. Keep informational
                 // owner metadata in a separate bounded file; the OS lock remains authoritative.
                 let temporary = crate::security::guarded(
@@ -105,7 +111,7 @@ impl AccessRegistry {
                 )?;
                 std::fs::write(&temporary, serde_json::to_vec(&owner)?)?;
                 std::fs::rename(temporary, target)?;
-                Ok(Session::Writer(Arc::new(file)))
+                Ok(Session::Writer(Arc::new(lease)))
             }
             Err(TryLockError::WouldBlock) => Ok(Session::ReadOnly),
             Err(TryLockError::Error(error)) => Err(error.into()),
@@ -179,10 +185,14 @@ impl AccessRegistry {
             }
         };
         state.in_flight = Arc::downgrade(&file);
-        Ok(WriteGuard { _file: file })
+        Ok(WriteGuard { _lease: file })
     }
 }
 
 #[cfg(test)]
 #[path = "registry_tests.rs"]
 mod tests;
+
+#[cfg(all(test, unix))]
+#[path = "writer_lease_tests.rs"]
+mod writer_lease_tests;
