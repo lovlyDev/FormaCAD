@@ -462,16 +462,18 @@ test("camera presets apply their intended direction", async ({ page }) => {
     .toBeGreaterThan(10);
 });
 
-test("project cards generate previews and support pin, rename, and deletion", async ({
+test("project cards remain read-only before explicit pin, rename, and deletion", async ({
   page,
 }) => {
   await legacyProject(page, "Project Alpha");
-  await page.goto("/");
-  await page.reload();
+  const storedBefore = await page.evaluate(() => localStorage.getItem("forma.projects.v1"));
+  await page.locator("button.brand").click();
 
   const card = page.locator(".project-card").filter({ hasText: "Project Alpha" });
   await expect(card).toBeVisible();
-  await expect(card.locator(".project-art img")).toBeVisible({ timeout: 15000 });
+  await expect(card.locator(".project-art img")).toHaveCount(0);
+  await expect(card.locator(".project-art svg").first()).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem("forma.projects.v1"))).toBe(storedBefore);
 
   await card.getByRole("button", { name: "Pin project", exact: true }).click();
   await expect(card.locator(".project-pinned")).toBeVisible();
@@ -501,8 +503,7 @@ test("pin animation reaches the first project slot without a leftover transform"
     projects.push({ ...projects[0], id: crypto.randomUUID(), name: "Second card", revisions: [], currentRevision: "" });
     localStorage.setItem("forma.projects.v1", JSON.stringify(projects));
   });
-  await page.goto("/");
-  await page.reload();
+  await page.locator("button.brand").click();
   const first = page.locator(".project-card").filter({ hasText: "First card" });
   const second = page.locator(".project-card").filter({ hasText: "Second card" });
   const firstSlot = await first.boundingBox();
