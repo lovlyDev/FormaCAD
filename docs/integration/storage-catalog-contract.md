@@ -37,4 +37,5 @@ Frontend adapters expose the report and target reads. Existing Project[] callers
 The next patch still needs unavailable cards, App/model-apply/event target reads, workspace preservation on catalog failures, centralized cache invalidation, and removal of automatic home thumbnail writes. No recovery button is invented. Keep the PR draft or combine with the coherent frontend integration before merge if an intermediate IPC return-type change is undesirable.
 
 Browser target-read uses the existing localized `Project was not found` key (both catalogs verified). Artifact-only publication; no production application.
-`nApplied after explicit lovlyDev approval of all twelve paths. Main ran rustfmt, frontend build/lint, 11 targeted tests, docs/i18n checks successfully. Added catalog limit/unavailable translations and two locale regressions within approved paths. Rust runtime validation remains CI-only; Dashboard integration is still separate.
+
+Applied after explicit lovlyDev approval of all twelve paths. Main ran rustfmt, frontend build/lint, 11 targeted tests, docs/i18n checks successfully. Added catalog limit/unavailable translations and two locale regressions within approved paths. Rust runtime validation remains CI-only; Dashboard integration is still separate.
