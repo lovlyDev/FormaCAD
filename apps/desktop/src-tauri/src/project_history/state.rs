@@ -35,24 +35,7 @@ fn invalid(code: &str) -> AppError {
 
 /// History materialization changes identity, never the saved model snapshot.
 pub(super) fn same_snapshot(baseline: &Revision, current: &Revision) -> bool {
-    fn canonical(program: &Option<String>) -> Option<String> {
-        program.as_ref().map(
-            |program| match serde_json::from_str::<serde_json::Value>(program) {
-                Ok(mut value) if value.get("schemaVersion").is_some() => {
-                    if let Some(object) = value.as_object_mut() {
-                        object.remove("revisionId");
-                    }
-                    value.to_string()
-                }
-                _ => program.clone(),
-            },
-        )
-    }
-    baseline.parameters == current.parameters
-        && baseline.source == current.source
-        && baseline.preview == current.preview
-        && baseline.program_base == current.program_base
-        && canonical(&baseline.program) == canonical(&current.program)
+    super::model_context::same_snapshot(&baseline.into(), &current.into())
 }
 
 impl HistoryState {
@@ -60,26 +43,36 @@ impl HistoryState {
     /// do not infer abandoned siblings as redo actions.
     pub fn from_project(project: &Project) -> Result<Self> {
         project.validate()?;
+        Self::from_context(&project.into())
+    }
+
+    pub(crate) fn from_context(
+        project: &super::model_context::HistoryModelContext<'_>,
+    ) -> Result<Self> {
         let revisions: HashMap<&str, _> = project
             .revisions
             .iter()
-            .map(|revision| (revision.id.as_str(), revision))
+            .map(|revision| (revision.id, revision))
             .collect();
         let mut path = Vec::new();
-        let mut next = project.current_revision.as_ref();
+        let mut next = project.current_revision;
+        let mut visited = HashSet::new();
         while let Some(id) = next {
+            if !visited.insert(id) || visited.len() > 10000 {
+                return Err(invalid("HISTORY_INVALID_STATE"));
+            }
             let revision = revisions
-                .get(id.as_str())
+                .get(id)
                 .ok_or_else(|| invalid("HISTORY_INVALID_STATE"))?;
-            path.push(Some(id.clone()));
-            next = revision.parent.as_ref();
+            path.push(Some(id.to_owned()));
+            next = revision.parent;
         }
         path.reverse();
         path.insert(0, None);
         Ok(Self {
             cursor: path.len() - 1,
             entries: path,
-            head: project.current_revision.clone(),
+            head: project.current_revision.map(str::to_owned),
             generation: 0,
         })
     }
@@ -92,17 +85,24 @@ impl HistoryState {
     }
 
     pub(super) fn validate(&self, project: &Project) -> Result<()> {
+        self.validate_context(&project.into())
+    }
+
+    pub(crate) fn validate_context(
+        &self,
+        project: &super::model_context::HistoryModelContext<'_>,
+    ) -> Result<()> {
         let ids: HashSet<&str> = project
             .revisions
             .iter()
-            .map(|revision| revision.id.as_str())
+            .map(|revision| revision.id)
             .collect();
         let mut logical_ids = HashSet::new();
         if self.entries.is_empty()
             || self.entries.len() > 10001
             || self.entries[0].is_some()
             || self.cursor >= self.entries.len()
-            || self.head != project.current_revision
+            || self.head.as_deref() != project.current_revision
             || self.entries.iter().skip(1).any(|entry| {
                 entry
                     .as_deref()
@@ -117,14 +117,14 @@ impl HistoryState {
                 let baseline = project
                     .revisions
                     .iter()
-                    .find(|revision| &revision.id == logical)
+                    .find(|revision| revision.id == logical.as_str())
                     .ok_or_else(|| invalid("HISTORY_INVALID_STATE"))?;
                 let current = project
                     .revisions
                     .iter()
-                    .find(|revision| &revision.id == head)
+                    .find(|revision| revision.id == head.as_str())
                     .ok_or_else(|| invalid("HISTORY_INVALID_STATE"))?;
-                if !same_snapshot(baseline, current) {
+                if !super::model_context::same_snapshot(baseline, current) {
                     return Err(invalid("HISTORY_INVALID_STATE"));
                 }
             }

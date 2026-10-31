@@ -1,0 +1,785 @@
+diff --git a/apps/desktop/src/app/App.tsx b/apps/desktop/src/app/App.tsx
+index 10a0905..7e27c74 100644
+--- a/apps/desktop/src/app/App.tsx
++++ b/apps/desktop/src/app/App.tsx
+@@ -1,3 +1,7 @@
++import { useProjectCatalog } from "../features/project-catalog/useProjectCatalog";
++import { useProjectNavigation } from "../features/project-catalog/useProjectNavigation";
++import { readProjectSnapshot } from "../features/project-catalog/api";
++import { invalidateProjectCatalog } from "../features/project-catalog/cache";
+ import { candidateSourceStatus } from "../features/agents/candidateSource";
+ import { captureApply, assertApplyBase } from "../features/model-apply/capturedApply";
+ import { useModelApply } from "../features/model-apply/useModelApply";
+@@ -107,11 +111,9 @@ import {
+   convertStep,
+   confirmationSettings,
+   needsConfirmation,
+-  listProjects,
+   saveProject,
+   exportProjectBundle,
+   importProjectBundle,
+-  saveProjectThumbnail,
+   deleteProject,
+   health,
+   plan,
+@@ -124,7 +126,6 @@ import {
+ } from "../lib/api";
+ import { buildModel, inspectModel, disposeModel } from "../lib/model";
+ import { readFile, loadModel, exportMesh, download } from "../lib/files";
+-import { renderThumbnail } from "../lib/thumbnail";
+ import { bodyLabel } from "../features/viewer/bodyLabel";
+ import { faceAreaMm2 } from "../features/viewer/faceSelection";
+ import { edgeLengthMm, edgeRadiusMm } from "../features/viewer/edgeSelection";
+@@ -185,8 +186,10 @@ export default function App() {
+     setSelected,
+   } = useWorkspace();
+   const projectAccess = useProjectAccess(project?.id, setError);
+-  const editingBlocked = busy || !projectAccess.writable;
+-  const projects = useQuery({ queryKey: ["projects"], queryFn: listProjects });
++  const openingProject = !!projectId && !!project && projectId !== project.id;
++  const editingBlocked = busy || !projectAccess.writable || openingProject;
++  const { catalog, projects, unavailable } = useProjectCatalog();
++  const openProject = useProjectNavigation(projectId, nav, setError);
+   const recovery = useQuery({
+     queryKey: ["recovery"],
+     queryFn: interruptedSessions,
+@@ -200,7 +203,7 @@ export default function App() {
+   const [modal, setModal] = useState<
+     "new" | "settings" | "export" | "palette" | "parameters" | null
+   >(null);
+-  const stateKey = `forma.ui.project.${projectId ?? "home"}`;
++  const stateKey = `forma.ui.project.${project?.id ?? projectId ?? "home"}`;
+   const [tab, setTab] = usePersistentState<"files" | "history">(
+     `${stateKey}.tab`,
+     "files",
+@@ -210,9 +213,6 @@ export default function App() {
+   const [renameName, setRenameName] = useState("");
+   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
+   const [deleteName, setDeleteName] = useState("");
+-  const previewProjects = useRef<Project[]>([]);
+-  const previewRunning = useRef(false);
+-  const previewAttempted = useRef(new Set<string>());
+   const [prompt, setPrompt] = usePersistentState(`${stateKey}.prompt`, "");
+   const [pending, setPending] = useState<PendingAction | null>(null);
+   const [attachments, setAttachments] = usePersistentState<ProjectFile[]>(
+@@ -384,73 +384,12 @@ export default function App() {
+     end.current?.scrollIntoView({ behavior: "smooth" });
+   }, [liveEvents]);
+   useEffect(() => () => disposeModel(model), [model]);
+-  useEffect(() => {
+-    if (projectId || !projects.data) return;
+-    previewProjects.current = projects.data;
+-    if (previewRunning.current) return;
+-    previewRunning.current = true;
+-    void (async () => {
+-      while (true) {
+-        const next = previewProjects.current.find((item) => {
+-          const key = `${item.id}:${item.currentRevision}`;
+-          return (
+-            item.currentRevision &&
+-            item.thumbnailRevision !== item.currentRevision &&
+-            !previewAttempted.current.has(key)
+-          );
+-        });
+-        if (!next || !next.currentRevision) break;
+-        previewAttempted.current.add(`${next.id}:${next.currentRevision}`);
+-        const revision = next.revisions.find(
+-          (item) => item.id === next.currentRevision,
+-        );
+-        const file = next.files.find(
+-          (item) => item.name === (revision?.preview ?? revision?.source),
+-        );
+-        let preview: THREE.Group | null = null;
+-        try {
+-          preview =
+-            file && /\.(stl|obj|glb|3mf)$/i.test(file.name)
+-              ? await loadModel(file, next.id)
+-              : buildModel(currentParameters(next));
+-          const thumbnail = renderThumbnail(preview);
+-          if (!thumbnail) continue;
+-          const saved = await saveProjectThumbnail(
+-            next.id,
+-            next.currentRevision,
+-            thumbnail,
+-          );
+-          queryClient.setQueryData<Project[]>(["projects"], (current) =>
+-            current?.map((item) => (item.id === saved.id ? saved : item)),
+-          );
+-        } catch (cause) {
+-          console.warn("Project thumbnail could not be created", cause);
+-        } finally {
+-          if (preview) disposeModel(preview);
+-        }
+-      }
+-    })().finally(() => {
+-      previewRunning.current = false;
+-    });
+-  }, [projectId, projects.data, queryClient]);
+   useEffect(
+     () => () => {
+       if (before) disposeModel(before);
+     },
+     [before],
+   );
+-  useEffect(() => {
+-    const activeProject = useWorkspace.getState().project;
+-    if (!projectId) {
+-      if (activeProject) setProject(null);
+-      return;
+-    }
+-    if (projects.data && activeProject?.id !== projectId) {
+-      const p = projects.data.find((p) => p.id === projectId);
+-      if (p) setProject(p);
+-      else nav("/");
+-    }
+-  }, [projectId, projects.data, setProject, nav]);
+   useEffect(() => {
+     end.current?.scrollIntoView({ behavior: "smooth" });
+   }, [project?.messages.length, busy]);
+@@ -474,9 +413,9 @@ export default function App() {
+         fileInput.current?.click();
+       } else if (e.key === "s") {
+         e.preventDefault();
+-        if (project)
++        if (project && !openingProject)
+           saveProject(project)
+-            .then(() => setNotice(t("Project saved")))
++            .then(() => { refresh(); setNotice(t("Project saved")); })
+             .catch((e) => setError(errorText(e)));
+       } else if (e.key === "E" || (e.key === "e" && e.shiftKey)) {
+         e.preventDefault();
+@@ -487,7 +426,7 @@ export default function App() {
+     return () => window.removeEventListener("keydown", f);
+   });
+   function refresh() {
+-    void queryClient.invalidateQueries({ queryKey: ["projects"] });
++    invalidateProjectCatalog(queryClient);
+     void queryClient.invalidateQueries({ queryKey: ["model-history"] });
+   }
+   const historyAction = useHistoryAction(ask, refresh);
+@@ -535,11 +474,6 @@ export default function App() {
+       refresh();
+     }
+   }
+-  async function openProject(p: Project) {
+-    if (busy) return;
+-    setProject(p);
+-    nav(`/project/${p.id}`);
+-  }
+   async function importStepIntoScene(p: Project, name: string) {
+     await ask(t("Import STEP model"), t("Run the local CAD converter and create a new revision with a 3D preview."), name, async () => {
+       setBusy(true, t("Converting STEP"));
+@@ -878,12 +812,14 @@ export default function App() {
+           )}
+         </div>
+       </header>
++      {openingProject && <div className="error-inline" role="status">{t("Opening the selected project. The current model is kept until reading succeeds.")}</div>}
+       {project && <ProjectAccessNotice projectId={project.id} {...projectAccess} onCopy={copy => { refresh(); void openProject(copy); }} onError={setError} />}
+       {!project ? (
+         <Dashboard
+           projects={projects.data ?? []}
+-          loading={projects.isLoading}
+-          error={projects.error}
++          unavailable={unavailable}
++          loading={catalog.isLoading}
++          error={catalog.error}
+           search={search}
+           onSearch={setSearch}
+           onSettings={() => setModal("settings")}
+@@ -1742,15 +1678,8 @@ export default function App() {
+           onSubmit={(event) => {
+             event.preventDefault();
+             if (!renameTarget || !renameName.trim()) return;
+-            const latest =
+-              (queryClient.getQueryData<Project[]>(["projects"]) ?? []).find(
+-                (item) => item.id === renameTarget.id,
+-              ) ?? renameTarget;
+-            void saveProject({
+-              ...latest,
+-              name: renameName.trim(),
+-              updatedAt: stamp(),
+-            })
++            void readProjectSnapshot(renameTarget.id)
++              .then(latest => saveProject({ ...latest, name: renameName.trim(), updatedAt: stamp() }))
+               .then(() => {
+                 setRenameTarget(null);
+                 refresh();
+diff --git a/apps/desktop/src/app/Dashboard.tsx b/apps/desktop/src/app/Dashboard.tsx
+index 46f3e5d..4d4bb62 100644
+--- a/apps/desktop/src/app/Dashboard.tsx
++++ b/apps/desktop/src/app/Dashboard.tsx
+@@ -1,5 +1,8 @@
++import { useRef } from "react";
++import { UnavailableProjectCard } from "../features/project-catalog/UnavailableProjectCard";
++import { readProjectSnapshot } from "../features/project-catalog/api";
++import type { UnavailableEntry } from "../features/project-catalog/useProjectCatalog";
+ import { version as appVersion } from "../../package.json";
+-import { useQueryClient } from "@tanstack/react-query";
+ import { motion } from "framer-motion";
+ import {
+   Box, Cpu, FolderOpen, LayoutGrid, LoaderCircle, PackageOpen, Pencil, Plus, Search, Settings2, Star, Trash2,
+@@ -14,6 +17,7 @@ import { ExportProjectBundleControl } from "../features/project-bundle/ExportPro
+
+ type Props = {
+   projects: Project[];
++  unavailable: UnavailableEntry[];
+   loading: boolean;
+   error: unknown;
+   search: string;
+@@ -30,8 +34,8 @@ type Props = {
+   onError: (message: string) => void;
+ };
+
+-export function Dashboard({ projects, loading, error, search, onSearch, onSettings, onImport, onImportBundle, onExportBundle, onNew, onOpen, onRename, onDelete, onRefresh, onError }: Props) {
+-  const queryClient = useQueryClient();
++export function Dashboard({ projects, unavailable, loading, error, search, onSearch, onSettings, onImport, onImportBundle, onExportBundle, onNew, onOpen, onRename, onDelete, onRefresh, onError }: Props) {
++  const pinRequests = useRef(new Set<string>());
+   const visible = [...projects]
+     .sort((a, b) => Number(b.pinned) - Number(a.pinned))
+     .filter((project) => [
+@@ -42,14 +46,12 @@ export function Dashboard({ projects, loading, error, search, onSearch, onSettin
+     ].some((text) => text.toLowerCase().includes(search.toLowerCase())));
+
+   function togglePin(project: Project) {
+-    const current = queryClient.getQueryData<Project[]>(["projects"]) ?? [];
+-    const latest = current.find((item) => item.id === project.id) ?? project;
+-    const next = { ...latest, pinned: !latest.pinned };
+-    queryClient.setQueryData<Project[]>(["projects"], current.map((item) => item.id === project.id ? next : item));
+-    void saveProject(next).then(onRefresh).catch((cause) => {
+-      queryClient.setQueryData(["projects"], current);
+-      onError(errorText(cause));
+-    });
++    if (pinRequests.current.has(project.id)) return;
++    pinRequests.current.add(project.id);
++    void readProjectSnapshot(project.id)
++      .then(latest => saveProject({ ...latest, pinned: !latest.pinned }))
++      .then(onRefresh).catch(cause => onError(errorText(cause)))
++      .finally(() => pinRequests.current.delete(project.id));
+   }
+
+   return <main className="dashboard">
+@@ -69,9 +71,10 @@ export function Dashboard({ projects, loading, error, search, onSearch, onSettin
+         <div className="search-input"><Search size={14} /><input aria-label={t("Search projects")} placeholder={t("Find a project…")} value={search} onChange={(event) => onSearch(event.target.value)} /></div>
+       </div>
+       {loading ? <div className="empty-state"><LoaderCircle className="spin" />{t("Loading projects…")}</div>
+-        : error ? <div className="error-inline">{errorText(error)}</div>
++        : error ? <div className="error-inline">{errorText(error)}<Button onClick={onRefresh}>{t("Refresh project catalog")}</Button></div>
+           : <div className="project-grid">
+             <button className="new-project-card" onClick={onNew}><span><Plus size={24} /></span><strong>{t("Create a project")}</strong><small>{t("From a thought to a tangible thing")}</small></button>
++            {unavailable.filter(entry => [entry.index.name, entry.index.idHint].some(value => value?.toLowerCase().includes(search.toLowerCase())) || !search).map(entry => <UnavailableProjectCard key={entry.rowKey} entry={entry} onRetry={onRefresh} />)}
+             {visible.map((project) => <motion.article layout="position" transition={{ layout: { duration: 0.42, ease: [0.22, 1, 0.36, 1] } }} className={`project-card${project.pinned ? " is-pinned" : ""}`} key={project.id}>
+               <button className="project-art" onClick={() => onOpen(project)}>
+                 {project.thumbnail && project.thumbnailRevision === project.currentRevision
+diff --git a/apps/desktop/src/features/model-apply/useModelApply.ts b/apps/desktop/src/features/model-apply/useModelApply.ts
+index 88de16a..02c195d 100644
+--- a/apps/desktop/src/features/model-apply/useModelApply.ts
++++ b/apps/desktop/src/features/model-apply/useModelApply.ts
+@@ -1,6 +1,8 @@
++import { readProjectSnapshot } from "../project-catalog/api";
++import { invalidateProjectCatalog } from "../project-catalog/cache";
+ import { useQueryClient } from "@tanstack/react-query";
+ import { useWorkspace } from "../../stores/workspace";
+-import { applyProgram, listProjects, saveProject } from "../../lib/api";
++import { applyProgram, saveProject } from "../../lib/api";
+ import { t, errorText } from "../../i18n";
+ import type { Project } from "../../types";
+ import type { ReviewPlan } from "../agents/review/plan/reviewPlan";
+@@ -25,15 +27,13 @@ export function useModelApply() {
+         adopt,
+         reconcileTarget: async result => {
+           const before = useWorkspace.getState().project;
+-          const latest = (await listProjects()).find(project => project.id === result.id);
+-          if (!latest) throw new Error("MODEL_APPLY_RESULT_INVALID");
++          const latest = await readProjectSnapshot(result.id);
+           cache(latest);
+           const current = useWorkspace.getState().project;
+           if (current?.id === latest.id && current.currentRevision === before?.currentRevision && current.id === before?.id) adopt(latest);
+         },
+         saveCommittedMetadata: options?.assistantMessage === undefined ? undefined : async result => {
+-          const latest = (await listProjects()).find(project => project.id === result.id);
+-          if (!latest) throw new Error("MODEL_APPLY_RESULT_INVALID");
++          const latest = await readProjectSnapshot(result.id);
+           const saved = await saveProject({ ...latest, messages: [...latest.messages, {
+             id: crypto.randomUUID(), role: "assistant", text: options.assistantMessage!, createdAt: new Date().toISOString(),
+           }] });
+@@ -43,7 +43,7 @@ export function useModelApply() {
+         },
+         metadataFailed: (_result, cause) => targetError(`${t("The model was saved, but the assistant message could not be saved.")}\n${errorText(cause)}`),
+         refreshTarget: () => {
+-          void query.invalidateQueries({ queryKey: ["projects"] });
++          invalidateProjectCatalog(query);
+           void query.invalidateQueries({ queryKey: ["model-history", captured.base.id] });
+         },
+       });
+diff --git a/apps/desktop/src/features/model-apply/useRevisionEvents.test.tsx b/apps/desktop/src/features/model-apply/useRevisionEvents.test.tsx
+index 0fd7c57..2526e56 100644
+--- a/apps/desktop/src/features/model-apply/useRevisionEvents.test.tsx
++++ b/apps/desktop/src/features/model-apply/useRevisionEvents.test.tsx
+@@ -6,12 +6,13 @@ import { newProject, useWorkspace } from "../../stores/workspace";
+ import type { Project } from "../../types";
+ const mock=vi.hoisted(()=>({listen:vi.fn(),list:vi.fn()}));
+ vi.mock("@tauri-apps/api/event",()=>({listen:mock.listen}));
+-vi.mock("../../lib/api",()=>({native:true,listProjects:mock.list,saveProject:vi.fn()}));
++vi.mock("../../lib/api",()=>({native:true,saveProject:vi.fn()}));
++vi.mock("../project-catalog/api",()=>({readProjectSnapshot:mock.list}));
+
+ it.each(["workspace-and-cache", "cache-only"])("a delayed event cannot erase newer same-head metadata in %s",async route=>{
+   const base=newProject("A","blank","mm","codex"),query=new QueryClient(),stop=vi.fn();
+   base.id="A";base.currentRevision="base";
+-  let event!: (value:{payload:string})=>void,finish!: (projects:Project[])=>void;
++  let event!: (value:{payload:string})=>void,finish!: (project:Project)=>void;
+   mock.listen.mockImplementation(async(_name,handler)=>{event=handler;return stop;});
+   mock.list.mockImplementation(()=>new Promise(resolve=>{finish=resolve;}));
+   useWorkspace.getState().setProject(base);query.setQueryData(["projects"],[base]);
+@@ -21,7 +22,7 @@ it.each(["workspace-and-cache", "cache-only"])("a delayed event cannot erase new
+   const newer={...base,messages:[{id:"message",role:"assistant" as const,text:"saved after fetch started",createdAt:base.createdAt}]};
+   act(()=>{if(route==="workspace-and-cache")useWorkspace.getState().setProject(newer);query.setQueryData(["projects"],[newer]);});
+   const cachedNewer=query.getQueryData<Project[]>(["projects"])?.[0];
+-  await act(async()=>{finish([base]);await Promise.resolve();});
++  await act(async()=>{finish(base);await Promise.resolve();});
+   expect(useWorkspace.getState().project).toBe(route==="workspace-and-cache"?newer:base);
+   expect(query.getQueryData<Project[]>(["projects"])?.[0]).toBe(cachedNewer);
+   expect(query.getQueryData<Project[]>(["projects"])?.[0]?.messages).toEqual(newer.messages);
+@@ -33,7 +34,7 @@ it("an unrelated project notification updates only its cache entry",async()=>{
+   active.id="A";other.id="B";const latest={...other,currentRevision:"new"};
+   let event!: (value:{payload:string})=>void;
+   mock.listen.mockImplementation(async(_name,handler)=>{event=handler;return vi.fn();});
+-  mock.list.mockResolvedValue([{...active,name:"outdated active metadata"},latest]);
++  mock.list.mockResolvedValue(latest);
+   useWorkspace.getState().setProject(active);query.setQueryData(["projects"],[active,other]);
+   const view=renderHook(()=>useRevisionEvents(),{wrapper:({children})=><QueryClientProvider client={query}>{children}</QueryClientProvider>});
+   await waitFor(()=>expect(event).toBeDefined());
+diff --git a/apps/desktop/src/features/model-apply/useRevisionEvents.ts b/apps/desktop/src/features/model-apply/useRevisionEvents.ts
+index 517f983..8b38496 100644
+--- a/apps/desktop/src/features/model-apply/useRevisionEvents.ts
++++ b/apps/desktop/src/features/model-apply/useRevisionEvents.ts
+@@ -1,7 +1,9 @@
++import { readProjectSnapshot } from "../project-catalog/api";
++import { invalidateProjectCatalog } from "../project-catalog/cache";
+ import { useEffect } from "react";
+ import { useQueryClient } from "@tanstack/react-query";
+ import { listen } from "@tauri-apps/api/event";
+-import { native, listProjects } from "../../lib/api";
++import { native } from "../../lib/api";
+ import { useWorkspace } from "../../stores/workspace";
+ import type { Project } from "../../types";
+
+@@ -17,21 +19,20 @@ export function useRevisionEvents() {
+       const epoch = (generations.get(id) ?? 0) + 1; generations.set(id, epoch);
+       const before = useWorkspace.getState().project;
+       const cachedBefore = query.getQueryData<Project[]>(["projects"])?.find(project => project.id === id);
+-      void listProjects().then(projects => {
++      void readProjectSnapshot(id).then(latest => {
+         if (!alive || generations.get(id) !== epoch) return;
+         const current = useWorkspace.getState().project;
+         // A newer invoke result or project switch during this fetch wins.
+         if (current !== before || query.getQueryData<Project[]>(["projects"])?.find(project => project.id === id) !== cachedBefore) {
+-          void query.invalidateQueries({ queryKey: ["projects"] }); return;
++          invalidateProjectCatalog(query); return;
+         }
+-        const latest = projects.find(project => project.id === id);
+-        if (!latest) return;
+         query.setQueryData<Project[]>(["projects"], cached => {
+           const existing = cached?.find(project => project.id === id);
+           if (existing !== cachedBefore) return cached;
+           return existing ? cached!.map(project => project.id === id ? latest : project) : [...(cached ?? []), latest];
+         });
+         if (current?.id === id) useWorkspace.getState().setProject(latest);
++        invalidateProjectCatalog(query);
+       }).catch(cause => console.warn("Revision snapshot could not be refreshed", cause));
+       void query.invalidateQueries({ queryKey: ["model-history", id] });
+     }).then(unlisten => { if (!alive) unlisten(); else stop = unlisten; })
+diff --git a/apps/desktop/src/features/project-catalog/UnavailableProjectCard.css b/apps/desktop/src/features/project-catalog/UnavailableProjectCard.css
+new file mode 100644
+index 0000000..047da30
+--- /dev/null
++++ b/apps/desktop/src/features/project-catalog/UnavailableProjectCard.css
+@@ -0,0 +1,7 @@
++.project-card-unavailable { color: var(--text); }
++.project-card-unavailable .project-card-info { align-items: flex-start; }
++.project-card-unavailable .project-card-info > div { min-width: 0; }
++.project-card-unavailable p, .project-card-unavailable strong { overflow-wrap: anywhere; }
++.project-card-unavailable p { font-size: 12px; line-height: 1.5; }
++.project-card-unavailable details { margin-top: 12px; font-size: 11px; }
++.project-card-unavailable pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow: auto; }
+diff --git a/apps/desktop/src/features/project-catalog/UnavailableProjectCard.test.tsx b/apps/desktop/src/features/project-catalog/UnavailableProjectCard.test.tsx
+new file mode 100644
+index 0000000..59b3169
+--- /dev/null
++++ b/apps/desktop/src/features/project-catalog/UnavailableProjectCard.test.tsx
+@@ -0,0 +1,22 @@
++import { cleanup, fireEvent, render, screen } from "@testing-library/react";
++import { afterEach, expect, it, vi } from "vitest";
++import { setLocale, t, type Locale } from "../../i18n";
++import { UnavailableProjectCard } from "./UnavailableProjectCard";
++import type { UnavailableEntry } from "./useProjectCatalog";
++afterEach(() => { cleanup(); setLocale("ru"); document.documentElement.removeAttribute("data-theme"); });
++it.each(["ru", "en"] as Locale[])("shows an unavailable row without model actions in %s and both themes", locale => {
++  setLocale(locale);
++  const entry: UnavailableEntry = { kind: "unavailable", rowKey: "managed-index:9007199254740993", index: { projectId: null, idHint: "invalid", name: null, updatedAt: null }, issue: { status: "recovery_required", code: "PROJECT_SNAPSHOT_RECOVERY_REQUIRED", details: "raw technical details" } };
++  const retry = vi.fn();
++  for (const theme of ["light", "dark"]) {
++    document.documentElement.setAttribute("data-theme", theme);
++    const view = render(<UnavailableProjectCard entry={entry} onRetry={retry} />);
++    expect(screen.getByRole("article", { name: t("Unavailable project") }).getAttribute("data-row-key")).toBe(entry.rowKey);
++    expect(screen.getByText(t("This project requires recovery. No automatic repair was performed."))).toBeTruthy();
++    expect(screen.getAllByRole("button")).toHaveLength(1);
++    fireEvent.click(screen.getByRole("button", { name: t("Refresh project catalog") }));
++    expect(screen.getByText(t("Technical details"))).toBeTruthy();
++    view.unmount();
++  }
++  expect(retry).toHaveBeenCalledTimes(2);
++});
+diff --git a/apps/desktop/src/features/project-catalog/UnavailableProjectCard.tsx b/apps/desktop/src/features/project-catalog/UnavailableProjectCard.tsx
+new file mode 100644
+index 0000000..f252ff0
+--- /dev/null
++++ b/apps/desktop/src/features/project-catalog/UnavailableProjectCard.tsx
+@@ -0,0 +1,24 @@
++import "./UnavailableProjectCard.css";
++import { AlertCircle } from "lucide-react";
++import { Button } from "../../components/ui";
++import { t } from "../../i18n";
++import type { UnavailableEntry } from "./useProjectCatalog";
++
++const statusText = {
++  recovery_required: "This project requires recovery. No automatic repair was performed.",
++  changed: "This project changed while it was being read. Refresh the catalog.",
++  unavailable: "This project could not be verified. Its saved files were not changed.",
++  limit: "This project exceeds the catalog response budget. Its saved files were not changed.",
++} as const;
++
++export function UnavailableProjectCard({ entry, onRetry }: { entry: UnavailableEntry; onRetry: () => void }) {
++  return <article className="project-card project-card-unavailable" aria-label={t("Unavailable project")} data-row-key={entry.rowKey}>
++    <div className="project-art"><AlertCircle size={48} aria-hidden="true" /></div>
++    <div className="project-card-info">
++      <div><strong>{entry.index.name ?? t("Unavailable project")}</strong><p>{t(statusText[entry.issue.status])}</p>
++        <Button onClick={onRetry}>{t("Refresh project catalog")}</Button>
++        <details><summary>{t("Technical details")}</summary><pre>{entry.issue.code}<br />{entry.issue.details}</pre></details>
++      </div>
++    </div>
++  </article>;
++}
+diff --git a/apps/desktop/src/features/project-catalog/cache.test.ts b/apps/desktop/src/features/project-catalog/cache.test.ts
+new file mode 100644
+index 0000000..0337e4b
+--- /dev/null
++++ b/apps/desktop/src/features/project-catalog/cache.test.ts
+@@ -0,0 +1,13 @@
++import { QueryClient } from "@tanstack/react-query";
++import { expect, it } from "vitest";
++import { invalidateProjectCatalog } from "./cache";
++it("invalidates both read views without clearing the authoritative Project cache", () => {
++  const query = new QueryClient(), snapshot = [{ id: "active" }];
++  query.setQueryData(["projects"], snapshot);
++  query.setQueryData(["project-catalog"], { entries: [] });
++  invalidateProjectCatalog(query);
++  expect(query.getQueryData(["projects"])).toBe(snapshot);
++  expect(query.getQueryState(["projects"])?.isInvalidated).toBe(true);
++  expect(query.getQueryState(["project-catalog"])?.isInvalidated).toBe(true);
++  query.clear();
++});
+diff --git a/apps/desktop/src/features/project-catalog/cache.ts b/apps/desktop/src/features/project-catalog/cache.ts
+new file mode 100644
+index 0000000..56790df
+--- /dev/null
++++ b/apps/desktop/src/features/project-catalog/cache.ts
+@@ -0,0 +1,8 @@
++import type { QueryClient } from "@tanstack/react-query";
++
++// Catalog metadata and authoritative Project snapshots use distinct caches.
++// All accepted mutations/event refreshes invalidate both views in one place.
++export function invalidateProjectCatalog(query: QueryClient): void {
++  void query.invalidateQueries({ queryKey: ["project-catalog"] });
++  void query.invalidateQueries({ queryKey: ["projects"] });
++}
+diff --git a/apps/desktop/src/features/project-catalog/useProjectCatalog.ts b/apps/desktop/src/features/project-catalog/useProjectCatalog.ts
+new file mode 100644
+index 0000000..2b868d8
+--- /dev/null
++++ b/apps/desktop/src/features/project-catalog/useProjectCatalog.ts
+@@ -0,0 +1,14 @@
++import { useMemo } from "react";
++import { useQuery } from "@tanstack/react-query";
++import { listProjectCatalog } from "./api";
++import type { CatalogEntry } from "./contract";
++
++export type UnavailableEntry = Extract<CatalogEntry, { kind: "unavailable" }>;
++
++export function useProjectCatalog() {
++  const catalog = useQuery({ queryKey: ["project-catalog"], queryFn: listProjectCatalog });
++  const data = useMemo(() => catalog.data?.entries.flatMap(entry => entry.kind === "ready" ? [entry.project] : []), [catalog.data]);
++  const unavailable = useMemo(() => catalog.data?.entries.filter((entry): entry is UnavailableEntry => entry.kind === "unavailable") ?? [], [catalog.data]);
++  // Ready snapshots provide display metadata. Navigation always reads its target.
++  return { catalog, projects: { data }, unavailable };
++}
+diff --git a/apps/desktop/src/features/project-catalog/useProjectNavigation.test.tsx b/apps/desktop/src/features/project-catalog/useProjectNavigation.test.tsx
+new file mode 100644
+index 0000000..9299d08
+--- /dev/null
++++ b/apps/desktop/src/features/project-catalog/useProjectNavigation.test.tsx
+@@ -0,0 +1,72 @@
++import { act, renderHook, waitFor } from "@testing-library/react";
++import { beforeEach, expect, it, vi } from "vitest";
++import { newProject, useWorkspace } from "../../stores/workspace";
++import type { Project } from "../../types";
++import { useProjectNavigation } from "./useProjectNavigation";
++const mock = vi.hoisted(() => ({ read: vi.fn() }));
++vi.mock("./api", () => ({ readProjectSnapshot: mock.read }));
++function project(name: string) { const value = newProject(name, "blank", "mm", "codex"); value.id = name; return value; }
++beforeEach(() => { mock.read.mockReset(); useWorkspace.getState().setProject(null); useWorkspace.getState().setBusy(false); });
++
++it("preserves the active workspace when a different target cannot be read", async () => {
++  const active = project("active"), navigate = vi.fn(), error = vi.fn();
++  useWorkspace.getState().setProject(active);
++  mock.read.mockRejectedValue(new Error("PROJECT_SNAPSHOT_RECOVERY_REQUIRED"));
++  const view = renderHook(() => useProjectNavigation("pending", navigate, error));
++  await waitFor(() => expect(error).toHaveBeenCalledTimes(1));
++  expect(useWorkspace.getState().project).toBe(active);
++  expect(navigate).toHaveBeenCalledWith("/project/active");
++  view.unmount();
++});
++
++it("rejects an older direct-route result after another route wins", async () => {
++  const a = project("A"), b = project("B"), navigate = vi.fn(), error = vi.fn();
++  const finish = new Map<string, (value: Project) => void>();
++  mock.read.mockImplementation((id: string) => new Promise<Project>(resolve => { finish.set(id, resolve); }));
++  const view = renderHook(({ id }) => useProjectNavigation(id, navigate, error), { initialProps: { id: "A" } });
++  view.rerender({ id: "B" });
++  await act(async () => { finish.get("B")!(b); await Promise.resolve(); });
++  await act(async () => { finish.get("A")!(a); await Promise.resolve(); });
++  expect(useWorkspace.getState().project).toBe(b);
++  expect(error).not.toHaveBeenCalled();
++  view.unmount();
++});
++
++it("opens a fresh target instead of adopting the card snapshot", async () => {
++  const old = project("A"), latest = { ...old, name: "fresh metadata" }, navigate = vi.fn(), error = vi.fn();
++  mock.read.mockResolvedValue(latest);
++  const view = renderHook(() => useProjectNavigation(undefined, navigate, error));
++  await act(async () => { await view.result.current(old); });
++  expect(mock.read).toHaveBeenCalledWith("A");
++  expect(useWorkspace.getState().project).toBe(latest);
++  expect(navigate).toHaveBeenCalledWith("/project/A");
++  view.unmount();
++});
++
++it("cannot adopt an explicit opening after the hook unmounts", async () => {
++  const active = project("A"), next = project("B"), navigate = vi.fn(), error = vi.fn();
++  useWorkspace.getState().setProject(active);
++  let finish!: (value: Project) => void;
++  mock.read.mockImplementation(() => new Promise<Project>(resolve => { finish = resolve; }));
++  const view = renderHook(() => useProjectNavigation("A", navigate, error));
++  let pending!: Promise<void>;
++  act(() => { pending = view.result.current(next); });
++  view.unmount();
++  await act(async () => { finish(next); await pending; });
++  expect(useWorkspace.getState().project).toBe(active);
++  expect(navigate).not.toHaveBeenCalled();
++});
++
++it("does not replace a workspace when work starts during a direct-route read", async () => {
++  const active = project("A"), next = project("B"), navigate = vi.fn(), error = vi.fn();
++  useWorkspace.getState().setProject(active);
++  let finish!: (value: Project) => void;
++  mock.read.mockImplementation(() => new Promise<Project>(resolve => { finish = resolve; }));
++  const view = renderHook(() => useProjectNavigation("B", navigate, error));
++  useWorkspace.getState().setBusy(true);
++  await act(async () => { finish(next); await Promise.resolve(); });
++  expect(useWorkspace.getState().project).toBe(active);
++  expect(error).toHaveBeenCalledTimes(1);
++  expect(navigate).toHaveBeenCalledWith("/project/A");
++  view.unmount();
++});
+diff --git a/apps/desktop/src/features/project-catalog/useProjectNavigation.ts b/apps/desktop/src/features/project-catalog/useProjectNavigation.ts
+new file mode 100644
+index 0000000..63dc7a6
+--- /dev/null
++++ b/apps/desktop/src/features/project-catalog/useProjectNavigation.ts
+@@ -0,0 +1,50 @@
++import { useCallback, useEffect, useRef } from "react";
++import { errorText, t } from "../../i18n";
++import { useWorkspace } from "../../stores/workspace";
++import type { Project } from "../../types";
++import { readProjectSnapshot } from "./api";
++
++// Route reads and explicit card selections share one generation. Neither a late
++// response nor a failed catalog read may clear or overwrite a newer workspace.
++export function useProjectNavigation(projectId: string | undefined, navigate: (path: string) => void, onError: (message: string) => void) {
++  const generation = useRef(0);
++  useEffect(() => () => { generation.current++; }, []);
++  useEffect(() => {
++    const request = ++generation.current;
++    const before = useWorkspace.getState().project;
++    if (!projectId) {
++      if (before) useWorkspace.getState().setProject(null);
++      return;
++    }
++    if (before?.id === projectId) return;
++    const fail = (cause: unknown) => {
++      if (generation.current !== request) return;
++      onError(errorText(cause));
++      const active = useWorkspace.getState().project;
++      if (active && active.id !== projectId) navigate("/project/" + active.id);
++    };
++    void readProjectSnapshot(projectId).then(latest => {
++      if (generation.current !== request) return;
++      if (useWorkspace.getState().project !== before || useWorkspace.getState().busy) {
++        fail(new Error(t("The project changed while opening. Retry opening it."))); return;
++      }
++      useWorkspace.getState().setProject(latest);
++    }).catch(fail);
++    return () => { generation.current++; };
++  }, [projectId, navigate, onError]);
++
++  return useCallback(async (selected: Project) => {
++    if (useWorkspace.getState().busy) return;
++    const request = ++generation.current;
++    const before = useWorkspace.getState().project;
++    try {
++      const latest = await readProjectSnapshot(selected.id);
++      if (generation.current !== request) return;
++      if (useWorkspace.getState().project !== before || useWorkspace.getState().busy) {
++        onError(t("The project changed while opening. Retry opening it.")); return;
++      }
++      useWorkspace.getState().setProject(latest);
++      navigate("/project/" + latest.id);
++    } catch (cause) { if (generation.current === request) onError(errorText(cause)); }
++  }, [navigate, onError]);
++}
+diff --git a/apps/desktop/src/i18n/en.json b/apps/desktop/src/i18n/en.json
+index 6f7ee4e..f3be25a 100644
+--- a/apps/desktop/src/i18n/en.json
++++ b/apps/desktop/src/i18n/en.json
+@@ -1321,5 +1321,13 @@
+   "Plugin actions": "Plugin actions",
+   "Some projects are unavailable. Refresh the catalog or explicitly reopen projects that require recovery.": "Some projects are unavailable. Refresh the catalog or explicitly reopen projects that require recovery.",
+   "PROJECT_CATALOG_LIMIT": "The project catalog exceeds the response limit. Reduce the number or size of managed projects and retry.",
+-  "PROJECT_CATALOG_UNAVAILABLE": "The saved project could not be read. Refresh the catalog and check the project source."
++  "PROJECT_CATALOG_UNAVAILABLE": "The saved project could not be read. Refresh the catalog and check the project source.",
++  "Unavailable project": "Unavailable project",
++  "Refresh project catalog": "Refresh project catalog",
++  "This project requires recovery. No automatic repair was performed.": "This project requires recovery. No automatic repair was performed.",
++  "This project changed while it was being read. Refresh the catalog.": "This project changed while it was being read. Refresh the catalog.",
++  "This project could not be verified. Its saved files were not changed.": "This project could not be verified. Its saved files were not changed.",
++  "This project exceeds the catalog response budget. Its saved files were not changed.": "This project exceeds the catalog response budget. Its saved files were not changed.",
++  "The project changed while opening. Retry opening it.": "The project changed while opening. Retry opening it.",
++  "Opening the selected project. The current model is kept until reading succeeds.": "Opening the selected project. The current model is kept until reading succeeds."
+ }
+diff --git a/apps/desktop/src/i18n/ru.json b/apps/desktop/src/i18n/ru.json
+index 481a556..0cd07e7 100644
+--- a/apps/desktop/src/i18n/ru.json
++++ b/apps/desktop/src/i18n/ru.json
+@@ -1321,5 +1321,13 @@
+   "Plugin actions": "Действия плагинов",
+   "Some projects are unavailable. Refresh the catalog or explicitly reopen projects that require recovery.": "Некоторые проекты недоступны. Обновите каталог или явно откройте проекты, требующие восстановления.",
+   "PROJECT_CATALOG_LIMIT": "Каталог проектов превышает предел ответа. Уменьшите число или размер управляемых проектов и повторите попытку.",
+-  "PROJECT_CATALOG_UNAVAILABLE": "Не удалось прочитать сохранённый проект. Обновите каталог и проверьте источник проекта."
++  "PROJECT_CATALOG_UNAVAILABLE": "Не удалось прочитать сохранённый проект. Обновите каталог и проверьте источник проекта.",
++  "Unavailable project": "Недоступный проект",
++  "Refresh project catalog": "Обновить каталог проектов",
++  "This project requires recovery. No automatic repair was performed.": "Этот проект требует восстановления. Автоматическое исправление не выполнялось.",
++  "This project changed while it was being read. Refresh the catalog.": "Проект изменился во время чтения. Обновите каталог.",
++  "This project could not be verified. Its saved files were not changed.": "Не удалось проверить проект. Его сохранённые файлы не изменены.",
++  "This project exceeds the catalog response budget. Its saved files were not changed.": "Проект превышает лимит ответа каталога. Его сохранённые файлы не изменены.",
++  "The project changed while opening. Retry opening it.": "Проект изменился во время открытия. Повторите открытие.",
++  "Opening the selected project. The current model is kept until reading succeeds.": "Открывается выбранный проект. Текущая модель сохраняется до успешного завершения чтения."
+ }
+diff --git a/docs/en/storage-catalog.md b/docs/en/storage-catalog.md
+index b6d4eb5..76e1f2e 100644
+--- a/docs/en/storage-catalog.md
++++ b/docs/en/storage-catalog.md
+@@ -3,7 +3,7 @@
+ [Documentation](index.md) · [Русский](../ru/storage-catalog.md) · [Contract](storage-contract.md)
+
+ `project_repository::catalog` is a backend API for enumerating saved managed
+-projects without recovery or write access. IPC `list_projects` returns CatalogReport and `read_project_snapshot` reads one project without recovery. Dashboard still uses a strict compatibility adapter: any unavailable row raises a localized error, without silently filtering entries. Unavailable cards and workspace/model-apply target-read integration remain pending.
++projects without recovery or write access. IPC `list_projects` returns CatalogReport and `read_project_snapshot` reads one project without recovery. Dashboard consumes the full report, including unavailable cards; workspace/model-apply/events use pure target reads.
+
+
+
+@@ -43,18 +43,12 @@ cloning the admitted `Project`.
+ The byte budget covers ready Project JSON only, excluding envelopes/index hints,
+ and is not a peak-memory limit. A raced row still uses the existing bounded
+ repository capture/recheck working set (up to 128 MiB raw) plus an admitted clone.
+-Ready entries retain chat, revisions and files for future UI compatibility;
++Ready entries retain chat, revisions and files for UI compatibility;
+ this is not a lightweight metadata-only index or a large-list performance proof.
+
+ ## Integration and verification
+
+-UI integration requires an agreed shared patch for unavailable cards, workspace
+-preservation and explicit recovery. The current Dashboard also saves thumbnails
+-automatically: replacing backend listing alone does not make the screen pure.
+-`PROJECT_CATALOG_LIMIT` and `PROJECT_CATALOG_UNAVAILABLE` are internal for now;
+-add RU/EN translations at the display boundary before wiring them to UI, keeping
+-technical details separate. Shared `Project` and intentional `projects::get`
+-opening behavior remain unchanged.
++The managed catalog UI consumes the report described below. Catalog-limit and unavailable errors have RU/EN translations; technical details remain separate. Shared Project and intentional projects::get behavior remain unchanged.
+
+ Nine SQL regressions cover mixed ready/pending/corrupt rows, unchanged
+ SQL/source/journal bytes, read-only without upgrade, limits, escaped JSON,
+@@ -70,4 +64,13 @@ are unverified.
+
+ ## Initial IPC contract and remaining integration
+
+-The host limits responses to 1000 entries and 128 MiB of ready JSON, not peak memory. `projects/catalog.rs` binds the pure catalog and target read to IPC without changing intentional `projects::get`, persist or recovery. Target reads grant no writer lease and serialize no session token. The new frontend API is not yet connected to App. Existing Project[] callers reject a partial catalog as a whole, retaining the report in PartialCatalogError. This is transitional integration, not a completed user catalog; App still automatically saves thumbnails on home. The next patch must display unavailable cards, retain the workspace on failures and remove background writes.
++The host limits responses to 1000 entries and 128 MiB of ready JSON, not peak memory. `projects/catalog.rs` binds the pure catalog and target read to IPC without changing intentional `projects::get`, persist or recovery. Target reads grant no writer lease and serialize no session token. Remaining legacy Project[] callers retain the strict compatibility adapter, rejecting partial reports rather than hiding rows. Dashboard itself consumes the report directly.
++
++
++## Catalog in Dashboard
++
++Dashboard reads CatalogReport and displays both ready projects and separate unavailable cards with status, bounded index hints and pure-read retry. String rowKey values never pass through numeric conversion. Unverified rows receive no fabricated model, edit/export/delete action or automatic-recovery button. Technical details are expandable separately. Search includes an unavailable row’s name/ID hint.
++
++Listing no longer creates or saves thumbnails in the background; saved images or the default icon are displayed. Card and direct-route opening read only the selected project through read_project_snapshot; unrelated unavailable rows cannot block a healthy target read. During a direct-route target read, the previous scene and its own UI persistence namespace remain visible with model editing blocked. If reading fails, the active workspace is preserved and its URL is restored; no scene reset or redirect home occurs. A shared generation and original-workspace comparison reject late results after another choice or local update. Model-apply and revision events also use target reads while retaining their existing guards. Catalog and Project[] snapshot caches stay distinct; accepted mutations/events invalidate both using one helper. Pin and rename first read the current target before calling the existing writer API.
++
++This is the managed catalog, not an independent external-folder writer. Explicit recovery UI remains a separate integration; Retry performs no automatic repair.
+diff --git a/docs/ru/storage-catalog.md b/docs/ru/storage-catalog.md
+index 220ff0c..1f115c7 100644
+--- a/docs/ru/storage-catalog.md
++++ b/docs/ru/storage-catalog.md
+@@ -3,7 +3,7 @@
+ [Документация](index.md) · [English](../en/storage-catalog.md) · [Контракт](storage-contract.md)
+
+ `project_repository::catalog` — backend API для перечисления сохранённых managed
+-проектов без recovery и получения доступа на запись. IPC `list_projects` возвращает CatalogReport, а `read_project_snapshot` читает один проект без recovery. Пока Dashboard использует строгий compatibility adapter: наличие unavailable вызывает локализованную ошибку, записи не фильтруются молча. Карточки недоступных проектов и переключение workspace/model-apply на target-read ещё не подключены.
++проектов без recovery и получения доступа на запись. IPC `list_projects` возвращает CatalogReport, а `read_project_snapshot` читает один проект без recovery. Dashboard использует полный report, включая unavailable-карточки; workspace/model-apply/events выполняют чистое чтение выбранного проекта.
+
+ ## Контракт
+
+@@ -41,18 +41,12 @@ JavaScript `2^53` сохраняет уникальность. Недоступ
+ Бюджет относится к сумме готовых Project JSON, не включает envelope/index hints
+ и не ограничивает peak memory. При гонке строки остаётся существующий bounded
+ repository capture/recheck working set (raw до 128 МиБ) плюс принятый clone.
+-Готовая запись содержит переписку, ревизии и файлы для совместимости будущего UI;
++Готовая запись содержит переписку, ревизии и файлы для совместимости UI;
+ это не лёгкий metadata-only индекс и не доказательство скорости большого списка.
+
+ ## Интеграция и проверка
+
+-Для UI нужен согласованный shared-патч с обработкой недоступных карточек,
+-сохранением рабочего workspace и явным действием recovery. Текущий Dashboard
+-также автоматически сохраняет thumbnails: замена backend list сама по себе не
+-сделает весь экран чистым. `PROJECT_CATALOG_LIMIT` и
+-`PROJECT_CATALOG_UNAVAILABLE` пока внутренние; перед отображением добавить RU/EN
+-переводы на границе UI, оставив технические details отдельно. Общий `Project`
+-и намеренный opener `projects::get` не изменялись.
++Managed-каталог в UI использует описанный ниже report. Ошибки лимита и недоступности переведены в RU/EN; технические details отделены. Общий Project и намеренный projects::get не изменены.
+
+ Девять SQL-регрессий проверяют смешанные ready/pending/corrupt записи,
+ неизменность SQL/источников/journal, read-only без upgrade, лимиты, escaped JSON,
+@@ -68,4 +62,13 @@ repository capture/recheck working set (raw до 128 МиБ) плюс приня
+
+ ## Первый IPC-контракт и оставшаяся интеграция
+
+-Host ограничивает ответ 1000 записями и 128 МиБ ready JSON; это не peak memory. `projects/catalog.rs` связывает чистый каталог и target-read с IPC, не меняя намеренный `projects::get`, persist или recovery. Target-read не выдаёт writer lease и не переносит session token в UI. Новый frontend API пока не подключён к App. Старые Project[] callers отклоняют частичный каталог целиком, сохраняя report в PartialCatalogError. Это промежуточная интеграция, а не готовый пользовательский каталог; App всё ещё автоматически сохраняет thumbnails на главной. Следующий патч должен показать все unavailable-карточки, сохранить workspace при ошибках и убрать фоновую запись.
++Host ограничивает ответ 1000 записями и 128 МиБ ready JSON; это не peak memory. `projects/catalog.rs` связывает чистый каталог и target-read с IPC, не меняя намеренный `projects::get`, persist или recovery. Target-read не выдаёт writer lease и не переносит session token в UI. Оставшиеся legacy Project[] callers сохраняют строгий compatibility adapter: частичный report вызывает ошибку, а не молчаливое скрытие строк. Сам Dashboard читает report напрямую.
++
++
++## Каталог в Dashboard
++
++Dashboard читает CatalogReport и показывает как ready-проекты, так и отдельные unavailable-карточки со статусом, ограниченными подсказками индекса и повтором чистого чтения. Строковый rowKey сохраняется без преобразования в число. Непроверенная запись не получает фиктивную модель, действия редактирования/экспорта/удаления или кнопку автоматического восстановления. Технические details раскрываются отдельно. Поиск включает имя/ID-подсказку недоступной строки.
++
++Список больше не создаёт и не сохраняет thumbnails в фоне: используются уже сохранённые изображения либо стандартная иконка. Открытие карточки и прямого маршрута читает только выбранный проект через read_project_snapshot; ошибка чужой строки не мешает здоровому target-read. Во время чтения прямого маршрута прежняя сцена и её собственное пространство UI-настроек сохраняются на экране; редактирование модели блокируется. При ошибке активный workspace сохраняется и восстанавливается его URL; сброса сцены и перенаправления на главную нет. Общая generation-проверка и сравнение исходного workspace отбрасывают поздний ответ после другого выбора или локального обновления. Model-apply и revision events тоже используют target-read с сохранением прежних guards. Catalog cache отделён от Project[] snapshot cache; мутации и события инвалидируют оба через общий helper. Закрепление и переименование сначала читают текущий target, а затем вызывают прежний writer API.
++
++Это managed-каталог, не самостоятельный внешний folder writer. Явный recovery UI остаётся отдельной интеграцией; Retry ничего не исправляет автоматически.

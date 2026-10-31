@@ -1,3 +1,7 @@
+import { useProjectCatalog } from "../features/project-catalog/useProjectCatalog";
+import { useProjectNavigation } from "../features/project-catalog/useProjectNavigation";
+import { readProjectSnapshot } from "../features/project-catalog/api";
+import { invalidateProjectCatalog } from "../features/project-catalog/cache";
 import { candidateSourceStatus } from "../features/agents/candidateSource";
 import { captureApply, assertApplyBase } from "../features/model-apply/capturedApply";
 import { useModelApply } from "../features/model-apply/useModelApply";
@@ -107,11 +111,9 @@ import {
   convertStep,
   confirmationSettings,
   needsConfirmation,
-  listProjects,
   saveProject,
   exportProjectBundle,
   importProjectBundle,
-  saveProjectThumbnail,
   deleteProject,
   health,
   plan,
@@ -124,7 +126,6 @@ import {
 } from "../lib/api";
 import { buildModel, inspectModel, disposeModel } from "../lib/model";
 import { readFile, loadModel, exportMesh, download } from "../lib/files";
-import { renderThumbnail } from "../lib/thumbnail";
 import { bodyLabel } from "../features/viewer/bodyLabel";
 import { faceAreaMm2 } from "../features/viewer/faceSelection";
 import { edgeLengthMm, edgeRadiusMm } from "../features/viewer/edgeSelection";
@@ -185,8 +186,10 @@ export default function App() {
     setSelected,
   } = useWorkspace();
   const projectAccess = useProjectAccess(project?.id, setError);
-  const editingBlocked = busy || !projectAccess.writable;
-  const projects = useQuery({ queryKey: ["projects"], queryFn: listProjects });
+  const openingProject = !!projectId && !!project && projectId !== project.id;
+  const editingBlocked = busy || !projectAccess.writable || openingProject;
+  const { catalog, projects, unavailable } = useProjectCatalog();
+  const openProject = useProjectNavigation(projectId, nav, setError);
   const recovery = useQuery({
     queryKey: ["recovery"],
     queryFn: interruptedSessions,
@@ -200,7 +203,7 @@ export default function App() {
   const [modal, setModal] = useState<
     "new" | "settings" | "export" | "palette" | "parameters" | null
   >(null);
-  const stateKey = `forma.ui.project.${projectId ?? "home"}`;
+  const stateKey = `forma.ui.project.${project?.id ?? projectId ?? "home"}`;
   const [tab, setTab] = usePersistentState<"files" | "history">(
     `${stateKey}.tab`,
     "files",
@@ -210,9 +213,6 @@ export default function App() {
   const [renameName, setRenameName] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [deleteName, setDeleteName] = useState("");
-  const previewProjects = useRef<Project[]>([]);
-  const previewRunning = useRef(false);
-  const previewAttempted = useRef(new Set<string>());
   const [prompt, setPrompt] = usePersistentState(`${stateKey}.prompt`, "");
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [attachments, setAttachments] = usePersistentState<ProjectFile[]>(
@@ -384,73 +384,12 @@ export default function App() {
     end.current?.scrollIntoView({ behavior: "smooth" });
   }, [liveEvents]);
   useEffect(() => () => disposeModel(model), [model]);
-  useEffect(() => {
-    if (projectId || !projects.data) return;
-    previewProjects.current = projects.data;
-    if (previewRunning.current) return;
-    previewRunning.current = true;
-    void (async () => {
-      while (true) {
-        const next = previewProjects.current.find((item) => {
-          const key = `${item.id}:${item.currentRevision}`;
-          return (
-            item.currentRevision &&
-            item.thumbnailRevision !== item.currentRevision &&
-            !previewAttempted.current.has(key)
-          );
-        });
-        if (!next || !next.currentRevision) break;
-        previewAttempted.current.add(`${next.id}:${next.currentRevision}`);
-        const revision = next.revisions.find(
-          (item) => item.id === next.currentRevision,
-        );
-        const file = next.files.find(
-          (item) => item.name === (revision?.preview ?? revision?.source),
-        );
-        let preview: THREE.Group | null = null;
-        try {
-          preview =
-            file && /\.(stl|obj|glb|3mf)$/i.test(file.name)
-              ? await loadModel(file, next.id)
-              : buildModel(currentParameters(next));
-          const thumbnail = renderThumbnail(preview);
-          if (!thumbnail) continue;
-          const saved = await saveProjectThumbnail(
-            next.id,
-            next.currentRevision,
-            thumbnail,
-          );
-          queryClient.setQueryData<Project[]>(["projects"], (current) =>
-            current?.map((item) => (item.id === saved.id ? saved : item)),
-          );
-        } catch (cause) {
-          console.warn("Project thumbnail could not be created", cause);
-        } finally {
-          if (preview) disposeModel(preview);
-        }
-      }
-    })().finally(() => {
-      previewRunning.current = false;
-    });
-  }, [projectId, projects.data, queryClient]);
   useEffect(
     () => () => {
       if (before) disposeModel(before);
     },
     [before],
   );
-  useEffect(() => {
-    const activeProject = useWorkspace.getState().project;
-    if (!projectId) {
-      if (activeProject) setProject(null);
-      return;
-    }
-    if (projects.data && activeProject?.id !== projectId) {
-      const p = projects.data.find((p) => p.id === projectId);
-      if (p) setProject(p);
-      else nav("/");
-    }
-  }, [projectId, projects.data, setProject, nav]);
   useEffect(() => {
     end.current?.scrollIntoView({ behavior: "smooth" });
   }, [project?.messages.length, busy]);
@@ -474,9 +413,9 @@ export default function App() {
         fileInput.current?.click();
       } else if (e.key === "s") {
         e.preventDefault();
-        if (project)
+        if (project && !openingProject)
           saveProject(project)
-            .then(() => setNotice(t("Project saved")))
+            .then(() => { refresh(); setNotice(t("Project saved")); })
             .catch((e) => setError(errorText(e)));
       } else if (e.key === "E" || (e.key === "e" && e.shiftKey)) {
         e.preventDefault();
@@ -487,7 +426,7 @@ export default function App() {
     return () => window.removeEventListener("keydown", f);
   });
   function refresh() {
-    void queryClient.invalidateQueries({ queryKey: ["projects"] });
+    invalidateProjectCatalog(queryClient);
     void queryClient.invalidateQueries({ queryKey: ["model-history"] });
   }
   const historyAction = useHistoryAction(ask, refresh);
@@ -534,11 +473,6 @@ export default function App() {
     } finally {
       refresh();
     }
-  }
-  async function openProject(p: Project) {
-    if (busy) return;
-    setProject(p);
-    nav(`/project/${p.id}`);
   }
   async function importStepIntoScene(p: Project, name: string) {
     await ask(t("Import STEP model"), t("Run the local CAD converter and create a new revision with a 3D preview."), name, async () => {
@@ -878,12 +812,14 @@ export default function App() {
           )}
         </div>
       </header>
+      {openingProject && <div className="error-inline" role="status">{t("Opening the selected project. The current model is kept until reading succeeds.")}</div>}
       {project && <ProjectAccessNotice projectId={project.id} {...projectAccess} onCopy={copy => { refresh(); void openProject(copy); }} onError={setError} />}
       {!project ? (
         <Dashboard
           projects={projects.data ?? []}
-          loading={projects.isLoading}
-          error={projects.error}
+          unavailable={unavailable}
+          loading={catalog.isLoading}
+          error={catalog.error}
           search={search}
           onSearch={setSearch}
           onSettings={() => setModal("settings")}
@@ -1742,15 +1678,8 @@ export default function App() {
           onSubmit={(event) => {
             event.preventDefault();
             if (!renameTarget || !renameName.trim()) return;
-            const latest =
-              (queryClient.getQueryData<Project[]>(["projects"]) ?? []).find(
-                (item) => item.id === renameTarget.id,
-              ) ?? renameTarget;
-            void saveProject({
-              ...latest,
-              name: renameName.trim(),
-              updatedAt: stamp(),
-            })
+            void readProjectSnapshot(renameTarget.id)
+              .then(latest => saveProject({ ...latest, name: renameName.trim(), updatedAt: stamp() }))
               .then(() => {
                 setRenameTarget(null);
                 refresh();

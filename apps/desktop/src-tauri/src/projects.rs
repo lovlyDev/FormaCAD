@@ -4,6 +4,7 @@ use crate::{
 };
 use std::path::Path;
 use tauri::State;
+mod catalog;
 mod events;
 mod mirrors;
 mod persistence;
@@ -51,18 +52,14 @@ pub async fn get(state: &AppState, id: &str) -> Result<Project> {
     crate::project_storage_v2::reconcile(state, p).await
 }
 #[tauri::command]
-pub async fn list_projects(state: State<'_, AppState>) -> Result<Vec<Project>> {
-    let rows: Vec<String> =
-        sqlx::query_scalar("SELECT payload FROM projects ORDER BY updated_at DESC")
-            .fetch_all(&state.pool)
-            .await?;
-    let mut result = Vec::new();
-    for raw in rows {
-        let p: Project = serde_json::from_str(&raw)?;
-        p.validate()?;
-        result.push(crate::project_storage_v2::reconcile(&state, p).await?);
-    }
-    Ok(result)
+pub async fn list_projects(
+    state: State<'_, AppState>,
+) -> Result<crate::project_repository::catalog::CatalogReport> {
+    catalog::list(&state).await
+}
+#[tauri::command]
+pub async fn read_project_snapshot(id: String, state: State<'_, AppState>) -> Result<Project> {
+    catalog::read(&state, &id).await
 }
 #[tauri::command]
 pub async fn save_project_thumbnail(

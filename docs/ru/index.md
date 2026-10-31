@@ -80,3 +80,8 @@
 
 - [Общее ТЗ и критерии 2.0](../architecture-2.0.md).
 - [Промпт AI для работы по очереди](collaboration-ai-prompt.md).
+- [Программа хранения: аудит и ограничения](storage-program.md).
+- [Сравнение форматов хранения](storage-formats.md).
+- [Решение о формате папки](storage-format-decision.md).
+- [Контракт чтения репозитория](storage-contract.md).
+- [Чистый backend-каталог проектов](storage-catalog.md).

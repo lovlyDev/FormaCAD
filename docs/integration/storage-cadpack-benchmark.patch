@@ -1,0 +1,235 @@
+diff --git a/apps/desktop/src-tauri/src/cadpack.rs b/apps/desktop/src-tauri/src/cadpack.rs
+index aaacea8..2373443 100644
+--- a/apps/desktop/src-tauri/src/cadpack.rs
++++ b/apps/desktop/src-tauri/src/cadpack.rs
+@@ -311,3 +311,6 @@ pub async fn import_project_bundle(
+ mod privacy_tests;
+ #[cfg(test)]
+ mod tests;
++
++#[cfg(test)]
++pub(crate) mod benchmark_api;
+diff --git a/apps/desktop/src-tauri/src/cadpack/benchmark_api.rs b/apps/desktop/src-tauri/src/cadpack/benchmark_api.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/cadpack/benchmark_api.rs
+@@ -0,0 +1,117 @@
++//! Test-only access to the actual validated CADPACK writer and reader.
++//! Source/session checks belong to the caller; destinations must be disposable
++//! synthetic fixtures. This module adds no IPC, credentials, or app-index access.
++use super::{
++    history, invalid, read_bundle, write_bundle_with, MAX_ARCHIVE_BYTES, MAX_FILES,
++    MAX_PROJECT_BYTES,
++};
++use crate::{
++    core::Result,
++    models::{Project, ProjectFile},
++};
++use std::{collections::BTreeMap, path::Path};
++
++pub(crate) struct BundleProof {
++    pub(crate) project_sha256: String,
++    pub(crate) history_sha256: Option<String>,
++    pub(crate) attachment_references: usize,
++    pub(crate) unique_assets: usize,
++    pub(crate) unique_asset_bytes: u64,
++    pub(crate) asset_reader_calls: usize,
++    pub(crate) archive_bytes: u64,
++}
++
++/// Write and read back the real package format. The callback must use bounded,
++/// captured source reads; its descriptor supplies the exact permitted byte size.
++/// No alternative ZIP codec or private BundleContents type escapes this module.
++pub(crate) fn round_trip(
++    project: &Project,
++    destination: &Path,
++    model_history: Option<&[u8]>,
++    mut read_attachment: impl FnMut(&ProjectFile) -> Result<Vec<u8>>,
++) -> Result<BundleProof> {
++    project.validate()?;
++    if project.files.len() > MAX_FILES || project.files.iter().any(|file| file.data.is_some()) {
++        return Err(invalid(
++            "Benchmark export requires normalized bounded package metadata",
++        ));
++    }
++    let project_bytes = serde_json::to_vec(project)?;
++    if project_bytes.len() as u64 > MAX_PROJECT_BYTES {
++        return Err(invalid("Project metadata exceeds bundle limit"));
++    }
++    if let Some(bytes) = model_history {
++        if bytes.len() as u64 > history::MAX_HISTORY_BYTES {
++            return Err(invalid("HISTORY_ARCHIVE_TOO_LARGE"));
++        }
++        crate::project_history::validate_archive(project, bytes)?;
++    }
++    let mut expected = BTreeMap::new();
++    let mut referenced_bytes = 0u64;
++    for file in &project.files {
++        let hash = file
++            .sha256
++            .as_ref()
++            .filter(|hash| crate::artifacts::valid_digest(hash))
++            .ok_or_else(|| invalid("Project attachment checksum is missing"))?;
++        referenced_bytes = referenced_bytes
++            .checked_add(file.size)
++            .ok_or_else(|| invalid("Project attachments exceed 100 MB"))?;
++        if referenced_bytes > 100 * 1024 * 1024 {
++            return Err(invalid("Project attachments exceed 100 MB"));
++        }
++        if expected
++            .insert(hash.clone(), file.size)
++            .is_some_and(|size| size != file.size)
++        {
++            return Err(invalid("Project attachment size mismatch"));
++        }
++    }
++    let unique_asset_bytes = expected.values().try_fold(0u64, |sum, &size| {
++        sum.checked_add(size)
++            .ok_or_else(|| invalid("Project bundle exceeds 150 MB"))
++    })?;
++    let total = (project_bytes.len() as u64)
++        .checked_add(model_history.map_or(0, |bytes| bytes.len() as u64))
++        .and_then(|size| size.checked_add(unique_asset_bytes))
++        .ok_or_else(|| invalid("Project bundle exceeds 150 MB"))?;
++    if total > MAX_ARCHIVE_BYTES {
++        return Err(invalid("Project bundle exceeds 150 MB"));
++    }
++    let mut asset_reader_calls = 0usize;
++    write_bundle_with(project, destination, model_history, |entry| {
++        asset_reader_calls += 1;
++        read_attachment(entry)
++    })?;
++    let (restored, assets, restored_history) = read_bundle(destination)?;
++    if serde_json::to_vec(&restored)? != project_bytes
++        || restored_history.as_deref() != model_history
++        || asset_reader_calls != expected.len()
++    {
++        return Err(invalid("Benchmark bundle round-trip mismatch"));
++    }
++    let mut restored_assets = BTreeMap::new();
++    for (hash, bytes) in assets {
++        if crate::artifacts::digest(&bytes) != hash
++            || restored_assets.insert(hash, bytes.len() as u64).is_some()
++        {
++            return Err(invalid("Benchmark bundle round-trip mismatch"));
++        }
++    }
++    if restored_assets != expected {
++        return Err(invalid("Benchmark bundle round-trip mismatch"));
++    }
++    Ok(BundleProof {
++        project_sha256: crate::artifacts::digest(&project_bytes),
++        history_sha256: model_history.map(crate::artifacts::digest),
++        attachment_references: project.files.len(),
++        unique_assets: expected.len(),
++        unique_asset_bytes,
++        asset_reader_calls,
++        archive_bytes: std::fs::metadata(destination)?.len(),
++    })
++}
++
++#[cfg(test)]
++#[path = "benchmark_api_tests.rs"]
++mod tests;
+diff --git a/apps/desktop/src-tauri/src/cadpack/benchmark_api_tests.rs b/apps/desktop/src-tauri/src/cadpack/benchmark_api_tests.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/cadpack/benchmark_api_tests.rs
+@@ -0,0 +1,97 @@
++use super::round_trip;
++use crate::models::Project;
++
++fn project() -> Project {
++    let bytes = b"synthetic asset";
++    let hash = crate::artifacts::digest(bytes);
++    serde_json::from_value(serde_json::json!({
++        "schemaVersion":1,"id":uuid::Uuid::new_v4().to_string(),"name":"CADPACK benchmark fixture",
++        "units":"mm","agent":"codex","pinned":false,
++        "createdAt":"2026-10-29T00:00:00Z","updatedAt":"2026-10-29T00:00:00Z",
++        "currentRevision":null,"revisions":[],"messages":[],"exports":[],
++        "files":[{"name":"first.step","kind":"attachment","size":bytes.len(),"sha256":hash},
++                 {"name":"second.step","kind":"attachment","size":bytes.len(),"sha256":hash}]
++    }))
++    .unwrap()
++}
++
++#[test]
++fn real_writer_reader_round_trip_proves_history_bytes_and_asset_deduplication() {
++    let temp = tempfile::tempdir().unwrap();
++    let project = project();
++    let history = serde_json::to_vec(&serde_json::json!({"schemaVersion":1,
++        "state":crate::project_history::HistoryState::from_project(&project).unwrap(),"events":[]}))
++    .unwrap();
++    let proof = round_trip(
++        &project,
++        &temp.path().join("model.cadpack"),
++        Some(&history),
++        |_| Ok(b"synthetic asset".to_vec()),
++    )
++    .unwrap();
++    assert_eq!(
++        proof.project_sha256,
++        crate::artifacts::digest(&serde_json::to_vec(&project).unwrap())
++    );
++    assert_eq!(
++        proof.history_sha256,
++        Some(crate::artifacts::digest(&history))
++    );
++    assert_eq!(proof.attachment_references, 2);
++    assert_eq!(proof.unique_assets, 1);
++    assert_eq!(proof.unique_asset_bytes, b"synthetic asset".len() as u64);
++    assert_eq!(proof.asset_reader_calls, 1);
++    assert!(proof.archive_bytes > proof.unique_asset_bytes);
++}
++
++#[test]
++fn wrong_source_checksum_preserves_previous_destination() {
++    let temp = tempfile::tempdir().unwrap();
++    let target = temp.path().join("model.cadpack");
++    std::fs::write(&target, b"previous destination").unwrap();
++    let project = project();
++    assert!(round_trip(&project, &target, None, |_| Ok(vec![b'x'; 15])).is_err());
++    assert_eq!(std::fs::read(&target).unwrap(), b"previous destination");
++    assert_eq!(std::fs::read_dir(temp.path()).unwrap().count(), 1);
++}
++
++#[test]
++fn declared_reference_budget_is_rejected_before_reading_assets_or_touching_destination() {
++    let temp = tempfile::tempdir().unwrap();
++    let target = temp.path().join("model.cadpack");
++    let mut project = project();
++    project.files.clear();
++    for (index, hash) in ['a', 'b', 'c'].into_iter().enumerate() {
++        project.files.push(crate::models::ProjectFile {
++            name: format!("asset-{index}.step"),
++            kind: "attachment".into(),
++            size: 40 * 1024 * 1024,
++            data: None,
++            sha256: Some(hash.to_string().repeat(64)),
++        });
++    }
++    project.validate().unwrap();
++    let mut calls = 0;
++    assert!(round_trip(&project, &target, None, |_| {
++        calls += 1;
++        Ok(vec![])
++    })
++    .is_err());
++    assert_eq!(calls, 0);
++    assert!(!target.exists());
++    assert_eq!(std::fs::read_dir(temp.path()).unwrap().count(), 0);
++}
++
++#[test]
++fn invalid_history_is_rejected_before_callback_and_publication() {
++    let temp = tempfile::tempdir().unwrap();
++    let target = temp.path().join("model.cadpack");
++    let mut calls = 0;
++    assert!(round_trip(&project(), &target, Some(b"not history"), |_| {
++        calls += 1;
++        Ok(vec![])
++    })
++    .is_err());
++    assert_eq!(calls, 0);
++    assert!(!target.exists());
++}

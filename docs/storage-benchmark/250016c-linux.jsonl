@@ -1,0 +1,87 @@
+{"arch":"x86_64","cpu_model":"collect runner metadata separately","disk_type":"not detected","filesystem":"runner temporary directory; filesystem cache not flushed","kind":"environment","logical_cpus":4,"os":"linux","provenance":"synthetic model metadata/chat/binary STEP-labelled payload; no CAD geometry claim","scope":"existing APIs have different validation work; timings do not establish semantic equivalence or select a format"}
+{"asset_bytes":4096,"attachment_references":4,"history_archive_bytes":1103,"kind":"fixture","project_json_bytes":3893,"revisions":4,"size":"small","unique_assets":2}
+{"backend":"manifest-v2","elapsed_ns":1409339,"kind":"measurement","note":"single observation; filesystem cache not flushed","operation":"first_api_open","samples":1,"size":"small"}
+{"backend":"manifest-v2-metadata","elapsed_ns":1305355,"kind":"measurement","note":"single observation; filesystem cache not flushed","operation":"first_api_open","samples":1,"size":"small"}
+{"backend":"sqlite-candidate","elapsed_ns":2803591,"kind":"measurement","note":"includes existing DB integrity/migrations/session recovery route; not a pure reader","operation":"first_api_open","samples":1,"size":"small"}
+{"backend":"manifest-v2","elapsed_ns":2462613,"kind":"measurement","note":"single observation; filesystem cache not flushed","operation":"history_status","samples":1,"size":"small"}
+{"backend":"manifest-v2-metadata","elapsed_ns":2740933,"kind":"measurement","note":"captures metadata and validates/scans complete v2 history event archive; no unrelated asset reads; not an independent fast cursor","operation":"history_status","samples":1,"size":"small"}
+{"backend":"manifest-v2-metadata","elapsed_ns":1337175,"kind":"measurement","note":"uses existing captured metadata; validates one asset with bounded size/hash plus before/after metadata recheck","operation":"single_attachment_public_api","samples":1,"size":"small"}
+{"backend":"manifest-v2-metadata","elapsed_ns":522799,"kind":"measurement","note":"single observation; filesystem cache not flushed","operation":"snapshot_recheck","samples":1,"size":"small"}
+{"backend":"sqlite-candidate","elapsed_ns":436187,"kind":"measurement","note":"validates typed cursor; does not hash assets or full event archive","operation":"history_status","samples":1,"size":"small"}
+{"backend":"manifest-v2","elapsed_ns":5831512,"kind":"measurement","note":"single observation; filesystem cache not flushed","operation":"metadata_save","samples":1,"size":"small"}
+{"backend":"sqlite-candidate","elapsed_ns":1825770,"kind":"measurement","note":"same typed record_commit validation; existing SQL schema only; no production writer/session adapter","operation":"metadata_save","samples":1,"size":"small"}
+{"backend":"manifest-v2","elapsed_ns":1124315,"kind":"measurement","note":"single observation; filesystem cache not flushed","operation":"explicit_previous_read","samples":1,"size":"small"}
+{"backend":"manifest-v2","elapsed_ns":2240787,"kind":"measurement","note":"single observation; filesystem cache not flushed","operation":"hydrate_export_input","samples":1,"size":"small"}
+{"expected_unique_assets":2,"kind":"growth","manifest_after_bytes":19852,"manifest_assets_after":2,"manifest_before_bytes":14107,"size":"small","sqlite_after_bytes":127032,"sqlite_before_bytes":122880,"sqlite_includes_active_wal":true}
+{"backend":"manifest-v2","kind":"unsupported","operation":"single_attachment_public_api","reason":"no comparable implemented production route in this benchmark; not measured","size":"small"}
+{"backend":"manifest-v2","kind":"unsupported","operation":"copy_export_transaction","reason":"no comparable implemented production route in this benchmark; not measured","size":"small"}
+{"backend":"manifest-v2","kind":"unsupported","operation":"crash_recovery","reason":"no comparable implemented production route in this benchmark; not measured","size":"small"}
+{"backend":"manifest-v2","kind":"unsupported","operation":"process_cold_open","reason":"no comparable implemented production route in this benchmark; not measured","size":"small"}
+{"backend":"manifest-v2","kind":"unsupported","operation":"peak_memory","reason":"no comparable implemented production route in this benchmark; not measured","size":"small"}
+{"backend":"manifest-v2-metadata","kind":"unsupported","operation":"copy_export_transaction","reason":"no comparable implemented production route in this benchmark; not measured","size":"small"}
+{"backend":"manifest-v2-metadata","kind":"unsupported","operation":"crash_recovery","reason":"no comparable implemented production route in this benchmark; not measured","size":"small"}
+{"backend":"manifest-v2-metadata","kind":"unsupported","operation":"process_cold_open","reason":"no comparable implemented production route in this benchmark; not measured","size":"small"}
+{"backend":"manifest-v2-metadata","kind":"unsupported","operation":"peak_memory","reason":"no comparable implemented production route in this benchmark; not measured","size":"small"}
+{"backend":"sqlite-candidate","kind":"unsupported","operation":"single_attachment_public_api","reason":"no comparable implemented production route in this benchmark; not measured","size":"small"}
+{"backend":"sqlite-candidate","kind":"unsupported","operation":"copy_export_transaction","reason":"no comparable implemented production route in this benchmark; not measured","size":"small"}
+{"backend":"sqlite-candidate","kind":"unsupported","operation":"crash_recovery","reason":"no comparable implemented production route in this benchmark; not measured","size":"small"}
+{"backend":"sqlite-candidate","kind":"unsupported","operation":"process_cold_open","reason":"no comparable implemented production route in this benchmark; not measured","size":"small"}
+{"backend":"sqlite-candidate","kind":"unsupported","operation":"peak_memory","reason":"no comparable implemented production route in this benchmark; not measured","size":"small"}
+{"asset_bytes":32768,"attachment_references":64,"history_archive_bytes":8161,"kind":"fixture","project_json_bytes":33535,"revisions":32,"size":"medium","unique_assets":32}
+{"backend":"manifest-v2","elapsed_ns":37117649,"kind":"measurement","note":"single observation; filesystem cache not flushed","operation":"first_api_open","samples":1,"size":"medium"}
+{"backend":"manifest-v2-metadata","elapsed_ns":4666570,"kind":"measurement","note":"single observation; filesystem cache not flushed","operation":"first_api_open","samples":1,"size":"medium"}
+{"backend":"sqlite-candidate","elapsed_ns":4082146,"kind":"measurement","note":"includes existing DB integrity/migrations/session recovery route; not a pure reader","operation":"first_api_open","samples":1,"size":"medium"}
+{"backend":"manifest-v2","elapsed_ns":75296826,"kind":"measurement","note":"single observation; filesystem cache not flushed","operation":"history_status","samples":1,"size":"medium"}
+{"backend":"manifest-v2-metadata","elapsed_ns":9302714,"kind":"measurement","note":"captures metadata and validates/scans complete v2 history event archive; no unrelated asset reads; not an independent fast cursor","operation":"history_status","samples":1,"size":"medium"}
+{"backend":"manifest-v2-metadata","elapsed_ns":4339477,"kind":"measurement","note":"uses existing captured metadata; validates one asset with bounded size/hash plus before/after metadata recheck","operation":"single_attachment_public_api","samples":1,"size":"medium"}
+{"backend":"manifest-v2-metadata","elapsed_ns":1611718,"kind":"measurement","note":"single observation; filesystem cache not flushed","operation":"snapshot_recheck","samples":1,"size":"medium"}
+{"backend":"sqlite-candidate","elapsed_ns":601807,"kind":"measurement","note":"validates typed cursor; does not hash assets or full event archive","operation":"history_status","samples":1,"size":"medium"}
+{"backend":"manifest-v2","elapsed_ns":151665440,"kind":"measurement","note":"single observation; filesystem cache not flushed","operation":"metadata_save","samples":1,"size":"medium"}
+{"backend":"sqlite-candidate","elapsed_ns":5117416,"kind":"measurement","note":"same typed record_commit validation; existing SQL schema only; no production writer/session adapter","operation":"metadata_save","samples":1,"size":"medium"}
+{"backend":"manifest-v2","elapsed_ns":36634535,"kind":"measurement","note":"single observation; filesystem cache not flushed","operation":"explicit_previous_read","samples":1,"size":"medium"}
+{"backend":"manifest-v2","elapsed_ns":116994423,"kind":"measurement","note":"single observation; filesystem cache not flushed","operation":"hydrate_export_input","samples":1,"size":"medium"}
+{"expected_unique_assets":32,"kind":"growth","manifest_after_bytes":1145282,"manifest_assets_after":32,"manifest_before_bytes":1097524,"size":"medium","sqlite_after_bytes":1282344,"sqlite_before_bytes":1236992,"sqlite_includes_active_wal":true}
+{"backend":"manifest-v2","kind":"unsupported","operation":"single_attachment_public_api","reason":"no comparable implemented production route in this benchmark; not measured","size":"medium"}
+{"backend":"manifest-v2","kind":"unsupported","operation":"copy_export_transaction","reason":"no comparable implemented production route in this benchmark; not measured","size":"medium"}
+{"backend":"manifest-v2","kind":"unsupported","operation":"crash_recovery","reason":"no comparable implemented production route in this benchmark; not measured","size":"medium"}
+{"backend":"manifest-v2","kind":"unsupported","operation":"process_cold_open","reason":"no comparable implemented production route in this benchmark; not measured","size":"medium"}
+{"backend":"manifest-v2","kind":"unsupported","operation":"peak_memory","reason":"no comparable implemented production route in this benchmark; not measured","size":"medium"}
+{"backend":"manifest-v2-metadata","kind":"unsupported","operation":"copy_export_transaction","reason":"no comparable implemented production route in this benchmark; not measured","size":"medium"}
+{"backend":"manifest-v2-metadata","kind":"unsupported","operation":"crash_recovery","reason":"no comparable implemented production route in this benchmark; not measured","size":"medium"}
+{"backend":"manifest-v2-metadata","kind":"unsupported","operation":"process_cold_open","reason":"no comparable implemented production route in this benchmark; not measured","size":"medium"}
+{"backend":"manifest-v2-metadata","kind":"unsupported","operation":"peak_memory","reason":"no comparable implemented production route in this benchmark; not measured","size":"medium"}
+{"backend":"sqlite-candidate","kind":"unsupported","operation":"single_attachment_public_api","reason":"no comparable implemented production route in this benchmark; not measured","size":"medium"}
+{"backend":"sqlite-candidate","kind":"unsupported","operation":"copy_export_transaction","reason":"no comparable implemented production route in this benchmark; not measured","size":"medium"}
+{"backend":"sqlite-candidate","kind":"unsupported","operation":"crash_recovery","reason":"no comparable implemented production route in this benchmark; not measured","size":"medium"}
+{"backend":"sqlite-candidate","kind":"unsupported","operation":"process_cold_open","reason":"no comparable implemented production route in this benchmark; not measured","size":"medium"}
+{"backend":"sqlite-candidate","kind":"unsupported","operation":"peak_memory","reason":"no comparable implemented production route in this benchmark; not measured","size":"medium"}
+{"asset_bytes":131072,"attachment_references":256,"history_archive_bytes":32355,"kind":"fixture","project_json_bytes":133911,"revisions":128,"size":"large","unique_assets":128}
+{"backend":"manifest-v2","elapsed_ns":526347611,"kind":"measurement","note":"single observation; filesystem cache not flushed","operation":"first_api_open","samples":1,"size":"large"}
+{"backend":"manifest-v2-metadata","elapsed_ns":16335121,"kind":"measurement","note":"single observation; filesystem cache not flushed","operation":"first_api_open","samples":1,"size":"large"}
+{"backend":"sqlite-candidate","elapsed_ns":7771588,"kind":"measurement","note":"includes existing DB integrity/migrations/session recovery route; not a pure reader","operation":"first_api_open","samples":1,"size":"large"}
+{"backend":"manifest-v2","elapsed_ns":1054811262,"kind":"measurement","note":"single observation; filesystem cache not flushed","operation":"history_status","samples":1,"size":"large"}
+{"backend":"manifest-v2-metadata","elapsed_ns":31048344,"kind":"measurement","note":"captures metadata and validates/scans complete v2 history event archive; no unrelated asset reads; not an independent fast cursor","operation":"history_status","samples":1,"size":"large"}
+{"backend":"manifest-v2-metadata","elapsed_ns":14607570,"kind":"measurement","note":"uses existing captured metadata; validates one asset with bounded size/hash plus before/after metadata recheck","operation":"single_attachment_public_api","samples":1,"size":"large"}
+{"backend":"manifest-v2-metadata","elapsed_ns":5537311,"kind":"measurement","note":"single observation; filesystem cache not flushed","operation":"snapshot_recheck","samples":1,"size":"large"}
+{"backend":"sqlite-candidate","elapsed_ns":935602,"kind":"measurement","note":"validates typed cursor; does not hash assets or full event archive","operation":"history_status","samples":1,"size":"large"}
+{"backend":"manifest-v2","elapsed_ns":2109459198,"kind":"measurement","note":"single observation; filesystem cache not flushed","operation":"metadata_save","samples":1,"size":"large"}
+{"backend":"sqlite-candidate","elapsed_ns":14921804,"kind":"measurement","note":"same typed record_commit validation; existing SQL schema only; no production writer/session adapter","operation":"metadata_save","samples":1,"size":"large"}
+{"backend":"manifest-v2","elapsed_ns":519356876,"kind":"measurement","note":"single observation; filesystem cache not flushed","operation":"explicit_previous_read","samples":1,"size":"large"}
+{"backend":"manifest-v2","elapsed_ns":1743615490,"kind":"measurement","note":"single observation; filesystem cache not flushed","operation":"hydrate_export_input","samples":1,"size":"large"}
+{"expected_unique_assets":128,"kind":"growth","manifest_after_bytes":17160570,"manifest_assets_after":128,"manifest_before_bytes":16971120,"size":"large","sqlite_after_bytes":17335144,"sqlite_before_bytes":17190912,"sqlite_includes_active_wal":true}
+{"backend":"manifest-v2","kind":"unsupported","operation":"single_attachment_public_api","reason":"no comparable implemented production route in this benchmark; not measured","size":"large"}
+{"backend":"manifest-v2","kind":"unsupported","operation":"copy_export_transaction","reason":"no comparable implemented production route in this benchmark; not measured","size":"large"}
+{"backend":"manifest-v2","kind":"unsupported","operation":"crash_recovery","reason":"no comparable implemented production route in this benchmark; not measured","size":"large"}
+{"backend":"manifest-v2","kind":"unsupported","operation":"process_cold_open","reason":"no comparable implemented production route in this benchmark; not measured","size":"large"}
+{"backend":"manifest-v2","kind":"unsupported","operation":"peak_memory","reason":"no comparable implemented production route in this benchmark; not measured","size":"large"}
+{"backend":"manifest-v2-metadata","kind":"unsupported","operation":"copy_export_transaction","reason":"no comparable implemented production route in this benchmark; not measured","size":"large"}
+{"backend":"manifest-v2-metadata","kind":"unsupported","operation":"crash_recovery","reason":"no comparable implemented production route in this benchmark; not measured","size":"large"}
+{"backend":"manifest-v2-metadata","kind":"unsupported","operation":"process_cold_open","reason":"no comparable implemented production route in this benchmark; not measured","size":"large"}
+{"backend":"manifest-v2-metadata","kind":"unsupported","operation":"peak_memory","reason":"no comparable implemented production route in this benchmark; not measured","size":"large"}
+{"backend":"sqlite-candidate","kind":"unsupported","operation":"single_attachment_public_api","reason":"no comparable implemented production route in this benchmark; not measured","size":"large"}
+{"backend":"sqlite-candidate","kind":"unsupported","operation":"copy_export_transaction","reason":"no comparable implemented production route in this benchmark; not measured","size":"large"}
+{"backend":"sqlite-candidate","kind":"unsupported","operation":"crash_recovery","reason":"no comparable implemented production route in this benchmark; not measured","size":"large"}
+{"backend":"sqlite-candidate","kind":"unsupported","operation":"process_cold_open","reason":"no comparable implemented production route in this benchmark; not measured","size":"large"}
+{"backend":"sqlite-candidate","kind":"unsupported","operation":"peak_memory","reason":"no comparable implemented production route in this benchmark; not measured","size":"large"}
+{"accepted":false,"allocation":"metadata-only; no oversize buffer","declared_bytes":41943041,"kind":"rejection","operation":"oversize_declared_asset"}
+{"accepted":false,"kind":"rejection","operation":"traversal_metadata"}

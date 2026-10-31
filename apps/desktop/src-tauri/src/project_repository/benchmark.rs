@@ -1,0 +1,274 @@
+//! Opt-in storage representation comparison, not a production folder backend.
+//! Run with --ignored --nocapture; every output line starts STORAGE_BENCHMARK.
+mod candidate;
+mod copy;
+mod crash;
+mod export;
+mod fixture;
+mod legacy_status;
+mod measurement;
+mod process;
+
+use crate::{project_history, project_storage_v2 as folder};
+use measurement::{bytes_on_disk, measured, row};
+use std::time::Instant;
+
+#[tokio::test]
+#[ignore = "explicit benchmark; emits raw timings without performance thresholds"]
+async fn compare_storage_representations() {
+    println!(
+        "STORAGE_BENCHMARK {}",
+        serde_json::json!({
+            "kind":"environment", "os":std::env::consts::OS,
+            "arch":std::env::consts::ARCH,
+            "logical_cpus":std::thread::available_parallelism().map(|n| n.get()).unwrap_or(0),
+            "filesystem":"runner temporary directory; filesystem cache not flushed",
+            "cpu_model":"collect runner metadata separately", "disk_type":"not detected",
+            "sqlite_candidate":"minimal project/history schema; DELETE rollback journal with FULL synchronous; no immutable reader; live-WAL reader purity unsupported",
+            "provenance":"synthetic model metadata/chat/binary STEP-labelled payload; no CAD geometry claim",
+            "scope":"existing APIs have different validation work; timings do not establish semantic equivalence or select a format"
+        })
+    );
+    for (label, revisions, attachments, asset_bytes) in [
+        ("small", 4, 4, 4096),
+        ("medium", 32, 64, 32768),
+        ("large", 128, 256, 131072),
+    ] {
+        let root = tempfile::tempdir().unwrap();
+        let manifest_root = root.path().join("manifest");
+        let sql_root = root.path().join("sql-candidate");
+        std::fs::create_dir(&manifest_root).unwrap();
+        std::fs::create_dir(&sql_root).unwrap();
+        let (pool, project, assets) =
+            fixture::build(&sql_root, revisions, attachments, asset_bytes).await;
+        let archive = project_history::export_history(&mut pool.acquire().await.unwrap(), &project)
+            .await
+            .unwrap();
+        project_history::validate_archive(&project, &archive).unwrap();
+        let mut staged = folder::stage_with(&manifest_root, &project, |file| {
+            Ok(assets[file.sha256.as_ref().unwrap()].clone())
+        })
+        .unwrap();
+        folder::stage_history(&manifest_root, &mut staged, &archive).unwrap();
+        folder::publish(&manifest_root, staged).unwrap();
+        pool.close().await;
+        println!(
+            "STORAGE_BENCHMARK {}",
+            serde_json::json!({"kind":"fixture","size":label,
+            "revisions":revisions,"attachment_references":attachments,"unique_assets":assets.len(),
+            "asset_bytes":asset_bytes,"history_archive_bytes":archive.len(),
+            "project_json_bytes":serde_json::to_vec(&project).unwrap().len()})
+        );
+
+        measured(label, "manifest-v2", "first_api_open", || {
+            folder::read_folder(&manifest_root).unwrap()
+        });
+        measured(label, "manifest-v2-metadata", "first_api_open", || {
+            folder::reader::FolderSnapshot::capture(&manifest_root).unwrap()
+        });
+        let started = Instant::now();
+        let reopened = candidate::open_reader(&sql_root.join("project.sqlite"))
+            .await
+            .unwrap();
+        let current = fixture::read_project(&reopened, &project.id).await;
+        row(
+            label,
+            "sqlite-delete-prototype",
+            "first_api_open",
+            started.elapsed(),
+            "prototype DELETE journal DB opened read-only/query-only with SQLite locking; validates markers/integrity/project metadata; no app migrations, index, immutable mode or agent recovery",
+        );
+        assert_eq!(
+            serde_json::to_vec(&current).unwrap(),
+            serde_json::to_vec(&project).unwrap()
+        );
+        let started = Instant::now();
+        let asset = copy::read_asset(&sql_root, &current.files[0]).unwrap();
+        assert_eq!(asset.len() as u64, current.files[0].size);
+        std::hint::black_box(asset);
+        row(label, "sqlite-delete-prototype", "single_attachment_bounded_primitive", started.elapsed(),
+            "captured descriptor; bounded regular-file size/hash validation only; no production session or metadata recheck; not equivalent to repository read_asset");
+        measured(label, "manifest-v2", "history_status", || {
+            let saved = folder::read_folder(&manifest_root).unwrap();
+            let bytes = folder::read_history(&manifest_root).unwrap().unwrap();
+            project_history::validate_archive(&saved, &bytes).unwrap();
+            let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+            let cursor: project_history::HistoryState =
+                serde_json::from_value(value["state"].clone()).unwrap();
+            (cursor.can_undo(), cursor.can_redo())
+        });
+        let started = Instant::now();
+        let metadata_snapshot = folder::reader::FolderSnapshot::capture(&manifest_root).unwrap();
+        let bytes = metadata_snapshot
+            .read_history(&manifest_root)
+            .unwrap()
+            .unwrap();
+        // read_history validates the complete event archive before returning it.
+        // Format v2 has no separate cursor entry: extracting these flags still
+        // scans/deserializes the event archive, although it avoids unrelated assets.
+        let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let cursor: project_history::HistoryState =
+            serde_json::from_value(value["state"].clone()).unwrap();
+        std::hint::black_box((cursor.can_undo(), cursor.can_redo()));
+        row(label, "manifest-v2-metadata", "history_status", started.elapsed(),
+            "captures metadata and validates/scans complete v2 history event archive; no unrelated asset reads; not an independent fast cursor");
+        let started = Instant::now();
+        let file = &metadata_snapshot.project().files[0];
+        let asset = metadata_snapshot.read_asset(&manifest_root, file).unwrap();
+        assert_eq!(asset.len() as u64, file.size);
+        std::hint::black_box(asset);
+        row(label, "manifest-v2-metadata", "single_attachment_public_api", started.elapsed(),
+            "uses existing captured metadata; validates one asset with bounded size/hash plus before/after metadata recheck");
+        measured(label, "manifest-v2-metadata", "snapshot_recheck", || {
+            metadata_snapshot.recheck(&manifest_root).unwrap()
+        });
+        let started = Instant::now();
+        let cursor = project_history::load_state(&reopened, &current)
+            .await
+            .unwrap();
+        std::hint::black_box((cursor.can_undo(), cursor.can_redo()));
+        row(
+            label,
+            "sqlite-delete-prototype",
+            "typed_cursor_from_loaded_project",
+            started.elapsed(),
+            "primitive over already loaded/validated Project; validates typed cursor; excludes Project load and does not hash assets or full event archive",
+        );
+        let started = Instant::now();
+        let status_project = fixture::read_project(&reopened, &project.id).await;
+        let status_cursor = project_history::load_state(&reopened, &status_project)
+            .await
+            .unwrap();
+        std::hint::black_box((status_cursor.can_undo(), status_cursor.can_redo()));
+        row(label,"sqlite-delete-prototype","history_status_with_project_load",started.elapsed(),
+            "prototype Project load+validation and typed cursor load inside timer; not the app history-status API or a transaction/lifecycle guarantee");
+        reopened.close().await;
+        let started = Instant::now();
+        let writer = candidate::open_writer(&sql_root.join("project.sqlite"))
+            .await
+            .unwrap();
+        row(label, "sqlite-delete-prototype", "writer_reopen", started.elapsed(),
+            "prototype separate writer startup: candidate format validation, DELETE journal and FULL synchronous; no app schema or production session lease");
+
+        let before_manifest = bytes_on_disk(&manifest_root);
+        let before_sql = bytes_on_disk(&sql_root);
+        let mut renamed = project.clone();
+        renamed.name = "Metadata update".into();
+        measured(label, "manifest-v2", "metadata_save", || {
+            let mut staged = folder::stage_with(&manifest_root, &renamed, |file| {
+                Ok(assets[file.sha256.as_ref().unwrap()].clone())
+            })
+            .unwrap();
+            folder::stage_history(&manifest_root, &mut staged, &archive).unwrap();
+            folder::publish(&manifest_root, staged).unwrap();
+        });
+        let started = Instant::now();
+        fixture::persist(&writer, Some(&current), &renamed).await;
+        row(label,"sqlite-delete-prototype","metadata_save",started.elapsed(),"same typed record_commit validation; minimal project/history schema only; writer startup measured separately; no production writer/session adapter");
+        measured(label, "manifest-v2", "explicit_previous_read", || {
+            let previous = folder::read_backup(&manifest_root).unwrap();
+            assert_eq!(previous.name, project.name);
+        });
+        measured(label, "manifest-v2", "hydrate_export_input", || {
+            let (hydrated, history) = folder::hydrate_with_history(&manifest_root).unwrap();
+            project_history::validate_archive(&hydrated, &history.unwrap()).unwrap();
+            assert!(hydrated.files.iter().all(|file| file.data.is_some()));
+        });
+        println!(
+            "STORAGE_BENCHMARK {}",
+            serde_json::json!({"kind":"growth","size":label,
+            "manifest_before_bytes":before_manifest,"manifest_after_bytes":bytes_on_disk(&manifest_root),
+            "sqlite_before_bytes":before_sql,"sqlite_after_bytes":bytes_on_disk(&sql_root),
+            "sqlite_journal_mode":"DELETE", "sqlite_synchronous":"FULL",
+            "sqlite_includes_active_writer":true,
+            "manifest_assets_after":std::fs::read_dir(manifest_root.join("assets")).unwrap().count(),
+            "expected_unique_assets":assets.len()})
+        );
+        writer.close().await;
+        let started = Instant::now();
+        let manifest_copy = root.path().join("manifest-copy");
+        let copied_manifest = copy::copy_manifest(&manifest_root, &manifest_copy)
+            .await
+            .unwrap();
+        row(label, "manifest-v2-metadata", "verified_save_copy", started.elapsed(), "new independent UUID, preserved revisions/history, source rechecked, destination fully verified; controlled prototype, not UI");
+        assert_ne!(copied_manifest.id, renamed.id);
+        assert_eq!(copied_manifest.revisions, renamed.revisions);
+        let started = Instant::now();
+        let sql_copy = root.path().join("sql-copy");
+        let copied_sql = copy::copy_sql(&sql_root, &sql_copy).await.unwrap();
+        row(label, "sqlite-delete-prototype", "verified_save_copy", started.elapsed(), "new independent project-only DB/assets, typed archive import, original source rechecked and target fully verified; controlled prototype");
+        assert_ne!(copied_sql.id, renamed.id);
+        assert_eq!(copied_sql.revisions, renamed.revisions);
+        let started = Instant::now();
+        let proof =
+            export::manifest(&manifest_root, &root.path().join("manifest.cadpack")).unwrap();
+        row(label, "manifest-v2-metadata", "cadpack_round_trip", started.elapsed(), "real CADPACK writer plus validated read-back; includes original-source checks, not a production stale-publication test");
+        export::print_proof(label, "manifest-v2-metadata", &proof);
+        let started = Instant::now();
+        let proof = export::sqlite(&sql_root, &root.path().join("sql.cadpack"))
+            .await
+            .unwrap();
+        row(label, "sqlite-delete-prototype", "cadpack_round_trip", started.elapsed(), "same actual CADPACK writer/reader with project-only SQL snapshot and bounded assets; source rechecked");
+        export::print_proof(label, "sqlite-delete-prototype", &proof);
+        process::measure(
+            &format!("{label}-copied"),
+            "manifest-v2-metadata",
+            &manifest_copy,
+            &copied_manifest,
+        )
+        .unwrap();
+        process::measure(
+            &format!("{label}-copied"),
+            "sqlite-delete-prototype",
+            &sql_copy,
+            &copied_sql,
+        )
+        .unwrap();
+        for backend in [
+            "manifest-v2",
+            "manifest-v2-metadata",
+            "sqlite-delete-prototype",
+        ] {
+            let source = if backend == "sqlite-delete-prototype" {
+                &sql_root
+            } else {
+                &manifest_root
+            };
+            process::measure(label, backend, source, &renamed).unwrap();
+        }
+        for backend in [
+            "manifest-v2",
+            "manifest-v2-metadata",
+            "sqlite-delete-prototype",
+        ] {
+            for operation in [
+                "single_attachment_public_api",
+                "production_copy_export_publication",
+                "crash_recovery",
+                "os_cold_cache_open",
+                "peak_memory",
+                "live_wal_reader_purity",
+            ] {
+                if backend == "manifest-v2-metadata" && operation == "single_attachment_public_api"
+                {
+                    continue;
+                }
+                println!(
+                    "STORAGE_BENCHMARK {}",
+                    serde_json::json!({"kind":"unsupported","size":label,"backend":backend,"operation":operation,
+                    "reason":"no comparable implemented production route in this benchmark; not measured"})
+                );
+            }
+        }
+        assert_eq!(
+            std::fs::read_dir(manifest_root.join("assets"))
+                .unwrap()
+                .count(),
+            assets.len()
+        );
+        root.close().unwrap();
+    }
+    fixture::reject_limits();
+    crash::measure().await.unwrap();
+    legacy_status::measure().await.unwrap();
+}

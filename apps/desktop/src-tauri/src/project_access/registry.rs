@@ -1,5 +1,7 @@
 use crate::core::{AppError, Result};
 use serde::Serialize;
+#[path = "writer_lease.rs"]
+mod writer_lease;
 use std::{
     collections::HashMap,
     fs::{File, OpenOptions, TryLockError},
@@ -7,6 +9,7 @@ use std::{
     path::Path,
     sync::{Arc, Mutex, Weak},
 };
+use writer_lease::WriterLease;
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -16,25 +19,35 @@ pub struct AccessStatus {
     pub owner_pid: Option<u32>,
 }
 enum Session {
-    Writer(Arc<File>),
+    Writer(Arc<WriterLease>),
     ReadOnly,
 }
 #[derive(Default)]
-struct RegistryState {
-    sessions: HashMap<String, Session>,
-    in_flight: HashMap<String, Weak<File>>,
-    read_epochs: HashMap<String, uuid::Uuid>,
+struct ProjectState {
+    session: Option<Session>,
+    in_flight: Weak<WriterLease>,
+    read_epoch: Option<uuid::Uuid>,
 }
 #[derive(Default)]
 pub struct AccessRegistry {
-    state: Mutex<RegistryState>,
+    // The map lock only resolves a per-project gate. Disk and lease operations
+    // hold that gate, so a slow source cannot block unrelated project lifecycles.
+    projects: Mutex<HashMap<String, Arc<Mutex<ProjectState>>>>,
 }
 /// Holding this guard prevents release during a nested commit or long-running task.
 #[derive(Debug)]
 pub struct WriteGuard {
-    _file: Arc<File>,
+    _lease: Arc<WriterLease>,
 }
 impl AccessRegistry {
+    fn project(&self, id: &str) -> Result<Arc<Mutex<ProjectState>>> {
+        crate::security::valid_id(id)?;
+        let mut projects = self
+            .projects
+            .lock()
+            .map_err(|_| AppError::Invalid("PROJECT_ACCESS_UNAVAILABLE".into()))?;
+        Ok(Arc::clone(projects.entry(id.into()).or_default()))
+    }
     fn owner(root: &Path, id: &str) -> Option<u32> {
         let path =
             crate::security::guarded(root, Path::new(&format!(".project-access/{id}.owner.json")))
@@ -68,7 +81,7 @@ impl AccessRegistry {
         let path =
             crate::security::guarded(root, Path::new(&format!(".project-access/{id}.lock")))?;
         std::fs::create_dir_all(path.parent().unwrap())?;
-        let mut file = OpenOptions::new()
+        let file = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
@@ -76,10 +89,13 @@ impl AccessRegistry {
             .open(path)?;
         match file.try_lock() {
             Ok(()) => {
-                file.set_len(0)?;
+                // Wrap immediately: every subsequent metadata failure must also
+                // explicitly release ownership before closing this descriptor.
+                let mut lease = WriterLease::new(file);
+                lease.file.set_len(0)?;
                 let owner = serde_json::json!({"pid":std::process::id(),"sessionId":uuid::Uuid::new_v4().to_string(),"acquiredAt":chrono::Utc::now().to_rfc3339()});
-                file.write_all(&serde_json::to_vec(&owner)?)?;
-                file.sync_all()?;
+                lease.file.write_all(&serde_json::to_vec(&owner)?)?;
+                lease.file.sync_all()?;
                 // Windows denies reading exclusively locked byte ranges. Keep informational
                 // owner metadata in a separate bounded file; the OS lock remains authoritative.
                 let temporary = crate::security::guarded(
@@ -95,48 +111,45 @@ impl AccessRegistry {
                 )?;
                 std::fs::write(&temporary, serde_json::to_vec(&owner)?)?;
                 std::fs::rename(temporary, target)?;
-                Ok(Session::Writer(Arc::new(file)))
+                Ok(Session::Writer(Arc::new(lease)))
             }
             Err(TryLockError::WouldBlock) => Ok(Session::ReadOnly),
             Err(TryLockError::Error(error)) => Err(error.into()),
         }
     }
     pub fn acquire(&self, root: &Path, id: &str) -> Result<AccessStatus> {
-        crate::security::valid_id(id)?;
-        let mut state = self
-            .state
+        let project = self.project(id)?;
+        let mut state = project
             .lock()
             .map_err(|_| AppError::Invalid("PROJECT_ACCESS_UNAVAILABLE".into()))?;
-        if matches!(state.sessions.get(id), Some(Session::Writer(_))) {
-            return Ok(Self::describe(root, id, state.sessions.get(id)));
+        if matches!(state.session, Some(Session::Writer(_))) {
+            return Ok(Self::describe(root, id, state.session.as_ref()));
         }
-        let session = if let Some(file) = state.in_flight.get(id).and_then(Weak::upgrade) {
+        let session = if let Some(file) = state.in_flight.upgrade() {
             Session::Writer(file)
         } else {
             Self::open(root, id)?
         };
-        state.sessions.insert(id.into(), session);
-        if let Some(epoch) = state.read_epochs.get_mut(id) {
+        state.session = Some(session);
+        if let Some(epoch) = &mut state.read_epoch {
             *epoch = uuid::Uuid::new_v4();
         }
-        Ok(Self::describe(root, id, state.sessions.get(id)))
+        Ok(Self::describe(root, id, state.session.as_ref()))
     }
     pub fn status(&self, root: &Path, id: &str) -> Result<AccessStatus> {
-        crate::security::valid_id(id)?;
-        let state = self
-            .state
+        let project = self.project(id)?;
+        let state = project
             .lock()
             .map_err(|_| AppError::Invalid("PROJECT_ACCESS_UNAVAILABLE".into()))?;
-        Ok(Self::describe(root, id, state.sessions.get(id)))
+        Ok(Self::describe(root, id, state.session.as_ref()))
     }
     pub fn release(&self, id: &str) -> Result<()> {
-        crate::security::valid_id(id)?;
-        let mut state = self
-            .state
+        let project = self.project(id)?;
+        let mut state = project
             .lock()
             .map_err(|_| AppError::Invalid("PROJECT_ACCESS_UNAVAILABLE".into()))?;
-        state.sessions.remove(id);
-        if let Some(epoch) = state.read_epochs.get_mut(id) {
+        state.session = None;
+        if let Some(epoch) = &mut state.read_epoch {
             *epoch = uuid::Uuid::new_v4();
         }
         // Never unlink: an old live inode and recreated lock path could have simultaneous owners.
@@ -144,27 +157,22 @@ impl AccessRegistry {
     }
     /// Memory-only lifecycle token; never opens a lock file or grants write access.
     pub(crate) fn read_epoch(&self, id: &str) -> Result<uuid::Uuid> {
-        crate::security::valid_id(id)?;
-        let mut state = self
-            .state
+        let project = self.project(id)?;
+        let mut state = project
             .lock()
             .map_err(|_| AppError::Invalid("PROJECT_ACCESS_UNAVAILABLE".into()))?;
-        Ok(*state
-            .read_epochs
-            .entry(id.into())
-            .or_insert_with(uuid::Uuid::new_v4))
+        Ok(*state.read_epoch.get_or_insert_with(uuid::Uuid::new_v4))
     }
     pub fn ensure_write(&self, root: &Path, id: &str) -> Result<WriteGuard> {
-        crate::security::valid_id(id)?;
-        let mut state = self
-            .state
+        let project = self.project(id)?;
+        let mut state = project
             .lock()
             .map_err(|_| AppError::Invalid("PROJECT_ACCESS_UNAVAILABLE".into()))?;
-        let file = match state.sessions.get(id) {
+        let file = match state.session.as_ref() {
             Some(Session::Writer(file)) => Arc::clone(file),
             Some(Session::ReadOnly) => return Err(AppError::Invalid("PROJECT_READ_ONLY".into())),
             None => {
-                if let Some(file) = state.in_flight.get(id).and_then(Weak::upgrade) {
+                if let Some(file) = state.in_flight.upgrade() {
                     file
                 } else {
                     match Self::open(root, id)? {
@@ -176,10 +184,15 @@ impl AccessRegistry {
                 }
             }
         };
-        state
-            .in_flight
-            .retain(|_, reference| reference.strong_count() > 0);
-        state.in_flight.insert(id.into(), Arc::downgrade(&file));
-        Ok(WriteGuard { _file: file })
+        state.in_flight = Arc::downgrade(&file);
+        Ok(WriteGuard { _lease: file })
     }
 }
+
+#[cfg(test)]
+#[path = "registry_tests.rs"]
+mod tests;
+
+#[cfg(all(test, unix))]
+#[path = "writer_lease_tests.rs"]
+mod writer_lease_tests;

@@ -93,7 +93,7 @@ async fn measure_inner(
     )?;
     crate::native::assets::stage_project_assets(
         state,
-        &captured.project,
+        &captured.snapshot.project,
         &captured.document,
         &workspace.path,
     )?;

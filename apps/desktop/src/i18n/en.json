@@ -1318,5 +1318,16 @@
   "PLUGIN_CAPTURE_WRITE": "The video file could not be written.",
   "PLUGIN_CAPTURE_CANCELLED": "Video recording cancelled",
   "PLUGIN_IMPORT_API_TOO_OLD": "The plugin uses functions of a newer plugin API but manifest.json declares an older version.",
-  "Plugin actions": "Plugin actions"
+  "Plugin actions": "Plugin actions",
+  "Some projects are unavailable. Refresh the catalog or explicitly reopen projects that require recovery.": "Some projects are unavailable. Refresh the catalog or explicitly reopen projects that require recovery.",
+  "PROJECT_CATALOG_LIMIT": "The project catalog exceeds the response limit. Reduce the number or size of managed projects and retry.",
+  "PROJECT_CATALOG_UNAVAILABLE": "The saved project could not be read. Refresh the catalog and check the project source.",
+  "Unavailable project": "Unavailable project",
+  "Refresh project catalog": "Refresh project catalog",
+  "This project requires recovery. No automatic repair was performed.": "This project requires recovery. No automatic repair was performed.",
+  "This project changed while it was being read. Refresh the catalog.": "This project changed while it was being read. Refresh the catalog.",
+  "This project could not be verified. Its saved files were not changed.": "This project could not be verified. Its saved files were not changed.",
+  "This project exceeds the catalog response budget. Its saved files were not changed.": "This project exceeds the catalog response budget. Its saved files were not changed.",
+  "The project changed while opening. Retry opening it.": "The project changed while opening. Retry opening it.",
+  "Opening the selected project. The current model is kept until reading succeeds.": "Opening the selected project. The current model is kept until reading succeeds."
 }

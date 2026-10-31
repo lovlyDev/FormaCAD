@@ -17,7 +17,10 @@ export async function acknowledgeRecovery(id: string): Promise<void> {
 }
 const key = "forma.projects.v1";
 export async function listProjects(): Promise<Project[]> {
-  if (native) return invoke("list_projects");
+  if (native) {
+    const { requireReadyProjects } = await import("../features/project-catalog/contract");
+    return requireReadyProjects(await invoke("list_projects"));
+  }
   const raw = localStorage.getItem(key);
   if (!raw) return [];
   try {
