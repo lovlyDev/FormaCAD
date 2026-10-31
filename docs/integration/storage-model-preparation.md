@@ -2,7 +2,7 @@
 
 Base: `1ebfccde1b36f819657fbe4788f6873213b87723`.
 Patch: [storage-model-preparation.patch](storage-model-preparation.patch).
-Status: prepared from exact base copies, NOT applied. No formatter, build, or tests were run by this preparer. `git apply --check` passes. Four source/test paths, 202 insertions and 40 deletions before formatting.
+Status: applied after explicit lovlyDev approval of all four paths. Prepared from exact base copies. No formatter, build, or tests were run by this preparer. `git apply --check` passes. Four source/test paths, 202 insertions and 40 deletions before formatting.
 
 ## RU
 
@@ -47,3 +47,4 @@ The host supplies one explicit timestamp, sampled immediately before pure prepar
 PreparedModelChange has private fields and construction, no serialized authority, and one consuming crate-visible into_parts accessor. It is not a commit receipt, lease, permission or history intent. The actual backend must still validate original source/session/location/commit expectations and history under its own genuine writer authority. Normalization keeps its existing duplicate pending entries for identical bytes; equal content addresses are not a claim that this pure module publishes or deduplicates CAS.
 
 Six synthetic pure tests cover source/metadata/revision-reference preservation, exact output descriptor and blob hashes/sizes, shared content addresses, cancellation, invalid candidates and error ordering. They were prepared but not executed. No geometry/kernel, SQL history, filesystem publication or external-folder success is claimed. Only git apply --check passed; main owns formatting, compilation and real host/worker validation after the four paths receive approval.
+Main applied the patch and ran rustfmt/diff checks. Runtime Rust tests remain pending CI because the local Windows SDK is unavailable.

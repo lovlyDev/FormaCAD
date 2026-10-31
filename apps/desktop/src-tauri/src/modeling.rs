@@ -8,6 +8,7 @@ mod build;
 pub mod commands;
 mod commit;
 mod legacy;
+pub(crate) mod prepared_change;
 mod program;
 mod workspace;
 
