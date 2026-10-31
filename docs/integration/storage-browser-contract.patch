@@ -1,0 +1,101 @@
+diff --git a/apps/desktop/e2e/kernel-health.spec.ts b/apps/desktop/e2e/kernel-health.spec.ts
+index 0131391..5b39079 100644
+--- a/apps/desktop/e2e/kernel-health.spec.ts
++++ b/apps/desktop/e2e/kernel-health.spec.ts
+@@ -21,7 +21,8 @@ for (const locale of ["ru", "en"] as const) {
+               if (command === "detect_environment") {
+                 return [{ name: "OpenCascade kernel", available: false, detail: diagnostic }];
+               }
+-              if (["list_projects", "interrupted_sessions", "permission_audit"].includes(command)) return [];
++              if (command === "list_projects") return { entries: [], serializedProjectBytes: 0 };
++              if (["interrupted_sessions", "permission_audit"].includes(command)) return [];
+               return null;
+             },
+           },
+diff --git a/apps/desktop/e2e/modelApplyHarness.tsx b/apps/desktop/e2e/modelApplyHarness.tsx
+index abc9369..93f61bb 100644
+--- a/apps/desktop/e2e/modelApplyHarness.tsx
++++ b/apps/desktop/e2e/modelApplyHarness.tsx
+@@ -8,7 +8,15 @@ export async function mountModelApplyHarness(fixture: { source: string; candidat
+   const invoke = async (command: string, args: any) => {
+     calls.push({command,args});
+     if (command === "plugin:event|listen") { listeners.set(++eventId,{event:args.event,handler:args.handler}); return eventId; }
+-    if (command === "list_projects") return Object.values(projects);
++    if (command === "list_projects") {
++      const values = Object.values(projects);
++      return { entries: values.map(project => ({ kind: "ready", rowKey: "fixture:" + project.id, project })), serializedProjectBytes: values.reduce((sum, project) => sum + new TextEncoder().encode(JSON.stringify(project)).length, 0) };
++    }
++    if (command === "read_project_snapshot") {
++      const project = projects[args.id];
++      if (!project) throw Error("PROJECT_SNAPSHOT_MISSING");
++      return project;
++    }
+     if (command === "interrupted_sessions" || command === "cad_task_status") return [];
+     if (command === "detect_environment") return [{name:"OpenCascade kernel",available:true,detail:"isolated fixture"}];
+     if (command === "acquire_project_access") return {projectId:args.projectId,mode:"write",ownerPid:1};
+diff --git a/apps/desktop/e2e/referenceMeasurementHarness.tsx b/apps/desktop/e2e/referenceMeasurementHarness.tsx
+index 32e1904..d51c9eb 100644
+--- a/apps/desktop/e2e/referenceMeasurementHarness.tsx
++++ b/apps/desktop/e2e/referenceMeasurementHarness.tsx
+@@ -6,7 +6,9 @@ export async function mountReferenceMeasurementHarness(fixture:any){
+   await mountModelApplyHarness(fixture);
+   const globals=window as any,harness=globals.__applyHarness,internals=globals.__TAURI_INTERNALS__,original=internals.invoke;
+   const {useWorkspace}=await import("../src/stores/workspace");
+-  const projects=await original("list_projects",{});
++  const catalog=await original("list_projects",{});
++  if(catalog.entries.some((entry:any)=>entry.kind!=="ready"))throw Error("Measurement fixture requires verified ready projects");
++  const projects=catalog.entries.map((entry:any)=>entry.project);
+   for(const project of projects){project.currentRevision=fixture.head;project.revisions[0].id=fixture.head;}
+   useWorkspace.getState().setProject({...projects[0]});useWorkspace.getState().setSelected("body");
+   let delayed=false,fail=false,finish:(()=>void)|null=null;
+diff --git a/apps/desktop/e2e/settings-health-demand.spec.ts b/apps/desktop/e2e/settings-health-demand.spec.ts
+index df4f658..378ed38 100644
+--- a/apps/desktop/e2e/settings-health-demand.spec.ts
++++ b/apps/desktop/e2e/settings-health-demand.spec.ts
+@@ -19,7 +19,8 @@ for (const locale of ["ru", "en"] as const) {
+               calls.push(command);
+               if (command === "get_ui_preferences") return {};
+               if (command === "detect_environment") return [{ name: "OpenCascade kernel", available: true, detail: "ready" }];
+-              if (["list_projects", "interrupted_sessions", "permission_audit"].includes(command)) return [];
++              if (command === "list_projects") return { entries: [], serializedProjectBytes: 0 };
++              if (["interrupted_sessions", "permission_audit"].includes(command)) return [];
+               return null;
+             },
+           },
+diff --git a/apps/desktop/e2e/workspace.spec.ts b/apps/desktop/e2e/workspace.spec.ts
+index 90ee967..a78d353 100644
+--- a/apps/desktop/e2e/workspace.spec.ts
++++ b/apps/desktop/e2e/workspace.spec.ts
+@@ -462,16 +462,18 @@ test("camera presets apply their intended direction", async ({ page }) => {
+     .toBeGreaterThan(10);
+ });
+
+-test("project cards generate previews and support pin, rename, and deletion", async ({
++test("project cards remain read-only before explicit pin, rename, and deletion", async ({
+   page,
+ }) => {
+   await legacyProject(page, "Project Alpha");
+-  await page.goto("/");
+-  await page.reload();
++  const storedBefore = await page.evaluate(() => localStorage.getItem("forma.projects.v1"));
++  await page.locator("button.brand").click();
+
+   const card = page.locator(".project-card").filter({ hasText: "Project Alpha" });
+   await expect(card).toBeVisible();
+-  await expect(card.locator(".project-art img")).toBeVisible({ timeout: 15000 });
++  await expect(card.locator(".project-art img")).toHaveCount(0);
++  await expect(card.locator(".project-art svg").first()).toBeVisible();
++  expect(await page.evaluate(() => localStorage.getItem("forma.projects.v1"))).toBe(storedBefore);
+
+   await card.getByRole("button", { name: "Pin project", exact: true }).click();
+   await expect(card.locator(".project-pinned")).toBeVisible();
+@@ -501,8 +503,7 @@ test("pin animation reaches the first project slot without a leftover transform"
+     projects.push({ ...projects[0], id: crypto.randomUUID(), name: "Second card", revisions: [], currentRevision: "" });
+     localStorage.setItem("forma.projects.v1", JSON.stringify(projects));
+   });
+-  await page.goto("/");
+-  await page.reload();
++  await page.locator("button.brand").click();
+   const first = page.locator(".project-card").filter({ hasText: "First card" });
+   const second = page.locator(".project-card").filter({ hasText: "Second card" });
+   const firstSlot = await first.boundingBox();
