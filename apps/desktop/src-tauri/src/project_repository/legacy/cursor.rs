@@ -17,6 +17,12 @@ pub struct HistoryStateSnapshot {
     session: ReadSession,
 }
 
+impl HistoryStateSnapshot {
+    pub(super) fn matches_raw(&self, raw: &cursor_sql::RawCursor) -> bool {
+        self.raw == *raw
+    }
+}
+
 pub async fn capture_history_state(state: &AppState, id: &str) -> Result<HistoryStateSnapshot> {
     crate::security::valid_id(id)?;
     let session = ReadSession::capture(state, id)?;

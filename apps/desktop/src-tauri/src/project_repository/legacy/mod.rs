@@ -1,5 +1,9 @@
 //! Pure committed snapshots, without recovery publication or index writes.
+mod controls;
+mod controls_folder;
+mod controls_projection;
 mod cursor;
+pub(crate) use controls::capture_controls;
 mod cursor_sql;
 mod folder;
 mod sql;

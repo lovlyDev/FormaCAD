@@ -56,3 +56,11 @@ Imported STEP-as-feature dependencies are preserved by their verified SHA-256 re
 ## Pure reads for copying and exporting
 
 Copying a current managed project and exporting `.cadpack` use a [shared project/history snapshot](project-snapshots.md) from one SQL snapshot, with folder-generation checks and a recheck after attachment reads before publication. These operations do not implicitly recover the source. Reopen a project that requires recovery, then retry. Measurements retain their compatible error codes. Saving a new copy inserts a new project into shared SQLite; the source project remains unchanged, but the complete database file need not remain byte-identical. This changes the managed backend, not external-folder in-place opening or editable-history conversion of a genuine 1.1 project.
+
+## Fast history controls
+
+For normalized managed projects, `history_status` reads a model projection and typed cursor while retaining the original opening session, raw SQL hashes and generation metadata seals. Conversation, prompt, thumbnail and inline-data values are traversed without materializing their strings. Controls do not read CAS or the event archive: enabled Undo/Redo does not certify every attachment. The action still validates the saved data it needs.
+
+SQL payload transfer and hashing remain O(payload size). Generation metadata is hashed in 32 KiB blocks. Inline attachments and noncanonical mirrors use the existing full reader; its original raw SQL must match the outer snapshot. Close/reopen, a different root, or changed payload, cursor or metadata rejects the result. Reading performs no automatic recovery or writes.
+
+Regressions in `project_history/status/fast_tests.rs` and `project_repository/legacy/controls.rs` cover large escaped Unicode chat, materialized Undo/Redo, corrupt metadata, unusable CAS/archive paths, SQL waits and session changes, full fallback and A → B → A authority substitution. The new `public_history_status_end_to_end` benchmark times the entire public route using the actual managed schema. Historical SQL-prototype `history_status` results timed a cursor for an already loaded project; new rows are named `typed_cursor_from_loaded_project` and `history_status_with_project_load`. These are not public API timings. Fixture preparation and source-purity checks are outside the timer; OS caches are not flushed.
