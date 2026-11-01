@@ -24,6 +24,8 @@ type BeforeOpen = Box<dyn FnOnce() -> std::result::Result<(), ()> + Send>;
 
 pub(super) struct Source {
     root: PathBuf,
+    original: Option<super::super::session::ReadBinding>,
+    published: Option<Arc<super::super::cas::PublishedCasBatch>>,
     // Deliberately retained before the first base xOpen and after all base xClose.
     lease: FolderLease,
     pub binding: platform::Binding,
@@ -37,16 +39,34 @@ pub(super) struct Source {
     token: String,
     #[cfg(test)]
     pub before_base_open: Mutex<Option<BeforeOpen>>,
+    #[cfg(test)]
+    pub after_base_open: Mutex<Option<BeforeOpen>>,
 }
 
 impl Source {
-    pub fn capture(root: &Path, lease: FolderLease) -> Result<Arc<Self>> {
-        Self::capture_mode(root, lease, false)
+    pub fn capture(
+        root: &Path,
+        lease: FolderLease,
+        binding: super::super::session::ReadBinding,
+    ) -> Result<Arc<Self>> {
+        binding.check_root(root)?;
+        Self::capture_mode(root, lease, false, Some(binding), None)
     }
-    pub fn capture_new(root: &Path, lease: FolderLease) -> Result<Arc<Self>> {
-        Self::capture_mode(root, lease, true)
+    pub fn capture_new(
+        root: &Path,
+        lease: FolderLease,
+        published: Arc<super::super::cas::PublishedCasBatch>,
+    ) -> Result<Arc<Self>> {
+        published.recheck_new()?;
+        Self::capture_mode(root, lease, true, None, Some(published))
     }
-    fn capture_mode(root: &Path, lease: FolderLease, creating: bool) -> Result<Arc<Self>> {
+    fn capture_mode(
+        root: &Path,
+        lease: FolderLease,
+        creating: bool,
+        original: Option<super::super::session::ReadBinding>,
+        published: Option<Arc<super::super::cas::PublishedCasBatch>>,
+    ) -> Result<Arc<Self>> {
         lease.recheck()?;
         let root = std::path::absolute(root)?;
         let pinned = lease.database_path();
@@ -73,6 +93,8 @@ impl Source {
         let assets = binding.subdirectory("assets")?;
         let source = Arc::new(Self {
             root,
+            original,
+            published,
             lease,
             binding,
             assets,
@@ -85,6 +107,8 @@ impl Source {
             token: uuid::Uuid::new_v4().to_string(),
             #[cfg(test)]
             before_base_open: Mutex::new(None),
+            #[cfg(test)]
+            after_base_open: Mutex::new(None),
         });
         source.check()?;
         let mut sources = SOURCES
@@ -104,7 +128,21 @@ impl Source {
     pub fn creating(&self) -> bool {
         self.creating.load(Ordering::Acquire)
     }
+    pub fn check_active(&self) -> Result<()> {
+        if let Some(original) = &self.original {
+            original.check_active()?;
+        }
+        Ok(())
+    }
+    pub unsafe fn attest_original(&self, base: *mut abi::File) -> Result<()> {
+        if let Some(original) = &self.original {
+            original.check_root(&self.root)?;
+            unsafe { original.attest_base(base.cast()) }?;
+        }
+        Ok(())
+    }
     pub fn start_main_open(&self) -> Result<()> {
+        self.check_active()?;
         if self.main_open_started.swap(true, Ordering::AcqRel) {
             return Err(invalid());
         }
@@ -127,6 +165,9 @@ impl Source {
         self.check()
     }
     pub fn finish_creation(&self) -> Result<()> {
+        if let Some(published) = &self.published {
+            published.recheck_new()?;
+        }
         self.check()?;
         self.promoted.store(true, Ordering::Release);
         self.creating.store(false, Ordering::Release);
@@ -153,6 +194,7 @@ impl Source {
         self.check()
     }
     pub fn promote(&self) -> Result<()> {
+        self.check_active()?;
         self.check()?;
         self.promoted.store(true, Ordering::Release);
         Ok(())
@@ -186,6 +228,12 @@ impl Source {
     fn check_current(&self) -> Result<()> {
         if let Some(error) = self.error() {
             return Err(error);
+        }
+        if let Some(original) = &self.original {
+            original.check_location()?;
+        }
+        if let Some(published) = &self.published {
+            published.recheck_identity()?;
         }
         self.lease.recheck()?;
         if !self.binding.matches_directory(&self.root)?
@@ -240,6 +288,12 @@ impl Source {
         }
     }
     pub fn can_write(&self, journal: bool) -> Result<()> {
+        // Revocation prevents a new journal/transaction, but SQLite must finish
+        // or roll back the already journaled operation using this live base.
+        // The host rejects acceptance after close and resolves uncertain COMMIT.
+        if self.journal_id()?.is_none() {
+            self.check_active()?;
+        }
         if !self.promoted() {
             return Err(invalid());
         }
@@ -251,6 +305,7 @@ impl Source {
         Ok(())
     }
     pub fn begin_journal(&self) -> Result<()> {
+        self.check_active()?;
         if !self.promoted() || self.journal_id()?.is_some() {
             return Err(invalid());
         }

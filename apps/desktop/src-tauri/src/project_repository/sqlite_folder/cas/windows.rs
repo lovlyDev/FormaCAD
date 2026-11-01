@@ -76,19 +76,8 @@ impl NewFile {
         Ok(())
     }
     pub(super) fn recheck(&self) -> Result<()> {
-        let info = information(&self.file)?;
-        let current = ordinary(&self.path)?;
-        if info.volume != self.volume
-            || info.index != self.index
-            || current.file_attributes() & 0x400 != 0
-            || current.len() != self.file.metadata()?.len()
-        {
-            return Err(changed());
-        }
+        self.recheck_identity()?;
         if let Some((hash, size)) = &self.expected {
-            if current.len() != *size as u64 {
-                return Err(changed());
-            }
             let mut bytes = vec![0; *size];
             let mut offset = 0;
             while offset < bytes.len() {
@@ -99,6 +88,23 @@ impl NewFile {
                 offset += count;
             }
             if crate::artifacts::digest(&bytes) != *hash {
+                return Err(changed());
+            }
+        }
+        self.recheck_identity()
+    }
+    pub(super) fn recheck_identity(&self) -> Result<()> {
+        let info = information(&self.file)?;
+        let current = ordinary(&self.path)?;
+        if info.volume != self.volume
+            || info.index != self.index
+            || current.file_attributes() & 0x400 != 0
+            || current.len() != self.file.metadata()?.len()
+        {
+            return Err(changed());
+        }
+        if let Some((_, size)) = &self.expected {
+            if current.len() != *size as u64 {
                 return Err(changed());
             }
         }

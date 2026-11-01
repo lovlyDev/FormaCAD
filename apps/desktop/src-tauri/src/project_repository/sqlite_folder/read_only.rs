@@ -11,7 +11,7 @@ use std::path::Path;
 
 #[cfg(any(target_os = "linux", windows))]
 #[path = "read_only/abi.rs"]
-mod abi;
+pub(super) mod abi;
 #[cfg(any(target_os = "linux", windows))]
 #[path = "read_only/authorizer.rs"]
 mod authorizer;
@@ -23,13 +23,13 @@ mod blob;
 mod io;
 #[cfg(target_os = "linux")]
 #[path = "read_only/linux.rs"]
-mod platform;
+pub(super) mod platform;
 #[cfg(windows)]
 #[path = "read_only/windows.rs"]
-mod platform;
+pub(super) mod platform;
 #[cfg(any(target_os = "linux", windows))]
 #[path = "read_only/source.rs"]
-mod source;
+pub(super) mod source;
 #[cfg(any(target_os = "linux", windows))]
 #[path = "read_only/vfs.rs"]
 mod vfs;
@@ -49,7 +49,7 @@ pub(super) struct ReadOnlyDatabase {
     #[cfg(any(target_os = "linux", windows))]
     connection: SqliteConnection,
     #[cfg(any(target_os = "linux", windows))]
-    source: std::sync::Arc<source::Source>,
+    pub(super) source: std::sync::Arc<source::Source>,
 }
 
 impl ReadOnlyDatabase {

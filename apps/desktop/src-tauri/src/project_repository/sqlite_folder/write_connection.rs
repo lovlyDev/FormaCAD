@@ -13,18 +13,11 @@ use sqlx::{Connection, SqliteConnection};
 use std::path::Path;
 
 #[cfg(any(target_os = "linux", windows))]
-#[path = "read_only/abi.rs"]
-mod abi;
+use super::read_only::{abi, platform};
 #[cfg(any(target_os = "linux", windows))]
 mod authorizer;
 #[cfg(any(target_os = "linux", windows))]
 mod io;
-#[cfg(target_os = "linux")]
-#[path = "read_only/linux.rs"]
-mod platform;
-#[cfg(windows)]
-#[path = "read_only/windows.rs"]
-mod platform;
 #[cfg(any(target_os = "linux", windows))]
 mod source;
 #[cfg(any(target_os = "linux", windows))]
@@ -55,10 +48,11 @@ impl WriteConnection {
         repository_id: &str,
         project: &crate::models::Project,
         history: Option<&[u8]>,
+        published: std::sync::Arc<super::cas::PublishedCasBatch>,
     ) -> Result<(Self, format::CommitOutcome)> {
         #[cfg(any(target_os = "linux", windows))]
         {
-            let source = source::Source::capture_new(root, lease)?;
+            let source = source::Source::capture_new(root, lease, published)?;
             let mut writer = Self::connect_unpromoted(source).await?;
             // A fresh SQLite file defaults to DELETE; do not run a mode-switch
             // pragma which could acquire unrelated authority or hide recovery.
@@ -99,7 +93,7 @@ impl WriteConnection {
         }
         #[cfg(not(any(target_os = "linux", windows)))]
         {
-            let _ = (root, lease, repository_id, project, history);
+            let _ = (root, lease, repository_id, project, history, published);
             Err(unsupported())
         }
     }
@@ -108,14 +102,15 @@ impl WriteConnection {
         root: &Path,
         lease: FolderLease,
         expected: &format::Snapshot,
+        binding: super::session::ReadBinding,
     ) -> Result<Self> {
         #[cfg(any(target_os = "linux", windows))]
         {
-            Self::open_source(source::Source::capture(root, lease)?, expected).await
+            Self::open_source(source::Source::capture(root, lease, binding)?, expected).await
         }
         #[cfg(not(any(target_os = "linux", windows)))]
         {
-            let _ = (root, lease, expected);
+            let _ = (root, lease, expected, binding);
             Err(unsupported())
         }
     }

@@ -44,6 +44,17 @@ impl NewFile {
         Ok(())
     }
     pub(super) fn recheck(&self) -> Result<()> {
+        self.recheck_identity()?;
+        if let Some((hash, size)) = &self.expected {
+            let mut bytes = vec![0; *size];
+            self.file.read_exact_at(&mut bytes, 0)?;
+            if crate::artifacts::digest(&bytes) != *hash {
+                return Err(changed());
+            }
+        }
+        self.recheck_identity()
+    }
+    pub(super) fn recheck_identity(&self) -> Result<()> {
         let actual = self.file.metadata()?;
         let current = ordinary(&self.path)?;
         if !actual.is_file()
@@ -57,13 +68,8 @@ impl NewFile {
         {
             return Err(changed());
         }
-        if let Some((hash, size)) = &self.expected {
+        if let Some((_, size)) = &self.expected {
             if actual.len() != *size as u64 {
-                return Err(changed());
-            }
-            let mut bytes = vec![0; *size];
-            self.file.read_exact_at(&mut bytes, 0)?;
-            if crate::artifacts::digest(&bytes) != *hash {
                 return Err(changed());
             }
         }

@@ -20,7 +20,7 @@ static SOURCES: OnceLock<Mutex<HashMap<String, Weak<Source>>>> = OnceLock::new()
 #[cfg(test)]
 type BeforeBaseOpen = Box<dyn FnOnce() -> std::result::Result<(), ()> + Send>;
 
-pub(super) struct Source {
+pub(in crate::project_repository::sqlite_folder) struct Source {
     root: PathBuf,
     location: LocationIdentity,
     pub binding: platform::Binding,
@@ -71,6 +71,36 @@ impl Source {
             )),
             _ => Some(invalid()),
         }
+    }
+    /// Location and sticky faults only; our writer may own a rollback journal.
+    pub fn check_binding(&self) -> Result<()> {
+        if let Some(error) = self.error() {
+            return Err(error);
+        }
+        if !self.location.recheck(&self.root, Path::new("assets"))? {
+            self.fail(2);
+            return Err(invalid());
+        }
+        Ok(())
+    }
+    pub fn check_writer_location(&self, root: &Path) -> Result<()> {
+        self.check_binding()?;
+        if !self.location.recheck(root, Path::new("assets"))?
+            || !self.binding.matches_directory(root)?
+        {
+            return Err(invalid());
+        }
+        Ok(())
+    }
+    /// SAFETY: live underlying SQLite C-ABI file, exclusively accessed in xOpen.
+    pub unsafe fn attest_writer_base(&self, base: *mut std::ffi::c_void) -> Result<()> {
+        self.check()?;
+        let expected = self.identity.get().ok_or_else(invalid)?;
+        let actual = unsafe { self.binding.actual_identity(base.cast(), "project.sqlite") }?;
+        if *expected != actual {
+            return Err(invalid());
+        }
+        self.check()
     }
     pub fn check(&self) -> Result<()> {
         if let Some(error) = self.error() {

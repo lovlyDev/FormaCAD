@@ -262,6 +262,29 @@ assets/.forma/root. Четыре новые проверки охватываю�
 БД, прерывание до schema transaction и отмену connect; это не полная crash matrix.
 Полный host create/model route ещё не подключён.
 
+`sqlite_folder/creation` объединяет проверку проекта/полного пакета вложений,
+резервирование выбранной пустой папки, CAS publication и SQL bootstrap. Блокирующая
+публикация владеет lease сама: отмена async вызывающего не освобождает её во время
+записи и не начинает SQL после утраты вызывающего. `Arc<PublishedCasBatch>`
+удерживается VFS source до фактического close; после SQL ошибки известный UUID
+не теряется при закрытии. Новые тесты проверяют чтение отдельным test process без
+app index, отказ непустой папки и отмену на реальном барьере blocking job.
+Это storage-fixtures со synthetic bytes, ещё не реальный CAD model commit.
+
+Существующая запись теперь требует `ReadBinding`, который выпускает только
+исходный FolderSession под mutex после проверки снимка. Он связывает opening,
+расположение и исходный actual DB identity; VFS сравнивает с ним фактически
+открытый writer base до разрешения journal/write. Одинаковые SQL UUID/seals копии
+не заменяют физический источник. После начала собственного journal операция
+может безопасно завершить transaction/rollback, даже если opening отозван;
+результат нельзя принимать в закрытый UI-сеанс, а возможный COMMIT разрешается
+по UUID. Close не обещает атомарно отменить уже начатый SQLite commit.
+
+SQLite C ABI и платформенные bindings компилируются один раз для reader/writer;
+дублирующие `#[path] mod` удалены после Clippy duplicate_mod/clashing extern errors.
+Проверки на каждом IO используют identity/lease, а полный CAS hash — границы
+публикации, чтобы не хешировать все вложения заново на каждой странице SQLite.
+
 CI выявил, что соединение SQLx после ошибки COMMIT нельзя повторно использовать:
 его закрывают, а outcome читают новым соединением. File-backed регрессия теперь
 проверяет именно этот маршрут. На Windows каталог writer lease открывается с

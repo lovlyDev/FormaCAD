@@ -205,6 +205,15 @@ impl<'a> PreparedCasBatch<'a> {
 }
 
 impl PublishedCasBatch {
+    /// Cheap guards for each SQLite IO operation. Full content validation is
+    /// performed at publication boundaries, not once per database page.
+    pub(super) fn recheck_identity(&self) -> Result<()> {
+        self.directory.recheck()?;
+        for file in &self.new_files {
+            file.recheck_identity()?;
+        }
+        self.directory.recheck()
+    }
     pub(super) fn recheck_new(&self) -> Result<()> {
         self.directory.recheck()?;
         for file in &self.new_files {

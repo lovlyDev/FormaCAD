@@ -3,32 +3,32 @@
 #![allow(non_snake_case)]
 use std::ffi::{c_char, c_int, c_void};
 
-pub(super) const OK: c_int = 0;
-pub(super) const ERROR: c_int = 1;
-pub(super) const NOMEM: c_int = 7;
-pub(super) const READONLY: c_int = 8;
-pub(super) const IOERR: c_int = 10;
-pub(super) const NOTFOUND: c_int = 12;
-pub(super) const CANTOPEN: c_int = 14;
-pub(super) const DENY: c_int = 1;
-pub(super) const OPEN_READONLY: c_int = 1;
-pub(super) const OPEN_MAIN_DB: c_int = 0x100;
-pub(super) const OPEN_URI: c_int = 0x40;
-pub(super) const OPEN_PRIVATECACHE: c_int = 0x40000;
-pub(super) const OPEN_FULLMUTEX: c_int = 0x10000;
-pub(super) const OPEN_NOMUTEX: c_int = 0x8000;
-pub(super) const OPEN_EXRESCODE: c_int = 0x2000000;
-pub(super) const ATTEST: c_int = 0x464f524d;
-pub(super) const HAS_MOVED: c_int = 20;
-pub(super) const WIN32_GET_HANDLE: c_int = 29;
+pub(in crate::project_repository::sqlite_folder) const OK: c_int = 0;
+pub(in crate::project_repository::sqlite_folder) const ERROR: c_int = 1;
+pub(in crate::project_repository::sqlite_folder) const NOMEM: c_int = 7;
+pub(in crate::project_repository::sqlite_folder) const READONLY: c_int = 8;
+pub(in crate::project_repository::sqlite_folder) const IOERR: c_int = 10;
+pub(in crate::project_repository::sqlite_folder) const NOTFOUND: c_int = 12;
+pub(in crate::project_repository::sqlite_folder) const CANTOPEN: c_int = 14;
+pub(in crate::project_repository::sqlite_folder) const DENY: c_int = 1;
+pub(in crate::project_repository::sqlite_folder) const OPEN_READONLY: c_int = 1;
+pub(in crate::project_repository::sqlite_folder) const OPEN_MAIN_DB: c_int = 0x100;
+pub(in crate::project_repository::sqlite_folder) const OPEN_URI: c_int = 0x40;
+pub(in crate::project_repository::sqlite_folder) const OPEN_PRIVATECACHE: c_int = 0x40000;
+pub(in crate::project_repository::sqlite_folder) const OPEN_FULLMUTEX: c_int = 0x10000;
+pub(in crate::project_repository::sqlite_folder) const OPEN_NOMUTEX: c_int = 0x8000;
+pub(in crate::project_repository::sqlite_folder) const OPEN_EXRESCODE: c_int = 0x2000000;
+pub(in crate::project_repository::sqlite_folder) const ATTEST: c_int = 0x464f524d;
+pub(in crate::project_repository::sqlite_folder) const HAS_MOVED: c_int = 20;
+pub(in crate::project_repository::sqlite_folder) const WIN32_GET_HANDLE: c_int = 29;
 
 #[repr(C)]
-pub(super) struct File {
+pub(in crate::project_repository::sqlite_folder) struct File {
     pub pMethods: *const IoMethods,
 }
 
 #[repr(C)]
-pub(super) struct IoMethods {
+pub(in crate::project_repository::sqlite_folder) struct IoMethods {
     pub iVersion: c_int,
     pub xClose: Option<unsafe extern "C" fn(*mut File) -> c_int>,
     pub xRead: Option<unsafe extern "C" fn(*mut File, *mut c_void, c_int, i64) -> c_int>,
@@ -53,7 +53,7 @@ pub(super) struct IoMethods {
 
 type Syscall = Option<unsafe extern "C" fn()>;
 #[repr(C)]
-pub(super) struct Vfs {
+pub(in crate::project_repository::sqlite_folder) struct Vfs {
     pub iVersion: c_int,
     pub szOsFile: c_int,
     pub mxPathname: c_int,

@@ -14,6 +14,9 @@ use std::{
 };
 use tokio::sync::Mutex;
 
+mod binding;
+pub(super) use binding::ReadBinding;
+
 struct Opening {
     active: AtomicBool,
 }
@@ -111,6 +114,17 @@ impl FolderSession {
         self.owns(snapshot)
     }
 
+    /// Mint authority only under this opening's original reader gate.
+    pub(super) async fn read_binding(&self, snapshot: &FolderSnapshot) -> Result<ReadBinding> {
+        self.owns(snapshot)?;
+        let mut database = self.database.lock().await;
+        self.recheck_locked(&mut database, snapshot).await?;
+        self.owns(snapshot)?;
+        Ok(ReadBinding::new(
+            Arc::clone(&database.source),
+            Arc::clone(&self.opening),
+        ))
+    }
     pub(super) async fn recheck(&self, snapshot: &FolderSnapshot) -> Result<()> {
         self.owns(snapshot)?;
         let mut database = self.database.lock().await;

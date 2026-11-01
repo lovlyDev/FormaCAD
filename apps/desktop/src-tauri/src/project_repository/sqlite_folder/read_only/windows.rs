@@ -13,17 +13,17 @@ use std::{
 
 #[repr(C)]
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
-pub(super) struct FileIdentity {
+pub(in crate::project_repository::sqlite_folder) struct FileIdentity {
     volume: u64,
     identifier: [u8; 16],
 }
-pub(super) struct Binding {
+pub(in crate::project_repository::sqlite_folder) struct Binding {
     root: PathBuf,
     identity: FileIdentity,
     _directories: Vec<File>,
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) struct FileRecord {
+pub(in crate::project_repository::sqlite_folder) struct FileRecord {
     pub identity: FileIdentity,
     pub size: u64,
 }
@@ -65,7 +65,9 @@ fn handle_identity(handle: *mut c_void) -> Result<FileIdentity> {
     Ok(identity)
 }
 
-pub(super) fn path_identity(path: &Path) -> Result<FileIdentity> {
+pub(in crate::project_repository::sqlite_folder) fn path_identity(
+    path: &Path,
+) -> Result<FileIdentity> {
     let file = OpenOptions::new()
         .read(true)
         .access_mode(0x80)
@@ -135,7 +137,7 @@ unsafe fn sqlite_handle(inner: *mut abi::File) -> Result<*mut c_void> {
 }
 
 impl Binding {
-    pub(super) fn capture(root: &Path) -> Result<Self> {
+    pub(in crate::project_repository::sqlite_folder) fn capture(root: &Path) -> Result<Self> {
         let (file, identity) = directory(root, 7)?;
         Ok(Self {
             root: root.to_path_buf(),
@@ -143,13 +145,19 @@ impl Binding {
             _directories: vec![file],
         })
     }
-    pub(super) fn path(&self, name: &str) -> PathBuf {
+    pub(in crate::project_repository::sqlite_folder) fn path(&self, name: &str) -> PathBuf {
         self.root.join(name)
     }
-    pub(super) fn alias(&self, name: &str) -> Result<CString> {
+    pub(in crate::project_repository::sqlite_folder) fn alias(
+        &self,
+        name: &str,
+    ) -> Result<CString> {
         CString::new(self.path(name).to_str().ok_or_else(invalid)?).map_err(|_| invalid())
     }
-    pub(super) fn subdirectory(&self, name: &str) -> Result<Self> {
+    pub(in crate::project_repository::sqlite_folder) fn subdirectory(
+        &self,
+        name: &str,
+    ) -> Result<Self> {
         let root = self.path(name);
         let mut ancestors: Vec<_> = root.ancestors().collect();
         ancestors.reverse();
@@ -171,10 +179,16 @@ impl Binding {
             _directories: handles,
         })
     }
-    pub(super) fn matches_directory(&self, path: &Path) -> Result<bool> {
+    pub(in crate::project_repository::sqlite_folder) fn matches_directory(
+        &self,
+        path: &Path,
+    ) -> Result<bool> {
         Ok(directory(path, 7)?.1 == self.identity)
     }
-    pub(super) fn file_record(&self, name: &str) -> Result<FileRecord> {
+    pub(in crate::project_repository::sqlite_folder) fn file_record(
+        &self,
+        name: &str,
+    ) -> Result<FileRecord> {
         let file = OpenOptions::new()
             .read(true)
             .access_mode(0x80)
@@ -189,7 +203,7 @@ impl Binding {
     }
 
     /// SAFETY: inner is a live base file, accessed only by xOpen or lock_handle.
-    pub(super) unsafe fn actual_identity(
+    pub(in crate::project_repository::sqlite_folder) unsafe fn actual_identity(
         &self,
         inner: *mut abi::File,
         name: &str,
@@ -201,7 +215,7 @@ impl Binding {
         }
         Ok(actual)
     }
-    pub(super) unsafe fn actual_file_record(
+    pub(in crate::project_repository::sqlite_folder) unsafe fn actual_file_record(
         &self,
         inner: *mut abi::File,
         name: &str,

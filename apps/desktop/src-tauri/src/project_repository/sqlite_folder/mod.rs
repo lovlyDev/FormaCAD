@@ -8,6 +8,14 @@
     )
 ))]
 mod cas;
+#[cfg(any(
+    windows,
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    )
+))]
+mod creation;
 mod format;
 mod read_only;
 #[cfg(any(target_os = "linux", windows))]

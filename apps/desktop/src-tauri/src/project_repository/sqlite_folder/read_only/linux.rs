@@ -14,22 +14,24 @@ use std::{
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) struct FileIdentity {
+pub(in crate::project_repository::sqlite_folder) struct FileIdentity {
     device: u64,
     inode: u64,
 }
-pub(super) struct Binding {
+pub(in crate::project_repository::sqlite_folder) struct Binding {
     directory: File,
     identity: FileIdentity,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) struct FileRecord {
+pub(in crate::project_repository::sqlite_folder) struct FileRecord {
     pub identity: FileIdentity,
     pub size: u64,
 }
 
-pub(super) fn path_identity(path: &Path) -> Result<FileIdentity> {
+pub(in crate::project_repository::sqlite_folder) fn path_identity(
+    path: &Path,
+) -> Result<FileIdentity> {
     let metadata = fs::symlink_metadata(path)?;
     if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.nlink() != 1 {
         return Err(invalid());
@@ -62,7 +64,7 @@ fn directory(path: &Path) -> Result<File> {
 }
 
 impl Binding {
-    pub(super) fn capture(root: &Path) -> Result<Self> {
+    pub(in crate::project_repository::sqlite_folder) fn capture(root: &Path) -> Result<Self> {
         let directory = directory(root)?;
         let actual = directory.metadata()?;
         let current = fs::symlink_metadata(root)?;
@@ -83,27 +85,39 @@ impl Binding {
             identity: identity(&actual),
         })
     }
-    pub(super) fn path(&self, name: &str) -> PathBuf {
+    pub(in crate::project_repository::sqlite_folder) fn path(&self, name: &str) -> PathBuf {
         PathBuf::from(format!(
             "/proc/self/fd/{}/{}",
             self.directory.as_raw_fd(),
             name
         ))
     }
-    pub(super) fn alias(&self, name: &str) -> Result<CString> {
+    pub(in crate::project_repository::sqlite_folder) fn alias(
+        &self,
+        name: &str,
+    ) -> Result<CString> {
         CString::new(self.path(name).as_os_str().as_encoded_bytes()).map_err(|_| invalid())
     }
 
-    pub(super) fn subdirectory(&self, name: &str) -> Result<Self> {
+    pub(in crate::project_repository::sqlite_folder) fn subdirectory(
+        &self,
+        name: &str,
+    ) -> Result<Self> {
         Self::capture(&self.path(name))
     }
-    pub(super) fn matches_directory(&self, path: &Path) -> Result<bool> {
+    pub(in crate::project_repository::sqlite_folder) fn matches_directory(
+        &self,
+        path: &Path,
+    ) -> Result<bool> {
         let metadata = fs::symlink_metadata(path)?;
         Ok(metadata.is_dir()
             && !metadata.file_type().is_symlink()
             && identity(&metadata) == self.identity)
     }
-    pub(super) fn file_record(&self, name: &str) -> Result<FileRecord> {
+    pub(in crate::project_repository::sqlite_folder) fn file_record(
+        &self,
+        name: &str,
+    ) -> Result<FileRecord> {
         let metadata = fs::symlink_metadata(self.path(name))?;
         if !metadata.is_file()
             || metadata.file_type().is_symlink()
@@ -120,7 +134,7 @@ impl Binding {
 
     /// SAFETY: inner is the live base SQLite file for this binding, protected
     /// against concurrent SQLite access by xOpen or lock_handle.
-    pub(super) unsafe fn actual_identity(
+    pub(in crate::project_repository::sqlite_folder) unsafe fn actual_identity(
         &self,
         inner: *mut abi::File,
         name: &str,
@@ -139,7 +153,7 @@ impl Binding {
         }
         Ok(current)
     }
-    pub(super) unsafe fn actual_file_record(
+    pub(in crate::project_repository::sqlite_folder) unsafe fn actual_file_record(
         &self,
         inner: *mut abi::File,
         name: &str,

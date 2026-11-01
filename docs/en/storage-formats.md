@@ -261,6 +261,29 @@ existing-file refusal, interruption before the schema transaction and cancelled
 connect; they are not the complete crash matrix. The host create/model route is
 still not connected.
 
+`sqlite_folder/creation` combines project/complete-asset validation, reservation
+of the selected empty directory, CAS publication and SQL bootstrap. The blocking
+publication job owns its lease: async cancellation cannot release it during IO
+or start SQL after the caller is gone. The VFS source retains
+`Arc<PublishedCasBatch>` through actual close; closing after SQL errors preserves
+the known commit UUID. New tests cover a separate test-process read without app
+index, nonempty-folder refusal and cancellation at an actual blocking-job barrier.
+These storage fixtures use synthetic bytes, not a real CAD model commit.
+
+Existing writes now require a `ReadBinding` minted only by the original
+FolderSession under its mutex after snapshot recheck. It binds opening, location
+and original actual DB identity. The VFS compares its actual writer base before
+allowing journal/write authority. A copy's identical SQL UUIDs/seals do not
+replace physical source authority. Once an operation owns a journal, it may
+finish or roll back after lifecycle revocation; its result must not be accepted
+into a closed UI session, and a possibly committed UUID requires resolution.
+Close does not promise atomic cancellation of an already-started SQLite commit.
+
+Reader/writer now compile a single SQLite C ABI/platform binding after Clippy
+identified duplicate modules and clashing extern declarations. Per-IO checks use
+identity/lease; full CAS hashes remain at publication boundaries instead of
+rehashing every attachment for every SQLite page.
+
 CI showed that a SQLx connection must be discarded after COMMIT failure; outcome
 resolution uses a fresh connection. The file-backed regression now follows that
 route. Windows writer directory handles request FILE_LIST_DIRECTORY because

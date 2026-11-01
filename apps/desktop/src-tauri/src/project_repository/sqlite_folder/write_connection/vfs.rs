@@ -186,6 +186,26 @@ unsafe extern "C" fn open(
         Ok(state) => state,
         Err(code) => return code,
     };
+    #[cfg(test)]
+    if !journal {
+        let hook = state
+            .source
+            .after_base_open
+            .lock()
+            .ok()
+            .and_then(|mut hook| hook.take());
+        if hook.is_some_and(|hook| hook().is_err()) {
+            state.source.fail(2);
+            return abi::IOERR;
+        }
+    }
+    if !journal
+        && !state.source.creating()
+        && unsafe { state.source.attest_original(state.base) }.is_err()
+    {
+        state.source.fail(2);
+        return abi::IOERR;
+    }
     let attested = if journal {
         unsafe { state.source.claim_journal(state.base) }
     } else if state.source.creating() {
@@ -193,7 +213,7 @@ unsafe extern "C" fn open(
     } else {
         unsafe { state.source.attest(state.base) }
     };
-    if attested.is_err() {
+    if attested.is_err() || (!journal && state.source.check_active().is_err()) {
         state.source.fail(2);
         return abi::IOERR;
     }

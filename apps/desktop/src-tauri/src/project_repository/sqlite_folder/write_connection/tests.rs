@@ -13,6 +13,20 @@ use std::{
     time::Duration,
 };
 
+async fn binding(
+    session: &super::super::session::FolderSession,
+) -> super::super::session::ReadBinding {
+    let snapshot = session.capture().await.unwrap();
+    session.read_binding(&snapshot).await.unwrap()
+}
+fn published(lease: &FolderLease) -> std::sync::Arc<super::super::cas::PublishedCasBatch> {
+    std::sync::Arc::new(
+        super::super::cas::PreparedCasBatch::validate(&project(), &[])
+            .unwrap()
+            .publish_new(lease)
+            .unwrap(),
+    )
+}
 type Files = BTreeMap<PathBuf, Vec<u8>>;
 fn files(root: &Path) -> Files {
     fn walk(root: &Path, at: &Path, result: &mut Files) {
@@ -86,9 +100,16 @@ async fn lease_available(root: &Path) {
 async fn unpromoted_connection_reads_but_cannot_write_recover_or_create_journals() {
     let temp = tempfile::tempdir().unwrap();
     let snapshot = fixture(temp.path()).await;
+    let session = super::super::session::FolderSession::open(temp.path())
+        .await
+        .unwrap();
     let before = files(temp.path());
-    let source =
-        source::Source::capture(temp.path(), FolderLease::acquire(temp.path()).unwrap()).unwrap();
+    let source = source::Source::capture(
+        temp.path(),
+        FolderLease::acquire(temp.path()).unwrap(),
+        binding(&session).await,
+    )
+    .unwrap();
     let mut writer = WriteConnection::connect_unpromoted(source).await.unwrap();
     assert!(!writer.source.promoted());
     assert!(snapshot.same_saved_state(&format::read(writer.conn()).await.unwrap()));
@@ -129,8 +150,11 @@ async fn unpromoted_connection_reads_but_cannot_write_recover_or_create_journals
 async fn verified_writer_commits_fcp1_and_keeps_lease_until_actual_close() {
     let temp = tempfile::tempdir().unwrap();
     let snapshot = fixture(temp.path()).await;
+    let session = super::super::session::FolderSession::open(temp.path())
+        .await
+        .unwrap();
     let lease = FolderLease::acquire(temp.path()).unwrap();
-    let mut writer = WriteConnection::open(temp.path(), lease, &snapshot)
+    let mut writer = WriteConnection::open(temp.path(), lease, &snapshot, binding(&session).await)
         .await
         .unwrap();
     assert!(FolderLease::acquire(temp.path()).is_err());
@@ -152,6 +176,7 @@ async fn verified_writer_commits_fcp1_and_keeps_lease_until_actual_close() {
     assert!(writer.recheck(&snapshot).await.is_err());
     writer.recheck(&after).await.unwrap();
     assert!(!temp.path().join("project.sqlite-journal").exists());
+    assert_eq!(session.capture().await.unwrap().project().name, next.name);
     // SQLx Drop closes asynchronously. The VFS file retains its Source/lease
     // through base xClose, rather than releasing it with this Rust wrapper.
     drop(writer);
@@ -175,13 +200,19 @@ async fn wrong_captured_head_and_foreign_schema_are_rejected_without_writes() {
     let a = tempfile::tempdir().unwrap();
     let b = tempfile::tempdir().unwrap();
     let expected = fixture(a.path()).await;
+    let session = super::super::session::FolderSession::open(a.path())
+        .await
+        .unwrap();
     fixture(b.path()).await;
     let before = files(b.path());
-    assert!(
-        WriteConnection::open(b.path(), FolderLease::acquire(b.path()).unwrap(), &expected)
-            .await
-            .is_err()
-    );
+    assert!(WriteConnection::open(
+        b.path(),
+        FolderLease::acquire(b.path()).unwrap(),
+        &expected,
+        binding(&session).await
+    )
+    .await
+    .is_err());
     lease_available(b.path()).await;
     assert_eq!(files(b.path()), before);
     let mut raw = SqliteConnection::connect_with(
@@ -194,11 +225,14 @@ async fn wrong_captured_head_and_foreign_schema_are_rejected_without_writes() {
         .unwrap();
     raw.close().await.unwrap();
     let before = files(b.path());
-    assert!(
-        WriteConnection::open(b.path(), FolderLease::acquire(b.path()).unwrap(), &expected)
-            .await
-            .is_err()
-    );
+    assert!(WriteConnection::open(
+        b.path(),
+        FolderLease::acquire(b.path()).unwrap(),
+        &expected,
+        binding(&session).await
+    )
+    .await
+    .is_err());
     lease_available(b.path()).await;
     assert_eq!(files(b.path()), before);
 }
@@ -207,8 +241,15 @@ async fn wrong_captured_head_and_foreign_schema_are_rejected_without_writes() {
 async fn cancelling_connect_while_base_open_waits_does_not_release_its_lease() {
     let temp = tempfile::tempdir().unwrap();
     let expected = fixture(temp.path()).await;
-    let source =
-        source::Source::capture(temp.path(), FolderLease::acquire(temp.path()).unwrap()).unwrap();
+    let session = super::super::session::FolderSession::open(temp.path())
+        .await
+        .unwrap();
+    let source = source::Source::capture(
+        temp.path(),
+        FolderLease::acquire(temp.path()).unwrap(),
+        binding(&session).await,
+    )
+    .unwrap();
     let (entered, waiting) = tokio::sync::oneshot::channel();
     let (release, ready) = std::sync::mpsc::sync_channel(1);
     *source.before_base_open.lock().unwrap() = Some(Box::new(move || {
@@ -238,6 +279,10 @@ async fn foreign_sidecars_are_refused_without_removal_or_recovery() {
     for suffix in ["-journal", "-wal", "-shm"] {
         let temp = tempfile::tempdir().unwrap();
         let expected = fixture(temp.path()).await;
+        let session = super::super::session::FolderSession::open(temp.path())
+            .await
+            .unwrap();
+        let original = binding(&session).await;
         fs::write(
             temp.path().join(format!("project.sqlite{suffix}")),
             b"foreign sidecar; do not repair",
@@ -247,7 +292,8 @@ async fn foreign_sidecars_are_refused_without_removal_or_recovery() {
         assert!(WriteConnection::open(
             temp.path(),
             FolderLease::acquire(temp.path()).unwrap(),
-            &expected
+            &expected,
+            original
         )
         .await
         .is_err());
@@ -260,8 +306,15 @@ async fn foreign_sidecars_are_refused_without_removal_or_recovery() {
 async fn real_hot_journal_created_after_preflight_is_never_recovered_by_connect() {
     let temp = tempfile::tempdir().unwrap();
     let expected = fixture(temp.path()).await;
-    let source =
-        source::Source::capture(temp.path(), FolderLease::acquire(temp.path()).unwrap()).unwrap();
+    let session = super::super::session::FolderSession::open(temp.path())
+        .await
+        .unwrap();
+    let source = source::Source::capture(
+        temp.path(),
+        FolderLease::acquire(temp.path()).unwrap(),
+        binding(&session).await,
+    )
+    .unwrap();
     let root = temp.path().to_path_buf();
     let proof = std::sync::Arc::new(std::sync::Mutex::new(None));
     let recorded = std::sync::Arc::clone(&proof);
@@ -333,12 +386,14 @@ async fn create_new_fcp1_closes_and_fresh_guarded_reader_validates() {
     let lease = FolderLease::initialize_empty(temp.path()).unwrap();
     fs::create_dir(temp.path().join("assets")).unwrap();
     let project = project();
+    let batch = published(&lease);
     let (mut writer, outcome) = WriteConnection::create(
         temp.path(),
         lease,
         &uuid::Uuid::new_v4().to_string(),
         &project,
         None,
+        batch,
     )
     .await
     .unwrap();
@@ -379,12 +434,14 @@ async fn creation_refuses_existing_or_raced_leaf_without_overwriting() {
         fs::create_dir(temp.path().join("assets")).unwrap();
         fs::write(temp.path().join("project.sqlite"), bytes).unwrap();
         let before = files(temp.path());
+        let batch = published(&lease);
         assert!(WriteConnection::create(
             temp.path(),
             lease,
             &uuid::Uuid::new_v4().to_string(),
             &project(),
-            None
+            None,
+            batch,
         )
         .await
         .is_err());
@@ -393,7 +450,8 @@ async fn creation_refuses_existing_or_raced_leaf_without_overwriting() {
     let temp = tempfile::tempdir().unwrap();
     let lease = FolderLease::initialize_empty(temp.path()).unwrap();
     fs::create_dir(temp.path().join("assets")).unwrap();
-    let source = source::Source::capture_new(temp.path(), lease).unwrap();
+    let batch = published(&lease);
+    let source = source::Source::capture_new(temp.path(), lease, batch).unwrap();
     let target = temp.path().join("project.sqlite");
     *source.before_base_open.lock().unwrap() = Some(Box::new(move || {
         fs::write(target, b"raced foreign leaf").map_err(|_| ())
@@ -410,7 +468,8 @@ async fn interrupted_bootstrap_is_never_a_complete_project() {
     let temp = tempfile::tempdir().unwrap();
     let lease = FolderLease::initialize_empty(temp.path()).unwrap();
     fs::create_dir(temp.path().join("assets")).unwrap();
-    let source = source::Source::capture_new(temp.path(), lease).unwrap();
+    let batch = published(&lease);
+    let source = source::Source::capture_new(temp.path(), lease, batch).unwrap();
     let writer = WriteConnection::connect_unpromoted(source).await.unwrap();
     // Interruption before the one atomic initialization transaction: physical
     // zero-length DB exists but must not be accepted as a saved FCP1 project.
@@ -421,12 +480,14 @@ async fn interrupted_bootstrap_is_never_a_complete_project() {
         .is_err());
     assert_eq!(before, files(temp.path()));
     let lease = FolderLease::acquire(temp.path()).unwrap();
+    let batch = published(&lease);
     assert!(WriteConnection::create(
         temp.path(),
         lease,
         &uuid::Uuid::new_v4().to_string(),
         &project(),
-        None
+        None,
+        batch,
     )
     .await
     .is_err());
@@ -438,7 +499,8 @@ async fn cancelling_create_base_open_retains_initialization_lease() {
     let temp = tempfile::tempdir().unwrap();
     let lease = FolderLease::initialize_empty(temp.path()).unwrap();
     fs::create_dir(temp.path().join("assets")).unwrap();
-    let source = source::Source::capture_new(temp.path(), lease).unwrap();
+    let batch = published(&lease);
+    let source = source::Source::capture_new(temp.path(), lease, batch).unwrap();
     let (entered, waiting) = tokio::sync::oneshot::channel();
     let (release, ready) = std::sync::mpsc::sync_channel(1);
     *source.before_base_open.lock().unwrap() = Some(Box::new(move || {
@@ -467,18 +529,162 @@ async fn public_writer_open_and_create_futures_are_send() {
     }
     let existing = tempfile::tempdir().unwrap();
     let snapshot = fixture(existing.path()).await;
+    let session = super::super::session::FolderSession::open(existing.path())
+        .await
+        .unwrap();
     let lease = FolderLease::acquire(existing.path()).unwrap();
-    assert_send(WriteConnection::open(existing.path(), lease, &snapshot));
+    assert_send(WriteConnection::open(
+        existing.path(),
+        lease,
+        &snapshot,
+        binding(&session).await,
+    ));
     let fresh = tempfile::tempdir().unwrap();
     let lease = FolderLease::initialize_empty(fresh.path()).unwrap();
     fs::create_dir(fresh.path().join("assets")).unwrap();
     let project = project();
     let repository_id = uuid::Uuid::new_v4().to_string();
+    let batch = published(&lease);
     assert_send(WriteConnection::create(
         fresh.path(),
         lease,
         &repository_id,
         &project,
         None,
+        batch,
     ));
+}
+
+#[tokio::test]
+async fn identical_copy_cannot_use_original_physical_binding() {
+    let a = tempfile::tempdir().unwrap();
+    let b = tempfile::tempdir().unwrap();
+    let expected = fixture(a.path()).await;
+    let session = super::super::session::FolderSession::open(a.path())
+        .await
+        .unwrap();
+    fs::create_dir(b.path().join("assets")).unwrap();
+    fs::copy(
+        a.path().join("project.sqlite"),
+        b.path().join("project.sqlite"),
+    )
+    .unwrap();
+    let before = files(b.path());
+    assert!(WriteConnection::open(
+        b.path(),
+        FolderLease::acquire(b.path()).unwrap(),
+        &expected,
+        binding(&session).await
+    )
+    .await
+    .is_err());
+    lease_available(b.path()).await;
+    assert_eq!(before, files(b.path()));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn close_during_initial_writer_open_revokes_binding_and_preserves_source() {
+    let temp = tempfile::tempdir().unwrap();
+    let expected = fixture(temp.path()).await;
+    let session = super::super::session::FolderSession::open(temp.path())
+        .await
+        .unwrap();
+    let source = source::Source::capture(
+        temp.path(),
+        FolderLease::acquire(temp.path()).unwrap(),
+        binding(&session).await,
+    )
+    .unwrap();
+    let before = files(temp.path());
+    let (entered, waiting) = tokio::sync::oneshot::channel();
+    let (release, ready) = std::sync::mpsc::sync_channel(1);
+    *source.before_base_open.lock().unwrap() = Some(Box::new(move || {
+        entered.send(()).map_err(|_| ())?;
+        ready.recv_timeout(Duration::from_secs(5)).map_err(|_| ())
+    }));
+    let task = tokio::spawn(async move { WriteConnection::open_source(source, &expected).await });
+    waiting.await.unwrap();
+    session.close();
+    release.send(()).unwrap();
+    assert!(task.await.unwrap().is_err());
+    lease_available(temp.path()).await;
+    assert_eq!(before, files(temp.path()));
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn identical_leaf_replacement_after_source_capture_is_not_adopted() {
+    let temp = tempfile::tempdir().unwrap();
+    let expected = fixture(temp.path()).await;
+    let session = super::super::session::FolderSession::open(temp.path())
+        .await
+        .unwrap();
+    let source = source::Source::capture(
+        temp.path(),
+        FolderLease::acquire(temp.path()).unwrap(),
+        binding(&session).await,
+    )
+    .unwrap();
+    let root = temp.path().to_owned();
+    let original = fs::read(root.join("project.sqlite")).unwrap();
+    fs::write(root.join("copy.sqlite"), &original).unwrap();
+    *source.before_base_open.lock().unwrap() = Some(Box::new(move || {
+        fs::rename(root.join("project.sqlite"), root.join("original.sqlite")).map_err(|_| ())?;
+        fs::rename(root.join("copy.sqlite"), root.join("project.sqlite")).map_err(|_| ())
+    }));
+    assert!(WriteConnection::open_source(source, &expected)
+        .await
+        .is_err());
+    lease_available(temp.path()).await;
+    assert_eq!(
+        original,
+        fs::read(temp.path().join("project.sqlite")).unwrap()
+    );
+    assert_eq!(
+        original,
+        fs::read(temp.path().join("original.sqlite")).unwrap()
+    );
+    assert!(!temp.path().join("project.sqlite-journal").exists());
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn identical_leaf_aba_cannot_hide_the_actual_opened_copy() {
+    let temp = tempfile::tempdir().unwrap();
+    let expected = fixture(temp.path()).await;
+    let session = super::super::session::FolderSession::open(temp.path())
+        .await
+        .unwrap();
+    let source = source::Source::capture(
+        temp.path(),
+        FolderLease::acquire(temp.path()).unwrap(),
+        binding(&session).await,
+    )
+    .unwrap();
+    let root = temp.path().to_owned();
+    let original = fs::read(root.join("project.sqlite")).unwrap();
+    fs::write(root.join("copy.sqlite"), &original).unwrap();
+    let before = root.clone();
+    *source.before_base_open.lock().unwrap() = Some(Box::new(move || {
+        fs::rename(
+            before.join("project.sqlite"),
+            before.join("original.sqlite"),
+        )
+        .map_err(|_| ())?;
+        fs::rename(before.join("copy.sqlite"), before.join("project.sqlite")).map_err(|_| ())
+    }));
+    *source.after_base_open.lock().unwrap() = Some(Box::new(move || {
+        fs::rename(root.join("project.sqlite"), root.join("copy.sqlite")).map_err(|_| ())?;
+        fs::rename(root.join("original.sqlite"), root.join("project.sqlite")).map_err(|_| ())
+    }));
+    assert!(WriteConnection::open_source(source, &expected)
+        .await
+        .is_err());
+    lease_available(temp.path()).await;
+    assert_eq!(
+        original,
+        fs::read(temp.path().join("project.sqlite")).unwrap()
+    );
+    assert_eq!(original, fs::read(temp.path().join("copy.sqlite")).unwrap());
+    assert!(!temp.path().join("project.sqlite-journal").exists());
 }
