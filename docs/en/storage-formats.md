@@ -211,6 +211,15 @@ source preservation and independent locks; they do not establish CAD commits,
 crash recovery or stage 4 completion. Local compilation needs the Windows MSVC
 linker. CI must verify this code before production routing is connected.
 
+`sqlite_folder/session` retains a distinct opening and serializes access to its
+SQLite connection. Capture and recheck compare repository/project UUIDs, commit
+identity and validated state hashes. Close immediately revokes the opening,
+including operations waiting for the mutex. Another opening cannot accept a
+snapshot even from a copied folder with identical UUIDs. Asset reads require the
+exact captured descriptor, verify CAS and then recheck SQL state. New regressions
+cover copying/reopening, metadata commits during a live session, close while
+waiting and asset replacement. These also require execution in CI.
+
 The [measurement contract and exact patch](../integration/storage-measurement-session.md)
 target the current main baseline. lovlyDev separately authorized the six listed
 files on 29 October 2026, and the patch is applied in the task branch. Compilation
