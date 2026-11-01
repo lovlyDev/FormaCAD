@@ -1,0 +1,640 @@
+diff --git a/apps/desktop/src-tauri/src/modeling.rs b/apps/desktop/src-tauri/src/modeling.rs
+index 110dc2a..e009cf4 100644
+--- a/apps/desktop/src-tauri/src/modeling.rs
++++ b/apps/desktop/src-tauri/src/modeling.rs
+@@ -12,6 +12,8 @@ mod legacy;
+ pub(crate) mod prepared_change;
+ pub(crate) mod prepared_request;
+ mod program;
++pub(crate) mod repository_apply;
++pub(crate) use build::GeneratedModel;
+ mod workspace;
+ 
+ fn publish(outcome: apply::ApplyOutcome, app: &tauri::AppHandle) -> Project {
+diff --git a/apps/desktop/src-tauri/src/modeling/apply.rs b/apps/desktop/src-tauri/src/modeling/apply.rs
+index d513375..d42d047 100644
+--- a/apps/desktop/src-tauri/src/modeling/apply.rs
++++ b/apps/desktop/src-tauri/src/modeling/apply.rs
+@@ -1,21 +1,11 @@
+ //! Host model-apply boundary. No UI runtime, no worker path supplied by IPC.
+-use super::{
+-    build, commit,
+-    prepared_request::{self, PreparedRequest},
+-};
++use super::repository_apply::{self, managed::ManagedHost, ApplyRuntime, RepositoryApply};
+ use crate::{
+     agents::review_plan::ReviewPlan,
+-    core::{AppError, AppState, Result},
++    core::{AppState, Result},
+     models::Project,
+ };
+-use std::{
+-    path::Path,
+-    sync::{
+-        atomic::{AtomicBool, Ordering},
+-        Arc,
+-    },
+-};
+-
++use std::path::Path;
+ pub struct ApplyRequest {
+     pub project_id: String,
+     pub program: String,
+@@ -48,7 +38,7 @@ pub struct ApplyOutcome {
+ }
+ 
+ pub async fn apply(state: &AppState, request: ApplyRequest) -> Result<ApplyOutcome> {
+-    apply_inner(state, request, None).await
++    run_managed(state, request, None).await
+ }
+ 
+ /// Rust-only test seam. The caller cannot skip host permissions or commit checks.
+@@ -58,101 +48,28 @@ pub async fn apply_with_executable(
+     request: ApplyRequest,
+     executable: &Path,
+ ) -> Result<ApplyOutcome> {
+-    apply_inner(state, request, Some(executable)).await
++    run_managed(state, request, Some(executable)).await
+ }
+ 
+-fn cancelled(cancel: &AtomicBool) -> Result<()> {
+-    if cancel.load(Ordering::Relaxed) {
+-        Err(AppError::Invalid("CAD_TASK_CANCELLED".into()))
+-    } else {
+-        Ok(())
+-    }
+-}
+-async fn current_snapshot(state: &AppState, original: &Project) -> Result<Project> {
+-    let latest = crate::projects::get(state, &original.id).await?;
+-    if latest.current_revision != original.current_revision || latest.files != original.files {
+-        return Err(AppError::Invalid(
+-            "Project changed during modeling; retry the request".into(),
+-        ));
+-    }
+-    Ok(latest)
+-}
+-
+-async fn apply_inner(
++async fn run_managed(
+     state: &AppState,
+     request: ApplyRequest,
+     executable: Option<&Path>,
+ ) -> Result<ApplyOutcome> {
+-    let _access = crate::project_access::ensure_write(state, &request.project_id)?;
+-    let original = crate::projects::get(state, &request.project_id).await?;
+-    let prepared = match prepared_request::prepare(&original, &request)? {
+-        PreparedRequest::NoOp => {
+-            return Ok(ApplyOutcome {
+-                project: original,
+-                committed: false,
+-            })
+-        }
+-        PreparedRequest::Apply(prepared) => *prepared,
++    let project_id = request.project_id.clone();
++    let host = ManagedHost {
++        state,
++        project_id: &project_id,
++        executable,
+     };
+-    crate::permissions::consume(state, &request.project_id, "modify_project").await?;
+-    let cancel = Arc::new(AtomicBool::new(false));
+-    {
+-        let mut tasks = state.tasks.lock().await;
+-        if tasks.contains_key(&request.project_id) {
+-            return Err(AppError::Invalid(
+-                "A project task is already running".into(),
+-            ));
+-        }
+-        tasks.insert(request.project_id.clone(), cancel.clone());
+-    }
+-    let result = async {
+-        let permit = state
+-            .cad_tasks
+-            .acquire(&request.project_id, "model_build", cancel.clone())
+-            .await?;
+-        // Never build an outdated captured head merely because the queue became available.
+-        current_snapshot(state, &original).await?;
+-        cancelled(&cancel)?;
+-        let generated = build::build(
+-            state,
+-            &original,
+-            &request.program,
+-            prepared.program(),
+-            request.review_plan.as_ref().zip(prepared.review_document()),
+-            cancel.clone(),
+-            executable,
+-        )
+-        .await?;
+-        drop(permit);
+-        cancelled(&cancel)?;
+-        let _writes = state.writes.lock().await;
+-        cancelled(&cancel)?;
+-        let latest = current_snapshot(state, &original).await?;
+-        let (job, saved_program) = prepared.into_commit_parts();
+-        let project = commit::commit(
+-            state,
+-            latest,
+-            generated,
+-            job,
+-            saved_program,
+-            request.prompt.clone(),
+-            &cancel,
+-        )
+-        .await?;
+-        Ok(ApplyOutcome {
++    match repository_apply::apply(ApplyRuntime::from_state(state), &host, request).await? {
++        RepositoryApply::NoOp(project) => Ok(ApplyOutcome {
++            project,
++            committed: false,
++        }),
++        RepositoryApply::Published(project) => Ok(ApplyOutcome {
+             project,
+             committed: true,
+-        })
+-    }
+-    .await;
+-    // Cooperative cancellation/errors remove only this job's registration.
+-    // Future abort/panic cleanup is intentionally not claimed by this boundary.
+-    let mut tasks = state.tasks.lock().await;
+-    if tasks
+-        .get(&request.project_id)
+-        .is_some_and(|registered| Arc::ptr_eq(registered, &cancel))
+-    {
+-        tasks.remove(&request.project_id);
++        }),
+     }
+-    result
+ }
+diff --git a/apps/desktop/src-tauri/src/modeling/commit.rs b/apps/desktop/src-tauri/src/modeling/commit.rs
+index 662d18a..5761ea0 100644
+--- a/apps/desktop/src-tauri/src/modeling/commit.rs
++++ b/apps/desktop/src-tauri/src/modeling/commit.rs
+@@ -1,9 +1,8 @@
+-use super::build::GeneratedModel;
++use super::prepared_change::PreparedModelChange;
+ use crate::{
+     core::{AppState, Result},
+     models::Project,
+ };
+-use std::sync::atomic::AtomicBool;
+ 
+ pub(super) fn program_for_revision(
+     program: &str,
+@@ -20,23 +19,14 @@ pub(super) fn program_for_revision(
+     Ok(program.trim().to_string())
+ }
+ 
+-/// Called only under the host write lock after expected-head validation.
+-pub(super) async fn commit(
++/// Persist only a candidate assembled by the common orchestrator under its host locks.
++pub(super) async fn persist_prepared(
+     state: &AppState,
+-    project: Project,
+-    model: GeneratedModel,
+-    job: String,
+-    program: String,
+-    prompt: String,
+-    cancel: &AtomicBool,
++    prepared: PreparedModelChange,
+ ) -> Result<Project> {
+-    let now = chrono::Utc::now().to_rfc3339();
+-    let prepared =
+-        super::prepared_change::prepare(project, model, job, program, prompt, now, cancel)?;
+     let (project, pending) = prepared.into_parts();
+     crate::projects::persist(state, project, pending, None).await
+ }
+-
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+diff --git a/apps/desktop/src-tauri/src/modeling/repository_apply.rs b/apps/desktop/src-tauri/src/modeling/repository_apply.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/modeling/repository_apply.rs
+@@ -0,0 +1,167 @@
++//! One modeling algorithm. Hosts retain source authority and durable publication.
++use super::{
++    apply::ApplyRequest,
++    prepared_change::{self, PreparedModelChange},
++    prepared_request::{self, PreparedApply, PreparedRequest},
++    GeneratedModel,
++};
++use crate::{
++    cad_tasks::CadTaskGate,
++    core::{AppError, AppState, Result},
++    models::Project,
++};
++use std::{
++    collections::HashMap,
++    future::Future,
++    sync::{
++        atomic::{AtomicBool, Ordering},
++        Arc,
++    },
++};
++use tokio::sync::Mutex;
++
++pub(super) mod managed;
++
++/// Runtime services only: no project SQL, paths, grants or project access registry.
++pub(crate) struct ApplyRuntime<'a> {
++    tasks: &'a Mutex<HashMap<String, Arc<AtomicBool>>>,
++    gate: &'a CadTaskGate,
++}
++impl<'a> ApplyRuntime<'a> {
++    pub(crate) fn from_state(state: &'a AppState) -> Self {
++        Self {
++            tasks: &state.tasks,
++            gate: &state.cad_tasks,
++        }
++    }
++}
++
++/// A publication receipt is backend-specific. Published never means confirmed
++/// success by itself: a folder receipt can retain an indeterminate commit UUID.
++pub(crate) enum RepositoryApply<R> {
++    NoOp(Project),
++    Published(R),
++}
++
++/// Static dispatch; every asynchronous operation promises Send. An owned host
++/// may contain Arc<FolderSession>; snapshots/authorization cannot be IPC data.
++pub(crate) trait ApplyHost: Sync {
++    type Snapshot: Send + Sync;
++    type Access: Send;
++    type Authorization: Send;
++    type Publication<'a>: Send
++    where
++        Self: 'a;
++    type Receipt: Send;
++
++    /// Managed project ID or an opening-specific UUID, never a folder project ID.
++    fn task_key(&self) -> &str;
++    fn project(snapshot: &Self::Snapshot) -> &Project;
++    fn capture(&self) -> impl Future<Output = Result<(Self::Access, Self::Snapshot)>> + Send;
++    fn authorize(&self) -> impl Future<Output = Result<Self::Authorization>> + Send;
++    /// Recheck original source lifecycle and model/history seals; retain latest metadata.
++    fn latest<'a>(
++        &'a self,
++        original: &'a Self::Snapshot,
++    ) -> impl Future<Output = Result<Self::Snapshot>> + Send + 'a;
++    /// Delegate to the existing executor. Folder adapters supply their own bounded
++    /// captured asset reader; managed keeps its existing build wrapper/classification.
++    fn build<'a>(
++        &'a self,
++        original: &'a Self::Snapshot,
++        request: &'a ApplyRequest,
++        prepared: &'a PreparedApply,
++        cancel: Arc<AtomicBool>,
++    ) -> impl Future<Output = Result<GeneratedModel>> + Send + 'a;
++    fn lock_publication(&self) -> impl Future<Output = Result<Self::Publication<'_>>> + Send;
++    /// Consume genuine backend authority and the common prepared candidate.
++    /// Both source snapshots survive through the actual durable commit.
++    fn publish<'a>(
++        &'a self,
++        original: &'a Self::Snapshot,
++        latest: &'a Self::Snapshot,
++        authorization: Self::Authorization,
++        guard: Self::Publication<'a>,
++        prepared: PreparedModelChange,
++    ) -> impl Future<Output = Result<Self::Receipt>> + Send + 'a;
++}
++
++fn cancelled(cancel: &AtomicBool) -> Result<()> {
++    if cancel.load(Ordering::Relaxed) {
++        Err(AppError::Invalid("CAD_TASK_CANCELLED".into()))
++    } else {
++        Ok(())
++    }
++}
++
++pub(crate) async fn apply<H: ApplyHost>(
++    runtime: ApplyRuntime<'_>,
++    host: &H,
++    request: ApplyRequest,
++) -> Result<RepositoryApply<H::Receipt>> {
++    let (_access, original) = host.capture().await?;
++    if H::project(&original).id != request.project_id {
++        return Err(AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into()));
++    }
++    let prepared = match prepared_request::prepare(H::project(&original), &request)? {
++        PreparedRequest::NoOp => return Ok(RepositoryApply::NoOp(H::project(&original).clone())),
++        PreparedRequest::Apply(prepared) => *prepared,
++    };
++    let authorization = host.authorize().await?;
++    let key = host.task_key();
++    let cancel = Arc::new(AtomicBool::new(false));
++    {
++        let mut tasks = runtime.tasks.lock().await;
++        if tasks.contains_key(key) {
++            return Err(AppError::Invalid(
++                "A project task is already running".into(),
++            ));
++        }
++        tasks.insert(key.into(), cancel.clone());
++    }
++    let result = async {
++        let permit = runtime
++            .gate
++            .acquire(key, "model_build", cancel.clone())
++            .await?;
++        host.latest(&original).await?;
++        cancelled(&cancel)?;
++        let generated = host
++            .build(&original, &request, &prepared, cancel.clone())
++            .await?;
++        drop(permit);
++        cancelled(&cancel)?;
++        let guard = host.lock_publication().await?;
++        cancelled(&cancel)?;
++        let latest = host.latest(&original).await?;
++        let (job, saved_program) = prepared.into_commit_parts();
++        let candidate = prepared_change::prepare(
++            H::project(&latest).clone(),
++            generated,
++            job,
++            saved_program,
++            request.prompt,
++            chrono::Utc::now().to_rfc3339(),
++            &cancel,
++        )?;
++        cancelled(&cancel)?;
++        let receipt = host
++            .publish(&original, &latest, authorization, guard, candidate)
++            .await?;
++        Ok(RepositoryApply::Published(receipt))
++    }
++    .await;
++    // Preserve the current ordinary Result cleanup contract. This is NOT
++    // abort/panic cleanup; dropping a future is not proof of publication rollback.
++    let mut tasks = runtime.tasks.lock().await;
++    if tasks
++        .get(key)
++        .is_some_and(|registered| Arc::ptr_eq(registered, &cancel))
++    {
++        tasks.remove(key);
++    }
++    result
++}
++
++#[cfg(test)]
++mod tests;
+diff --git a/apps/desktop/src-tauri/src/modeling/repository_apply/managed.rs b/apps/desktop/src-tauri/src/modeling/repository_apply/managed.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/modeling/repository_apply/managed.rs
+@@ -0,0 +1,97 @@
++//! Managed source adapter; never used to authorize or store external folders.
++use super::{ApplyHost, GeneratedModel, PreparedApply, PreparedModelChange};
++use crate::{
++    core::{AppError, AppState, Result},
++    modeling::{apply::ApplyRequest, build, commit},
++    models::Project,
++    project_access::WriteGuard,
++    project_repository::legacy::{self, CommittedSnapshot},
++};
++use std::{
++    path::Path,
++    sync::{atomic::AtomicBool, Arc},
++};
++use tokio::sync::MutexGuard;
++
++pub(in crate::modeling) struct ManagedHost<'a> {
++    pub state: &'a AppState,
++    pub project_id: &'a str,
++    pub executable: Option<&'a Path>,
++}
++
++impl ApplyHost for ManagedHost<'_> {
++    type Snapshot = CommittedSnapshot;
++    type Access = WriteGuard;
++    type Authorization = ();
++    type Publication<'a>
++        = MutexGuard<'a, ()>
++    where
++        Self: 'a;
++    type Receipt = Project;
++
++    fn task_key(&self) -> &str {
++        self.project_id
++    }
++    fn project(snapshot: &Self::Snapshot) -> &Project {
++        &snapshot.project
++    }
++    async fn capture(&self) -> Result<(WriteGuard, CommittedSnapshot)> {
++        let guard = crate::project_access::ensure_write(self.state, self.project_id)?;
++        let snapshot = legacy::capture_with_history(self.state, self.project_id).await?;
++        Ok((guard, snapshot))
++    }
++    async fn authorize(&self) -> Result<()> {
++        crate::permissions::consume(self.state, self.project_id, "modify_project").await
++    }
++    async fn latest<'a>(&'a self, original: &'a CommittedSnapshot) -> Result<CommittedSnapshot> {
++        legacy::recheck_lifecycle(self.state, original)?;
++        let latest = legacy::capture_with_history(self.state, self.project_id).await?;
++        legacy::recheck_lifecycle(self.state, original)?;
++        let before = &original.project;
++        let after = &latest.project;
++        if before.current_revision != after.current_revision
++            || before.files != after.files
++            || before.revisions != after.revisions
++            || original.history != latest.history
++        {
++            return Err(AppError::Invalid(
++                "Project changed during modeling; retry the request".into(),
++            ));
++        }
++        Ok(latest)
++    }
++    async fn build<'a>(
++        &'a self,
++        original: &'a CommittedSnapshot,
++        request: &'a ApplyRequest,
++        prepared: &'a PreparedApply,
++        cancel: Arc<AtomicBool>,
++    ) -> Result<GeneratedModel> {
++        build::build(
++            self.state,
++            &original.project,
++            &request.program,
++            prepared.program(),
++            request.review_plan.as_ref().zip(prepared.review_document()),
++            cancel,
++            self.executable,
++        )
++        .await
++    }
++    async fn lock_publication(&self) -> Result<MutexGuard<'_, ()>> {
++        Ok(self.state.writes.lock().await)
++    }
++    async fn publish<'a>(
++        &'a self,
++        original: &'a CommittedSnapshot,
++        latest: &'a CommittedSnapshot,
++        _authorization: (),
++        _guard: MutexGuard<'a, ()>,
++        prepared: PreparedModelChange,
++    ) -> Result<Project> {
++        legacy::recheck_lifecycle(self.state, original)?;
++        legacy::recheck(self.state, latest).await?;
++        legacy::recheck_lifecycle(self.state, original)?;
++        commit::persist_prepared(self.state, prepared).await
++    }
++}
+diff --git a/apps/desktop/src-tauri/src/modeling/repository_apply/tests.rs b/apps/desktop/src-tauri/src/modeling/repository_apply/tests.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/modeling/repository_apply/tests.rs
+@@ -0,0 +1,152 @@
++//! Real isolated managed SQL/ReadSession and queue tests; no geometry claim.
++use super::*;
++use crate::project_repository::legacy::read_test_fixture as fixture;
++const SOURCE: &str = "result = cq.Workplane('XY').box(40,20,10)";
++
++fn request(project: &Project, source: &str) -> ApplyRequest {
++    ApplyRequest::new(
++        project.id.clone(),
++        source.into(),
++        "edit".into(),
++        project.current_revision.clone(),
++    )
++}
++
++fn assert_send<T: Send>(_: T) {}
++
++#[tokio::test]
++async fn no_op_needs_no_grant_or_task_and_future_is_send() {
++    let directory = tempfile::tempdir().unwrap();
++    let state = fixture::state(directory.path()).await;
++    let mut project = fixture::project(&state, 32).await;
++    project.revisions[0].program = Some(SOURCE.into());
++    fixture::replace(&state, &project, false).await;
++    let host = managed::ManagedHost {
++        state: &state,
++        project_id: &project.id,
++        executable: None,
++    };
++    assert_send(apply(
++        ApplyRuntime::from_state(&state),
++        &host,
++        request(&project, SOURCE),
++    ));
++    let before = fixture::logical(&state, &project.id).await;
++    let outcome = apply(
++        ApplyRuntime::from_state(&state),
++        &host,
++        request(&project, SOURCE),
++    )
++    .await
++    .unwrap();
++    assert!(matches!(outcome, RepositoryApply::NoOp(_)));
++    assert!(state.tasks.lock().await.is_empty());
++    assert!(state.cad_tasks.status().unwrap().is_empty());
++    assert_eq!(before, fixture::logical(&state, &project.id).await);
++    let audit: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM permissions")
++        .fetch_one(&state.pool)
++        .await
++        .unwrap();
++    assert_eq!(audit, 0);
++}
++
++#[tokio::test]
++async fn latest_preserves_metadata_but_rejects_same_head_revision_tampering() {
++    let directory = tempfile::tempdir().unwrap();
++    let state = fixture::state(directory.path()).await;
++    let project = fixture::project(&state, 32).await;
++    let host = managed::ManagedHost {
++        state: &state,
++        project_id: &project.id,
++        executable: None,
++    };
++    let (_access, original) = host.capture().await.unwrap();
++    let mut renamed = project.clone();
++    renamed.name = "Metadata updated while queued".into();
++    fixture::replace(&state, &renamed, false).await;
++    let latest = host.latest(&original).await.unwrap();
++    assert_eq!(latest.project.name, renamed.name);
++    renamed.revisions[0].program = Some(SOURCE.into());
++    fixture::replace(&state, &renamed, false).await;
++    assert!(host.latest(&original).await.is_err());
++}
++
++#[tokio::test]
++async fn history_seal_rejects_saved_head_aba_even_when_project_returns_to_original() {
++    let directory = tempfile::tempdir().unwrap();
++    let state = fixture::state(directory.path()).await;
++    let project = fixture::project(&state, 32).await;
++    let host = managed::ManagedHost {
++        state: &state,
++        project_id: &project.id,
++        executable: None,
++    };
++    let (_access, original) = host.capture().await.unwrap();
++    fixture::next_head(&state, &project).await;
++    // Simulate an old head restored while durable history records the intervening
++    // transition. Identical head/files/revisions must not revive the captured job.
++    fixture::replace(&state, &project, false).await;
++    assert!(host.latest(&original).await.is_err());
++}
++
++#[tokio::test]
++async fn queued_stale_job_never_enters_worker_and_cleans_own_registration() {
++    let directory = tempfile::tempdir().unwrap();
++    let state = fixture::state(directory.path()).await;
++    let project = fixture::project(&state, 32).await;
++    let host = managed::ManagedHost {
++        state: &state,
++        project_id: &project.id,
++        executable: None,
++    };
++    state.grants.lock().await.insert(
++        uuid::Uuid::new_v4().to_string(),
++        crate::permissions::Grant {
++            project_id: project.id.clone(),
++            action: "modify_project".into(),
++            approved: true,
++            expires: std::time::Instant::now() + std::time::Duration::from_secs(60),
++        },
++    );
++    let occupied = state
++        .cad_tasks
++        .acquire(
++            &project.id,
++            "test_barrier",
++            Arc::new(AtomicBool::new(false)),
++        )
++        .await
++        .unwrap();
++    let mutation = async {
++        // Bound the wait so a failed registration fails the test instead of hanging.
++        tokio::time::timeout(std::time::Duration::from_secs(5), async {
++            loop {
++                if state.tasks.lock().await.contains_key(&project.id) {
++                    break;
++                }
++                tokio::task::yield_now().await;
++            }
++        })
++        .await
++        .unwrap();
++        fixture::next_head(&state, &project).await;
++        drop(occupied);
++    };
++    let (outcome, ()) = tokio::join!(
++        apply(
++            ApplyRuntime::from_state(&state),
++            &host,
++            request(&project, SOURCE)
++        ),
++        mutation
++    );
++    match outcome {
++        Err(AppError::Invalid(message)) => assert_eq!(
++            message,
++            "Project changed during modeling; retry the request"
++        ),
++        _ => panic!("queued stale job reached worker or changed error classification"),
++    }
++    assert!(state.tasks.lock().await.is_empty());
++    assert!(state.cad_tasks.status().unwrap().is_empty());
++}
