@@ -2,6 +2,7 @@ use super::apply::ApplyRequest;
 use crate::{
     cad_ir::{Command, Document},
     core::{AppError, AppState, Result},
+    models::Project,
 };
 
 pub async fn prepare(
@@ -11,10 +12,27 @@ pub async fn prepare(
     prompt: String,
     expected_revision: String,
 ) -> Result<ApplyRequest> {
-    if commands.len() > 256 {
+    check_count(commands.len())?;
+    let project = crate::projects::get(state, &project_id).await?;
+    prepare_for_snapshot(&project, commands, prompt, expected_revision)
+}
+
+fn check_count(count: usize) -> Result<()> {
+    if count > 256 {
         return Err(AppError::Invalid("Too many CAD commands".into()));
     }
-    let project = crate::projects::get(state, &project_id).await?;
+    Ok(())
+}
+
+/// Snapshot-only preparation: no project reload, permissions, worker or storage.
+/// The host must validate its original source again before publishing a result.
+pub(crate) fn prepare_for_snapshot(
+    project: &Project,
+    commands: Vec<Command>,
+    prompt: String,
+    expected_revision: String,
+) -> Result<ApplyRequest> {
+    check_count(commands.len())?;
     if project.current_revision.as_deref() != Some(&expected_revision) {
         return Err(AppError::Invalid(
             "Project changed; retry the CAD edit".into(),
@@ -36,7 +54,7 @@ pub async fn prepare(
     let updated = crate::cad_ir::apply_commands(&current, &expected_revision, &next, &commands)
         .map_err(crate::cad_ir::app_error)?;
     let mut request = ApplyRequest::new(
-        project_id,
+        project.id.clone(),
         serde_json::to_string(&updated)?,
         prompt,
         Some(expected_revision),

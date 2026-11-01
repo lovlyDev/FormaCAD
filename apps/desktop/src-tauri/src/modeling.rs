@@ -10,6 +10,7 @@ mod commit;
 pub(crate) mod execution;
 mod legacy;
 pub(crate) mod prepared_change;
+pub(crate) mod prepared_request;
 mod program;
 mod workspace;
 

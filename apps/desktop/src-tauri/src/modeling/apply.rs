@@ -1,5 +1,8 @@
 //! Host model-apply boundary. No UI runtime, no worker path supplied by IPC.
-use super::{build, commit, program};
+use super::{
+    build, commit,
+    prepared_request::{self, PreparedRequest},
+};
 use crate::{
     agents::review_plan::ReviewPlan,
     core::{AppError, AppState, Result},
@@ -82,47 +85,15 @@ async fn apply_inner(
 ) -> Result<ApplyOutcome> {
     let _access = crate::project_access::ensure_write(state, &request.project_id)?;
     let original = crate::projects::get(state, &request.project_id).await?;
-    if request.program.trim().is_empty()
-        || request.program.len() > 60000
-        || request.prompt.len() > 16000
-    {
-        return Err(AppError::Invalid("Invalid modeling request".into()));
-    }
-    let prepared = program::prepare(&request.program)?;
-    if original.current_revision != request.expected_revision {
-        return Err(AppError::Invalid(
-            "Project changed; regenerate the model from its current revision".into(),
-        ));
-    }
-    let current = original
-        .revisions
-        .iter()
-        .find(|revision| Some(&revision.id) == original.current_revision.as_ref());
-    let review_document = request
-        .review_plan
-        .as_ref()
-        .map(|review| {
-            let candidate: crate::cad_ir::Document = serde_json::from_str(&request.program)?;
-            let previous = current
-                .and_then(|revision| revision.program.as_ref())
-                .and_then(|source| serde_json::from_str::<crate::cad_ir::Document>(source).ok());
-            review.validate(&candidate, previous.as_ref())?;
-            Ok::<_, AppError>(candidate)
-        })
-        .transpose()?;
-    if request.review_plan.is_none()
-        && current.and_then(|revision| revision.program.as_deref()) == Some(request.program.trim())
-    {
-        return Ok(ApplyOutcome {
-            project: original,
-            committed: false,
-        });
-    }
-    let job = request
-        .next_revision
-        .clone()
-        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-    let saved_program = commit::program_for_revision(&request.program, prepared.typed, &job)?;
+    let prepared = match prepared_request::prepare(&original, &request)? {
+        PreparedRequest::NoOp => {
+            return Ok(ApplyOutcome {
+                project: original,
+                committed: false,
+            })
+        }
+        PreparedRequest::Apply(prepared) => *prepared,
+    };
     crate::permissions::consume(state, &request.project_id, "modify_project").await?;
     let cancel = Arc::new(AtomicBool::new(false));
     {
@@ -146,8 +117,8 @@ async fn apply_inner(
             state,
             &original,
             &request.program,
-            &prepared,
-            request.review_plan.as_ref().zip(review_document.as_ref()),
+            prepared.program(),
+            request.review_plan.as_ref().zip(prepared.review_document()),
             cancel.clone(),
             executable,
         )
@@ -157,6 +128,7 @@ async fn apply_inner(
         let _writes = state.writes.lock().await;
         cancelled(&cancel)?;
         let latest = current_snapshot(state, &original).await?;
+        let (job, saved_program) = prepared.into_commit_parts();
         let project = commit::commit(
             state,
             latest,

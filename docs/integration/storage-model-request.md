@@ -2,7 +2,7 @@
 
 Inspected base: `79431c23d59b58609248ec57df763d71031c6356`.
 Patch: [storage-model-request.patch](storage-model-request.patch).
-Status: **prepared for explicit approval; NOT applied**. Existing target paths are unchanged from that base. Their latest shared extraction is approved execution commit `4a36824`. All proposed edits exist only in `.local/storage-model-request-preparation` copies and this patch.
+Status: **applied after lovlyDev explicitly authorized all five paths**. Existing target paths are unchanged from that base. Their latest shared extraction is approved execution commit `4a36824`. All proposed edits exist only in `.local/storage-model-request-preparation` copies and this patch.
 
 ## RU
 

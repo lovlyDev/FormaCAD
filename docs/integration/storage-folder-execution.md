@@ -2,7 +2,7 @@
 
 Base inspected: `383fcf94e4b306e15cddd5a0dd708c5986d4f897` (task branch; the six target paths match the preparation copies).
 Patch: [storage-folder-execution.patch](storage-folder-execution.patch).
-Next separate scope: [snapshot-based model request preparation / подготовка запроса из снимка](storage-model-request.md), prepared for owner approval and not applied.
+Next separate scope: [snapshot-based model request preparation / подготовка запроса из снимка](storage-model-request.md), applied after separate owner approval for its five paths.
 Status: **applied after explicit lovlyDev approval for all six paths**. `git apply --check` succeeded before application against the task worktree. Only copies under `.local/storage-execution-preparation` were formatted with rustfmt; no production/shared file was edited and no build or test was executed by this preparer. Six source/test paths, 418 insertions and 144 deletions.
 
 ## RU
