@@ -183,6 +183,12 @@ the unnecessary dereference without weakening lint.
 
 ## Shared integration
 
+The next real CAD executor seam has a separate
+[exact contract and patch](../integration/storage-folder-execution.md) for six
+files. It is not applied: two native asset files require separate Issue #3
+scope agreement under specification §5. The patch does not establish a working
+folder model commit.
+
 ### Independent SQLite backend foundations (stage 4, verification)
 
 `project_repository/sqlite_folder` introduces a separate FCP1 schema
