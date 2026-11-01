@@ -39,7 +39,11 @@ fn files(root: &Path) -> Files {
             } else {
                 result.insert(
                     path.strip_prefix(root).unwrap().to_owned(),
-                    fs::read(path).unwrap(),
+                    if metadata.len() == 0 {
+                        vec![]
+                    } else {
+                        fs::read(path).unwrap()
+                    },
                 );
             }
         }

@@ -297,6 +297,19 @@ was applied after separate approval for five files. It extracts existing limits,
 program, ReviewPlan, no-op and job checks without changing managed permission/task
 ordering. Full source-aware host orchestration is still incomplete.
 
+The trusted `FolderSession::apply_history` backend now uses the existing pure
+history planner and session commit route. It requires a captured snapshot rather
+than a revision ID. New synthetic storage regressions cover undo, a fresh child
+process reading its CAS artifact, reopening for redo, and stale/closed refusal.
+These tests do not establish CAD geometry correctness and await execution in CI.
+
+At `1c5d59e`, Linux library CI passed 387 tests (9 ignored). Native run
+41326510425 passed 454 library tests, 11 worker tests and host suites of 7/7/9;
+storage comparison and Clippy also passed. Windows aborted when a test hook read
+an empty locked writer-lock file. The fixture now checks its zero length without
+reading locked bytes, and test hooks catch panics before returning across C ABI.
+The new history tests and Windows correction require a fresh CI run.
+
 Runtime CI at 79431c2 found excessive VFS refusal: optional SYNC/COMMIT_PHASETWO
 pager notifications returned READONLY. They now report NOTFOUND without delegation,
 as SQLite permits. Bootstrap authorization allows REINDEX solely for the frozen

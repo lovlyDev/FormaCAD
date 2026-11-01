@@ -298,6 +298,21 @@ exact snapshot для commit внутри прежнего opening.
 limits/program/ReviewPlan/no-op/job проверки без изменения порядка managed
 permissions/tasks. Полный source-aware host orchestration ещё не подключён.
 
+Доверенный backend `FolderSession::apply_history` использует существующий чистый
+планировщик истории и настоящий session commit. Ему нужен захваченный снимок,
+а не один revision ID. Новые синтетические проверки хранилища покрывают undo,
+чтение CAS отдельным дочерним процессом, повторное открытие для redo и отказ
+устаревшему/закрытому снимку. Они не доказывают корректность CAD-геометрии и
+ещё требуют выполнения в CI.
+
+На `1c5d59e` Linux library CI прошёл 387 тестов (9 ignored). Native-запуск
+41326510425 прошёл 454 library-теста, 11 worker-тестов и host suites 7/7/9;
+storage comparison и Clippy также прошли. Windows прервал процесс, когда тестовый
+hook прочитал пустой заблокированный writer-lock файл. Теперь fixture проверяет
+нулевую длину без чтения заблокированных байтов, а тестовые hooks перехватывают
+panic до возврата через C ABI. Новые history-тесты и исправление Windows требуют
+свежего CI.
+
 Runtime CI 79431c2 выявил лишние отказы VFS: optional pager notifications SYNC и
 COMMIT_PHASETWO ошибочно возвращали READONLY; теперь они сообщают NOTFOUND без
 делегирования, как допускает SQLite. Bootstrap authorizer разрешает REINDEX

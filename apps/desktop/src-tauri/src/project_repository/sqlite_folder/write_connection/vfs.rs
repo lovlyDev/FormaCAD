@@ -168,7 +168,10 @@ unsafe extern "C" fn open(
             .ok()
             .and_then(|mut hook| hook.take());
         if let Some(hook) = hook {
-            if hook().is_err() {
+            if !matches!(
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(hook)),
+                Ok(Ok(()))
+            ) {
                 source.fail(2);
                 return abi::IOERR;
             }
@@ -194,7 +197,12 @@ unsafe extern "C" fn open(
             .lock()
             .ok()
             .and_then(|mut hook| hook.take());
-        if hook.is_some_and(|hook| hook().is_err()) {
+        if hook.is_some_and(|hook| {
+            !matches!(
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(hook)),
+                Ok(Ok(()))
+            )
+        }) {
             state.source.fail(2);
             return abi::IOERR;
         }
