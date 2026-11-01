@@ -112,6 +112,13 @@ impl ReadOnlyDatabase {
         &mut self.connection
     }
 
+    /// Synchronous filesystem/opening check for guarded CAS publication. SQL
+    /// saved-state seals still require the caller's transactional recheck.
+    #[cfg(any(target_os = "linux", windows))]
+    pub(super) fn recheck_location(&self) -> Result<()> {
+        self.source.check()
+    }
+
     /// Bounded CAS read through SQLite's own OS-file bookkeeping. This avoids
     /// raw FD-close lock loss even if a malicious CAS leaf aliases the DB.
     /// The caller must subsequently recheck its SQL commit/revision seals.

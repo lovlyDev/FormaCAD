@@ -1,4 +1,5 @@
-//! Real memory-only SQL tests for the production format. No CAS or CAD claims.
+//! Real SQL format tests, including a file-backed uncertain-COMMIT fixture.
+//! No CAS or CAD claims.
 use super::*;
 use sqlx::{sqlite::SqliteConnectOptions, Connection};
 
@@ -61,7 +62,12 @@ async fn rejected_sqlite_commit_preserves_known_identity_without_replaying_opera
     unsafe extern "C" fn reject(_: *mut std::ffi::c_void) -> i32 {
         1
     }
-    let mut connection = connection().await;
+    let temporary = tempfile::tempdir().unwrap();
+    let options = SqliteConnectOptions::new()
+        .filename(temporary.path().join("project.sqlite"))
+        .create_if_missing(true)
+        .foreign_keys(true);
+    let mut connection = SqliteConnection::connect_with(&options).await.unwrap();
     let project = project();
     let before = initialized(&mut connection, &project).await;
     {
@@ -90,6 +96,14 @@ async fn rejected_sqlite_commit_preserves_known_identity_without_replaying_opera
         }
         other => panic!("COMMIT failure must retain its identity, got {other:?}"),
     };
+    // A COMMIT error can leave SQLx's transaction bookkeeping out of sync with
+    // SQLite's automatic rollback. Discard it; outcome resolution must use a
+    // fresh connection, never attempt another transaction on the failed one.
+    connection.close().await.unwrap();
+    let mut connection =
+        SqliteConnection::connect_with(&options.create_if_missing(false).read_only(true))
+            .await
+            .unwrap();
     let after = read(&mut connection).await.unwrap();
     assert!(before.same_saved_state(&after));
     assert_eq!(after.project().name, project.name);

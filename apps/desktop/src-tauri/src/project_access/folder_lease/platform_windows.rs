@@ -14,6 +14,7 @@ use std::{
 };
 
 const FILE_READ_ATTRIBUTES: u32 = 0x80;
+const FILE_LIST_DIRECTORY: u32 = 0x1;
 const FILE_SHARE_READ_WRITE: u32 = 0x3;
 const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
 const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
@@ -87,8 +88,11 @@ fn regular(file: &File) -> Result<()> {
 }
 
 fn directory(path: &Path) -> Result<File> {
+    // Attribute-only opens are excluded from Windows' delete-sharing checks.
+    // LIST_DIRECTORY is the directory form of READ_DATA and makes retaining
+    // this non-delete-sharing handle actually prevent directory renaming.
     let file = OpenOptions::new()
-        .access_mode(FILE_READ_ATTRIBUTES)
+        .access_mode(FILE_READ_ATTRIBUTES | FILE_LIST_DIRECTORY)
         .share_mode(FILE_SHARE_READ_WRITE)
         .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
         .open(path)?;

@@ -185,8 +185,8 @@ the unnecessary dereference without weakening lint.
 
 The next real CAD executor seam has a separate
 [exact contract and patch](../integration/storage-folder-execution.md) for six
-files. It is not applied: two native asset files require separate Issue #3
-scope agreement under specification §5. The patch does not establish a working
+files. It was applied after lovlyDev separately authorized all six paths,
+including the two Issue #3 native asset files under specification §5. This does not establish a working
 folder model commit.
 
 ### Independent SQLite backend foundations (stage 4, verification)
@@ -229,6 +229,32 @@ open/write user action yet. Tests cover the SQL contract, sidecar/WAL refusal,
 source preservation and independent locks; they do not establish CAD commits,
 crash recovery or stage 4 completion. Local compilation needs the Windows MSVC
 linker. CI must verify this code before production routing is connected.
+
+`sqlite_folder/cas` validates the whole candidate and pending batch before IO.
+Existing objects are verified only through the VFS; new objects use `create_new`
+and are written and flushed before SQL references appear. The published batch
+retains its directory, writer lease and original new-file handles until SQL
+outcome resolution. Failure leaves an unreferenced object for explicit recovery
+instead of overwriting or deleting an existing file. Bootstrap requires all
+candidate bytes and refuses any existing digest. Linux flushes the assets
+directory; Windows uses write-through and new-file flushes. Process-crash tests
+do not prove arbitrary-device power-loss durability. Flushing the root after
+creating assets remains part of the future bootstrap protocol.
+
+`sqlite_folder/write_connection` initially opens existing FCP1 without permission
+to mutate data or recover journals. Under `BEGIN IMMEDIATE`, it verifies the
+schema and full captured snapshot before permitting its own DELETE rollback
+journal. The VFS retains the lease through actual base-file close, including
+cancelled SQLx connect and asynchronous Drop. Foreign journal/WAL/SHM, a different
+head or schema cause refusal. Linux journal unlink remains an optimistic check
+under the cooperative lease, without claiming atomic unlink-if-inode-matches
+against an unrelated namespace swap. This layer also remains test-only.
+
+CI showed that a SQLx connection must be discarded after COMMIT failure; outcome
+resolution uses a fresh connection. The file-backed regression now follows that
+route. Windows writer directory handles request FILE_LIST_DIRECTORY because
+attribute-only opens do not enforce the intended delete-sharing check; the
+assets-retention test detected this limitation.
 
 `sqlite_folder/session` retains a distinct opening and serializes access to its
 SQLite connection. Capture and recheck compare repository/project UUIDs, commit
