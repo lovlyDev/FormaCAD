@@ -172,8 +172,8 @@ mod supported {
         fs::create_dir(&assets).unwrap();
         let database_bytes = fs::read(temp.path().join("project.sqlite")).unwrap();
         let hash = crate::artifacts::digest(&database_bytes);
-        fs::hard_link(temp.path().join("project.sqlite"), assets.join(&hash)).unwrap();
         let mut database = ReadOnlyDatabase::open(temp.path()).await.unwrap();
+        fs::hard_link(temp.path().join("project.sqlite"), assets.join(&hash)).unwrap();
         let before = files(temp.path());
         let mut writer = SqliteConnection::connect_with(
             &SqliteConnectOptions::new().filename(temp.path().join("project.sqlite")),
@@ -204,9 +204,34 @@ mod supported {
         );
         writer.execute("ROLLBACK").await.unwrap();
         writer.close().await.unwrap();
+        assert_eq!(files(temp.path()), before);
+        fs::remove_file(assets.join(&hash)).unwrap();
         database.recheck().await.unwrap();
         database.close().await.unwrap();
-        assert_eq!(files(temp.path()), before);
+    }
+
+    #[tokio::test]
+    async fn hardlinked_main_database_refuses_an_ambiguous_journal_namespace() {
+        let original = tempfile::tempdir().unwrap();
+        let alias = tempfile::tempdir().unwrap();
+        fixture(original.path()).await;
+        fs::hard_link(
+            original.path().join("project.sqlite"),
+            alias.path().join("project.sqlite"),
+        )
+        .unwrap();
+        // A reader through the alias must not ignore recovery state associated
+        // with the other filename. Refusal does not open a raw database FD.
+        fs::write(
+            original.path().join("project.sqlite-journal"),
+            b"foreign-name journal fixture",
+        )
+        .unwrap();
+        let before_original = files(original.path());
+        let before_alias = files(alias.path());
+        assert!(ReadOnlyDatabase::open(alias.path()).await.is_err());
+        assert_eq!(files(original.path()), before_original);
+        assert_eq!(files(alias.path()), before_alias);
     }
 
     #[tokio::test]

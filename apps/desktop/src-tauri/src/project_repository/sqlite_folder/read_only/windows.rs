@@ -76,7 +76,7 @@ pub(super) fn path_identity(path: &Path) -> Result<FileIdentity> {
     if !metadata.is_file() || metadata.file_attributes() & 0x400 != 0 {
         return Err(invalid());
     }
-    handle_identity(file.as_raw_handle())
+    Ok(file_record(file.as_raw_handle())?.identity)
 }
 
 fn directory(path: &Path, sharing: u32) -> Result<(File, FileIdentity)> {

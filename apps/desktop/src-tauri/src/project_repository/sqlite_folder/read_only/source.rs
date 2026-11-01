@@ -17,6 +17,8 @@ use std::{
 pub(super) const MAX_DATABASE_BYTES: u64 = 512 * 1024 * 1024;
 const PREFIX: &str = "/forma-ro/";
 static SOURCES: OnceLock<Mutex<HashMap<String, Weak<Source>>>> = OnceLock::new();
+#[cfg(test)]
+type BeforeBaseOpen = Box<dyn FnOnce() -> std::result::Result<(), ()> + Send>;
 
 pub(super) struct Source {
     root: PathBuf,
@@ -26,7 +28,7 @@ pub(super) struct Source {
     fault: AtomicU8,
     token: String,
     #[cfg(test)]
-    pub before_base_open: Mutex<Option<Box<dyn FnOnce() -> std::result::Result<(), ()> + Send>>>,
+    pub before_base_open: Mutex<Option<BeforeBaseOpen>>,
 }
 
 impl Source {

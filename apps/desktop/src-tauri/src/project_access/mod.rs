@@ -1,7 +1,7 @@
 //! Session-long OS leases. Reading/listing does not acquire write ownership.
 pub mod copy;
-#[cfg(test)]
-mod folder_lease;
+#[cfg(all(test, any(target_os = "linux", windows)))]
+pub(crate) mod folder_lease;
 pub mod ipc;
 mod registry;
 #[cfg(test)]

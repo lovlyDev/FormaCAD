@@ -31,7 +31,7 @@ pub(super) struct FileRecord {
 
 pub(super) fn path_identity(path: &Path) -> Result<FileIdentity> {
     let metadata = fs::symlink_metadata(path)?;
-    if !metadata.is_file() || metadata.file_type().is_symlink() {
+    if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.nlink() != 1 {
         return Err(invalid());
     }
     Ok(identity(&metadata))

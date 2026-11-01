@@ -92,7 +92,7 @@ pub(super) async fn initialize(
 
 pub(super) async fn commit(
     connection: &mut SqliteConnection,
-    expected: &Expectation,
+    expected: &Snapshot,
     project: &Project,
     transition: Option<&PreparedHistory>,
 ) -> Result<CommitOutcome> {
@@ -107,9 +107,10 @@ pub(super) async fn commit(
     let result = async {
         writer_policy(&mut transaction).await?;
         let original = read::within(&mut transaction).await?;
-        if &original.expectation != expected || project.id != expected.project_id {
+        if !original.same_saved_state(expected) || project.id != expected.expectation.project_id {
             return Err(changed());
         }
+        let expected = &expected.expectation;
         let sequence = expected
             .sequence
             .checked_add(1)

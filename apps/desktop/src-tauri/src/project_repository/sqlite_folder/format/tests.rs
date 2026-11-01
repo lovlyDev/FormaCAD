@@ -50,6 +50,51 @@ async fn payload(connection: &mut SqliteConnection) -> String {
 }
 
 #[tokio::test]
+async fn rejected_sqlite_commit_preserves_known_identity_without_replaying_operation() {
+    unsafe extern "C" {
+        fn sqlite3_commit_hook(
+            database: *mut std::ffi::c_void,
+            callback: Option<unsafe extern "C" fn(*mut std::ffi::c_void) -> i32>,
+            context: *mut std::ffi::c_void,
+        ) -> *mut std::ffi::c_void;
+    }
+    unsafe extern "C" fn reject(_: *mut std::ffi::c_void) -> i32 {
+        1
+    }
+    let mut connection = connection().await;
+    let project = project();
+    let before = initialized(&mut connection, &project).await;
+    {
+        let mut handle = connection.lock_handle().await.unwrap();
+        // SAFETY: SQLx parks the worker. The callback is static and has no
+        // context, and SQLite owns no Rust allocation through this hook.
+        unsafe {
+            sqlite3_commit_hook(
+                handle.as_raw_handle().as_ptr().cast(),
+                Some(reject),
+                std::ptr::null_mut(),
+            );
+        }
+    }
+    let mut candidate = project.clone();
+    candidate.name = "must not be replayed".into();
+    let outcome = commit(&mut connection, &before, &candidate, None)
+        .await
+        .unwrap();
+    match outcome {
+        CommitOutcome::Indeterminate { commit_id, error } => {
+            crate::security::valid_id(&commit_id).unwrap();
+            assert_ne!(commit_id, before.expectation().commit_id());
+            assert!(!error.to_string().is_empty());
+        }
+        other => panic!("COMMIT failure must retain its identity, got {other:?}"),
+    }
+    let after = read(&mut connection).await.unwrap();
+    assert!(before.same_saved_state(&after));
+    assert_eq!(after.project().name, project.name);
+}
+
+#[tokio::test]
 async fn initializes_distinct_production_identity_and_reads_without_changing_source() {
     let mut connection = connection().await;
     let project = project();
@@ -66,6 +111,10 @@ async fn initializes_distinct_production_identity_and_reads_without_changing_sou
     assert_eq!(again.expectation(), expected);
     assert_eq!(again.history_state(), snapshot.history_state());
     assert_eq!(again.history(), snapshot.history());
+    let mut transaction = connection.begin_with("BEGIN IMMEDIATE").await.unwrap();
+    let reserved = read_in_transaction(&mut transaction).await.unwrap();
+    assert!(reserved.same_saved_state(&snapshot));
+    transaction.rollback().await.unwrap();
     assert_eq!(payload(&mut connection).await, raw);
     assert_eq!(serde_json::to_vec(&project).unwrap(), before);
     assert_eq!(serde_json::to_vec(again.project()).unwrap(), before);
@@ -161,13 +210,13 @@ async fn metadata_aba_changes_commit_identity_even_with_identical_project_and_re
     let mut renamed = original.clone();
     renamed.name = "temporary metadata".into();
     let second = committed(
-        commit(&mut connection, first.expectation(), &renamed, None)
+        commit(&mut connection, &first, &renamed, None)
             .await
             .unwrap(),
     );
     assert_eq!(second.history(), first.history());
     let third = committed(
-        commit(&mut connection, second.expectation(), &original, None)
+        commit(&mut connection, &second, &original, None)
             .await
             .unwrap(),
     );
@@ -186,7 +235,7 @@ async fn metadata_aba_changes_commit_identity_even_with_identical_project_and_re
     assert_eq!(third.expectation().sequence(), 3);
     assert_eq!(
         rejected(
-            commit(&mut connection, first.expectation(), &renamed, None)
+            commit(&mut connection, &first, &renamed, None)
                 .await
                 .unwrap()
         )
@@ -209,7 +258,7 @@ async fn invalid_history_transition_rolls_back_payload_and_head_in_same_transact
     invalid.revisions[0].parameters.width += 1.0;
     let before = payload(&mut connection).await;
     rejected(
-        commit(&mut connection, first.expectation(), &invalid, None)
+        commit(&mut connection, &first, &invalid, None)
             .await
             .unwrap(),
     );
@@ -288,7 +337,7 @@ async fn executable_schema_is_compared_with_compiled_ddl_not_stored_fingerprint(
     changed.name = "must not execute trigger".into();
     assert_eq!(
         rejected(
-            commit(&mut connection, first.expectation(), &changed, None)
+            commit(&mut connection, &first, &changed, None)
                 .await
                 .unwrap()
         )
@@ -319,7 +368,7 @@ async fn model_edit_undo_redo_and_imported_history_round_trip_in_folder_sql_only
     edited.current_revision = Some(revision.id.clone());
     edited.revisions.push(revision);
     let mut current = committed(
-        commit(&mut connection, first.expectation(), &edited, None)
+        commit(&mut connection, &first, &edited, None)
             .await
             .unwrap(),
     );
@@ -337,7 +386,7 @@ async fn model_edit_undo_redo_and_imported_history_round_trip_in_folder_sql_only
         )
         .unwrap();
         current = committed(
-            commit(&mut connection, current.expectation(), &next, Some(&intent))
+            commit(&mut connection, &current, &next, Some(&intent))
                 .await
                 .unwrap(),
         );
@@ -448,5 +497,12 @@ async fn same_commit_identity_cannot_hide_changed_saved_bytes_with_recomputed_ch
     assert_eq!(changed.expectation(), first.expectation());
     assert_ne!(changed.project().name, first.project().name);
     assert!(!first.same_saved_state(&changed));
+    assert!(changed.same_saved_state(&read(&mut connection).await.unwrap()));
+    let error = rejected(
+        commit(&mut connection, &first, &original, None)
+            .await
+            .unwrap(),
+    );
+    assert_eq!(error.to_string(), "PROJECT_SNAPSHOT_CHANGED");
     assert!(changed.same_saved_state(&read(&mut connection).await.unwrap()));
 }

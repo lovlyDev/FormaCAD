@@ -97,6 +97,12 @@ pub(super) async fn read(connection: &mut SqliteConnection) -> Result<Snapshot> 
     read::read(connection).await
 }
 
+/// Caller owns an existing transaction (a RESERVED writer transaction for
+/// promotion/publication). Never use this as an untransactional reader.
+pub(super) async fn read_in_transaction(connection: &mut SqliteConnection) -> Result<Snapshot> {
+    read::within(connection).await
+}
+
 /// Only creates an internally verified empty database. Caller must configure
 /// DELETE/FULL, verify the physical DB and install immutable assets first.
 pub(super) async fn initialize(
@@ -110,7 +116,7 @@ pub(super) async fn initialize(
 
 pub(super) async fn commit(
     connection: &mut SqliteConnection,
-    expected: &Expectation,
+    expected: &Snapshot,
     project: &Project,
     transition: Option<&PreparedHistory>,
 ) -> Result<CommitOutcome> {

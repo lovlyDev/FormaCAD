@@ -88,7 +88,7 @@ async fn committed_metadata_invalidates_old_saved_state_without_invalidating_ope
     let mut next = before.project().clone();
     next.name = "committed name".into();
     let mut writer = writer(temp.path()).await;
-    let result = format::commit(&mut writer, before.saved.expectation(), &next, None)
+    let result = format::commit(&mut writer, &before.saved, &next, None)
         .await
         .unwrap();
     assert!(matches!(result, format::CommitOutcome::Committed(_)));

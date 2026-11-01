@@ -199,6 +199,14 @@ reads CAS through SQLite file primitives so closing an accidental Unix hardlink
 does not release another connection's process locks. This layer supports Linux
 and Windows; other platforms fail explicitly. Its ABI check pins SQLite 3.46.0
 from the current lockfile.
+The main database must also have exactly one filesystem link: another hardlink
+name could hide the original rollback/WAL journal namespace. Refusal removes
+neither the original database/journal nor the alternate path.
+Writes compare the complete captured snapshot inside `BEGIN IMMEDIATE`, rather
+than only the commit UUID. Same-ID metadata changes with recomputed hashes do
+not authorize overwriting the source. A SQLite commit-hook regression models
+COMMIT refusal: the indeterminate operation retains its known UUID, and a fresh
+read determines actual state without replaying the command.
 
 `project_access/folder_lease` retains a separate selected-folder writer lock.
 Initialization requires an existing empty directory and does not claim atomic

@@ -5,6 +5,7 @@
 //! bookkeeping. Windows checks the actual borrowed SQLite HANDLE. Other
 //! platforms fail closed; no macOS/NAS guarantee is implied.
 use crate::core::{AppError, Result};
+#[cfg(any(target_os = "linux", windows))]
 use sqlx::{Connection, SqliteConnection};
 use std::path::Path;
 
@@ -45,6 +46,7 @@ fn unsupported() -> AppError {
 /// query and before accepting a result the caller must recheck this opening and
 /// its own captured commit/revision seals. This is not a writer capability.
 pub(super) struct ReadOnlyDatabase {
+    #[cfg(any(target_os = "linux", windows))]
     connection: SqliteConnection,
     #[cfg(any(target_os = "linux", windows))]
     source: std::sync::Arc<source::Source>,
@@ -105,6 +107,7 @@ impl ReadOnlyDatabase {
 
     /// Private repository query access. Writes/ATTACH are denied independently
     /// by SQL policy and by VFS policy; callers still bound rows/payload sizes.
+    #[cfg(any(target_os = "linux", windows))]
     pub(super) fn conn(&mut self) -> &mut SqliteConnection {
         &mut self.connection
     }
@@ -112,6 +115,7 @@ impl ReadOnlyDatabase {
     /// Bounded CAS read through SQLite's own OS-file bookkeeping. This avoids
     /// raw FD-close lock loss even if a malicious CAS leaf aliases the DB.
     /// The caller must subsequently recheck its SQL commit/revision seals.
+    #[cfg(any(target_os = "linux", windows))]
     pub(super) fn read_blob(&mut self, hash: &str, size: u64) -> Result<Vec<u8>> {
         #[cfg(any(target_os = "linux", windows))]
         {
@@ -124,6 +128,7 @@ impl ReadOnlyDatabase {
         }
     }
 
+    #[cfg(any(target_os = "linux", windows))]
     pub(super) async fn recheck(&mut self) -> Result<()> {
         #[cfg(any(target_os = "linux", windows))]
         {
@@ -152,6 +157,7 @@ impl ReadOnlyDatabase {
         }
     }
 
+    #[cfg(any(target_os = "linux", windows))]
     pub(super) async fn close(self) -> Result<()> {
         self.connection.close().await?;
         Ok(())
