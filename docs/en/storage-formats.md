@@ -299,7 +299,21 @@ ordering. The separately approved [common orchestration patch](../integration/st
 is now applied: managed execution retains its original read session and compares
 revision contents/history as well as head/files, while retaining compatible latest
 metadata. Pending recovery is refused rather than reconciled by this route.
-The folder adapter and real CAD vertical verification remain incomplete.
+The folder adapter now uses that same algorithm with an opening-specific task
+UUID and an explicit single-use Rust host grant. The grant retains the original
+opening/location binding and never replaces the OS writer lease. Required STEP
+inputs come from the original snapshot; final publication checks original
+model/history compatibility and the exact latest state before session commit.
+An indeterminate commit stays indeterminate. UI/IPC wiring remains incomplete.
+
+The native CI workflow explicitly runs the ignored
+`real_worker_folder_roundtrip` test with `FORMA_FOLDER_TEST_WORKER` pointing to
+the built worker. It creates a standalone empty project, commits 40 mm and 80 mm
+boxes using common CAD execution, undoes to 40 mm, closes, checks the saved STEP
+in a nonce-confirmed child process, then reopens and redoes to 80 mm. Inspection
+checks volume and bounds using the actual worker. The workflow requires one
+executed passing test; default library skips are not evidence for this route.
+This new vertical check still requires a successful current-head CI result.
 
 The trusted `FolderSession::apply_history` backend now uses the existing pure
 history planner and session commit route. It requires a captured snapshot rather

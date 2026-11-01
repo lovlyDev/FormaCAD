@@ -63,6 +63,16 @@ jobs:
           set -o pipefail
           git rev-parse HEAD > storage-native-evidence/source-sha.txt
           cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target x86_64-unknown-linux-gnu --features native-occt --test reference_measurements_host --test pair_measurements_host --test face_sections_host -- --nocapture 2>&1 | tee storage-native-evidence/host-consumers.log
+      - name: Execute independent folder CAD roundtrip with the real worker
+        env:
+          FORMA_OCCT_ROOT: ${{ github.workspace }}/.local/occt-install-unix-x86_64-unknown-linux-gnu
+          FORMA_FOLDER_TEST_WORKER: ${{ github.workspace }}/apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/forma-cad-worker
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          set -o pipefail
+          test -x "$FORMA_FOLDER_TEST_WORKER"
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target x86_64-unknown-linux-gnu --features native-occt --lib project_repository::sqlite_folder::session::apply::tests::real_worker_folder_roundtrip -- --ignored --exact --nocapture 2>&1 | tee storage-native-evidence/folder-cad-roundtrip.log
+          grep -F 'test result: ok. 1 passed; 0 failed;' storage-native-evidence/folder-cad-roundtrip.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:

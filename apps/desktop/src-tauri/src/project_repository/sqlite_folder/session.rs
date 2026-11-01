@@ -14,6 +14,7 @@ use std::{
 };
 use tokio::sync::Mutex;
 
+pub(super) mod apply;
 mod binding;
 mod execution_assets;
 mod history;
@@ -22,6 +23,7 @@ pub(super) use binding::ReadBinding;
 
 struct Opening {
     active: AtomicBool,
+    task_id: String,
 }
 
 pub(super) struct FolderSession {
@@ -56,6 +58,7 @@ impl FolderSession {
             root: std::path::absolute(root)?,
             opening: Arc::new(Opening {
                 active: AtomicBool::new(true),
+                task_id: uuid::Uuid::new_v4().to_string(),
             }),
             database: Mutex::new(database),
             repository_id: saved.expectation().repository_id().into(),
