@@ -15,6 +15,7 @@ use std::{
 use tokio::sync::Mutex;
 
 mod binding;
+mod execution_assets;
 mod history;
 mod write;
 pub(super) use binding::ReadBinding;

@@ -310,6 +310,25 @@ an empty locked writer-lock file. The fixture now checks its zero length without
 reading locked bytes, and test hooks catch panics before returning across C ABI.
 The new history tests and Windows correction require a fresh CI run.
 
+The folder executor asset adapter prefetches only selected captured descriptors
+through verified session reads. Metadata and unique-hash byte limits are checked
+before CAS payload buffers are allocated; names sharing a hash share the cached
+bytes. The synchronous existing CAD callback accepts only selected descriptors
+and checks the original opening/location binding. Cached input does not authorize
+publication: the host must recheck the original model after execution. The adapter
+does not invoke CAD or connect the external-folder UI by itself.
+
+The independent save-copy backend targets an existing empty directory and needs
+no source writer lease or app-index row. It preserves revision IDs and portable
+history while assigning new project/repository identity. It verifies source CAS,
+rechecks the original snapshot after destination CAS staging and before SQL, then
+checks it again after publication. There is no atomic transaction across source
+and destination. If the final check fails after a destination commit, its known
+commit UUID is retained as an indeterminate outcome; the copy is neither replayed
+nor deleted automatically. Interrupted staging may leave unreferenced destination
+assets. Source bytes and history remain untouched. New adapter/copy regressions
+require CI; these are backend APIs, not available UI scenarios.
+
 Runtime CI at 79431c2 found excessive VFS refusal: optional SYNC/COMMIT_PHASETWO
 pager notifications returned READONLY. They now report NOTFOUND without delegation,
 as SQLite permits. Bootstrap authorization allows REINDEX solely for the frozen

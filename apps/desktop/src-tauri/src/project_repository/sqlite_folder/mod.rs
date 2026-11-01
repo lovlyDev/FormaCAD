@@ -15,6 +15,14 @@ mod cas;
         any(target_arch = "x86_64", target_arch = "aarch64")
     )
 ))]
+mod copy;
+#[cfg(any(
+    windows,
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    )
+))]
 mod creation;
 mod format;
 mod read_only;

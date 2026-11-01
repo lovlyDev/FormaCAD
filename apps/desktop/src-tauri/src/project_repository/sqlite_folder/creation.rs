@@ -28,6 +28,45 @@ async fn create_inner(
     history: Option<Vec<u8>>,
     before_publication: Option<BeforePublication>,
 ) -> Result<format::CommitOutcome> {
+    create_inner_checked(
+        root,
+        project,
+        pending,
+        history,
+        before_publication,
+        || async { Ok(()) },
+    )
+    .await
+}
+
+/// Recheck a captured source after destination CAS staging and immediately
+/// before SQL creation. This is an optimistic boundary, not a two-source lock.
+pub(super) async fn create_checked<F, Fut>(
+    root: &Path,
+    project: Project,
+    pending: Vec<(String, Vec<u8>)>,
+    history: Option<Vec<u8>>,
+    before_sql: F,
+) -> Result<format::CommitOutcome>
+where
+    F: FnOnce() -> Fut + Send,
+    Fut: std::future::Future<Output = Result<()>> + Send,
+{
+    create_inner_checked(root, project, pending, history, None, before_sql).await
+}
+
+async fn create_inner_checked<F, Fut>(
+    root: &Path,
+    project: Project,
+    pending: Vec<(String, Vec<u8>)>,
+    history: Option<Vec<u8>>,
+    before_publication: Option<BeforePublication>,
+    before_sql: F,
+) -> Result<format::CommitOutcome>
+where
+    F: FnOnce() -> Fut + Send,
+    Fut: std::future::Future<Output = Result<()>> + Send,
+{
     // Fail malformed inputs before initialize_empty creates .forma/writer.lock.
     PreparedCasBatch::validate(&project, &pending)?;
     if let Some(bytes) = &history {
@@ -54,6 +93,7 @@ async fn create_inner(
     .await
     .map_err(|error| AppError::Io(std::io::Error::other(error)))??;
 
+    before_sql().await?;
     let (writer, outcome) = WriteConnection::create(
         &root,
         lease,
