@@ -280,6 +280,30 @@ app index, отказ непустой папки и отмену на реал�
 результат нельзя принимать в закрытый UI-сеанс, а возможный COMMIT разрешается
 по UUID. Close не обещает атомарно отменить уже начатый SQLite commit.
 
+`FolderSession::commit` объединяет exact snapshot/history-intent checks, реальную
+writer lease, CAS job и SQL commit. Исходный reader mutex удерживается до конца:
+чтение этого сеанса не проверяет собственный journal как чужой recovery. После
+COMMIT проверяются новый снимок и CAS; ошибка проверки, закрытия или отозванный
+opening возвращается как Indeterminate с известным UUID, без replay.
+
+Для долгой CAD-задачи `latest_compatible` допускает свежие metadata: те же
+current revision/files/revisions, сохранённый исходный commit node и только
+промежуточные commits с прежними cursor/archive seals. Один read transaction
+проверяет полную валидированную цепочку без изменения схемы. Undo/redo или model
+edit не становятся metadata-only после возврата геометрии. Результат — новый
+exact snapshot для commit внутри прежнего opening.
+
+Общая [подготовка modeling/command запроса](../integration/storage-model-request.md)
+применена после отдельного разрешения на пять файлов. Она выделяет прежние
+limits/program/ReviewPlan/no-op/job проверки без изменения порядка managed
+permissions/tasks. Полный source-aware host orchestration ещё не подключён.
+
+Runtime CI 79431c2 выявил лишние отказы VFS: optional pager notifications SYNC и
+COMMIT_PHASETWO ошибочно возвращали READONLY; теперь они сообщают NOTFOUND без
+делегирования, как допускает SQLite. Bootstrap authorizer разрешает REINDEX
+только для frozen main index при создании. Исходный recovery error сохраняется
+через initial writer attestation. Эти исправления требуют нового runtime CI.
+
 SQLite C ABI и платформенные bindings компилируются один раз для reader/writer;
 дублирующие `#[path] mod` удалены после Clippy duplicate_mod/clashing extern errors.
 Проверки на каждом IO используют identity/lease, а полный CAS hash — границы

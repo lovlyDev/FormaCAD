@@ -11,6 +11,7 @@ use crate::{
 };
 use sqlx::{Connection, Row, SqliteConnection};
 
+mod compatibility;
 mod outcome;
 mod read;
 mod write;
@@ -109,6 +110,13 @@ pub(super) enum CommitOutcome {
 
 pub(super) async fn read(connection: &mut SqliteConnection) -> Result<Snapshot> {
     read::read(connection).await
+}
+
+pub(super) async fn read_compatible(
+    connection: &mut SqliteConnection,
+    original: &Snapshot,
+) -> Result<Snapshot> {
+    compatibility::read(connection, original).await
 }
 
 /// Caller owns an existing transaction (a RESERVED writer transaction for

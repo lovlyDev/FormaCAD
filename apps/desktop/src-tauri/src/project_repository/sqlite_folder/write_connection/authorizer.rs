@@ -52,6 +52,10 @@ pub(super) unsafe extern "C" fn authorize(
             {
                 return abi::OK
             }
+            // SQLite's sqlite3RefillIndex authorizes REINDEX while compiling
+            // CREATE INDEX as well. Only the frozen DDL's one explicit index
+            // needs this action; normal writers must still reject REINDEX.
+            27 if creation_index_refill(schema, table) => return abi::OK,
             18 | 23
                 if schema == "main"
                     && (tables.contains(&table)
@@ -142,5 +146,54 @@ pub(super) unsafe extern "C" fn authorize(
             }
         }
         _ => abi::DENY,
+    }
+}
+
+fn creation_index_refill(schema: &str, index: &str) -> bool {
+    schema == "main" && index == "project_history_events_project"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{ffi::CString, ptr};
+
+    #[test]
+    fn index_refill_is_limited_to_the_frozen_creation_index() {
+        assert!(creation_index_refill(
+            "main",
+            "project_history_events_project"
+        ));
+        assert!(!creation_index_refill(
+            "temp",
+            "project_history_events_project"
+        ));
+        assert!(!creation_index_refill(
+            "attached",
+            "project_history_events_project"
+        ));
+        assert!(!creation_index_refill("main", "foreign_index"));
+        assert!(!creation_index_refill(
+            "main",
+            "sqlite_autoindex_projects_1"
+        ));
+    }
+
+    #[test]
+    fn normal_authorizer_rejects_even_the_creation_index_refill() {
+        let index = CString::new("project_history_events_project").unwrap();
+        let schema = CString::new("main").unwrap();
+        // A null context has no private creation authority.
+        let result = unsafe {
+            authorize(
+                ptr::null_mut(),
+                27,
+                index.as_ptr(),
+                ptr::null(),
+                schema.as_ptr(),
+                ptr::null(),
+            )
+        };
+        assert_eq!(result, abi::DENY);
     }
 }

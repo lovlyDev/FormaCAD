@@ -566,6 +566,7 @@ async fn same_commit_identity_cannot_hide_changed_saved_bytes_with_recomputed_ch
     assert_eq!(changed.expectation(), first.expectation());
     assert_ne!(changed.project().name, first.project().name);
     assert!(!first.same_saved_state(&changed));
+    assert!(read_compatible(&mut connection, &first).await.is_err());
     assert!(changed.same_saved_state(&read(&mut connection).await.unwrap()));
     let error = rejected(
         commit(&mut connection, &first, &original, None)

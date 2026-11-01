@@ -204,15 +204,13 @@ async fn wrong_captured_head_and_foreign_schema_are_rejected_without_writes() {
         .await
         .unwrap();
     fixture(b.path()).await;
+    let lease = FolderLease::acquire(b.path()).unwrap();
     let before = files(b.path());
-    assert!(WriteConnection::open(
-        b.path(),
-        FolderLease::acquire(b.path()).unwrap(),
-        &expected,
-        binding(&session).await
-    )
-    .await
-    .is_err());
+    assert!(
+        WriteConnection::open(b.path(), lease, &expected, binding(&session).await)
+            .await
+            .is_err()
+    );
     lease_available(b.path()).await;
     assert_eq!(files(b.path()), before);
     let mut raw = SqliteConnection::connect_with(
@@ -569,15 +567,13 @@ async fn identical_copy_cannot_use_original_physical_binding() {
         b.path().join("project.sqlite"),
     )
     .unwrap();
+    let lease = FolderLease::acquire(b.path()).unwrap();
     let before = files(b.path());
-    assert!(WriteConnection::open(
-        b.path(),
-        FolderLease::acquire(b.path()).unwrap(),
-        &expected,
-        binding(&session).await
-    )
-    .await
-    .is_err());
+    assert!(
+        WriteConnection::open(b.path(), lease, &expected, binding(&session).await)
+            .await
+            .is_err()
+    );
     lease_available(b.path()).await;
     assert_eq!(before, files(b.path()));
 }

@@ -52,6 +52,16 @@ impl Source {
         binding.check_root(root)?;
         Self::capture_mode(root, lease, false, Some(binding), None)
     }
+    pub fn capture_for_publication(
+        root: &Path,
+        lease: FolderLease,
+        binding: super::super::session::ReadBinding,
+        published: Arc<super::super::cas::PublishedCasBatch>,
+    ) -> Result<Arc<Self>> {
+        binding.check_root(root)?;
+        published.recheck_new()?;
+        Self::capture_mode(root, lease, false, Some(binding), Some(published))
+    }
     pub fn capture_new(
         root: &Path,
         lease: FolderLease,
@@ -135,11 +145,21 @@ impl Source {
         Ok(())
     }
     pub unsafe fn attest_original(&self, base: *mut abi::File) -> Result<()> {
-        if let Some(original) = &self.original {
-            original.check_root(&self.root)?;
-            unsafe { original.attest_base(base.cast()) }?;
+        let result = (|| {
+            if let Some(original) = &self.original {
+                original.check_root(&self.root)?;
+                unsafe { original.attest_base(base.cast()) }?;
+            }
+            Ok(())
+        })();
+        if let Err(AppError::Invalid(code)) = &result {
+            // Preserve the original reader's precise recovery refusal before
+            // xOpen's generic identity failure is recorded by the wrapper.
+            if code == "PROJECT_SNAPSHOT_RECOVERY_REQUIRED" {
+                self.fail(1);
+            }
         }
-        Ok(())
+        result
     }
     pub fn start_main_open(&self) -> Result<()> {
         self.check_active()?;

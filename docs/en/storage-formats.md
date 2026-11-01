@@ -279,6 +279,30 @@ finish or roll back after lifecycle revocation; its result must not be accepted
 into a closed UI session, and a possibly committed UUID requires resolution.
 Close does not promise atomic cancellation of an already-started SQLite commit.
 
+`FolderSession::commit` combines exact snapshot/history-intent checks, the real
+writer lease, CAS job and SQL commit. It holds the original reader mutex through
+completion so that session does not mistake its own journal for foreign recovery.
+After COMMIT, it verifies the new snapshot and CAS; verification/close/lifecycle
+failure returns Indeterminate with the known UUID, without replay.
+
+For long CAD jobs, `latest_compatible` permits fresh metadata: equal current
+revision/files/revisions, the original immutable commit node and only intervening
+commits retaining original cursor/archive seals. One read transaction checks the
+full validated chain without a schema change. Model edits and undo/redo do not
+become metadata-only merely because geometry returns to an earlier state. The
+result is a new exact commit snapshot within the original opening.
+
+Shared [modeling/command request preparation](../integration/storage-model-request.md)
+was applied after separate approval for five files. It extracts existing limits,
+program, ReviewPlan, no-op and job checks without changing managed permission/task
+ordering. Full source-aware host orchestration is still incomplete.
+
+Runtime CI at 79431c2 found excessive VFS refusal: optional SYNC/COMMIT_PHASETWO
+pager notifications returned READONLY. They now report NOTFOUND without delegation,
+as SQLite permits. Bootstrap authorization allows REINDEX solely for the frozen
+main index during creation. Initial writer attestation preserves original recovery
+errors. These fixes still require new runtime CI.
+
 Reader/writer now compile a single SQLite C ABI/platform binding after Clippy
 identified duplicate modules and clashing extern declarations. Per-IO checks use
 identity/lease; full CAS hashes remain at publication boundaries instead of

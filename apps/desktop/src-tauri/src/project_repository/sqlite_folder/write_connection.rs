@@ -115,6 +115,28 @@ impl WriteConnection {
         }
     }
 
+    /// Retain the published CAS batch before SQLx can start its worker.
+    pub(super) async fn open_for_publication(
+        root: &Path,
+        lease: FolderLease,
+        expected: &format::Snapshot,
+        binding: super::session::ReadBinding,
+        published: std::sync::Arc<super::cas::PublishedCasBatch>,
+    ) -> Result<Self> {
+        #[cfg(any(target_os = "linux", windows))]
+        {
+            Self::open_source(
+                source::Source::capture_for_publication(root, lease, binding, published)?,
+                expected,
+            )
+            .await
+        }
+        #[cfg(not(any(target_os = "linux", windows)))]
+        {
+            let _ = (root, lease, expected, binding, published);
+            Err(unsupported())
+        }
+    }
     #[cfg(any(target_os = "linux", windows))]
     fn open_source(
         source: std::sync::Arc<source::Source>,

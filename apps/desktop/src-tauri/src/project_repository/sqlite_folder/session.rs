@@ -15,6 +15,7 @@ use std::{
 use tokio::sync::Mutex;
 
 mod binding;
+mod write;
 pub(super) use binding::ReadBinding;
 
 struct Opening {
@@ -22,6 +23,7 @@ struct Opening {
 }
 
 pub(super) struct FolderSession {
+    root: std::path::PathBuf,
     opening: Arc<Opening>,
     database: Mutex<ReadOnlyDatabase>,
     repository_id: String,
@@ -49,6 +51,7 @@ impl FolderSession {
         let saved = format::read(database.conn()).await?;
         database.recheck().await?;
         Ok(Self {
+            root: std::path::absolute(root)?,
             opening: Arc::new(Opening {
                 active: AtomicBool::new(true),
             }),
@@ -95,6 +98,27 @@ impl FolderSession {
         self.check()?;
         let mut database = self.database.lock().await;
         let saved = self.capture_locked(&mut database).await?;
+        Ok(FolderSnapshot {
+            opening: Arc::clone(&self.opening),
+            saved,
+        })
+    }
+
+    /// Preserve concurrent metadata only after proving a continuation of the
+    /// same model through this original physical opening. This does not replace
+    /// the job's original snapshot or authorize a different source.
+    pub(super) async fn latest_compatible(
+        &self,
+        original: &FolderSnapshot,
+    ) -> Result<FolderSnapshot> {
+        self.owns(original)?;
+        let mut database = self.database.lock().await;
+        database.recheck().await?;
+        self.owns(original)?;
+        let saved = format::read_compatible(database.conn(), &original.saved).await?;
+        self.owns(original)?;
+        database.recheck().await?;
+        self.owns(original)?;
         Ok(FolderSnapshot {
             opening: Arc::clone(&self.opening),
             saved,

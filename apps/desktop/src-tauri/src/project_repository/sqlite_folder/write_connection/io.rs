@@ -202,10 +202,14 @@ unsafe extern "C" fn control(
                 None => abi::NOTFOUND,
             }
         }
+        // Optional pager notifications, not an authority to delegate VFS work.
+        // SQLite 3.46 maps NOTFOUND to OK for both sqlite3PagerSync and
+        // pager_end_transaction. READONLY here would report a failed COMMIT
+        // even after its journal has been finalized. Actual sync/write/cleanup
+        // still passes through our independently guarded methods.
+        21 | 22 => abi::NOTFOUND,
         // Known mutation/capability requests. SIZE_HINT can truncate/extend a file.
-        3 | 5 | 6 | 9 | 10 | 11 | 13 | 16 | 18 | 21 | 22 | 23 | 24 | 26 | 31 | 32 | 33 | 34 => {
-            abi::READONLY
-        }
+        3 | 5 | 6 | 9 | 10 | 11 | 13 | 16 | 18 | 23 | 24 | 26 | 31 | 32 | 33 | 34 => abi::READONLY,
         _ => abi::NOTFOUND,
     }
 }
