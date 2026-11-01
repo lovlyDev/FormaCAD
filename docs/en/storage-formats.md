@@ -250,6 +250,17 @@ head or schema cause refusal. Linux journal unlink remains an optimistic check
 under the cooperative lease, without claiming atomic unlink-if-inode-matches
 against an unrelated namespace swap. This layer also remains test-only.
 
+New database creation has a separate private VFS mode: exactly one
+`MAIN_DB | READWRITE | CREATE | EXCLUSIVE`, followed by actual empty-file identity
+attestation. Existing or raced files are never adopted. Only this mode receives
+DDL authority for the immutable FCP1 schema; initialization is followed by saved
+snapshot validation and the normal policy. Nonconfirmed outcomes poison further
+connection use, and failures after COMMIT retain the UUID as Indeterminate.
+Linux additionally flushes assets/.forma/root. Four new checks cover fresh reads,
+existing-file refusal, interruption before the schema transaction and cancelled
+connect; they are not the complete crash matrix. The host create/model route is
+still not connected.
+
 CI showed that a SQLx connection must be discarded after COMMIT failure; outcome
 resolution uses a fresh connection. The file-backed regression now follows that
 route. Windows writer directory handles request FILE_LIST_DIRECTORY because

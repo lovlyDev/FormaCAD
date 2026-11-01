@@ -188,7 +188,7 @@ async fn expected_schema() -> Result<&'static SchemaObjects> {
         .get_or_try_init(|| async {
             let mut memory = SqliteConnection::connect("sqlite::memory:").await?;
             let ddl = schema_ddl();
-            sqlx::raw_sql(&ddl).execute(&mut memory).await?;
+            sqlx::Executor::execute(&mut memory, ddl.as_str()).await?;
             let rows =
                 sqlx::query("SELECT type,name,tbl_name,sql FROM sqlite_schema ORDER BY name")
                     .fetch_all(&mut memory)

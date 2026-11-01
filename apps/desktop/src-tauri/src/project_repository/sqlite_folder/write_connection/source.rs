@@ -28,7 +28,9 @@ pub(super) struct Source {
     lease: FolderLease,
     pub binding: platform::Binding,
     assets: platform::Binding,
-    identity: platform::FileIdentity,
+    identity: Mutex<Option<platform::FileIdentity>>,
+    creating: AtomicBool,
+    main_open_started: AtomicBool,
     journal: Mutex<Option<platform::FileIdentity>>,
     promoted: AtomicBool,
     fault: AtomicU8,
@@ -39,6 +41,12 @@ pub(super) struct Source {
 
 impl Source {
     pub fn capture(root: &Path, lease: FolderLease) -> Result<Arc<Self>> {
+        Self::capture_mode(root, lease, false)
+    }
+    pub fn capture_new(root: &Path, lease: FolderLease) -> Result<Arc<Self>> {
+        Self::capture_mode(root, lease, true)
+    }
+    fn capture_mode(root: &Path, lease: FolderLease, creating: bool) -> Result<Arc<Self>> {
         lease.recheck()?;
         let root = std::path::absolute(root)?;
         let pinned = lease.database_path();
@@ -50,18 +58,27 @@ impl Source {
         if !binding.matches_directory(&root)? {
             return Err(invalid());
         }
-        let record = binding.file_record("project.sqlite")?;
-        if !(512..=MAX_DATABASE_BYTES).contains(&record.size) {
-            return Err(invalid());
-        }
-        let identity = record.identity;
+        let identity = if creating {
+            match fs::symlink_metadata(binding.path("project.sqlite")) {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+                _ => return Err(invalid()),
+            }
+        } else {
+            let record = binding.file_record("project.sqlite")?;
+            if !(512..=MAX_DATABASE_BYTES).contains(&record.size) {
+                return Err(invalid());
+            }
+            Some(record.identity)
+        };
         let assets = binding.subdirectory("assets")?;
         let source = Arc::new(Self {
             root,
             lease,
             binding,
             assets,
-            identity,
+            identity: Mutex::new(identity),
+            creating: AtomicBool::new(creating),
+            main_open_started: AtomicBool::new(false),
             journal: Mutex::new(None),
             promoted: AtomicBool::new(false),
             fault: AtomicU8::new(0),
@@ -82,7 +99,58 @@ impl Source {
         format!("{PREFIX}{}/project.sqlite", self.token)
     }
     pub fn promoted(&self) -> bool {
-        self.promoted.load(Ordering::Acquire)
+        self.promoted.load(Ordering::Acquire) || self.creating()
+    }
+    pub fn creating(&self) -> bool {
+        self.creating.load(Ordering::Acquire)
+    }
+    pub fn start_main_open(&self) -> Result<()> {
+        if self.main_open_started.swap(true, Ordering::AcqRel) {
+            return Err(invalid());
+        }
+        self.check()
+    }
+    pub unsafe fn claim_main(&self, base: *mut abi::File) -> Result<()> {
+        if !self.creating() {
+            return Err(invalid());
+        }
+        let record = unsafe { self.binding.actual_file_record(base, "project.sqlite") }?;
+        if record.size != 0 {
+            return Err(invalid());
+        }
+        let mut identity = self.identity.lock().map_err(|_| invalid())?;
+        if identity.is_some() {
+            return Err(invalid());
+        }
+        *identity = Some(record.identity);
+        drop(identity);
+        self.check()
+    }
+    pub fn finish_creation(&self) -> Result<()> {
+        self.check()?;
+        self.promoted.store(true, Ordering::Release);
+        self.creating.store(false, Ordering::Release);
+        self.check()
+    }
+    pub fn flush_namespace(&self) -> Result<()> {
+        self.check()?;
+        #[cfg(target_os = "linux")]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            for path in [
+                self.binding.path("assets"),
+                self.binding.path(".forma"),
+                self.binding.path("."),
+            ] {
+                fs::OpenOptions::new()
+                    .read(true)
+                    .custom_flags(0x1_0000 | 0x2_0000)
+                    .open(path)?
+                    .sync_all()?;
+            }
+        }
+        // Windows FULL sync plus cooperative guards is not universal power-loss durability.
+        self.check()
     }
     pub fn promote(&self) -> Result<()> {
         self.check()?;
@@ -124,16 +192,23 @@ impl Source {
             || !self
                 .assets
                 .matches_directory(&self.binding.path("assets"))?
-            || self.binding.file_record("project.sqlite")?.identity != self.identity
-            || platform::path_identity(&self.root.join("project.sqlite"))? != self.identity
         {
-            self.fail(2);
             return Err(invalid());
         }
-        let size = fs::symlink_metadata(self.binding.path("project.sqlite"))?.len();
-        if !(512..=MAX_DATABASE_BYTES).contains(&size) {
-            self.fail(2);
-            return Err(invalid());
+        let identity = *self.identity.lock().map_err(|_| invalid())?;
+        match identity {
+            Some(identity) => {
+                let record = self.binding.file_record("project.sqlite")?;
+                if record.identity != identity
+                    || platform::path_identity(&self.root.join("project.sqlite"))? != identity
+                    || record.size > MAX_DATABASE_BYTES
+                    || (!self.creating() && record.size < 512)
+                {
+                    return Err(invalid());
+                }
+            }
+            None if self.creating() => self.absent("project.sqlite")?,
+            None => return Err(invalid()),
         }
         for suffix in ["-wal", "-shm"] {
             self.absent(&format!("project.sqlite{suffix}"))?;
@@ -211,10 +286,17 @@ impl Source {
     pub unsafe fn attest(&self, base: *mut abi::File) -> Result<()> {
         self.check()?;
         if unsafe { self.binding.actual_file_record(base, "project.sqlite") }?.identity
-            != self.identity
+            != self
+                .identity
+                .lock()
+                .map_err(|_| invalid())?
+                .ok_or_else(invalid)?
         {
             self.fail(2);
             return Err(invalid());
+        }
+        if self.creating() {
+            return self.check();
         }
         let methods = unsafe { &*(*base).pMethods };
         let mut header = [0_u8; 100];

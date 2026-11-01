@@ -12,13 +12,65 @@ unsafe fn text<'a>(value: *const c_char) -> Option<&'a str> {
 }
 
 pub(super) unsafe extern "C" fn authorize(
-    _: *mut c_void,
+    context: *mut c_void,
     action: c_int,
     first: *const c_char,
     second: *const c_char,
     database: *const c_char,
     _: *const c_char,
 ) -> c_int {
+    if !context.is_null()
+        && unsafe { &*context.cast::<super::source::Source>() }
+            .error()
+            .is_some()
+    {
+        return abi::DENY;
+    }
+    // Private Source state is owned by the connection/VFS, never a UI token.
+    let creating =
+        !context.is_null() && unsafe { &*context.cast::<super::source::Source>() }.creating();
+    if creating {
+        let table = unsafe { text(first) }.unwrap_or("");
+        let schema = unsafe { text(database) }.unwrap_or("");
+        let tables = [
+            "folder_format",
+            "repository_state",
+            "folder_commits",
+            "projects",
+            "project_history",
+            "project_history_events",
+            "sqlite_sequence",
+        ];
+        match action {
+            // CREATE TABLE/INDEX from the frozen DDL only. format::initialize is
+            // the sole SQL caller while this private authority is active.
+            2 if schema == "main" && tables.contains(&table) => return abi::OK,
+            1 if schema == "main"
+                && tables.contains(&unsafe { text(second) }.unwrap_or(""))
+                && (table == "project_history_events_project"
+                    || table.starts_with("sqlite_autoindex_")) =>
+            {
+                return abi::OK
+            }
+            18 | 23
+                if schema == "main"
+                    && (tables.contains(&table)
+                        || table == "sqlite_master"
+                        || table == "sqlite_schema") =>
+            {
+                return abi::OK
+            }
+            19 => {
+                let value = unsafe { text(second) };
+                if (table.eq_ignore_ascii_case("application_id") && value == Some("1178816561"))
+                    || (table.eq_ignore_ascii_case("user_version") && value == Some("1"))
+                {
+                    return abi::OK;
+                }
+            }
+            _ => {}
+        }
+    }
     match action {
         20 | 21 | 22 | 32 | 33 => abi::OK,
         // SQLITE_INSERT/UPDATE only for the immutable verified format tables.

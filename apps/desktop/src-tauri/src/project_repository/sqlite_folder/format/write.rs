@@ -69,7 +69,7 @@ pub(super) async fn initialize(
         let objects: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM sqlite_schema").fetch_one(&mut *transaction).await?;
         if application != 0 || version != 0 || objects != 0 { return Err(unsupported()); }
         let ddl=schema_ddl();
-        sqlx::raw_sql(&ddl).execute(&mut *transaction).await?;
+        sqlx::Executor::execute(&mut *transaction, ddl.as_str()).await?;
         sqlx::query(&format!("PRAGMA application_id={APPLICATION_ID}")).execute(&mut *transaction).await?;
         sqlx::query(&format!("PRAGMA user_version={USER_VERSION}")).execute(&mut *transaction).await?;
         read::validate_schema(&mut transaction).await?;

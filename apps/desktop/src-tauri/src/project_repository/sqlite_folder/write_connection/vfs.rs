@@ -151,8 +151,13 @@ unsafe extern "C" fn open(
         }
     } else if logical != "project.sqlite"
         || flags & abi::OPEN_MAIN_DB == 0
-        || flags & (OPEN_CREATE | OPEN_EXCLUSIVE | OPEN_MAIN_JOURNAL) != 0
+        || flags & OPEN_MAIN_JOURNAL != 0
+        || (!source.creating() && flags & (OPEN_CREATE | OPEN_EXCLUSIVE) != 0)
+        || (source.creating() && flags & OPEN_CREATE == 0)
     {
+        return abi::READONLY;
+    }
+    if !journal && source.start_main_open().is_err() {
         return abi::READONLY;
     }
     #[cfg(test)]
@@ -183,6 +188,8 @@ unsafe extern "C" fn open(
     };
     let attested = if journal {
         unsafe { state.source.claim_journal(state.base) }
+    } else if state.source.creating() {
+        unsafe { state.source.claim_main(state.base) }
     } else {
         unsafe { state.source.attest(state.base) }
     };
@@ -266,6 +273,8 @@ unsafe fn open_state(
             // modeof preserves main-file permissions for this exclusive create.
             if journal {
                 OPEN_READWRITE | OPEN_CREATE | OPEN_EXCLUSIVE | abi::OPEN_MAIN_DB | abi::OPEN_URI
+            } else if state.source.creating() {
+                OPEN_READWRITE | OPEN_CREATE | OPEN_EXCLUSIVE | abi::OPEN_MAIN_DB
             } else {
                 OPEN_READWRITE | abi::OPEN_MAIN_DB
             },

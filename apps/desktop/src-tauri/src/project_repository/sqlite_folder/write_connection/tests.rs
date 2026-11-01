@@ -98,7 +98,15 @@ async fn unpromoted_connection_reads_but_cannot_write_recover_or_create_journals
         .execute("UPDATE projects SET name='unverified mutation'")
         .await
         .is_err());
-    let active = writer.conn().lock_handle().await.unwrap().in_transaction();
+    unsafe extern "C" {
+        fn sqlite3_get_autocommit(database: *mut std::ffi::c_void) -> i32;
+    }
+    let active = {
+        let mut handle = writer.conn().lock_handle().await.unwrap();
+        // SAFETY: SQLx parks its worker and provides the live SQLite handle.
+        // Inspect SQLite itself: raw BEGIN is not SQLx transaction-depth state.
+        unsafe { sqlite3_get_autocommit(handle.as_raw_handle().as_ptr().cast()) == 0 }
+    };
     if active {
         writer.conn().execute("ROLLBACK").await.unwrap();
     }
@@ -317,4 +325,160 @@ async fn hot_journal_child() {
     // without Rust/SQLite destructors. The parent confirms the real hot magic.
     writer.execute("PRAGMA cache_size=1; BEGIN IMMEDIATE; UPDATE projects SET payload=payload || CAST(zeroblob(2097152) AS TEXT)").await.unwrap();
     std::process::exit(0);
+}
+
+#[tokio::test]
+async fn create_new_fcp1_closes_and_fresh_guarded_reader_validates() {
+    let temp = tempfile::tempdir().unwrap();
+    let lease = FolderLease::initialize_empty(temp.path()).unwrap();
+    fs::create_dir(temp.path().join("assets")).unwrap();
+    let project = project();
+    let (mut writer, outcome) = WriteConnection::create(
+        temp.path(),
+        lease,
+        &uuid::Uuid::new_v4().to_string(),
+        &project,
+        None,
+    )
+    .await
+    .unwrap();
+    let snapshot = match outcome {
+        format::CommitOutcome::Committed(snapshot) => snapshot,
+        other => panic!("guarded creation failed: {other:?}"),
+    };
+    assert!(!writer.source.creating());
+    assert!(writer
+        .conn()
+        .execute("CREATE TABLE unexpected(id INTEGER)")
+        .await
+        .is_err());
+    assert!(writer
+        .conn()
+        .execute("PRAGMA user_version=2")
+        .await
+        .is_err());
+    assert!(FolderLease::acquire(temp.path()).is_err());
+    writer.close().await.unwrap();
+    let mut reader = super::super::read_only::ReadOnlyDatabase::open(temp.path())
+        .await
+        .unwrap();
+    let actual = format::read(reader.conn()).await.unwrap();
+    assert!(snapshot.same_saved_state(&actual));
+    reader.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn creation_refuses_existing_or_raced_leaf_without_overwriting() {
+    for bytes in [
+        b"".as_slice(),
+        b"foreign database",
+        b"SQLite format 3\0broken",
+    ] {
+        let temp = tempfile::tempdir().unwrap();
+        let lease = FolderLease::initialize_empty(temp.path()).unwrap();
+        fs::create_dir(temp.path().join("assets")).unwrap();
+        fs::write(temp.path().join("project.sqlite"), bytes).unwrap();
+        let before = files(temp.path());
+        assert!(WriteConnection::create(
+            temp.path(),
+            lease,
+            &uuid::Uuid::new_v4().to_string(),
+            &project(),
+            None
+        )
+        .await
+        .is_err());
+        assert_eq!(before, files(temp.path()));
+    }
+    let temp = tempfile::tempdir().unwrap();
+    let lease = FolderLease::initialize_empty(temp.path()).unwrap();
+    fs::create_dir(temp.path().join("assets")).unwrap();
+    let source = source::Source::capture_new(temp.path(), lease).unwrap();
+    let target = temp.path().join("project.sqlite");
+    *source.before_base_open.lock().unwrap() = Some(Box::new(move || {
+        fs::write(target, b"raced foreign leaf").map_err(|_| ())
+    }));
+    assert!(WriteConnection::connect_unpromoted(source).await.is_err());
+    assert_eq!(
+        fs::read(temp.path().join("project.sqlite")).unwrap(),
+        b"raced foreign leaf"
+    );
+}
+
+#[tokio::test]
+async fn interrupted_bootstrap_is_never_a_complete_project() {
+    let temp = tempfile::tempdir().unwrap();
+    let lease = FolderLease::initialize_empty(temp.path()).unwrap();
+    fs::create_dir(temp.path().join("assets")).unwrap();
+    let source = source::Source::capture_new(temp.path(), lease).unwrap();
+    let writer = WriteConnection::connect_unpromoted(source).await.unwrap();
+    // Interruption before the one atomic initialization transaction: physical
+    // zero-length DB exists but must not be accepted as a saved FCP1 project.
+    writer.close().await.unwrap();
+    let before = files(temp.path());
+    assert!(super::super::read_only::ReadOnlyDatabase::open(temp.path())
+        .await
+        .is_err());
+    assert_eq!(before, files(temp.path()));
+    let lease = FolderLease::acquire(temp.path()).unwrap();
+    assert!(WriteConnection::create(
+        temp.path(),
+        lease,
+        &uuid::Uuid::new_v4().to_string(),
+        &project(),
+        None
+    )
+    .await
+    .is_err());
+    assert_eq!(before, files(temp.path()));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cancelling_create_base_open_retains_initialization_lease() {
+    let temp = tempfile::tempdir().unwrap();
+    let lease = FolderLease::initialize_empty(temp.path()).unwrap();
+    fs::create_dir(temp.path().join("assets")).unwrap();
+    let source = source::Source::capture_new(temp.path(), lease).unwrap();
+    let (entered, waiting) = tokio::sync::oneshot::channel();
+    let (release, ready) = std::sync::mpsc::sync_channel(1);
+    *source.before_base_open.lock().unwrap() = Some(Box::new(move || {
+        entered.send(()).map_err(|_| ())?;
+        ready.recv_timeout(Duration::from_secs(5)).map_err(|_| ())
+    }));
+    let task = tokio::spawn(async move { WriteConnection::connect_unpromoted(source).await });
+    tokio::time::timeout(Duration::from_secs(5), waiting)
+        .await
+        .unwrap()
+        .unwrap();
+    task.abort();
+    assert!(task.await.is_err());
+    assert!(FolderLease::acquire(temp.path()).is_err());
+    release.send(()).unwrap();
+    lease_available(temp.path()).await;
+    assert!(super::super::read_only::ReadOnlyDatabase::open(temp.path())
+        .await
+        .is_err());
+}
+
+#[tokio::test]
+async fn public_writer_open_and_create_futures_are_send() {
+    fn assert_send<T: Send>(future: T) {
+        drop(future);
+    }
+    let existing = tempfile::tempdir().unwrap();
+    let snapshot = fixture(existing.path()).await;
+    let lease = FolderLease::acquire(existing.path()).unwrap();
+    assert_send(WriteConnection::open(existing.path(), lease, &snapshot));
+    let fresh = tempfile::tempdir().unwrap();
+    let lease = FolderLease::initialize_empty(fresh.path()).unwrap();
+    fs::create_dir(fresh.path().join("assets")).unwrap();
+    let project = project();
+    let repository_id = uuid::Uuid::new_v4().to_string();
+    assert_send(WriteConnection::create(
+        fresh.path(),
+        lease,
+        &repository_id,
+        &project,
+        None,
+    ));
 }

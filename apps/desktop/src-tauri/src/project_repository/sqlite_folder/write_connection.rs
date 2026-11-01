@@ -2,7 +2,8 @@
 //! before SQLite can access the physical file. Opening is initially unpromoted:
 //! reads and a RESERVED lock are allowed, but recovery, journal creation and all
 //! mutations are denied until the format and captured saved state are verified.
-//! This is not the create-new database path and never installs schema/recovery.
+//! Creation has separate private authority for format::initialize only; existing
+//! files can never enter that mode. Neither mode performs recovery.
 use super::format;
 use crate::{
     core::{AppError, Result},
@@ -43,6 +44,66 @@ pub(super) struct WriteConnection {
 }
 
 impl WriteConnection {
+    /// Create only after the caller validated the project/history, obtained an
+    /// initialize_empty lease and durably published immutable assets. The assets
+    /// directory is retained through the actual SQLite base-file close.
+    /// Any non-Committed outcome requires discarding this connection; resolve an
+    /// indeterminate UUID using a fresh safe reader after closing, never replay.
+    pub(super) async fn create(
+        root: &Path,
+        lease: FolderLease,
+        repository_id: &str,
+        project: &crate::models::Project,
+        history: Option<&[u8]>,
+    ) -> Result<(Self, format::CommitOutcome)> {
+        #[cfg(any(target_os = "linux", windows))]
+        {
+            let source = source::Source::capture_new(root, lease)?;
+            let mut writer = Self::connect_unpromoted(source).await?;
+            // A fresh SQLite file defaults to DELETE; do not run a mode-switch
+            // pragma which could acquire unrelated authority or hide recovery.
+            let journal: String = sqlx::query_scalar("PRAGMA journal_mode")
+                .fetch_one(&mut writer.connection)
+                .await?;
+            if !journal.eq_ignore_ascii_case("delete") {
+                return Err(invalid());
+            }
+            let outcome =
+                format::initialize(&mut writer.connection, repository_id, project, history).await?;
+            let outcome = match outcome {
+                format::CommitOutcome::Committed(snapshot) => {
+                    let commit_id = snapshot.expectation().commit_id().to_owned();
+                    let checked = async {
+                        let actual = format::read(&mut writer.connection).await?;
+                        if !snapshot.same_saved_state(&actual) {
+                            return Err(invalid());
+                        }
+                        writer.source.finish_creation()?;
+                        writer.attest().await?;
+                        writer.source.flush_namespace()
+                    }
+                    .await;
+                    match checked {
+                        Ok(()) => format::CommitOutcome::Committed(snapshot),
+                        Err(error) => format::CommitOutcome::Indeterminate { commit_id, error },
+                    }
+                }
+                other => other,
+            };
+            if !matches!(&outcome, format::CommitOutcome::Committed(_)) {
+                // SQLx COMMIT errors can poison transaction bookkeeping. Fail
+                // closed and retain the source/lease until actual worker close.
+                writer.source.fail(2);
+            }
+            Ok((writer, outcome))
+        }
+        #[cfg(not(any(target_os = "linux", windows)))]
+        {
+            let _ = (root, lease, repository_id, project, history);
+            Err(unsupported())
+        }
+    }
+
     pub(super) async fn open(
         root: &Path,
         lease: FolderLease,
@@ -60,23 +121,28 @@ impl WriteConnection {
     }
 
     #[cfg(any(target_os = "linux", windows))]
-    async fn open_source(
+    fn open_source(
         source: std::sync::Arc<source::Source>,
         expected: &format::Snapshot,
-    ) -> Result<Self> {
-        let mut writer = Self::connect_unpromoted(source).await?;
-        // RESERVED excludes another writer while schema/seals are validated.
-        // The unpromoted VFS still refuses EXCLUSIVE/recovery/journal/writes.
-        let mut transaction = writer.connection.begin_with("BEGIN IMMEDIATE").await?;
-        let current = format::read_in_transaction(&mut transaction).await?;
-        if !expected.same_saved_state(&current) {
-            return Err(invalid());
-        }
-        writer.source.check()?;
-        writer.source.promote()?;
-        transaction.rollback().await?;
-        writer.attest().await?;
-        Ok(writer)
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Self>> + Send>> {
+        // Own the expected seals before suspending. A type-erased Send boundary
+        // keeps SQLx executor lifetimes local and enforces host-task usability.
+        let expected = expected.clone();
+        Box::pin(async move {
+            let mut writer = Self::connect_unpromoted(source).await?;
+            // RESERVED excludes another writer while schema/seals are validated.
+            // The unpromoted VFS still refuses EXCLUSIVE/recovery/journal/writes.
+            let mut transaction = writer.connection.begin_with("BEGIN IMMEDIATE").await?;
+            let current = format::read_in_transaction(&mut transaction).await?;
+            if !expected.same_saved_state(&current) {
+                return Err(invalid());
+            }
+            writer.source.check()?;
+            writer.source.promote()?;
+            transaction.rollback().await?;
+            writer.attest().await?;
+            Ok(writer)
+        })
     }
 
     #[cfg(any(target_os = "linux", windows))]
@@ -88,7 +154,7 @@ impl WriteConnection {
             .filename(source.virtual_name())
             .vfs(vfs::NAME)
             .read_only(false)
-            .create_if_missing(false)
+            .create_if_missing(source.creating())
             .busy_timeout(std::time::Duration::ZERO)
             .statement_cache_capacity(0)
             .optimize_on_close(false, None)
@@ -110,7 +176,7 @@ impl WriteConnection {
                 abi::sqlite3_set_authorizer(
                     handle.as_raw_handle().as_ptr().cast(),
                     Some(authorizer::authorize),
-                    std::ptr::null_mut(),
+                    std::sync::Arc::as_ptr(&writer.source).cast_mut().cast(),
                 )
             };
             if rc != abi::OK {
