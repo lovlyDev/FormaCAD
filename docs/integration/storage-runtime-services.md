@@ -1,6 +1,6 @@
 # Explicit modeling runtime services / Явные runtime services
 
-Status: prepared, not applied. Base: approved C2 at `708877f`.
+Status: applied after lovlyDev explicitly approved the single target on 2 November 2026. Base: approved C2 at `708877f`. Runtime verification remains required.
 [Exact patch](storage-runtime-services.patch). One target:
 `apps/desktop/src-tauri/src/modeling/repository_apply.rs`.
 

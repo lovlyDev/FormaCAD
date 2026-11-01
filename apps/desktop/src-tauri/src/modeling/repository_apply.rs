@@ -28,11 +28,15 @@ pub(crate) struct ApplyRuntime<'a> {
     gate: &'a CadTaskGate,
 }
 impl<'a> ApplyRuntime<'a> {
+    pub(crate) fn new(
+        tasks: &'a Mutex<HashMap<String, Arc<AtomicBool>>>,
+        gate: &'a CadTaskGate,
+    ) -> Self {
+        Self { tasks, gate }
+    }
+
     pub(crate) fn from_state(state: &'a AppState) -> Self {
-        Self {
-            tasks: &state.tasks,
-            gate: &state.cad_tasks,
-        }
+        Self::new(&state.tasks, &state.cad_tasks)
     }
 }
 
