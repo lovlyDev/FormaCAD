@@ -2,7 +2,7 @@
 
 Base inspected: `383fcf94e4b306e15cddd5a0dd708c5986d4f897` (task branch; the six target paths match the preparation copies).
 Patch: [storage-folder-execution.patch](storage-folder-execution.patch).
-Status: **prepared, not applied**. `git apply --check` succeeds against the current task worktree. Only copies under `.local/storage-execution-preparation` were formatted with rustfmt; no production/shared file was edited and no build or test was executed by this preparer. Six source/test paths, 418 insertions and 144 deletions.
+Status: **applied after explicit lovlyDev approval for all six paths**. `git apply --check` succeeded before application against the task worktree. Only copies under `.local/storage-execution-preparation` were formatted with rustfmt; no production/shared file was edited and no build or test was executed by this preparer. Six source/test paths, 418 insertions and 144 deletions.
 
 ## RU
 
@@ -37,18 +37,18 @@ Managed adapter отдельно вызывает прежний `stage_project_
 5. `apps/desktop/src-tauri/src/native/assets/stage.rs` — общий callback stager + сохранённый managed wrapper.
 6. `apps/desktop/src-tauri/src/native/assets/mod.rs` — re-export общего stager.
 
-**Пути 5–6 принадлежат общей native-области Issue #3. Они не разрешены прежними consumer/UI/prepared-change согласованиями. До отдельного согласования владельца и записи scope в Issue #31 этот патч применять нельзя.** Это явная граница по §5 ТЗ, не запрос на слияние или выпуск.
+**Пути 5–6 принадлежат общей native-области Issue #3. lovlyDev отдельно разрешил все шесть файлов после регистрации scope в Issue #31; применён именно этот патч.** Это явная граница по §5 ТЗ, не запрос на слияние или выпуск.
 
 После разрешения main должен проверить `git apply --check`, применить точные шесть путей, выполнить rustfmt/Clippy и действующие generic/native host suites. Нужны настоящие managed apply/imported STEP tests, включая прежние error classifications и metadata-only saves. Затем folder orchestration должен выполнить реальный worker с snapshot-bound reader и отдельно проверить stale/opening/commit guards. Ни Cargo/C++/worker protocol, ни permissions/commands/SQL/UI/версии этот патч не меняет.
 
 ## EN
 
-This is prepared slice B, not an applied change or a completed folder backend. It extracts the existing real CAD executor into one `modeling/execution.rs` implementation. The managed wrapper supplies the same root for trusted runtime discovery and transient workspace storage. The existing Rust-only executable test override remains host-owned; no new IPC capability is introduced.
+This is applied slice B following explicit owner approval, not a completed folder backend. It extracts the existing real CAD executor into one `modeling/execution.rs` implementation. The managed wrapper supplies the same root for trusted runtime discovery and transient workspace storage. The existing Rust-only executable test override remains host-owned; no new IPC capability is introduced.
 
 `AssetSource` reads a captured `ProjectFile`; a folder host must bind its bounded reader to the original snapshot and immutable CAS. Its default native staging path calls `stage_assets_with`, retaining the existing document/reference/descriptor/size/hash/aggregate checks and validate-all-before-materialization order. The managed override calls the existing wrapper, whose preflight and error classification remain unchanged. Shared callback errors propagate unchanged so stale/recovery errors are not disguised as missing assets or checksum failures.
 
 Legacy base selection, typed-program bypass, actual native worker calls, legacy fallback, ReviewPlan metrics and bounded output checks retain one implementation. Runtime, source lifecycle, permission/task authority, durable SQL publication and uncertainty handling remain distinct host responsibilities; this extraction provides none of those guarantees by itself.
 
-The exact six paths are listed above. The two native asset files are owned/shared Issue #3 points and require separate owner agreement before application. No Cargo, C++, protocol, version, permission, SQL, command or UI files are changed. The patch is reviewable and passes applicability checking; only preparation copies were formatted. No test/build success is claimed.
+The exact six paths are listed above. The two native asset files are owned/shared Issue #3 points; lovlyDev separately authorized this exact six-file scope before application. No Cargo, C++, protocol, version, permission, SQL, command or UI files are changed. Applicability checking passed before application. Preparation copies were formatted first; root subsequently ran cargo fmt after applying the authorized scope. No test/build success is claimed.
 
 Seven new synthetic tests cover callback descriptors, legacy/typed routing, stale-error preservation, missing descriptors, imported staging and size/hash refusals. Three require `native-worker-client`. Existing routing assertions move unchanged with the executor. Real managed/native host checks and a real folder-worker vertical test remain necessary after approval and application.

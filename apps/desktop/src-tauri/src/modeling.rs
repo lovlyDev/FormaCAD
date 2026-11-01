@@ -7,6 +7,7 @@ pub mod apply;
 mod build;
 pub mod commands;
 mod commit;
+pub(crate) mod execution;
 mod legacy;
 pub(crate) mod prepared_change;
 mod program;
