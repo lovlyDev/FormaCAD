@@ -1,6 +1,7 @@
 # C2: shared source-aware modeling orchestration / Общий запуск CAD
 
 Status: applied after lovlyDev explicitly approved all six paths on 2 November 2026. Formatting and patch applicability passed; compilation and runtime verification remain required.
+Follow-up: [explicit runtime constructor](storage-runtime-services.md), prepared separately and not applied.
 Parent-supplied base: `1c5d59e`, with approved C1 `cba3824` already applied.
 The patch was generated from current file copies; exact base-file SHA-256 values
 are recorded in `.local/c2-repository-apply/base-sha256.txt`. The six proposed
