@@ -17,6 +17,21 @@ fn file(name: &str, bytes: &[u8]) -> ProjectFile {
     }
 }
 
+fn assert_restored(project: &Project, baseline: &crate::models::Revision, parent: Option<&str>) {
+    let current = project
+        .revisions
+        .iter()
+        .find(|revision| Some(&revision.id) == project.current_revision.as_ref())
+        .unwrap();
+    assert!(crate::project_history::model_context::same_snapshot(
+        &baseline.into(),
+        &current.into()
+    ));
+    // History materializes a fresh immutable revision instead of reviving an ID.
+    assert_ne!(current.id, baseline.id);
+    assert_eq!(current.parent.as_deref(), parent);
+}
+
 async fn fixture(root: &Path) -> FolderSession {
     let revision = uuid::Uuid::new_v4().to_string();
     let mut project: Project = serde_json::from_value(serde_json::json!({
@@ -158,9 +173,10 @@ async fn read_only_copy_under_foreign_writer_lease_preserves_source_and_independ
         format::CommitOutcome::Committed(_)
     ));
     let redone = copied.capture().await.unwrap();
-    assert_eq!(
-        redone.project().current_revision,
-        original.project().revisions.last().map(|r| r.id.clone())
+    assert_restored(
+        redone.project(),
+        &original.project().revisions[1],
+        original.project().current_revision.as_deref(),
     );
     assert_eq!(
         copied
@@ -177,9 +193,10 @@ async fn read_only_copy_under_foreign_writer_lease_preserves_source_and_independ
         format::CommitOutcome::Committed(_)
     ));
     let undone = copied.capture().await.unwrap();
-    assert_eq!(
-        undone.project().current_revision,
-        original.project().current_revision
+    assert_restored(
+        undone.project(),
+        &original.project().revisions[0],
+        redone.project().current_revision.as_deref(),
     );
     assert!(matches!(
         copied
@@ -188,6 +205,13 @@ async fn read_only_copy_under_foreign_writer_lease_preserves_source_and_independ
             .unwrap(),
         format::CommitOutcome::Committed(_)
     ));
+    let redone_again = copied.capture().await.unwrap();
+    assert_restored(
+        redone_again.project(),
+        &original.project().revisions[1],
+        undone.project().current_revision.as_deref(),
+    );
+    assert!(!redone_again.saved.history_state().can_redo());
     source.recheck(&original).await.unwrap();
     assert_eq!(
         source.read_history(&original).await.unwrap(),

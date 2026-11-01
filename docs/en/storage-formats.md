@@ -321,6 +321,28 @@ associated type, with the managed guard bound to its actual state lifetime.
 The source checks, held lock and compile-time Send regressions remain intact;
 the correction still needs current-head CI.
 
+The corrected `09ea6b1` compilation no longer reported that lifetime error;
+strict lint instead rejected the generic result enum's large no-op Project
+variant. It is now boxed without changing the managed result. A guard regression
+also checks that the real state mutex stays locked after a temporary host is
+dropped. At `c3781e9`, the copy test incorrectly expected undo/redo to reuse a
+revision UUID. It now checks restored model contents, fresh identity and the
+correct parent, including a second undo/redo cycle. Those corrections need CI.
+
+The [V2-to-FCP1 migration design](../integration/storage-folder-migration-design.md)
+requires a separate, independently verified V2 backup before target conversion.
+The backup preserves exact published manifest bytes and every listed entry;
+unlisted files and old generations are excluded. The conversion preserves project
+and revision UUIDs, timestamps and portable history, unlike Save Copy. Its report
+retains backup provenance even when the target fails, and preserves a known target
+commit UUID after any late verification failure. Source and backup checks surround
+the existing creation transaction; there is no transaction spanning three folders.
+Implementation and fault regressions are still under verification, with no UI.
+This is an explicit published-folder migration: V2 cannot discover a pending mirror
+intent hidden in an unrelated app SQL database. Managed callers require the pure
+legacy recovery check. A genuine 1.1 project is not accepted as V2; its last STEP
+requires a separate new-project import without a claim to restored parametrics.
+
 The trusted `FolderSession::apply_history` backend now uses the existing pure
 history planner and session commit route. It requires a captured snapshot rather
 than a revision ID. New synthetic storage regressions cover undo, a fresh child

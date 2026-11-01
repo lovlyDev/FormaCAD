@@ -64,7 +64,7 @@ async fn run_managed(
     };
     match repository_apply::apply(ApplyRuntime::from_state(state), &host, request).await? {
         RepositoryApply::NoOp(project) => Ok(ApplyOutcome {
-            project,
+            project: *project,
             committed: false,
         }),
         RepositoryApply::Published(project) => Ok(ApplyOutcome {

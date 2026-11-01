@@ -43,7 +43,7 @@ impl<'a> ApplyRuntime<'a> {
 /// A publication receipt is backend-specific. Published never means confirmed
 /// success by itself: a folder receipt can retain an indeterminate commit UUID.
 pub(crate) enum RepositoryApply<R> {
-    NoOp(Project),
+    NoOp(Box<Project>),
     Published(R),
 }
 
@@ -106,7 +106,11 @@ pub(crate) async fn apply<H: ApplyHost>(
         return Err(AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into()));
     }
     let prepared = match prepared_request::prepare(H::project(&original), &request)? {
-        PreparedRequest::NoOp => return Ok(RepositoryApply::NoOp(H::project(&original).clone())),
+        PreparedRequest::NoOp => {
+            return Ok(RepositoryApply::NoOp(Box::new(
+                H::project(&original).clone(),
+            )))
+        }
         PreparedRequest::Apply(prepared) => *prepared,
     };
     let authorization = host.authorize().await?;

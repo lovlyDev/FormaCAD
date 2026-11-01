@@ -15,6 +15,24 @@ fn request(project: &Project, source: &str) -> ApplyRequest {
 fn assert_send<T: Send>(_: T) {}
 
 #[tokio::test]
+async fn publication_guard_outlives_temporary_host_and_keeps_real_state_locked() {
+    let directory = tempfile::tempdir().unwrap();
+    let state = fixture::state(directory.path()).await;
+    let project = fixture::project(&state, 32).await;
+    let guard = {
+        let host = managed::ManagedHost {
+            state: &state,
+            project_id: &project.id,
+            executable: None,
+        };
+        host.lock_publication().await.unwrap()
+    };
+    assert!(state.writes.try_lock().is_err());
+    drop(guard);
+    assert!(state.writes.try_lock().is_ok());
+}
+
+#[tokio::test]
 async fn no_op_needs_no_grant_or_task_and_future_is_send() {
     let directory = tempfile::tempdir().unwrap();
     let state = fixture::state(directory.path()).await;
