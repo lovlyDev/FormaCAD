@@ -183,6 +183,34 @@ the unnecessary dereference without weakening lint.
 
 ## Shared integration
 
+### Independent SQLite backend foundations (stage 4, verification)
+
+`project_repository/sqlite_folder` introduces a separate FCP1 schema
+(`application_id=0x46435031`, `user_version=1`). Repository, project and commit
+UUIDs are distinct. The reader checks the complete schema fingerprint and seals
+the project, cursor and history archive with hashes. Publication distinguishes
+confirmed commits, rejection before COMMIT and indeterminate COMMIT outcomes;
+an indeterminate operation must not be retried automatically. Initialization
+refuses to alter a nonempty foreign database.
+
+The reader uses a non-default SQLite VFS denying writes, journal recovery, SHM
+and ATTACH. It checks the actual opened file, retains its directory binding and
+reads CAS through SQLite file primitives so closing an accidental Unix hardlink
+does not release another connection's process locks. This layer supports Linux
+and Windows; other platforms fail explicitly. Its ABI check pins SQLite 3.46.0
+from the current lockfile.
+
+`project_access/folder_lease` retains a separate selected-folder writer lock.
+Initialization requires an existing empty directory and does not claim atomic
+reservation of an external namespace. Operations retain directory handles,
+detect replacement and refuse links.
+
+These modules are currently registered **only in test builds**. There is no FCP1
+open/write user action yet. Tests cover the SQL contract, sidecar/WAL refusal,
+source preservation and independent locks; they do not establish CAD commits,
+crash recovery or stage 4 completion. Local compilation needs the Windows MSVC
+linker. CI must verify this code before production routing is connected.
+
 The [measurement contract and exact patch](../integration/storage-measurement-session.md)
 target the current main baseline. lovlyDev separately authorized the six listed
 files on 29 October 2026, and the patch is applied in the task branch. Compilation

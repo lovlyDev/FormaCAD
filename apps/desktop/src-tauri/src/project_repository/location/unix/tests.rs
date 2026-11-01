@@ -70,5 +70,5 @@ async fn directory_lock_probe() {
         Err(error) => panic!("unexpected lock probe failure: {error}"),
     };
     connection.close().await.unwrap();
-    println!("DIRECTORY_LOCK_PROBE:{nonce}:{status}");
+    println!("\nDIRECTORY_LOCK_PROBE:{nonce}:{status}");
 }
