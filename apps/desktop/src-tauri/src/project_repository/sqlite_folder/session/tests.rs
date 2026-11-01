@@ -94,9 +94,21 @@ async fn committed_metadata_invalidates_old_saved_state_without_invalidating_ope
     assert!(matches!(result, format::CommitOutcome::Committed(_)));
     writer.close().await.unwrap();
     assert!(session.recheck(&before).await.is_err());
+    assert_eq!(
+        session
+            .resolve_commit(&before, before.saved.expectation().commit_id())
+            .await
+            .unwrap(),
+        format::CommitPresence::Present { is_head: false }
+    );
     let after = session.capture().await.unwrap();
     assert_eq!(after.project().name, next.name);
     session.recheck(&after).await.unwrap();
+    session.close();
+    assert!(session
+        .resolve_commit(&before, before.saved.expectation().commit_id())
+        .await
+        .is_err());
 }
 
 #[tokio::test]

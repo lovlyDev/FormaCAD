@@ -81,17 +81,72 @@ async fn rejected_sqlite_commit_preserves_known_identity_without_replaying_opera
     let outcome = commit(&mut connection, &before, &candidate, None)
         .await
         .unwrap();
-    match outcome {
+    let failed_id = match outcome {
         CommitOutcome::Indeterminate { commit_id, error } => {
             crate::security::valid_id(&commit_id).unwrap();
             assert_ne!(commit_id, before.expectation().commit_id());
             assert!(!error.to_string().is_empty());
+            commit_id
         }
         other => panic!("COMMIT failure must retain its identity, got {other:?}"),
-    }
+    };
     let after = read(&mut connection).await.unwrap();
     assert!(before.same_saved_state(&after));
     assert_eq!(after.project().name, project.name);
+    assert_eq!(
+        resolve_commit(&mut connection, before.expectation(), &failed_id)
+            .await
+            .unwrap(),
+        CommitPresence::Absent
+    );
+}
+
+#[tokio::test]
+async fn known_commit_resolution_distinguishes_later_head_and_another_repository() {
+    let mut connection = connection().await;
+    let project = project();
+    let first = initialized(&mut connection, &project).await;
+    let first_id = first.expectation().commit_id().to_owned();
+    assert_eq!(
+        resolve_commit(&mut connection, first.expectation(), &first_id)
+            .await
+            .unwrap(),
+        CommitPresence::Present { is_head: true }
+    );
+    let mut renamed = project.clone();
+    renamed.name = "later metadata publication".into();
+    let second = committed(
+        commit(&mut connection, &first, &renamed, None)
+            .await
+            .unwrap(),
+    );
+    assert_eq!(
+        resolve_commit(&mut connection, first.expectation(), &first_id)
+            .await
+            .unwrap(),
+        CommitPresence::Present { is_head: false }
+    );
+    assert_eq!(
+        resolve_commit(
+            &mut connection,
+            first.expectation(),
+            second.expectation().commit_id()
+        )
+        .await
+        .unwrap(),
+        CommitPresence::Present { is_head: true }
+    );
+    let mut other = self::connection().await;
+    initialized(&mut other, &project).await;
+    assert_eq!(
+        resolve_commit(&mut other, first.expectation(), &first_id)
+            .await
+            .err()
+            .unwrap()
+            .to_string(),
+        "PROJECT_SNAPSHOT_CHANGED"
+    );
+    assert!(second.same_saved_state(&read(&mut connection).await.unwrap()));
 }
 
 #[tokio::test]

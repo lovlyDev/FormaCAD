@@ -207,6 +207,11 @@ than only the commit UUID. Same-ID metadata changes with recomputed hashes do
 not authorize overwriting the source. A SQLite commit-hook regression models
 COMMIT refusal: the indeterminate operation retains its known UUID, and a fresh
 read determines actual state without replaying the command.
+Known-UUID resolution distinguishes the current head, an earlier saved commit
+and absence from the validated chain. It runs in one SQL transaction and checks
+repository/project UUIDs. Absence does not authorize automatic replay. The
+session permits resolution after the head advances, but rejects it after close
+or through a different opening.
 
 `project_access/folder_lease` retains a separate selected-folder writer lock.
 Initialization requires an existing empty directory and does not claim atomic

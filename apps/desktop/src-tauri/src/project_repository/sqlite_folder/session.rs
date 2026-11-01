@@ -122,6 +122,27 @@ impl FolderSession {
         Ok(snapshot.saved.history().to_vec())
     }
 
+    /// Resolve a known attempted commit through the original opening. The old
+    /// saved state may have advanced; its physical/opening authority must not.
+    pub(super) async fn resolve_commit(
+        &self,
+        snapshot: &FolderSnapshot,
+        commit_id: &str,
+    ) -> Result<format::CommitPresence> {
+        self.owns(snapshot)?;
+        let mut database = self.database.lock().await;
+        self.owns(snapshot)?;
+        database.recheck().await?;
+        self.owns(snapshot)?;
+        let presence =
+            format::resolve_commit(database.conn(), snapshot.saved.expectation(), commit_id)
+                .await?;
+        self.owns(snapshot)?;
+        database.recheck().await?;
+        self.owns(snapshot)?;
+        Ok(presence)
+    }
+
     pub(super) async fn read_asset(
         &self,
         snapshot: &FolderSnapshot,

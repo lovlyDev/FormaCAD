@@ -11,8 +11,22 @@ use crate::{
 };
 use sqlx::{Connection, Row, SqliteConnection};
 
+mod outcome;
 mod read;
 mod write;
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum CommitPresence {
+    Present { is_head: bool },
+    Absent,
+}
+
+pub(super) async fn resolve_commit(
+    connection: &mut SqliteConnection,
+    source: &Expectation,
+    commit_id: &str,
+) -> Result<CommitPresence> {
+    outcome::resolve_commit(connection, source, commit_id).await
+}
 
 pub(super) const APPLICATION_ID: i64 = 0x4643_5031;
 pub(super) const USER_VERSION: i64 = 1;
