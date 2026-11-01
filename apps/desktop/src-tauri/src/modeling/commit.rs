@@ -1,9 +1,8 @@
-use super::build::GeneratedModel;
+use super::prepared_change::PreparedModelChange;
 use crate::{
     core::{AppState, Result},
     models::Project,
 };
-use std::sync::atomic::AtomicBool;
 
 pub(super) fn program_for_revision(
     program: &str,
@@ -20,23 +19,14 @@ pub(super) fn program_for_revision(
     Ok(program.trim().to_string())
 }
 
-/// Called only under the host write lock after expected-head validation.
-pub(super) async fn commit(
+/// Persist only a candidate assembled by the common orchestrator under its host locks.
+pub(super) async fn persist_prepared(
     state: &AppState,
-    project: Project,
-    model: GeneratedModel,
-    job: String,
-    program: String,
-    prompt: String,
-    cancel: &AtomicBool,
+    prepared: PreparedModelChange,
 ) -> Result<Project> {
-    let now = chrono::Utc::now().to_rfc3339();
-    let prepared =
-        super::prepared_change::prepare(project, model, job, program, prompt, now, cancel)?;
     let (project, pending) = prepared.into_parts();
     crate::projects::persist(state, project, pending, None).await
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;

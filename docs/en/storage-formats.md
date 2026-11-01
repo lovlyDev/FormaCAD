@@ -295,7 +295,11 @@ result is a new exact commit snapshot within the original opening.
 Shared [modeling/command request preparation](../integration/storage-model-request.md)
 was applied after separate approval for five files. It extracts existing limits,
 program, ReviewPlan, no-op and job checks without changing managed permission/task
-ordering. Full source-aware host orchestration is still incomplete.
+ordering. The separately approved [common orchestration patch](../integration/storage-repository-apply.md)
+is now applied: managed execution retains its original read session and compares
+revision contents/history as well as head/files, while retaining compatible latest
+metadata. Pending recovery is refused rather than reconciled by this route.
+The folder adapter and real CAD vertical verification remain incomplete.
 
 The trusted `FolderSession::apply_history` backend now uses the existing pure
 history planner and session commit route. It requires a captured snapshot rather

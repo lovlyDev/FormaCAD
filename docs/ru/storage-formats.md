@@ -296,7 +296,11 @@ exact snapshot для commit внутри прежнего opening.
 Общая [подготовка modeling/command запроса](../integration/storage-model-request.md)
 применена после отдельного разрешения на пять файлов. Она выделяет прежние
 limits/program/ReviewPlan/no-op/job проверки без изменения порядка managed
-permissions/tasks. Полный source-aware host orchestration ещё не подключён.
+permissions/tasks. Отдельно согласованный [общий orchestration-патч](../integration/storage-repository-apply.md)
+применён: managed execution сохраняет исходный read session, сравнивает содержимое
+ревизий/историю вместе с head/files и сохраняет совместимые последние metadata.
+Pending recovery получает отказ вместо reconcile в этом маршруте. Folder adapter
+и проверка вертикального маршрута с настоящим CAD ещё не завершены.
 
 Доверенный backend `FolderSession::apply_history` использует существующий чистый
 планировщик истории и настоящий session commit. Ему нужен захваченный снимок,
