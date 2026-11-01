@@ -315,6 +315,12 @@ checks volume and bounds using the actual worker. The workflow requires one
 executed passing test; default library skips are not evidence for this route.
 This new vertical check still requires a successful current-head CI result.
 
+Strict CI at `708877f` found that the publication-guard GAT caused a higher-ranked
+Send error and an unintended static AppState borrow. Publication now has a plain
+associated type, with the managed guard bound to its actual state lifetime.
+The source checks, held lock and compile-time Send regressions remain intact;
+the correction still needs current-head CI.
+
 The trusted `FolderSession::apply_history` backend now uses the existing pure
 history planner and session commit route. It requires a captured snapshot rather
 than a revision ID. New synthetic storage regressions cover undo, a fresh child

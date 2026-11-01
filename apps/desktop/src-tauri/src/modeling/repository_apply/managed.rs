@@ -19,14 +19,11 @@ pub(in crate::modeling) struct ManagedHost<'a> {
     pub executable: Option<&'a Path>,
 }
 
-impl ApplyHost for ManagedHost<'_> {
+impl<'state> ApplyHost for ManagedHost<'state> {
     type Snapshot = CommittedSnapshot;
     type Access = WriteGuard;
     type Authorization = ();
-    type Publication<'a>
-        = MutexGuard<'a, ()>
-    where
-        Self: 'a;
+    type Publication = MutexGuard<'state, ()>;
     type Receipt = Project;
 
     fn task_key(&self) -> &str {
@@ -78,7 +75,7 @@ impl ApplyHost for ManagedHost<'_> {
         )
         .await
     }
-    async fn lock_publication(&self) -> Result<MutexGuard<'_, ()>> {
+    async fn lock_publication(&self) -> Result<MutexGuard<'state, ()>> {
         Ok(self.state.writes.lock().await)
     }
     async fn publish<'a>(
@@ -86,7 +83,7 @@ impl ApplyHost for ManagedHost<'_> {
         original: &'a CommittedSnapshot,
         latest: &'a CommittedSnapshot,
         _authorization: (),
-        _guard: MutexGuard<'a, ()>,
+        _guard: MutexGuard<'state, ()>,
         prepared: PreparedModelChange,
     ) -> Result<Project> {
         legacy::recheck_lifecycle(self.state, original)?;

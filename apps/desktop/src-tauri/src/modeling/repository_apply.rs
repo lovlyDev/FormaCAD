@@ -53,9 +53,7 @@ pub(crate) trait ApplyHost: Sync {
     type Snapshot: Send + Sync;
     type Access: Send;
     type Authorization: Send;
-    type Publication<'a>: Send
-    where
-        Self: 'a;
+    type Publication: Send;
     type Receipt: Send;
 
     /// Managed project ID or an opening-specific UUID, never a folder project ID.
@@ -77,7 +75,7 @@ pub(crate) trait ApplyHost: Sync {
         prepared: &'a PreparedApply,
         cancel: Arc<AtomicBool>,
     ) -> impl Future<Output = Result<GeneratedModel>> + Send + 'a;
-    fn lock_publication(&self) -> impl Future<Output = Result<Self::Publication<'_>>> + Send;
+    fn lock_publication(&self) -> impl Future<Output = Result<Self::Publication>> + Send;
     /// Consume genuine backend authority and the common prepared candidate.
     /// Both source snapshots survive through the actual durable commit.
     fn publish<'a>(
@@ -85,7 +83,7 @@ pub(crate) trait ApplyHost: Sync {
         original: &'a Self::Snapshot,
         latest: &'a Self::Snapshot,
         authorization: Self::Authorization,
-        guard: Self::Publication<'a>,
+        guard: Self::Publication,
         prepared: PreparedModelChange,
     ) -> impl Future<Output = Result<Self::Receipt>> + Send + 'a;
 }

@@ -103,10 +103,7 @@ impl ApplyHost for FolderApplyHost<'_> {
     type Snapshot = FolderSnapshot;
     type Access = ReadBinding;
     type Authorization = FolderAuthorization;
-    type Publication<'a>
-        = ()
-    where
-        Self: 'a;
+    type Publication = ();
     type Receipt = format::CommitOutcome;
 
     fn task_key(&self) -> &str {

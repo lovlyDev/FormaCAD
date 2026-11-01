@@ -2,6 +2,20 @@
 
 Status: applied after lovlyDev explicitly approved all six paths on 2 November 2026. Formatting and patch applicability passed; compilation and runtime verification remain required.
 Follow-up: [explicit runtime constructor](storage-runtime-services.md), separately approved and applied.
+
+CI correction: comparison job `124977193809` at `708877f` rejected the publication
+GAT with a higher-ranked Send/lifetime error, including a false `'static`
+requirement at the existing managed Send regression. The live contract uses a
+plain associated `Publication` type: managed holds `MutexGuard<'state, ()>` from
+its borrowed state; folder uses `()`. Original/latest snapshots and the real
+publication lock are retained. The exact original review patch below remains
+historical evidence; the correction requires current-head CI.
+
+Исправление CI: publication GAT приводил к ошибке обобщённого Send и ложному
+требованию `'static` для AppState. В живом контракте используется обычный
+associated type: managed хранит `MutexGuard<'state, ()>`, folder — `()`. Исходный
+и последний снимки, настоящая блокировка публикации и Send-регрессии сохраняются.
+Это исправление требует проверки актуального head, а не ослабления тестов.
 Parent-supplied base: `1c5d59e`, with approved C1 `cba3824` already applied.
 The patch was generated from current file copies; exact base-file SHA-256 values
 are recorded in `.local/c2-repository-apply/base-sha256.txt`. The six proposed
