@@ -46,6 +46,7 @@ export function TransformHud() {
   const status = useTransformViewport((state) => state.status);
   const snap = useTransformViewport((state) => state.incrementSnap);
   const snapTarget = useTransformViewport((state) => state.snapTarget);
+  const effective = useTransformViewport((state) => state.effective);
   if (!session) {
     if (status.kind === "committing")
       return (
@@ -79,7 +80,9 @@ export function TransformHud() {
       <span className={input.status === "invalid" ? "invalid" : ""}>
         {session.input
           ? `${t("Value")}: ${session.input}`
-          : transformValue(session, snap)}
+          : effective
+            ? transformValue(effective, false)
+            : transformValue(session, snap)}
       </span>
       <small>
         {t(

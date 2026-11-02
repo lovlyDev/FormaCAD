@@ -7,6 +7,11 @@ type Built = {
 declare global {
   interface Window {
     __m2Build: (document: unknown, revisionId: string) => Promise<Built>;
+    __m2Snap: (
+      revisionId: string,
+      bodyId: string,
+      query: unknown,
+    ) => Promise<any>;
   }
 }
 
@@ -140,6 +145,16 @@ export async function mountViewportTransformHarness(
         generation: ++generation,
       });
       return project;
+    }
+    if (command === "snap_model_reference") {
+      if (args.expectedRevision !== project.currentRevision)
+        throw JSON.stringify({ code: "SNAP_STALE", message: "stale" });
+      const report = await window.__m2Snap(
+        args.expectedRevision,
+        args.bodyId,
+        args.query,
+      );
+      return { projectId: project.id, ...report };
     }
     if (command === "last_transform") {
       const slot = slots.at(-1);
@@ -281,6 +296,26 @@ export async function mountViewportTransformHarness(
         if (!body) return null;
         const box = new THREE.Box3().setFromObject(body);
         return [...box.min.toArray(), ...box.max.toArray()];
+      },
+      vertexScreen: async (role: string) => {
+        const { cadVertices } =
+          await import("../src/features/viewer/vertexSelection");
+        const state = live();
+        const body = state?.scene.getObjectByName("body") as any;
+        const vertex =
+          body &&
+          cadVertices(body)?.find((item) => item.topologyRef?.role === role);
+        if (!state || !vertex) return null;
+        body.updateWorldMatrix(true, false);
+        const point = vertex.point
+          .clone()
+          .applyMatrix4(body.matrixWorld)
+          .project(state.camera);
+        const rect = state.gl.domElement.getBoundingClientRect();
+        return {
+          x: rect.left + ((point.x + 1) / 2) * rect.width,
+          y: rect.top + ((1 - point.y) / 2) * rect.height,
+        };
       },
       bodyScreen: () => {
         const state = live();

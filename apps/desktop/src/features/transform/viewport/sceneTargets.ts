@@ -3,6 +3,7 @@ import type { Vec3 } from "../frames";
 import type { TransformTarget } from "../transformSession";
 import { previewDelta, type TransformIntent } from "../transformPreview";
 import { cadDeltaToRender, renderPointToCad } from "./renderBasis";
+import { cadVertices } from "../../viewer/vertexSelection";
 
 const identity = new THREE.Matrix4().toArray();
 
@@ -23,6 +24,24 @@ export function bodyMeshes(
   return result;
 }
 
+function vertexBounds(mesh: THREE.Mesh, frame: THREE.Matrix4) {
+  const vertices = cadVertices(mesh);
+  if (!vertices?.length) return null;
+  const min: Vec3 = [Infinity, Infinity, Infinity];
+  const max: Vec3 = [-Infinity, -Infinity, -Infinity];
+  for (const vertex of vertices) {
+    const point = renderPointToCad(
+      vertex.point.clone().applyMatrix4(mesh.matrixWorld),
+      frame,
+    );
+    for (const axis of [0, 1, 2]) {
+      min[axis] = Math.min(min[axis], point[axis]);
+      max[axis] = Math.max(max[axis], point[axis]);
+    }
+  }
+  return { min, max };
+}
+
 /** CAD bounds of a rendered body. Transforms are baked into BREP, so the CAD matrix is identity. */
 export function transformTarget(
   mesh: THREE.Mesh,
@@ -41,6 +60,20 @@ export function transformTarget(
     Math.max(corners[0][axis], corners[1][axis]),
   ) as Vec3;
   if (![...min, ...max].every(Number.isFinite)) return null;
+  // The tessellation is float32; BREP vertices are written in double precision.
+  // When they span the same box (planar bodies), the exact vertex box is the pivot source.
+  const exact = vertexBounds(mesh, frame);
+  if (
+    exact &&
+    [0, 1, 2].every(
+      (axis) =>
+        Math.abs(exact.min[axis] - min[axis]) < 1e-3 &&
+        Math.abs(exact.max[axis] - max[axis]) < 1e-3,
+    )
+  ) {
+    min.splice(0, 3, ...exact.min);
+    max.splice(0, 3, ...exact.max);
+  }
   return {
     bodyId: mesh.name,
     originMm: min.map((value, axis) => (value + max[axis]) / 2) as Vec3,

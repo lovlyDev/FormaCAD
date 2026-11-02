@@ -88,7 +88,9 @@ export function ModalTransform({
     const render = (session: TransformSession) => {
       const state = active.current;
       if (!state) return;
-      const intents = transformIntents(effective(session));
+      const shown = effective(session);
+      store.getState().setEffective(shown);
+      const intents = transformIntents(shown);
       if (intents) state.preview.apply(intents);
       invalidate();
     };
@@ -102,6 +104,7 @@ export function ModalTransform({
       active.current = null;
       if (controlsRef.current) controlsRef.current.enabled = true;
       store.getState().setSession(null);
+      store.getState().setEffective(null);
       store.getState().setSnapTarget(null);
       invalidate();
     };
@@ -162,6 +165,7 @@ export function ModalTransform({
       active.current = null;
       if (controlsRef.current) controlsRef.current.enabled = true;
       store.getState().setSession(null);
+      store.getState().setEffective(null);
       store.getState().setSnapTarget(null);
       // A referenced vertex is re-read from OCCT so the commit uses the exact BREP point.
       const target = vertex

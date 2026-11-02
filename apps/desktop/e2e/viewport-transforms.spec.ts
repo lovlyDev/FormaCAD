@@ -13,6 +13,11 @@ const close = (actual: number, expected: number) =>
 async function mount(page: Page, locale: "ru" | "en") {
   page.on("pageerror", (error) => console.log("APP ERROR", error.stack));
   await page.exposeFunction(
+    "__m2Snap",
+    (revisionId: string, bodyId: string, query: unknown) =>
+      worker!.snap(revisionId, bodyId, query),
+  );
+  await page.exposeFunction(
     "__m2Build",
     (document: unknown, revisionId: string) =>
       worker!.build(document, revisionId),
@@ -251,4 +256,36 @@ test("modal preview frame rate", async ({ page }) => {
   console.log(`M2 modal preview: ${fps.toFixed(1)} FPS (software WebGL)`);
   await page.keyboard.press("Escape");
   expect(fps).toBeGreaterThan(10);
+});
+
+test("vertex selection and ruler snap to exact OCCT vertices (RU)", async ({
+  page,
+}) => {
+  await mount(page, "ru");
+  await selectBody(page);
+  const vertex = (role: string) =>
+    page.evaluate((role) => (window as any).__m2.vertexScreen(role), role);
+  // 40×20×10 box centred in XY: corner xmax/ymin/zmax is (20, −10, 10) mm.
+  const corner = await vertex("box-vertex:xmax:ymin:zmax");
+  await page.mouse.move(corner.x, corner.y);
+  await page.keyboard.press("Digit4");
+  await page.mouse.click(corner.x, corner.y);
+  const info = page.locator(".vertex-selection-info");
+  await expect(info).toContainText("точно (OCCT)");
+  await expect(info).toContainText("20 · -10 · 10");
+  await page.keyboard.press("Digit1");
+  await page
+    .getByRole("button", {
+      name: "Измерить расстояние между двумя точками поверхности",
+    })
+    .click();
+  const other = await vertex("box-vertex:xmin:ymin:zmax");
+  await page.mouse.click(other.x, other.y);
+  await page.mouse.click(corner.x, corner.y);
+  const result = page.locator(".measure-result");
+  await expect(result).toContainText("40,00");
+  await expect(result).toContainText("точно (OCCT)");
+  expect(
+    (await calls(page, "snap_model_reference")).map((call) => call.query.kind),
+  ).toEqual(["vertex", "vertex", "vertex"]);
 });

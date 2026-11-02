@@ -22,7 +22,40 @@ export function viewportTransformWorker() {
     PATH: `${process.env.FORMA_OCCT_ROOT ? path.join(process.env.FORMA_OCCT_ROOT, "win64/vc14/bin") : path.resolve("../../.local/occt-build/win64/vc14/bin")};${path.resolve("src-tauri/resources/occt")};${process.env.PATH ?? ""}`,
   };
   let runs = 0;
+  const builds = new Map<string, { document: string; step: Buffer }>();
   return {
+    /** Exact snap through the worker's own `snap_query` on the sealed revision inputs. */
+    snap(revisionId: string, bodyId: string, query: unknown) {
+      const built = builds.get(revisionId);
+      if (!built) throw Error(`unknown revision ${revisionId}`);
+      const cwd = path.join(stage, `${++runs}-snap-${revisionId}`);
+      fs.mkdirSync(cwd);
+      fs.writeFileSync(path.join(cwd, "document.json"), built.document);
+      fs.writeFileSync(path.join(cwd, "source.step"), built.step);
+      const sha = (bytes: Buffer | string) =>
+        crypto.createHash("sha256").update(bytes).digest("hex");
+      execFileSync(executable, [], {
+        cwd,
+        input: JSON.stringify({
+          protocolVersion: 1,
+          operation: "snap_query",
+          requestId: crypto.randomUUID(),
+          bodyId,
+          documentSha256: sha(built.document),
+          sourceSha256: sha(built.step),
+          sourceSize: built.step.length,
+          snapQuery: query,
+        }),
+        windowsHide: true,
+        timeout: 120000,
+        env,
+      });
+      const result = JSON.parse(
+        fs.readFileSync(path.join(cwd, "result.json"), "utf8"),
+      );
+      if (result.status !== "completed") throw Error(JSON.stringify(result));
+      return JSON.parse(fs.readFileSync(path.join(cwd, "snap.json"), "utf8"));
+    },
     build(document: unknown, revisionId: string) {
       const cwd = path.join(stage, `${++runs}-${revisionId}`);
       fs.mkdirSync(cwd);
@@ -57,6 +90,10 @@ export function viewportTransformWorker() {
           sha256: crypto.createHash("sha256").update(bytes).digest("hex"),
         };
       }
+      builds.set(revisionId, {
+        document: JSON.stringify(doc),
+        step: fs.readFileSync(path.join(cwd, "model.step")),
+      });
       return {
         files,
         boundsMm: result.boundsMm as number[],

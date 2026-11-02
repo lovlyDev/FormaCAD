@@ -30,6 +30,9 @@ interface TransformViewportState {
   /** Geometry the free move is currently snapped to, for the status line. */
   snapTarget: "vertex" | null;
   setSnapTarget: (target: "vertex" | null) => void;
+  /** Session after increments and vertex snap: exactly what is previewed and committed. */
+  effective: TransformSession | null;
+  setEffective: (session: TransformSession | null) => void;
   setSession: (session: TransformSession | null) => void;
   setStatus: (status: TransformStatus) => void;
   setLast: (last: LastTransform | null) => void;
@@ -51,6 +54,8 @@ export const useTransformViewport = create<TransformViewportState>((set) => ({
   cursorMm: [0, 0, 0],
   snapTarget: null,
   setSnapTarget: (snapTarget) => set({ snapTarget }),
+  effective: null,
+  setEffective: (effective) => set({ effective }),
   setSession: (session) => set({ session }),
   setStatus: (status) => set({ status }),
   setLast: (last) => set({ last }),

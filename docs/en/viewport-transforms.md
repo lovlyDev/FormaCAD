@@ -31,7 +31,7 @@ Confirmation creates one revision with a `transform` operation for each selected
 
 - **A** selects all visible, unlocked bodies, **Alt+A** clears, **Ctrl+I** inverts.
 - **B** box: drag a rectangle to add bodies; with **Shift** bodies are removed. Esc or RMB cancel.
-- **1/2/3** selection filter: bodies, CAD faces, CAD edges (faces and edges need a native model).
+- **1/2/3/4** selection filter: bodies, CAD faces, CAD edges, CAD vertices (native model). In vertex mode a click picks the nearest BREP vertex (within 14 px); it is marked with a dot and its coordinates in mm are shown at the top right, labelled "exact (OCCT)" or "approximate (mesh)".
 - **H** hides selected, **Shift+H** hides others, **Alt+H** shows all, **Numpad /** temporarily isolates the selection; repeating leaves isolation and restores earlier hiding. Hiding is shared with the Outliner eye.
 
 ### Views and navigation
@@ -46,7 +46,10 @@ Confirmation creates one revision with a `transform` operation for each selected
 - **Z** shading (solid with edges, solid, wireframe, transparent, X-ray, ghost).
 - **.** (period) pivot point: bounding box center, median point, 3D cursor, active element, individual origins. With numpad emulation `.` acts as Numpad . (frame selected), and this menu is not available from the keyboard.
 - **Shift+S** snapping: increment snapping, exact surface snapping for the cursor, cursor to the selected edge midpoint, to the selected circle center, to the world origin.
-- **Shift+RMB** places the 3D cursor on a surface. With exact snapping enabled the tessellation hit is only the ray hint: OCCT computes the final face intersection on the committed model.
+- **Shift+RMB** places the 3D cursor on the nearest vertex or on a surface. With exact snapping enabled the tessellation hit is only a hint: OCCT computes the final vertex or face intersection on the committed model.
+- **Vertex snapping during G.** With exact snapping on, a free move near a vertex of another body puts the pivot exactly on that vertex; the status line shows "Snapped to vertex" and the resulting offset. The vertex is re-read from OCCT before the commit. A typed value and axis constraints take priority. Vertices of the moving bodies are ignored.
+- **Ruler and protractor.** In measure mode a click snaps to the nearest vertex or to the face under the pointer; the point is then replaced by the exact OCCT point. The result shows whether every point is exact.
+- **Local axes.** Pressing an axis twice (X X) uses the body's frame from its transform history (rotation, reflection, matrix); translation and scale never affect the axes.
 
 Menu items are chosen by click or number; Esc closes the menu.
 
@@ -57,9 +60,11 @@ Menu items are chosen by click or number; Esc closes the menu.
 - `features/adjust-last/` is F9: `last_transform` reads the durable history head, `amend_last_transform` replaces matrices by command index; the panel rebuilds the original session instead of accumulating values.
 - `features/selection/` contains the selection model and box select (`projectBodies` projects body triangles with the same camera frame; keys are CAD body ids, not triangle numbers). Multi-selection lives in `stores/workspace.ts` (`selectedBodies`, with `selected` as the active body).
 - `features/visibility/useBodyVisibility.ts` implements hiding and isolation over `visibilityModel`.
-- `features/pie-menus/` holds pie menus; `features/snapping/` increment snapping, the `snapApi` adapter and the 3D cursor.
+- `features/pie-menus/` holds pie menus; `features/snapping/` increment snapping, the `snapApi` adapter, candidate search (`snapCandidate`: a vertex near the pointer or the face under it), OCCT refinement (`resolveSnap`), move snapping (`vertexSnap`) and the 3D cursor. `features/measure-snap/` provides ruler picks, `features/selection/vertex-select/` the vertex mode and `features/viewer/vertexSelection.ts` reads the preview vertex catalogue.
+- `features/transform/bodyOrientation.ts` derives the body frame from its `transform`/`rotate`/`mirror`/`translate` chain; the result is orthonormal and right-handed.
 - Host: `model_snap::snap_model_reference` captures the committed revision like exact measurements (document, `source.step`, sealed imported STEP assets), runs the worker `snap_query` operation in a temporary `.transient/reference-measurements` folder, verifies the response (bounds, checksum, request identity, revision, body, all seals, query echo, finite point and unit normal) and rechecks that the project did not change. The project and its log are not modified. The client additionally checks project, revision, body and reference.
-- C++: `cad-core/src/affine_transform.cpp` applies a bounded 3×4 matrix to the BREP with determinant and semantic-reference checks; `cad-core/src/snap_reference.cpp` computes arc-length edge midpoints, analytic circle centres and ray intersections with trimmed faces with outward normals.
+- C++: `cad-core/src/affine_transform.cpp` applies a bounded 3×4 matrix to the BREP with determinant and semantic-reference checks; `cad-core/src/snap_reference.cpp` computes arc-length edge midpoints, analytic circle centres, ray intersections with trimmed faces with outward normals and exact vertices (query 3). `topology_refs.cpp` names the eight corners of a rectangular construction by their three faces (`box-vertex:xmin:ymax:zmax`); the names survive rotation, translation, reflection and affine transforms. `preview.cpp` writes every BREP vertex into the preview (`formaVertices`: double-precision point and semantic reference when available).
+- Rust: `TopologyKind::Vertex` and `SnapQuery::Vertex` in the snap schema; agent selections and pair measurements reject vertices.
 
 ## Data storage
 
@@ -69,16 +74,18 @@ Menu items are chosen by click or number; Esc closes the menu.
 
 ## Limitations
 
-- Whole bodies are transformed. Face/edge/vertex edit mode and vertex mapping are not implemented: C++ has no vertex semantics yet, so there is no vertex snapping either.
-- Orientation is global. Because transforms are baked into the BREP, a body's local frame equals the global frame; "local axis" differs only in its label.
-- Exact snapping covers the existing semantic catalogue (rectangular and cylindrical construction and reference-preserving transforms). For imported STEP without semantic references the cursor uses the tessellation hit, i.e. it is approximate. During G itself there is no exact geometric snapping, only increments; exact snapping places the 3D cursor used as a pivot.
+- Whole bodies are transformed; there is no edit mode that moves individual faces, edges or vertices with a BREP rebuild.
+- Semantic vertices exist for rectangular construction (8 corners). Cylinders, booleans, fillets and imported STEP still expose vertices for picking and snapping at their preview coordinates (double precision), without an exact OCCT re-read; they are labelled approximate.
+- The local frame only accounts for transform operations on top of the construction; after a boolean or a fillet it starts from the world frame.
+- Vertex snapping during G moves the pivot. The bounding-box pivot is exact for bodies whose bounds are set by BREP vertices (e.g. boxes); for curved bodies it comes from the mesh (float32, about 1e-6 mm). For exact alignment use the 3D-cursor pivot placed with exact snapping.
 - Box select also picks occluded bodies (like "select through"); circle and lasso selection are not connected.
-- The ruler/protractor still measures surface points; connecting it to exact snapping is the next step.
 - F9 is available only for the last transform of the current session and only when every selected body received an operation (the host skips identity matrices).
 
 ## Verification
 
-- Rust: `snap_worker` (2), `transform_worker` (2), `snap_host` (2: face point `(3, 4, 10)` with normal `+Z` and edge midpoint `(0, −10, 10)` on the committed model with the project unchanged; rejection of a stale revision, unknown body and zero ray).
+- C++ (CTest 17/17): vertex `xmax:ymin:zmax` follows rotation, translation and reflection exactly; an edge role is not accepted as a vertex; a vertex query with a ray is rejected.
+- Rust: `snap_worker` (2, including vertex `(0, 5, 5)` after a translation), `transform_worker` (2), `snap_host` (2: face point `(3, 4, 10)` with normal `+Z`, edge midpoint `(0, −10, 10)` and vertex `(20, −10, 10)` on the committed model with the project unchanged; rejection of a stale revision, unknown body and zero ray).
 - TS: CAD↔render basis (Y/Z moves and rotation about an offset pivot), pointer sampling, modal keys with a Russian layout, increment snapping, F9 fields (10 → 20 mm without accumulation), box projection, exact snap adapter.
-- Playwright `e2e/viewport-transforms.spec.ts`: the real interface with the real OCCT worker rebuilding every revision (the host IPC is emulated). It checks Esc without a revision, a denied permission, G X 10 Enter with a Russian layout (new geometry moved by 10 mm), F9 10 → 20 mm, one Ctrl+Z, rotation in light and dark themes, a pie menu, H/Alt+H and the preview frame rate (≈60 FPS with software WebGL). Run with `FORMA_E2E_WORKER=<path to forma-cad-worker.exe>` and `FORMA_OCCT_ROOT=<OCCT build>`; without a worker the test is skipped.
+- Playwright `e2e/viewport-transforms.spec.ts`: the real interface with the real OCCT worker rebuilding every revision (the host IPC is emulated). It checks Esc without a revision, a denied permission, G X 10 Enter with a Russian layout (new geometry moved by 10 mm), F9 10 → 20 mm, one Ctrl+Z, rotation in light and dark themes, a pie menu, H/Alt+H, standard views, the preview frame rate (50–60 FPS with software WebGL), plus vertex selection and a ruler between two vertices — exactly 40.00 mm; the exact queries run through the same worker's `snap_query`. Run with `FORMA_E2E_WORKER=<path to forma-cad-worker.exe>` and `FORMA_OCCT_ROOT=<OCCT build>`; without a worker the test is skipped.
+- Built application (debug build, real host and OCCT, driven through the WebView2 debugging port): G X 10 → face `xmax` at 30 mm, F9 25 mm → 45 mm, one Ctrl+Z → 20 mm; vertex `(20, −10, 10)` "exact (OCCT)"; ruler 40.00 mm "exact (OCCT)"; snapping body B to a vertex of body A puts B's centre on the vertex within 2e-15 mm; after R Z 90, G X X 10 translates by `(0, 10, 0)`.
 - Native previews are shown in CAD coordinates (the loader no longer centres them) so a committed move stays visible; non-native files are centred as before.
