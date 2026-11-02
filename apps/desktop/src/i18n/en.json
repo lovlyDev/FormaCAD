@@ -1454,5 +1454,8 @@
   "Individual origins": "Individual origins",
   "Select a visible, unlocked body to transform.": "Select a visible, unlocked body to transform.",
   "Transforms need a committed native CAD model and an idle viewport.": "Transforms need a committed native CAD model and an idle viewport.",
-  "TRANSFORM_STALE": "The project or scene changed during the transform. Repeat the action."
+  "TRANSFORM_STALE": "The project or scene changed during the transform. Repeat the action.",
+  "Apply the viewport transform as a new model revision.": "Apply the viewport transform as a new model revision.",
+  "{{value0}} bodies": "{{value0}} bodies",
+  "Replace the parameters of the last transform. One Undo still returns to the state before it.": "Replace the parameters of the last transform. One Undo still returns to the state before it."
 }

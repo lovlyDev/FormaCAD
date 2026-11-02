@@ -1454,5 +1454,8 @@
   "Individual origins": "Собственные центры",
   "Select a visible, unlocked body to transform.": "Выберите видимое незаблокированное тело для трансформации.",
   "Transforms need a committed native CAD model and an idle viewport.": "Для трансформации нужна сохранённая нативная CAD-модель и свободный viewport.",
-  "TRANSFORM_STALE": "Проект или сцена изменились во время трансформации. Повторите действие."
+  "TRANSFORM_STALE": "Проект или сцена изменились во время трансформации. Повторите действие.",
+  "Apply the viewport transform as a new model revision.": "Применить трансформацию из viewport как новую ревизию модели.",
+  "{{value0}} bodies": "Тел: {{value0}}",
+  "Replace the parameters of the last transform. One Undo still returns to the state before it.": "Заменить параметры последней трансформации. Один Undo по-прежнему вернёт состояние до неё."
 }

@@ -7,6 +7,8 @@ import { CandidateReview, type CandidateReviewData } from "../../features/agents
 export type PendingAction = {
   title: string; description: string; detail: string;
   run: () => Promise<void>; id?: string; review?: CandidateReviewData; targetProjectId?: string;
+  /** Called when the action is denied or cannot be requested, so modal tools can restore their preview. */
+  cancelled?: () => void;
 };
 
 export function ActionReviewDialog({ pending, onDecision }: { pending: PendingAction | null; onDecision: (allow: boolean) => void }) {

@@ -15,6 +15,7 @@ import {
 import { snapSessionIncrements } from "../../snapping/incrementSnap";
 import { useTransformViewport } from "./transformStore";
 import { bodyMeshes, PreviewMatrices, transformTarget } from "./sceneTargets";
+import { cadWorldFrame } from "./renderBasis";
 import { pointerSample, unwrapAngle, type ScreenPoint } from "./pointerSample";
 import { modalKey } from "./modalKeys";
 import type { OrbitHandle } from "../../viewer/CameraControl";
@@ -53,6 +54,7 @@ export function ModalTransform({
   });
   const active = useRef<{
     preview: PreviewMatrices;
+    frame: THREE.Matrix4;
     start: ScreenPoint;
     angle: number;
     precise: boolean;
@@ -108,6 +110,7 @@ export function ModalTransform({
         current: pointer.current,
         pivotMm: session.pivotMm,
         rotationAxisMm: frame[session.constraint?.axis ?? "z"],
+        frame: state.frame,
       });
       if (!reading) return session;
       state.angle = unwrapAngle(state.angle, reading.angleDeg);
@@ -168,7 +171,8 @@ export function ModalTransform({
         const meshes = bodyMeshes(object, ids).filter(
           (mesh) => mesh.visible && !mesh.userData.formaSelectionLocked,
         );
-        const targets = meshes.map(transformTarget);
+        const frame = cadWorldFrame(object);
+        const targets = meshes.map((mesh) => transformTarget(mesh, frame));
         if (!meshes.length || targets.some((item) => !item))
           return "noSelection";
         const session = beginTransform({
@@ -187,7 +191,8 @@ export function ModalTransform({
         });
         if (!session) return "unavailable";
         active.current = {
-          preview: new PreviewMatrices(meshes),
+          preview: new PreviewMatrices(meshes, frame),
+          frame,
           start: { ...pointer.current },
           angle: 0,
           precise: false,

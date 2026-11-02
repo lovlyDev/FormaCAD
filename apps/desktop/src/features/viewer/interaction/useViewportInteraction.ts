@@ -6,9 +6,16 @@ import { useWorkspace } from "../../../stores/workspace";
 import type { Project } from "../../../types";
 import { useViewportKeymap } from "../../keymap/useViewportKeymap";
 import type { ModalTransformHandle } from "../../transform/viewport/ModalTransform";
-import { commitTransform } from "../../transform/viewport/commitTransform";
+import {
+  commitTransform,
+  transformName,
+} from "../../transform/viewport/commitTransform";
 import { useTransformViewport } from "../../transform/viewport/transformStore";
-import type { TransformSession } from "../../transform/transformSession";
+import {
+  transformIntents,
+  type TransformSession,
+} from "../../transform/transformSession";
+import { intentIsNoop } from "../../transform/transformPreview";
 import { useSnapSettings } from "../../snapping/cursor/snapSettings";
 import { bodyMeshes } from "../../transform/viewport/sceneTargets";
 import {
@@ -23,7 +30,16 @@ type InteractionOptions = Omit<
   enabled: boolean;
   emulateNumpad: boolean;
   fitBox: (box: THREE.Box3 | null) => void;
+  confirmEdit?: ConfirmEdit;
 };
+
+/** App-level confirmation (permission dialog when settings require it); resolves to whether run committed. */
+export type ConfirmEdit = (
+  title: string,
+  description: string,
+  detail: string,
+  run: () => Promise<boolean>,
+) => Promise<boolean>;
 
 /** Adopts a host-committed project the same way the assistant apply route does. */
 export function useAdoptProject() {
@@ -84,34 +100,45 @@ export function useViewportInteraction(options: InteractionOptions) {
     enabled: options.enabled,
     emulateNumpad: options.emulateNumpad,
   });
+  const { confirmEdit } = options;
   const onConfirm = useCallback(
     async (session: TransformSession, sceneToken: string) => {
       const store = useTransformViewport.getState();
       const project = useWorkspace.getState().project;
-      if (!project?.currentRevision) return false;
-      store.setStatus({ kind: "committing" });
-      try {
-        const result = await commitTransform(
-          project,
-          session,
-          {
-            projectId: project.id,
-            revisionId: project.currentRevision,
-            sceneToken,
-          },
-          t("Transformed bodies in the viewport"),
-        );
-        store.setStatus({ kind: "idle" });
-        if (result.status === "noop") return false;
-        store.setLast(result.last);
-        adopt(result.project);
-        return true;
-      } catch (cause) {
-        store.setStatus({ kind: "error", message: errorText(cause) });
-        return false;
-      }
+      const intents = transformIntents(session);
+      if (!project?.currentRevision || !intents) return false;
+      // A zero change neither asks for permission nor writes a revision.
+      if (intents.every((item) => intentIsNoop(item.intent))) return false;
+      const revisionId = project.currentRevision;
+      const run = async () => {
+        store.setStatus({ kind: "committing" });
+        try {
+          const result = await commitTransform(
+            project,
+            session,
+            { projectId: project.id, revisionId, sceneToken },
+            t("Transformed bodies in the viewport"),
+          );
+          store.setStatus({ kind: "idle" });
+          if (result.status === "noop") return false;
+          store.setLast(result.last);
+          adopt(result.project);
+          return true;
+        } catch (cause) {
+          store.setStatus({ kind: "error", message: errorText(cause) });
+          return false;
+        }
+      };
+      return confirmEdit
+        ? confirmEdit(
+            t(transformName[session.kind]),
+            t("Apply the viewport transform as a new model revision."),
+            t("{{value0}} bodies", { value0: session.targets.length }),
+            run,
+          )
+        : run();
     },
-    [adopt],
+    [adopt, confirmEdit],
   );
   return { transformRef, onConfirm, adopt };
 }

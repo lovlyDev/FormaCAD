@@ -5,6 +5,7 @@ import { useWorkspace } from "../../../stores/workspace";
 import { useTransformViewport } from "../../transform/viewport/transformStore";
 import {
   cadPointToRender,
+  cadWorldFrame,
   renderDirectionToCad,
   renderPointToCad,
 } from "../../transform/viewport/renderBasis";
@@ -30,7 +31,10 @@ export function Cursor3D({
 }) {
   const { camera, gl, invalidate } = useThree();
   const cursorMm = useTransformViewport((state) => state.cursorMm);
-  const position = useMemo(() => cadPointToRender(cursorMm), [cursorMm]);
+  const position = useMemo(
+    () => cadPointToRender(cursorMm, cadWorldFrame(object)),
+    [cursorMm, object],
+  );
   useEffect(() => {
     const element = gl.domElement;
     const place = (event: PointerEvent) => {
@@ -56,7 +60,8 @@ export function Cursor3D({
         );
       if (!hit) return;
       const store = useTransformViewport.getState();
-      store.setCursor(renderPointToCad(hit.point));
+      const frame = cadWorldFrame(object);
+      store.setCursor(renderPointToCad(hit.point, frame));
       invalidate();
       const mesh = hit.object as THREE.Mesh;
       const counts = faceTriangleCounts(mesh);
@@ -79,8 +84,8 @@ export function Cursor3D({
         {
           kind: "face",
           reference,
-          rayOriginMm: renderPointToCad(caster.ray.origin),
-          rayDirection: renderDirectionToCad(caster.ray.direction),
+          rayOriginMm: renderPointToCad(caster.ray.origin, frame),
+          rayDirection: renderDirectionToCad(caster.ray.direction, frame),
         },
       )
         .then((result) => {

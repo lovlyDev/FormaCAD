@@ -24,11 +24,16 @@ export function bodyMeshes(
 }
 
 /** CAD bounds of a rendered body. Transforms are baked into BREP, so the CAD matrix is identity. */
-export function transformTarget(mesh: THREE.Mesh): TransformTarget | null {
+export function transformTarget(
+  mesh: THREE.Mesh,
+  frame: THREE.Matrix4,
+): TransformTarget | null {
   mesh.updateWorldMatrix(true, false);
   const box = new THREE.Box3().setFromObject(mesh, true);
   if (box.isEmpty()) return null;
-  const corners = [box.min, box.max].map(renderPointToCad);
+  const corners = [box.min, box.max].map((point) =>
+    renderPointToCad(point, frame),
+  );
   const min = [0, 1, 2].map((axis) =>
     Math.min(corners[0][axis], corners[1][axis]),
   ) as Vec3;
@@ -50,7 +55,10 @@ export class PreviewMatrices {
     THREE.Object3D,
     { matrix: THREE.Matrix4; auto: boolean }
   >();
-  constructor(private meshes: readonly THREE.Mesh[]) {
+  constructor(
+    private meshes: readonly THREE.Mesh[],
+    private frame: THREE.Matrix4,
+  ) {
     for (const mesh of meshes) {
       mesh.updateMatrix();
       this.originals.set(mesh, {
@@ -74,7 +82,7 @@ export class PreviewMatrices {
       mesh.matrix.copy(
         parentWorld
           .invert()
-          .multiply(cadDeltaToRender(previewDelta(intent)))
+          .multiply(cadDeltaToRender(previewDelta(intent), this.frame))
           .multiply(world),
       );
       mesh.updateMatrixWorld(true);

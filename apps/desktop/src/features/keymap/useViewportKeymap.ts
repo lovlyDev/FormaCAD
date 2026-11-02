@@ -6,7 +6,8 @@ export type ViewportCommands = Partial<Record<string, () => void>>;
 
 /**
  * Single keyboard route for one 3D viewport. Only commands with handlers are
- * available, the viewport area must own focus, and text fields keep their keys.
+ * available, the viewport area must own focus or be hovered with nothing
+ * focused, and text fields keep their keys.
  * The modal transform installs its own capture listener and wins while active.
  */
 export function useViewportKeymap(
@@ -21,9 +22,14 @@ export function useViewportKeymap(
     if (!options.enabled) return;
     const keydown = (event: KeyboardEvent) => {
       const target = event.target;
+      // Keys go to the focused viewport, or, when nothing owns focus (after a
+      // dialog closes), to the viewport under the pointer.
+      const unfocused =
+        target === document.body &&
+        !!document.querySelector('[data-editor="viewport3d"]:hover');
       if (
         !(target instanceof Element) ||
-        !target.closest('[data-editor="viewport3d"]')
+        (!target.closest('[data-editor="viewport3d"]') && !unfocused)
       )
         return;
       const handlers = latest.current;

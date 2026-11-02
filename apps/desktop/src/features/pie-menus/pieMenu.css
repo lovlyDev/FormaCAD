@@ -1,8 +1,8 @@
 .pie-menu {
   position: fixed;
   z-index: 40;
-  width: 0;
-  height: 0;
+  width: 1px;
+  height: 1px;
 }
 .pie-menu-title {
   position: absolute;

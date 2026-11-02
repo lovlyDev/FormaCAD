@@ -28,8 +28,9 @@ export function projectToScreen(
   camera: THREE.Camera,
   size: { width: number; height: number },
   pointMm: Vec3,
+  frame?: THREE.Matrix4,
 ): ScreenPoint {
-  const projected = cadPointToRender(pointMm).project(camera);
+  const projected = cadPointToRender(pointMm, frame).project(camera);
   return {
     x: ((projected.x + 1) / 2) * size.width,
     y: ((1 - projected.y) / 2) * size.height,
@@ -48,10 +49,12 @@ export function pointerSample(options: {
   current: ScreenPoint;
   pivotMm: Vec3;
   rotationAxisMm: Vec3;
+  /** CAD → world frame of the displayed root; defaults to the bare render basis. */
+  frame?: THREE.Matrix4;
 }): PointerSample | null {
-  const { camera, size, start, current, pivotMm } = options;
+  const { camera, size, start, current, pivotMm, frame } = options;
   if (size.width <= 0 || size.height <= 0) return null;
-  const pivot = cadPointToRender(pivotMm);
+  const pivot = cadPointToRender(pivotMm, frame);
   const facing = camera.getWorldDirection(new THREE.Vector3());
   const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(facing, pivot);
   const from = ray(camera, size, start).intersectPlane(
@@ -63,17 +66,17 @@ export function pointerSample(options: {
     new THREE.Vector3(),
   );
   const translationMm: Vec3 =
-    from && to ? renderDirectionToCad(to.clone().sub(from)) : [0, 0, 0];
+    from && to ? renderDirectionToCad(to.clone().sub(from), frame) : [0, 0, 0];
   // renderDirectionToCad normalizes; restore the dragged length.
   const length = from && to ? to.distanceTo(from) : 0;
   const scaled = translationMm.map((value) => value * length) as Vec3;
-  const centre = projectToScreen(camera, size, pivotMm);
+  const centre = projectToScreen(camera, size, pivotMm, frame);
   const a = Math.atan2(-(start.y - centre.y), start.x - centre.x);
   const b = Math.atan2(-(current.y - centre.y), current.x - centre.x);
   let angle = ((b - a) * 180) / Math.PI;
   angle = ((((angle + 180) % 360) + 360) % 360) - 180;
-  const axis = cadPointToRender(options.rotationAxisMm)
-    .sub(cadPointToRender([0, 0, 0]))
+  const axis = cadPointToRender(options.rotationAxisMm, frame)
+    .sub(cadPointToRender([0, 0, 0], frame))
     .normalize();
   const towardViewer = axis.dot(facing) < 0 ? 1 : -1;
   const startRadius = Math.hypot(start.x - centre.x, start.y - centre.y);

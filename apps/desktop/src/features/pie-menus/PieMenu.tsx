@@ -35,6 +35,8 @@ export function PieMenu() {
   const first = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
     if (!open) return;
+    // Keyboard focus returns to the viewport so its shortcuts keep working.
+    const previous = document.activeElement;
     first.current?.focus();
     const key = (event: KeyboardEvent) => {
       const number = /^(?:Digit|Numpad)([1-9])$/.exec(event.code);
@@ -58,6 +60,8 @@ export function PieMenu() {
     return () => {
       window.removeEventListener("keydown", key, true);
       window.removeEventListener("pointerdown", down, true);
+      if (previous instanceof HTMLElement && previous.isConnected)
+        previous.focus({ preventScroll: true });
     };
   }, [open, close]);
   if (!open) return null;

@@ -45,7 +45,10 @@ import { PluginToolbarMenu } from "../plugins/PluginToolbarMenu";
 import type { RenderMode } from "./renderMode";
 import { faceTriangleCounts } from "./faceSelection";
 import { cadEdges } from "./edgeSelection";
-import { useViewportInteraction } from "./interaction/useViewportInteraction";
+import {
+  useViewportInteraction,
+  type ConfirmEdit,
+} from "./interaction/useViewportInteraction";
 import { ModalTransform } from "../transform/viewport/ModalTransform";
 import { TransformHud } from "../transform/viewport/TransformHud";
 import { AdjustLastPanel } from "../adjust-last/AdjustLastPanel";
@@ -65,12 +68,14 @@ export default function Viewer({
   comparison,
   interactive = true,
   onVisibility,
+  confirmEdit,
 }: {
   object: THREE.Group;
   onScreenshot: (data: string) => void;
   comparison?: boolean;
   interactive?: boolean;
   onVisibility?: (action: VisibilityAction) => void;
+  confirmEdit?: ConfirmEdit;
 }) {
   const projectId = useWorkspace((s) => s.project?.id ?? "empty");
   const viewKey = `forma.ui.project.${projectId}.view.${comparison ? "comparison" : "main"}`;
@@ -175,6 +180,7 @@ export default function Viewer({
     hasCadFaces: hasCadFaces && !comparison,
     hasCadEdges: hasCadEdges && !comparison,
     onVisibility,
+    confirmEdit,
   });
   const mouse = navigationPresets[navigation.mousePreset];
   return (
@@ -547,7 +553,7 @@ export default function Viewer({
       {!comparison && (
         <>
           <TransformHud />
-          <AdjustLastPanel onAdopt={adopt} />
+          <AdjustLastPanel onAdopt={adopt} confirmEdit={confirmEdit} />
           <BoxSelectOverlay />
           <PieMenu />
         </>

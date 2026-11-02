@@ -8,6 +8,7 @@ import { useTransformViewport } from "../transform/viewport/transformStore";
 import type { Axis } from "../transform/frames";
 import { fieldsFromSession, type AdjustFields } from "./adjustFields";
 import { amendLast } from "./amendLast";
+import type { ConfirmEdit } from "../viewer/interaction/useViewportInteraction";
 import "./adjustLast.css";
 
 const axes: Axis[] = ["x", "y", "z"];
@@ -44,8 +45,10 @@ function NumberField({
 /** F9 panel: parameters of the latest own transform, replaced through the host amend route. */
 export function AdjustLastPanel({
   onAdopt,
+  confirmEdit,
 }: {
   onAdopt: (project: Project) => void;
+  confirmEdit?: ConfirmEdit;
 }) {
   const open = useTransformViewport((state) => state.adjustOpen);
   const record = useTransformViewport((state) => state.last);
@@ -68,17 +71,31 @@ export function AdjustLastPanel({
   const close = () => setOpen(false);
   const apply = async () => {
     if (!record || !project || !fields) return;
-    setBusy(true);
     setError(null);
-    try {
-      const result = await amendLast(project, record, fields);
-      setLast(result.record);
-      onAdopt(result.project);
-    } catch (cause) {
-      setError(errorText(cause));
-    } finally {
-      setBusy(false);
-    }
+    const run = async () => {
+      setBusy(true);
+      try {
+        const result = await amendLast(project, record, fields);
+        setLast(result.record);
+        onAdopt(result.project);
+        return true;
+      } catch (cause) {
+        setError(errorText(cause));
+        return false;
+      } finally {
+        setBusy(false);
+      }
+    };
+    await (confirmEdit
+      ? confirmEdit(
+          t("Adjust last operation"),
+          t(
+            "Replace the parameters of the last transform. One Undo still returns to the state before it.",
+          ),
+          t(kindTitle[fields.kind]),
+          run,
+        )
+      : run());
   };
   return (
     <section className="adjust-last" aria-label={t("Adjust last operation")}>

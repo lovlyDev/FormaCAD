@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { Vector3 } from "three";
+import { Group, Vector3 } from "three";
 import { previewDelta } from "../transformPreview";
 import {
   cadDeltaToRender,
   cadPointToRender,
+  cadWorldFrame,
   renderDirectionToCad,
   renderPointToCad,
 } from "./renderBasis";
@@ -22,9 +23,13 @@ describe("CAD to render basis", () => {
     );
   });
   it("moves along CAD Y and Z without swapping signs", () => {
-    const y = cadDeltaToRender(previewDelta({ kind: "move", offsetMm: [0, 10, 0] }));
+    const y = cadDeltaToRender(
+      previewDelta({ kind: "move", offsetMm: [0, 10, 0] }),
+    );
     close(new Vector3().applyMatrix4(y), [0, 0, -10]);
-    const z = cadDeltaToRender(previewDelta({ kind: "move", offsetMm: [0, 0, 7] }));
+    const z = cadDeltaToRender(
+      previewDelta({ kind: "move", offsetMm: [0, 0, 7] }),
+    );
     close(new Vector3().applyMatrix4(z), [0, 7, 0]);
   });
   it("rotates about an offset CAD pivot consistently in both spaces", () => {
@@ -39,6 +44,41 @@ describe("CAD to render basis", () => {
     const render = cadPointToRender([20, 0, 5]).applyMatrix4(
       cadDeltaToRender(previewDelta(intent)),
     );
-    close(render, cadPointToRender([10, 10, 5]).toArray() as [number, number, number]);
+    close(
+      render,
+      cadPointToRender([10, 10, 5]).toArray() as [number, number, number],
+    );
+  });
+  it("includes the loaded root's metre scale and any display offset", () => {
+    const root = new Group();
+    root.scale.setScalar(1000);
+    root.position.set(-5, 0, 7);
+    const frame = cadWorldFrame(root);
+    close(cadPointToRender([1, 2, 3], frame), [-4, 3, 5]);
+    renderPointToCad(new Vector3(-4, 3, 5), frame).forEach((value, index) =>
+      expect(value).toBeCloseTo([1, 2, 3][index], 9),
+    );
+    const move = cadDeltaToRender(
+      previewDelta({ kind: "move", offsetMm: [10, 0, 0] }),
+      frame,
+    );
+    close(new Vector3(-4, 3, 5).applyMatrix4(move), [6, 3, 5]);
+    const turn = cadDeltaToRender(
+      previewDelta({
+        kind: "rotate",
+        axis: [0, 0, 1],
+        angleDeg: 90,
+        pivotMm: [10, 0, 0],
+      }),
+      frame,
+    );
+    close(
+      cadPointToRender([20, 0, 5], frame).applyMatrix4(turn),
+      cadPointToRender([10, 10, 5], frame).toArray() as [
+        number,
+        number,
+        number,
+      ],
+    );
   });
 });
