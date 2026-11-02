@@ -1,57 +1,83 @@
-# Viewport and transforms: M2 preparation
+# Viewport and modal transforms (M2)
 
 [Documentation](index.md) · [Русский](../ru/viewport-transforms.md)
 
-## Status
+## Purpose
 
-This describes independent M2 modules, not a completed user workflow. Their development is authorized before the M1 merge. Shell integration follows a rebase onto `main` containing M1. The application version stays unchanged. The registry installs no listeners, previews do not edit a CAD document, and the snap contract does not call a worker by itself.
+M2 brings Blender-style 3D viewport workflows to FormaCAD: G/R/S move, rotate and scale with exact typed values, F9 adjustment of the last operation, multi-selection, hiding and isolation, standard views, pie menus and snapping. The behavior is an independent reimplementation from a description, without Blender code, keymap files or assets (see the [parity note](../parity/blender/viewport-transforms.md)). Every geometry change goes through the regular Command API: expected-revision check, `modify_project` permission, the CAD queue, an OCCT rebuild in the isolated worker and an atomic save of a new revision.
 
-## Controls and input
+## User actions
 
-`features/keymap/` contains an independently authored command registry and physical `KeyboardEvent.code` routing. G/R/S and axis keys therefore retain their assignments with a Russian keyboard layout. Modal ownership precedes global commands. Text fields, dialogs, IME, AltGraph and consumed events retain their input. A command is dispatched only if the caller declares it available. Remaps are validated as a complete set: known commands, bounded physical codes and no conflicts within a context. Numpad emulation takes priority over digit selection filters. Mouse presets are separate: Forma uses left-drag orbit/right-drag pan; the Blender-compatible preset uses middle/Shift-middle. Camera integration is pending.
+Shortcuts work while the 3D view area has focus. Commands use physical keys (`KeyboardEvent.code`), so they behave the same with Russian and English layouts. Text fields and dialogs keep their own input.
 
-Numeric input supports mm, cm, m, inches, Russian decimal commas, degrees/radians and dimensionless scale/percentages. Results use mm, degrees and factors. Empty or incomplete input differs from zero; invalid units and excessive values cannot be confirmed. `=` expressions are rejected until the later formula milestone. No `eval` is used.
+### Move, rotate, scale
 
-## Preview and confirmation
+1. Click a body. Shift+click adds or removes a body; the last marked body is active.
+2. Press **G** (move), **R** (rotate) or **S** (scale). A status line at the bottom shows the operation, constraint and current value; the camera does not orbit during the operation.
+3. Move the mouse: translation follows the screen plane through the pivot, rotation the angle around the pivot, scale the distance ratio to it.
+4. Refine:
+   - **X/Y/Z** constrains to an axis. Repeating cycles global axis, body-local axis and no constraint; **Shift+axis** keeps the plane without that axis.
+   - Typing sets an exact value: `10`, `10mm`, `2,5см`, `1 m`, `1in`, `45`, `0.5rad`, `150%`. Minus toggles the sign, Backspace deletes. Before a value is typed, G/R/S switch the operation.
+   - **Shift** gives precise motion (×0.1), **Ctrl** steps of 1 mm / 5° / 0.1 (it inverts the increment snapping setting).
+5. **Enter**, **Space** or **LMB** confirm; **Esc** or **RMB** cancel. Cancel restores the bodies and creates no revision. While the operation is active, global shortcuts (including Ctrl+Z) do not run.
 
-`features/transform/` separates frames, pivots, constraints, preview matrices and the interaction state machine. Calculations support combined bounds, mean origins, the active origin, cursor and individual origins. Frames must be right-handed and orthonormal; a zero normal never silently becomes a global frame. Repeated axis input cycles the chosen orientation, body-local frame and no constraint. Shift-axis excludes that direction for translation and scale. Shift precision is integrated per pointer segment to prevent jumps when toggled.
+Confirmation creates one revision with a `transform` operation for each selected body. One **Ctrl+Z** undoes it completely.
 
-A session captures project, revision, scene token and copies of original matrices in canonical CAD coordinates measured in mm. Existing Y-up render space stays unchanged; the adapter must convert its display basis before supplying matrices. Pure poses for seven standard views live in `features/viewer/view-commands/`; top/bottom views have a nonzero orthogonal up vector. G X `10mm` emits a translation intent of `[10, 0, 0]`. This does not yet prove a BREP translation. Confirmation emits a batch only once; cancellation and new no-op changes emit none. A changed project, revision or scene cancels stale interaction. Persistence must go through a separate Command API adapter, expected-revision checks, permissions, queue, native rebuild and atomic save. The renderer adapter and keyboard F9 workflow are not yet connected. `features/adjust-last/` prepares argument replacement relative to the original snapshot: 10 → 20 mm does not accumulate to 30 mm, and replacing by 0 mm restores the original position. The pure model checks the last revision, history generation and transaction; the host independently checks those identities and operation provenance.
+### F9: last operation parameters
 
-`cad-core/src/affine_transform.cpp` prepares a separate native primitive: a bounded 3×4 matrix copies the source BREP, checks nondegeneracy, a positive determinant, the OCCT result and semantic-reference preservation. Reflection is not silently treated as negative scale. Invalid matrices or lost topology provenance fail explicitly. C++ checks geometry independently from visual matrices. The CAD IR `TransformBody` command adds a `transform` operation and updates the body source in a staged document copy. Existing `apply_ir_commands` retains revision/permission checks and atomic application; the new worker executes the operation through this native primitive. A failing second command leaves the original document unchanged. The modal renderer adapter is not yet connected.
+**F9** opens a panel at the bottom left of the view. For the last transform made in this session it shows the X/Y/Z offset in mm, the rotation angle and axis, or the scale factor and axis. **Apply** recomputes the operation from the original position: replacing 10 mm by 20 mm gives 20 mm, not 30 mm. The adjustment replaces the final logical Undo step, so one Ctrl+Z still returns to the state before the original transform. If the project changed after the operation (another edit, Undo/Redo, another revision), the panel reports that it cannot be adjusted.
 
-## Selection, visibility and snapping
+### Selection and visibility
 
-`features/selection/` holds semantic ID membership and the active item. Add, toggle, subtract, select-all and invert respect the filter, visibility and selection lock. Scene tokens prevent selection from migrating onto new mesh indices. Box/circle/lasso mathematics intersects projected points, segments and triangles, mapping hits back to semantic BREP IDs rather than triangle ordinals. A large face is also selected when it contains the entire region. Projection, camera clipping and occlusion must come from the renderer for the captured scene; the module does not fabricate them.
+- **A** selects all visible, unlocked bodies, **Alt+A** clears, **Ctrl+I** inverts.
+- **B** box: drag a rectangle to add bodies; with **Shift** bodies are removed. Esc or RMB cancel.
+- **1/2/3** selection filter: bodies, CAD faces, CAD edges (faces and edges need a native model).
+- **H** hides selected, **Shift+H** hides others, **Alt+H** shows all, **Numpad /** temporarily isolates the selection; repeating leaves isolation and restores earlier hiding. Hiding is shared with the Outliner eye.
 
-`features/visibility/` separates normal hidden bodies from temporary isolation. Leaving isolation restores earlier hidden bodies while retaining explicit visibility changes made during isolation. Empty selection never executes hide-others. Invalid persisted values and missing bodies are pruned. No BREP, revision or CAD permissions change.
+### Views and navigation
 
-`features/snapping/` separates mathematical grid/increment constraints from an exact OCCT response contract. The reader checks request/project/revision/body/scene identity, document/source hashes, STEP size, sealed imported assets, reference kind, finite coordinates and unit normals. Late or foreign results are rejected. The contract covers edge midpoints, circle centres and faces. The C++ primitive is verified; the `snap_query` worker operation and live-project capture are not yet part of the verified result. Semantic vertices are not implemented yet. Ray intersections with tessellation are not declared exact BREP snapping.
+- **Numpad 1/3/7** front, right, top; with **Ctrl** back, left, bottom. Pressing again restores the view after orbiting.
+- **Numpad 5** perspective/orthographic, **Numpad .** frame selected, **Home** frame all.
+- **T/N** toolbar and sidebar, **Alt+Z** X-ray.
+- Settings → Input can emulate the numpad with number keys and choose mouse navigation: Forma (LMB orbit, RMB pan) or Blender-compatible (middle button orbit, Shift+middle pan).
 
-## Data, limitations and validation
+### Pie menus, pivot and 3D cursor
 
-Pure TS models write no project, profile, SQL or user files; the CAD IR command uses the existing host route with permissions and rebuilding. UI profile storage adapters, F9 UI, pie menus, viewport tools, native snap queries and shell integration remain necessary for M2 acceptance. Pure-function tests cannot prove native G X 10mm, Esc without a revision, one-step Ctrl+Z, F9 or 50 FPS.
+- **Z** shading (solid with edges, solid, wireframe, transparent, X-ray, ghost).
+- **.** (period) pivot point: bounding box center, median point, 3D cursor, active element, individual origins. With numpad emulation `.` acts as Numpad . (frame selected), and this menu is not available from the keyboard.
+- **Shift+S** snapping: increment snapping, exact surface snapping for the cursor, cursor to the selected edge midpoint, to the selected circle center, to the world origin.
+- **Shift+RMB** places the 3D cursor on a surface. With exact snapping enabled the tessellation hit is only the ray hint: OCCT computes the final face intersection on the committed model.
 
-Focused TS tests cover routing/conflicts, dimensions, lifecycle, immutable snapshots, offset-pivot matrices, region geometry, visibility and stale snap responses. The C++ test checks determinant-based volume, bounds, exact named-edge length, immutable source, independent `BRepCheck_Analyzer`, STEP round-trip and invalid matrices. Actual outcomes and pending end-to-end checks are recorded in Issue/PR. Native builds/tests use parallelism 2; pre-PR checks follow the individual commands in specification §9.1.
+Menu items are chosen by click or number; Esc closes the menu.
 
-The prepared route passed 16 CTest checks and 13 native worker tests (11 existing and 2 new). The new test builds original and moved bodies in separate worker runs, then rebuilds the referenced plane from sealed document/STEP inputs. The X-coordinate difference is 10 mm within 1e-7. Invalid matrices leave no STEP/GLB. This verifies command/worker behavior, not the keyboard workflow in the UI.
+## Technical route
 
-## Host amendment of the last transform
+- `features/keymap/` holds the command registry, remap validation and the single route (`useViewportKeymap`). The separate T/N/Numpad handler from M1 is replaced by it.
+- `features/transform/` is the pure session model (pivots, constraints, input, matrices). `features/transform/viewport/` is the renderer adapter: `renderBasis` converts CAD Z-up mm to the Y-up scene (`(x, y, z) → (x, z, −y)`, as the native preview writes it) and back; `sceneTargets` builds targets from CAD body ids (mesh names) and changes preview matrices only; `ModalTransform` owns pointer and keys during the operation; `commitTransform` builds `transform_body` commands and calls `apply_ir_commands` with the expected revision.
+- `features/adjust-last/` is F9: `last_transform` reads the durable history head, `amend_last_transform` replaces matrices by command index; the panel rebuilds the original session instead of accumulating values.
+- `features/selection/` contains the selection model and box select (`projectBodies` projects body triangles with the same camera frame; keys are CAD body ids, not triangle numbers). Multi-selection lives in `stores/workspace.ts` (`selectedBodies`, with `selected` as the active body).
+- `features/visibility/useBodyVisibility.ts` implements hiding and isolation over `visibilityModel`.
+- `features/pie-menus/` holds pie menus; `features/snapping/` increment snapping, the `snapApi` adapter and the 3D cursor.
+- Host: `model_snap::snap_model_reference` captures the committed revision like exact measurements (document, `source.step`, sealed imported STEP assets), runs the worker `snap_query` operation in a temporary `.transient/reference-measurements` folder, verifies the response (bounds, checksum, request identity, revision, body, all seals, query echo, finite point and unit normal) and rechecks that the project did not change. The project and its log are not modified. The client additionally checks project, revision, body and reference.
+- C++: `cad-core/src/affine_transform.cpp` applies a bounded 3×4 matrix to the BREP with determinant and semantic-reference checks; `cad-core/src/snap_reference.cpp` computes arc-length edge midpoints, analytic circle centres and ray intersections with trimmed faces with outward normals.
 
-`modeling/amend_transform` provides read-only `last_transform` and writing `amend_last_transform`. Support is limited to the last batch of independent body transforms without simultaneous parameter, other-feature or body-list changes. Status contains the current revision, history generation, last transaction ID, base revision and bounded matrices. `features/adjust-last/amendApi.ts` validates the response and binds it to its captured project: a copied project sharing revision IDs cannot become the target of an older request.
+## Data storage
 
-A replacement supplies command indices and new matrices, not arbitrary CAD code, paths or revisions. The host redetermines the eligible last operation; invalid indices, generations, transactions or intervening edits are rejected. Unchanged arguments return `NO_CHANGE`. Preview and original G/R/S parameter UI remain integration work; this endpoint currently defines matrix amendment, not restoration of the entire modal tool after restarting.
+- Geometry: each confirmed transform is a new immutable revision with a CAD IR `transform` operation; F9 appends a physical revision and replaces the final logical Undo slot. No SQL schema change.
+- Interface profile (`forma.ui.*`): pivot (`transform.pivot`), increment snapping (`transform.increment`), exact cursor snapping (`snap.exact`), mouse navigation (`navigation.mousePreset`), plus the selected and hidden bodies per project as before.
+- Not stored: temporary isolation, the 3D cursor position and F9 state (after a restart F9 is unavailable for an older operation).
 
-Success uses existing `modify_project` permission, queue, worker and atomic persistence. A new physical revision and `edit` event are appended while replacing the final logical Undo slot. Old revisions/files stay immutable; the parent chain, audit log and portable archive retain existing validation. No SQL migration changes. One Undo returns the state before the initial transform; Redo restores the latest amended result. Immediately after Undo/Redo an old operation is not amendable; a new transform creates a new eligible operation. `history:amend:<revision>` is translated at display time.
+## Limitations
 
-Real-worker host tests cover repeated amendments, one-step Undo, Redo, a new transform after history travel, portable archives, immutable old snapshots and no saved changes on stale requests, worker failure or denied permission. All 12 `model_apply_transaction` scenarios pass, including 10 existing ones. Keyboard/UI F9 acceptance remains pending.
+- Whole bodies are transformed. Face/edge/vertex edit mode and vertex mapping are not implemented: C++ has no vertex semantics yet, so there is no vertex snapping either.
+- Orientation is global. Because transforms are baked into the BREP, a body's local frame equals the global frame; "local axis" differs only in its label.
+- Exact snapping covers the existing semantic catalogue (rectangular and cylindrical construction and reference-preserving transforms). For imported STEP without semantic references the cursor uses the tessellation hit, i.e. it is approximate. During G itself there is no exact geometric snapping, only increments; exact snapping places the 3D cursor used as a pivot.
+- Box select also picks occluded bodies (like "select through"); circle and lasso selection are not connected.
+- The ruler/protractor still measures surface points; connecting it to exact snapping is the next step.
+- F9 is available only for the last transform of the current session and only when every selected body received an operation (the host skips identity matrices).
 
-## Geometric snapping and worker
+## Verification
 
-`cad-core/src/snap_reference.cpp` computes a BREP curve's arc-length midpoint, an analytic circle centre and the nearest positive intersection with a selected trimmed face. Outward normals account for face orientation, reflection and affine transformation. Ellipses are not called circles. Wrong owner/role/occurrence references, misses and zero rays fail explicitly, without triangle-index fallback. Coverage is bounded by the existing rectangular/cylindrical semantic catalogue and transformations retaining those references. Vertices and general references for arbitrary BREP models remain necessary. Results use CAD mm within ±1e9; transform input bounds are separate.
-
-The next `snap_query` layer must read only sealed `document.json`, `source.step` and imported STEP assets in an isolated working directory. Queries must contain no paths. The worker must rebuild the authored body and recheck hashes, sizes and asset seals. Planned output is `snap.json` and the protocol result, without new model.step/preview.glb or live-project writes.
-
-The host must verify response bounds, checksum, request identity, engine, revision/body, all source/import seals, full query echo and finite point/unit normal. JSON-shape checking alone is not geometric proof: OCCT computes coordinates and separate oracles test them.
-
-The 17/17 CTest suite passes for lines, circles/ellipses, reflection, affine transforms, trimmed faces and a cylinder surface. Windows memory exhaustion stopped validation of the prepared Rust/worker route, including the follow-up library check. That route is not yet part of the verified checkpoint. Host capture must retain the original ReadSession under the shared storage contract; close/reopen guarantees are not claimed before PR35 integration. Neither the other branch's code nor applied SQL is changed.
+- Rust: `snap_worker` (2), `transform_worker` (2), `snap_host` (2: face point `(3, 4, 10)` with normal `+Z` and edge midpoint `(0, −10, 10)` on the committed model with the project unchanged; rejection of a stale revision, unknown body and zero ray).
+- TS: CAD↔render basis (Y/Z moves and rotation about an offset pivot), pointer sampling, modal keys with a Russian layout, increment snapping, F9 fields (10 → 20 mm without accumulation), box projection, exact snap adapter.
+- Manual scenarios in the built application are recorded in the PR.
