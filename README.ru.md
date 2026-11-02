@@ -100,3 +100,4 @@ npm run build
 Разработка по очереди с двух ПК: [порядок и передача](docs/ru/collaboration.md), [промпт AI](docs/ru/collaboration-ai-prompt.md), [общее ТЗ 2.0](docs/architecture-2.0.md).
 
 [Области и редакторы](docs/ru/workspace-areas.md): разделение и объединение, сохранённые раскладки, контекстные свойства, поиск и сохранение viewport.
+Исследование для разработки: [перенос приёмов Blender](docs/ru/blender-parity.md), [собственные наблюдения](docs/parity/blender/README.md) и [аудит готовности 2.0](docs/parity/blender/readiness.md). Это подготовка, а не новые выпущенные функции приложения.
