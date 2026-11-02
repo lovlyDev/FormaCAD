@@ -6,7 +6,7 @@
 .candidate-view-actions,.candidate-view-actions>div { display:flex;align-items:center;gap:7px; }
 .candidate-view-actions { margin:16px 0 10px;justify-content:space-between;flex-wrap:wrap; }
 .candidate-view-actions .button { min-height:32px;padding:6px 10px;font-size:11px; }
-.candidate-view-actions [aria-pressed=true] { background:var(--light-accent-surface);color:var(--accent-text);border-color:var(--light-accent-border); }
+.candidate-view-actions [aria-pressed=true] { background:var(--light-accent-surface);color:var(--accent-text); }
 .candidate-changes { min-width:0; }
 .candidate-parameter-changes { padding:0 16px 16px; }
 .candidate-change { display:grid;gap:5px;padding:12px 0;border-top:1px solid var(--line);font-size:12px; }

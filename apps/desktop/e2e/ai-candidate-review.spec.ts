@@ -59,7 +59,7 @@ for (const locale of ["ru", "en"] as const) test(`AI candidate review ${locale}:
   await expect(dialog.locator(".candidate-plan-checks [data-check-state='failed']")).toHaveCount(1);
   await page.evaluate(() => window.__setWrongExpectedVolume(false));
   await expect(page.getByRole("button", { name: labels.accept, exact: true })).toBeEnabled();
-  expect(await dialog.evaluate(element => getComputedStyle(element).animationDuration)).toBe("0.2s");
+  expect(await dialog.evaluate(element => getComputedStyle(element).animationDuration)).toBe("0.12s");
   await expect(dialog.locator(".candidate-parameter-changes .candidate-change")).toContainText(locale === "ru" ? "8,00 → 12,00" : "8.00 → 12.00");
   await expect(dialog.locator(".typed-feature-icon svg")).toHaveCount(2);
   await expect.poll(async () => JSON.parse(await canvas.getAttribute("data-preview-camera") ?? "{}").moving).toBe(false);
@@ -82,7 +82,7 @@ for (const locale of ["ru", "en"] as const) test(`AI candidate review ${locale}:
     await summary.click(); await expect(summary.locator("..")).toHaveAttribute("data-expanded", "false");
     await summary.click(); await expect(summary.locator("..")).toHaveAttribute("data-expanded", "true");
     expect(await summary.locator("..").locator(":scope > .editor-disclosure-body").getAttribute("data-animation-count")).not.toBeNull();
-    expect(await summary.locator("svg").last().evaluate(element => getComputedStyle(element).transitionDuration)).toBe("0.26s");
+    expect(await summary.locator("svg").last().evaluate(element => getComputedStyle(element).transitionDuration)).toBe("0.14s");
   }
   await page.emulateMedia({ reducedMotion: "reduce" });
   const sourceSummary = dialog.locator("summary").filter({ hasText: labels.source });

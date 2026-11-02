@@ -34,7 +34,7 @@ for (const locale of ["ru", "en"] as const) test(`project transfer review ${loca
       const dialog = page.getByRole("dialog"); await expect(dialog).toBeVisible();
       await expect(dialog).toContainText("Checked project"); await expect(dialog.getByRole("checkbox")).toBeChecked();
       await expect(dialog.getByRole("checkbox")).toBeDisabled();
-      expect(await dialog.evaluate(element => getComputedStyle(element).animationDuration)).toBe("0.2s");
+      expect(await dialog.evaluate(element => getComputedStyle(element).animationDuration)).toBe("0.12s");
       const box = await dialog.boundingBox(); expect(box!.width).toBeLessThanOrEqual(680);
       await dialog.getByRole("button", { name: labels.cancel, exact: true }).click(); await expect(dialog).toBeHidden();
     }
