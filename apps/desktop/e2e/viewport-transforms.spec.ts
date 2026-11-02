@@ -289,3 +289,82 @@ test("vertex selection and ruler snap to exact OCCT vertices (RU)", async ({
     (await calls(page, "snap_model_reference")).map((call) => call.query.kind),
   ).toEqual(["vertex", "vertex", "vertex"]);
 });
+
+test("viewport overlays never collapse or overlap in narrow areas", async ({
+  page,
+}, info) => {
+  await mount(page, "en");
+  for (const [width, height] of [
+    [1440, 960],
+    [1100, 800],
+    [860, 700],
+    [700, 620],
+    [560, 520],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await page.waitForTimeout(250);
+    const boxes = await page.evaluate(() => {
+      const box = (selector: string) => {
+        const element = document.querySelector(selector) as HTMLElement | null;
+        if (!element || getComputedStyle(element).display === "none")
+          return null;
+        const rect = element.getBoundingClientRect();
+        return rect.width && rect.height
+          ? { x: rect.x, y: rect.y, w: rect.width, h: rect.height }
+          : null;
+      };
+      return {
+        viewport: box(".viewer-area .viewport"),
+        segmented: box(".view-bottom .segmented"),
+        render: box(".view-bottom .render-select"),
+        toolbar: box(".view-toolbar"),
+        heading: box(".viewport-heading"),
+        actions: box(".topbar-actions"),
+      };
+    });
+    await page.screenshot({ path: info.outputPath(`overlays-${width}.png`) });
+    // A visible control keeps its natural size instead of collapsing to an icon.
+    if (boxes.render)
+      expect(boxes.render.w, `render select at ${width}`).toBeGreaterThan(110);
+    if (boxes.segmented)
+      expect(boxes.segmented.w, `views at ${width}`).toBeGreaterThan(150);
+    const overlap = (a: typeof boxes.render, b: typeof boxes.render) =>
+      !!a &&
+      !!b &&
+      a.x < b.x + b.w &&
+      b.x < a.x + a.w &&
+      a.y < b.y + b.h &&
+      b.y < a.y + a.h;
+    expect(
+      overlap(boxes.segmented, boxes.render),
+      `bottom controls at ${width}`,
+    ).toBe(false);
+    expect(
+      overlap(boxes.toolbar, boxes.segmented),
+      `toolbar and views at ${width}`,
+    ).toBe(false);
+    // The main menu drop-down opens unclipped wherever the menu is shown.
+    const fileMenu = page.locator(".main-menu-group > button").first();
+    if (await fileMenu.isVisible()) {
+      await fileMenu.click();
+      const dropdown = page.locator('.main-menu [role="menu"]');
+      await expect(dropdown).toBeVisible();
+      expect(
+        (await dropdown.boundingBox())!.height,
+        `menu at ${width}`,
+      ).toBeGreaterThan(60);
+      await page.keyboard.press("Escape");
+    }
+    // Top bar actions (export, settings) stay fully on screen.
+    expect(
+      boxes.actions!.x + boxes.actions!.w,
+      `top bar at ${width}`,
+    ).toBeLessThanOrEqual(width);
+    // Everything stays inside the 3D area.
+    for (const item of [boxes.segmented, boxes.render, boxes.toolbar])
+      if (item && boxes.viewport)
+        expect(item.x + item.w).toBeLessThanOrEqual(
+          boxes.viewport.x + boxes.viewport.w + 1,
+        );
+  }
+});
