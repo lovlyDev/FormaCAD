@@ -65,7 +65,7 @@ for (const locale of ["ru", "en"] as const) test(`owner topology ${locale}: rota
         frames: (animation.effect as KeyframeEffect).getKeyframes().map(frame => frame.height),
       })));
       expect(motion).toHaveLength(1);
-      expect(motion[0].duration).toBe(260);
+      expect(motion[0].duration).toBe(140);
       expect(motion[0].frames[0]).toBe("0px");
       expect(Number.parseFloat(motion[0].frames.at(-1)!)).toBeGreaterThan(32);
       await expect.poll(() => body.evaluate(element => element.getAnimations().length)).toBe(0);
