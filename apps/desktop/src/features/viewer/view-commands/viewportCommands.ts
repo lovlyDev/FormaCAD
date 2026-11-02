@@ -6,7 +6,7 @@ import {
   updateSelection,
   type SelectionAction,
 } from "../../selection/selectionModel";
-import { useBoxSelect } from "../../selection/region-select/BoxSelect";
+import { useRegionSelect } from "../../selection/region-select/RegionSelect";
 import type { VisibilityAction } from "../../visibility/visibilityModel";
 import type { ModalTransformHandle } from "../../transform/viewport/ModalTransform";
 import { useTransformViewport } from "../../transform/viewport/transformStore";
@@ -133,7 +133,8 @@ export function viewportCommands(
     "selection.all": () => selectBodies(context.object, "all"),
     "selection.none": () => selectBodies(context.object, "none"),
     "selection.invert": () => selectBodies(context.object, "invert"),
-    "selection.box": () => useBoxSelect.getState().setActive(true),
+    "selection.box": () => useRegionSelect.getState().setMode("box"),
+    "selection.circle": () => useRegionSelect.getState().setMode("circle"),
     "selection.body": () => context.setSelectionMode("body"),
     "selection.face": context.hasCadFaces
       ? () => context.setSelectionMode("face")

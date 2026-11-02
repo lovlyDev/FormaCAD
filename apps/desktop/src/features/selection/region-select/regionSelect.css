@@ -1,0 +1,40 @@
+/* Region shapes are drawn marks, not focus states: neutral dashed strokes, soft fill. */
+.region-select-rect,
+.region-select-brush {
+  position: fixed;
+  z-index: 6;
+  border: 1px dashed var(--muted);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  pointer-events: none;
+}
+.region-select-brush {
+  border-radius: 50%;
+}
+.region-select-svg {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+}
+.region-select-svg polygon {
+  fill: color-mix(in srgb, var(--accent) 10%, transparent);
+  stroke: var(--muted);
+  stroke-dasharray: 4 3;
+}
+.region-select-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 6;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+}

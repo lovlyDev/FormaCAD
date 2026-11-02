@@ -30,7 +30,8 @@ export function Cursor3D({
   useEffect(() => {
     const element = gl.domElement;
     const place = (event: PointerEvent) => {
-      if (event.button !== 2 || !event.shiftKey) return;
+      // Ctrl+Shift+RMB belongs to the lasso.
+      if (event.button !== 2 || !event.shiftKey || event.ctrlKey) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       const rect = element.getBoundingClientRect();

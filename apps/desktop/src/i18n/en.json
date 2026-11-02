@@ -1463,5 +1463,6 @@
   "Vertex": "Vertex",
   "exact (OCCT)": "exact (OCCT)",
   "approximate (mesh)": "approximate (mesh)",
-  "Snapped to vertex": "Snapped to vertex"
+  "Snapped to vertex": "Snapped to vertex",
+  "Paint to add bodies · Shift removes · wheel changes size · Esc finishes": "Paint to add bodies · Shift removes · wheel changes size · Esc finishes"
 }

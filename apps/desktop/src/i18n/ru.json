@@ -1463,5 +1463,6 @@
   "Vertex": "Вершина",
   "exact (OCCT)": "точно (OCCT)",
   "approximate (mesh)": "приблизительно (по сетке)",
-  "Snapped to vertex": "Привязка к вершине"
+  "Snapped to vertex": "Привязка к вершине",
+  "Paint to add bodies · Shift removes · wheel changes size · Esc finishes": "Закрашивайте, чтобы добавить тела · Shift — исключить · колесо — размер · Esc — завершить"
 }

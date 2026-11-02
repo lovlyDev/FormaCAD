@@ -368,3 +368,40 @@ test("viewport overlays never collapse or overlap in narrow areas", async ({
         );
   }
 });
+
+test("circle brush and lasso select bodies; Esc leaves the brush", async ({
+  page,
+}) => {
+  await mount(page, "en");
+  const centre = await page.evaluate(() => (window as any).__m2.bodyScreen());
+  const selection = () => page.evaluate(() => (window as any).__m2.selection());
+  await page.mouse.move(centre.x, centre.y);
+  await page.locator('[data-editor="viewport3d"]').focus();
+  // Circle brush: C, paint over the body, Esc finishes.
+  await page.keyboard.press("KeyC");
+  await expect(page.locator(".region-select-hint")).toBeVisible();
+  await page.mouse.move(centre.x - 120, centre.y - 120);
+  await page.mouse.down();
+  await page.mouse.move(centre.x, centre.y, { steps: 6 });
+  await page.mouse.up();
+  await expect.poll(selection).toEqual(["body"]);
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".region-select-hint")).toHaveCount(0);
+  // Alt+A clears, then a Ctrl+RMB lasso around the body selects it again.
+  await page.keyboard.press("Alt+KeyA");
+  await expect.poll(selection).toEqual([]);
+  await page.keyboard.down("Control");
+  await page.mouse.move(centre.x - 150, centre.y - 120);
+  await page.mouse.down({ button: "right" });
+  for (const [dx, dy] of [
+    [150, -120],
+    [150, 120],
+    [-150, 120],
+    [-150, -110],
+  ] as const)
+    await page.mouse.move(centre.x + dx, centre.y + dy, { steps: 5 });
+  await page.mouse.up({ button: "right" });
+  await page.keyboard.up("Control");
+  await expect.poll(selection).toEqual(["body"]);
+  expect(await calls(page, "apply_ir_commands")).toHaveLength(0);
+});

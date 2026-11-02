@@ -55,9 +55,9 @@ import { ModalTransform } from "../transform/viewport/ModalTransform";
 import { TransformHud } from "../transform/viewport/TransformHud";
 import { AdjustLastPanel } from "../adjust-last/AdjustLastPanel";
 import {
-  BoxSelectController,
-  BoxSelectOverlay,
-} from "../selection/region-select/BoxSelect";
+  RegionSelectController,
+  RegionSelectOverlay,
+} from "../selection/region-select/RegionSelect";
 import { Cursor3D } from "../snapping/cursor/Cursor3D";
 import {
   MeasureSnap,
@@ -503,7 +503,12 @@ export default function Viewer({
               handleRef={transformRef}
               onConfirm={onConfirm}
             />
-            <BoxSelectController object={object} controlsRef={controlsRef} />
+            <RegionSelectController
+              object={object}
+              controlsRef={controlsRef}
+              enabled={editable && !measure}
+              through={mode === "xray" || mode === "wireframe"}
+            />
             {editable && <Cursor3D object={object} light={light} />}
             <MeasureSnap
               object={object}
@@ -611,7 +616,7 @@ export default function Viewer({
         <>
           <TransformHud />
           <AdjustLastPanel onAdopt={adopt} confirmEdit={confirmEdit} />
-          <BoxSelectOverlay />
+          <RegionSelectOverlay />
           <VertexSelectionInfo />
           <PieMenu />
         </>
