@@ -16,7 +16,7 @@ export function AnimatedDetails({open,onOpenChange,children,...props}:Props){
   if(!open&&!present)return;
   if(open)setPresent(true);
   body.dataset.animationCount=String(Number(body.dataset.animationCount??0)+1);
-  const active=body.animate([{height:`${from}px`,opacity},{height:open?`${body.scrollHeight}px`:"0px",opacity:open?1:0}],{duration:260,easing:"cubic-bezier(.2,.8,.2,1)",fill:"both"});
+  const active=body.animate([{height:`${from}px`,opacity},{height:open?`${body.scrollHeight}px`:"0px",opacity:open?1:0}],{duration:140,easing:"cubic-bezier(.2,.8,.2,1)",fill:"both"});
   animation.current=active;
   active.onfinish=()=>{if(animation.current!==active)return;setPresent(open);active.cancel();animation.current=null;};
  // Presence is intentionally held through close and must not restart its animation.
