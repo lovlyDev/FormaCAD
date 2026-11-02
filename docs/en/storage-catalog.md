@@ -9,6 +9,22 @@ projects without recovery or write access. IPC `list_projects` returns CatalogRe
 
 ## Contract
 
+Updating the task branch to accepted main `a66ba5a` retains M1's `WorkspaceShell`,
+main menu and project tabs. Their project selection uses the same
+`useProjectNavigation` and pure target read; unavailable entries remain visible
+in Dashboard. Until reading succeeds, settings and geometry belong to the last
+accepted project. Background thumbnail generation/writes remain removed. This
+integrates the managed catalog with the new workspace, not production FCP1.
+
+Integration checks on 3 November 2026: frontend build passed, 233 unit tests in
+80 files passed with one worker; installed-Chrome browser suite reported 51 PASS,
+35 unchanged skipped, 0 FAIL (4.1 minutes). M1 scenarios covered RU/EN, both themes,
+splits/workspaces/settings and retained viewport; cards stayed read-only until
+explicit pin/rename/delete. Native browser skips need a local worker fixture and
+are not passes; backend CAD was verified separately at `d1368cc`. The exact merge
+head still needs CI. Cargo.lock is inherited unchanged from accepted main PR #36,
+without task-agent dependency edits.
+
 `list_managed(state, CatalogLimits { max_entries, max_total_payload_bytes })`
 returns every selected row in `CatalogReport`, together with the actual JSON-byte
 sum of ready `Project` payloads. The host explicitly selects limits; there are

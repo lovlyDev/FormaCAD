@@ -85,3 +85,5 @@
 - [Решение о формате папки](storage-format-decision.md).
 - [Контракт чтения репозитория](storage-contract.md).
 - [Чистый backend-каталог проектов](storage-catalog.md).
+- [Области и редакторы](workspace-areas.md): вкладки проектов и пространств, split/join, сохранение viewport, контекстные свойства и навигация.
+- [Подготовка переноса приёмов Blender](blender-parity.md): исследование, локальные доказательства, проверки и ограничения; [тематические заметки](../parity/blender/README.md) и [аудит готовности 2.0](../parity/blender/readiness.md).
