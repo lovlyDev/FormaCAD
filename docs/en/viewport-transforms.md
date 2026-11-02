@@ -80,4 +80,5 @@ Menu items are chosen by click or number; Esc closes the menu.
 
 - Rust: `snap_worker` (2), `transform_worker` (2), `snap_host` (2: face point `(3, 4, 10)` with normal `+Z` and edge midpoint `(0, −10, 10)` on the committed model with the project unchanged; rejection of a stale revision, unknown body and zero ray).
 - TS: CAD↔render basis (Y/Z moves and rotation about an offset pivot), pointer sampling, modal keys with a Russian layout, increment snapping, F9 fields (10 → 20 mm without accumulation), box projection, exact snap adapter.
-- Manual scenarios in the built application are recorded in the PR.
+- Playwright `e2e/viewport-transforms.spec.ts`: the real interface with the real OCCT worker rebuilding every revision (the host IPC is emulated). It checks Esc without a revision, a denied permission, G X 10 Enter with a Russian layout (new geometry moved by 10 mm), F9 10 → 20 mm, one Ctrl+Z, rotation in light and dark themes, a pie menu, H/Alt+H and the preview frame rate (≈60 FPS with software WebGL). Run with `FORMA_E2E_WORKER=<path to forma-cad-worker.exe>` and `FORMA_OCCT_ROOT=<OCCT build>`; without a worker the test is skipped.
+- Native previews are shown in CAD coordinates (the loader no longer centres them) so a committed move stays visible; non-native files are centred as before.
