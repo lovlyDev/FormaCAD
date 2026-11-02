@@ -3,6 +3,7 @@
 Status: implemented in the task branch under verification, with no runtime PASS yet. Inspected design base
 `ae1b0ab` and §10.11 of the assigned storage specification. This does not start
 stage 5, authorize shared wiring, or declare production FCP1 available.
+Next separate contract: [reuse the STEP import helper](storage-step-import-helper.md).
 
 Review corrections: backup retains the destination identity captured before
 creation through capability mint; migration retains target identity through
