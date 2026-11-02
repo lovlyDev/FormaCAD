@@ -91,3 +91,16 @@
     padding: 0 6px;
   }
 }
+/* On narrow windows the menu yields to the actions; every command stays in search (F3 / Ctrl+K).
+   No overflow clipping here: it would also clip the drop-downs. */
+.topbar {
+  min-width: 0;
+}
+.topbar-actions {
+  flex-shrink: 0;
+}
+@media (max-width: 1000px) {
+  .topbar > .main-menu {
+    display: none;
+  }
+}
