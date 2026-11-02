@@ -343,6 +343,18 @@ intent hidden in an unrelated app SQL database. Managed callers require the pure
 legacy recovery check. A genuine 1.1 project is not accepted as V2; its last STEP
 requires a separate new-project import without a claim to restored parametrics.
 
+`project_repository/selected_step` is a test-only source for an explicitly selected
+STEP, not an old database reader. It retains the original file handle, directory
+identity, SHA-256, bounded size and distinct opening. It rejects unsafe links and
+nonregular inputs, checks the 40 MiB limit before allocating a payload, and uses
+one mutex-protected file without descriptor duplication. Recheck hashes in 32 KiB
+chunks. Reopen, path replacement and close never refresh the original authority.
+Windows denies write/delete sharing; Linux uses optimistic identity/hash checks,
+not an epoch for external writes. Close revokes the capability immediately while
+a retained snapshot can keep its physical handle alive longer. This establishes
+input-byte provenance, not valid CAD geometry or recovered 1.1 history. Transfer
+through common CAD execution remains incomplete.
+
 The trusted `FolderSession::apply_history` backend now uses the existing pure
 history planner and session commit route. It requires a captured snapshot rather
 than a revision ID. New synthetic storage regressions cover undo, a fresh child

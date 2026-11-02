@@ -6,6 +6,8 @@ pub mod catalog;
 pub mod folder;
 pub mod legacy;
 mod location;
+#[cfg(all(test, any(target_os = "linux", windows)))]
+pub(crate) mod selected_step;
 mod session;
 #[cfg(test)]
 mod sqlite_folder;
