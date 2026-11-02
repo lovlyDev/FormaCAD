@@ -160,6 +160,8 @@ jobs:
             exit 1
           fi
           VERSION="${RELEASE_TAG#v}"
-          gh release create "$RELEASE_TAG" --verify-tag --draft --title "Forma $VERSION" --notes-file "docs/releases/$VERSION.md"
+          # Release pages resolve relative links against /blob/, so point them at docs/ of this tag.
+          sed -E "s#\]\(\.\./#](https://github.com/${GITHUB_REPOSITORY}/blob/${RELEASE_TAG}/docs/#g" "docs/releases/$VERSION.md" > .release-notes.md
+          gh release create "$RELEASE_TAG" --verify-tag --draft --title "Forma $VERSION" --notes-file .release-notes.md
           gh release upload "$RELEASE_TAG" .release-artifacts/*
           gh release edit "$RELEASE_TAG" --draft=false --latest
