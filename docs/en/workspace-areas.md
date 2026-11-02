@@ -16,6 +16,8 @@ Workspace tabs switch presets, create a copy of the current arrangement, rename 
 
 Project tabs switch between opened projects. Closing a tab never deletes its project. Camera, message draft and area settings are keyed by project ID and reused on reopening. Existing restrictions during active operations remain in effect.
 
+The main menu (File, Edit, View, Add, Tools, Window, Help) sits in the top bar next to the workspace name instead of a separate strip. Menus open on click; arrows, Home/End and Esc work from the keyboard, and the drop-down follows the light and dark themes.
+
 File → Duplicate project retains access to independent copies, using the existing checked `copy_project_for_editing` route on desktop and local copy persistence in the browser, with normal confirmation. Files retains collapsible workspace, attachment and export folders; clicking an export opens its details.
 
 ## Model tree, properties and AI

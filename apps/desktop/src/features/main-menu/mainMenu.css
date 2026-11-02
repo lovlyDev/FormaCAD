@@ -1,52 +1,71 @@
+/* Lives inside the top bar island: no own strip, border or background. */
 .main-menu {
   display: flex;
   align-items: center;
-  padding: 0 10px;
-  height: 30px;
+  gap: 2px;
+  height: 32px;
   flex-shrink: 0;
-  background: var(--panel);
-  border-bottom: 1px solid var(--line);
-  font-size: 12px;
+  font-size: 13px;
 }
 .main-menu-group {
   position: relative;
 }
 .main-menu-group > button {
-  padding: 5px 9px;
+  height: 30px;
+  padding: 0 10px;
   color: var(--muted);
-  border-radius: 3px;
+  border-radius: 7px;
+  transition:
+    color 0.12s,
+    background-color 0.12s;
 }
 .main-menu-group > button:hover,
 .main-menu-group > [aria-expanded="true"] {
   color: var(--text);
-  background: var(--panel2);
+  background: var(--hover);
+}
+.main-menu-group > button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 .main-menu [role="menu"] {
   position: absolute;
   left: 0;
-  top: 100%;
+  top: calc(100% + 8px);
   z-index: 50;
-  min-width: 240px;
+  min-width: 248px;
   padding: 5px;
   border: 1px solid var(--line);
   background: var(--panel);
-  box-shadow: 0 8px 24px #0003;
-  border-radius: 5px;
+  box-shadow: var(--island-shadow);
+  border-radius: 10px;
 }
 .main-menu [role="menu"] button {
   display: flex;
+  align-items: center;
   width: 100%;
   gap: 20px;
-  padding: 8px;
+  padding: 7px 10px;
+  color: var(--text);
   text-align: left;
-  border-radius: 3px;
+  border-radius: 6px;
 }
 .main-menu [role="menu"] button:hover,
 .main-menu [role="menu"] button:focus-visible {
-  background: var(--panel2);
+  background: var(--hover);
+}
+.main-menu [role="menu"] button:disabled {
+  color: var(--muted);
+  opacity: 0.6;
 }
 .main-menu kbd {
   margin-left: auto;
   color: var(--muted);
-  font-size: 10px;
+  font-family: inherit;
+  font-size: 11px;
+}
+@media (max-width: 900px) {
+  .main-menu-group > button {
+    padding: 0 7px;
+  }
 }
