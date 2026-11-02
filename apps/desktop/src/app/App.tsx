@@ -878,6 +878,58 @@ export default function App() {
         ) : (
           <span className="project-switch">{t("Your workspace")}</span>
         )}
+        <MainMenu
+          groups={applicationMenus(
+            {
+              duplicate: () => {
+                if (project)
+                  void ask(
+                    t("Duplicate project"),
+                    t(
+                      "Create an independent project with the same files and history.",
+                    ),
+                    project.name,
+                    async () => {
+                      if (native) {
+                        await openProject(
+                          await copyProjectForEditing(project.id),
+                        );
+                        return;
+                      }
+                      await openProject(
+                        await saveProject({
+                          ...project,
+                          id: crypto.randomUUID(),
+                          name: t("{{value0}} copy", { value0: project.name }),
+                          createdAt: stamp(),
+                          updatedAt: stamp(),
+                        }),
+                      );
+                    },
+                  );
+              },
+              create: () => setModal("new"),
+              import: () => fileInput.current?.click(),
+              export: () => setModal("export"),
+              parameters: () => setModal("parameters"),
+              palette: () => setModal("palette"),
+              settings: (page) => {
+                if (page) persist("forma.ui.settingsPage", JSON.stringify(page));
+                setModal("settings");
+              },
+              workspaces: () =>
+                document
+                  .querySelector<HTMLElement>(
+                    '[role="tablist"][aria-label="' +
+                      t("Workspaces") +
+                      '"] button',
+                  )
+                  ?.focus(),
+            },
+            !!project,
+            editingBlocked,
+          )}
+        />
         {project && (
           <span className="saved">
             <span className="status-dot" />
@@ -929,58 +981,6 @@ export default function App() {
           )}
         </div>
       </header>
-      <MainMenu
-        groups={applicationMenus(
-          {
-            duplicate: () => {
-              if (project)
-                void ask(
-                  t("Duplicate project"),
-                  t(
-                    "Create an independent project with the same files and history.",
-                  ),
-                  project.name,
-                  async () => {
-                    if (native) {
-                      await openProject(
-                        await copyProjectForEditing(project.id),
-                      );
-                      return;
-                    }
-                    await openProject(
-                      await saveProject({
-                        ...project,
-                        id: crypto.randomUUID(),
-                        name: t("{{value0}} copy", { value0: project.name }),
-                        createdAt: stamp(),
-                        updatedAt: stamp(),
-                      }),
-                    );
-                  },
-                );
-            },
-            create: () => setModal("new"),
-            import: () => fileInput.current?.click(),
-            export: () => setModal("export"),
-            parameters: () => setModal("parameters"),
-            palette: () => setModal("palette"),
-            settings: (page) => {
-              if (page) persist("forma.ui.settingsPage", JSON.stringify(page));
-              setModal("settings");
-            },
-            workspaces: () =>
-              document
-                .querySelector<HTMLElement>(
-                  '[role="tablist"][aria-label="' +
-                    t("Workspaces") +
-                    '"] button',
-                )
-                ?.focus(),
-          },
-          !!project,
-          editingBlocked,
-        )}
-      />
       {project && (
         <ProjectAccessNotice
           projectId={project.id}
