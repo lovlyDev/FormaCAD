@@ -69,3 +69,24 @@
     padding: 0 7px;
   }
 }
+/* The menu shares the top bar with the project and task status: keep every item on one line. */
+.topbar .project-switch,
+.topbar .saved,
+.topbar .cad-task-indicator {
+  white-space: nowrap;
+}
+.topbar .project-switch .custom-select {
+  max-width: 220px;
+}
+@media (max-width: 1600px) {
+  /* Only the status dot stays; the label remains available to screen readers. */
+  .topbar .saved {
+    font-size: 0;
+    gap: 0;
+  }
+}
+@media (max-width: 1280px) {
+  .main-menu-group > button {
+    padding: 0 6px;
+  }
+}
