@@ -1,0 +1,74 @@
+/*
+ * Viewport overlays adapt to the width of their own area, not the window:
+ * a split 3D view can be narrow on a wide screen. Items never shrink into
+ * slivers; lower-priority ones are hidden instead (render modes stay on Z).
+ */
+.viewport {
+  container-type: size;
+  container-name: viewport;
+}
+.view-bottom > *,
+.render-select .custom-select,
+.segmented button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+/* The left tool column owns its strip; bottom controls start to its right. */
+.workspace-editor[data-editor="viewport3d"] .view-toolbar {
+  max-height: calc(100cqh - 80px);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.workspace-editor[data-editor="viewport3d"] .viewport:not(.workspace-viewer-tools-hidden) .view-bottom {
+  left: 64px;
+}
+.viewport-heading > span {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@container viewport (max-width: 720px) {
+  .orbit-hint {
+    display: none;
+  }
+  .view-bottom {
+    left: 12px;
+    right: 96px;
+    bottom: 14px;
+  }
+  .workspace-editor[data-editor="viewport3d"] .viewport:not(.workspace-viewer-tools-hidden) .view-bottom {
+    left: 64px;
+  }
+  .viewport-heading > .quiet {
+    display: none;
+  }
+}
+@container viewport (max-width: 560px) {
+  .render-select {
+    display: none;
+  }
+  .segmented button {
+    padding: 6px;
+  }
+}
+@container viewport (max-width: 400px) {
+  .view-bottom {
+    display: none;
+  }
+}
+@container viewport (max-height: 380px) {
+  .orbit-hint,
+  .view-bottom {
+    display: none;
+  }
+}
+/* The title yields to the Tools/Item toggles at the right. */
+.viewport-heading > span:first-child {
+  max-width: calc(100% - 150px);
+}
+@container viewport (max-width: 340px) {
+  .viewport-heading > span:first-child {
+    display: none;
+  }
+}

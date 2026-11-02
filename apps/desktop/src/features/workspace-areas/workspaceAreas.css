@@ -109,6 +109,8 @@
 .workspace-area-header .custom-select {
   flex: 1;
   min-width: 60px;
+  white-space: nowrap;
+  overflow: hidden;
   height: 26px;
   padding: 0 5px;
   font-size: 11px;
