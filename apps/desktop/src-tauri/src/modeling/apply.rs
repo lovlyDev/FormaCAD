@@ -20,6 +20,7 @@ pub struct ApplyRequest {
     pub expected_revision: Option<String>,
     pub review_plan: Option<ReviewPlan>,
     pub(super) next_revision: Option<String>,
+    pub(super) history_amend: Option<crate::project_history::AmendCapture>,
 }
 impl ApplyRequest {
     pub fn new(
@@ -35,6 +36,7 @@ impl ApplyRequest {
             expected_revision,
             review_plan: None,
             next_revision: None,
+            history_amend: None,
         }
     }
 }
@@ -161,9 +163,12 @@ async fn apply_inner(
             state,
             latest,
             generated,
-            job,
-            saved_program,
-            request.prompt.clone(),
+            commit::CommitMetadata {
+                job,
+                program: saved_program,
+                prompt: request.prompt.clone(),
+                amend: request.history_amend.clone(),
+            },
             &cancel,
         )
         .await?;

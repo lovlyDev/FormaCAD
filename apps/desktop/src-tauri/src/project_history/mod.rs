@@ -12,6 +12,7 @@ pub use status::status_for;
 pub use persistence::{load_state, record_commit};
 pub use portable::{export_history, import_history, validate_archive};
 pub use state::{prepare, Direction, HistoryState, PreparedHistory};
+pub(crate) use state::{prepare_amend, AmendCapture};
 
 use crate::{
     core::{AppError, AppState, Result},

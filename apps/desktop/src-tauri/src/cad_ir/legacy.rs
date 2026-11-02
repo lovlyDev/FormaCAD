@@ -67,6 +67,7 @@ impl Document {
                 | Operation::FilletReferencedEdge { .. }
                 | Operation::Chamfer { .. }
                 | Operation::Rotate { .. }
+                | Operation::Transform { .. }
                 | Operation::Mirror { .. }
                 | Operation::Revolve { .. } => {
                     return Err(app_error(ValidationError::new(

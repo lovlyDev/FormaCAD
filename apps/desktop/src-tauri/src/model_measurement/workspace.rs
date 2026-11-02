@@ -1,6 +1,6 @@
 use crate::{core::Result, security};
 use std::path::{Path, PathBuf};
-pub(super) struct Workspace {
+pub(crate) struct Workspace {
     root: PathBuf,
     relative: PathBuf,
     pub path: PathBuf,

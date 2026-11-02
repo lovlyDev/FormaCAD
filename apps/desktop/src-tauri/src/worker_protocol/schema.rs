@@ -23,6 +23,7 @@ pub(super) struct Request {
     pub measurement_query: Option<MeasurementQuery>,
     pub face_section_query: Option<FaceSectionQuery>,
     pub pair_measurement_query: Option<PairMeasurementQuery>,
+    pub snap_query: Option<crate::model_snap::schema::SnapQuery>,
 }
 
 #[derive(Serialize)]

@@ -37,6 +37,11 @@ bool valid_role(TopAbs_ShapeEnum kind, const std::string& role) {
   static const std::array<std::string, 9> faces = {
     "box-face:xmin", "box-face:xmax", "box-face:ymin", "box-face:ymax", "box-face:zmin", "box-face:zmax",
     "cylinder-face:bottom", "cylinder-face:top", "cylinder-face:side"};
+  static const std::array<std::string, 8> vertices = {
+    "box-vertex:xmin:ymin:zmin", "box-vertex:xmin:ymin:zmax", "box-vertex:xmin:ymax:zmin",
+    "box-vertex:xmin:ymax:zmax", "box-vertex:xmax:ymin:zmin", "box-vertex:xmax:ymin:zmax",
+    "box-vertex:xmax:ymax:zmin", "box-vertex:xmax:ymax:zmax"};
+  if (kind == TopAbs_VERTEX) return std::find(vertices.begin(), vertices.end(), role) != vertices.end();
   if (kind == TopAbs_EDGE) return std::find(edges.begin(), edges.end(), role) != edges.end();
   if (kind == TopAbs_FACE) return std::find(faces.begin(), faces.end(), role) != faces.end();
   return false;

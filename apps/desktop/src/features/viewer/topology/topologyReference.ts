@@ -8,14 +8,17 @@ export const edgeRoles = [
   "cylinder-edge:bottom", "cylinder-edge:top",
 ] as const;
 const faceRoles = ["box-face:xmin", "box-face:xmax", "box-face:ymin", "box-face:ymax", "box-face:zmin", "box-face:zmax", "cylinder-face:bottom", "cylinder-face:top", "cylinder-face:side"] as const;
+export const vertexRoles = ["xmin", "xmax"].flatMap(x => ["ymin", "ymax"].flatMap(y => ["zmin", "zmax"].map(z => `box-vertex:${x}:${y}:${z}`))) as [string, ...string[]];
 const common = { schemaVersion: z.literal(1), ownerFeatureId: featureId, occurrencePath: z.array(featureId).max(64) };
 export const topologyReferenceSchema = z.discriminatedUnion("kind", [
   z.strictObject({ ...common, kind: z.literal("edge"), role: z.enum(edgeRoles) }),
   z.strictObject({ ...common, kind: z.literal("face"), role: z.enum(faceRoles) }),
+  z.strictObject({ ...common, kind: z.literal("vertex"), role: z.enum(vertexRoles) }),
 ]).refine(reference => new Set(reference.occurrencePath).size === reference.occurrencePath.length && !reference.occurrencePath.includes(reference.ownerFeatureId));
 export type TopologyReference = z.infer<typeof topologyReferenceSchema>;
 export type EdgeTopologyReference = Extract<TopologyReference, { kind: "edge" }>;
 export type FaceTopologyReference = Extract<TopologyReference, { kind: "face" }>;
+export type VertexTopologyReference = Extract<TopologyReference, { kind: "vertex" }>;
 export function readTopologyReference(value: unknown): TopologyReference | null {
   const parsed = topologyReferenceSchema.safeParse(value);
   return parsed.success ? parsed.data : null;

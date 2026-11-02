@@ -125,6 +125,8 @@ pub(super) fn verify(selected: &SelectionContext, fresh: &Value, saved: &Value) 
             crate::cad_ir::TopologyKind::Face => {
                 &fresh["formaFaceReferences"][selected.face_ordinal.ok_or_else(invalid)? - 1]
             }
+            // Agent selections address faces and edges only.
+            crate::cad_ir::TopologyKind::Vertex => return Err(invalid()),
         };
         if actual != &expected {
             return Err(invalid());

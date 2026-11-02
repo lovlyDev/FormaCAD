@@ -1,4 +1,5 @@
 import { applicationMenus } from "../features/main-menu/applicationMenus";
+import { useBodyVisibility } from "../features/visibility/useBodyVisibility";
 import { copyProjectForEditing } from "../features/project-access/projectAccessApi";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
@@ -283,11 +284,7 @@ export default function App() {
     });
     return result;
   }, [object]);
-  useEffect(() => {
-    bodies.forEach((body, index) => {
-      body.visible = !hiddenBodies.includes(`${index}:${body.name}`);
-    });
-  }, [bodies, hiddenBodies]);
+  const visibility = useBodyVisibility(bodies, hiddenBodies, setHiddenBodies);
   useEffect(() => {
     bodies.forEach((body, index) => {
       body.userData.formaSelectionLocked = lockedBodies.includes(
@@ -464,6 +461,7 @@ export default function App() {
     action = "modify_project",
     targetProjectId = project?.id,
     review?: CandidateReviewData,
+    cancelled?: () => void,
   ) {
     try {
       if (!review && !needsConfirmation(await confirmationSettings(), action)) {
@@ -483,8 +481,10 @@ export default function App() {
         id,
         review,
         targetProjectId,
+        cancelled,
       });
     } catch (e) {
+      cancelled?.();
       if (
         !targetProjectId ||
         useWorkspace.getState().project?.id === targetProjectId
@@ -522,8 +522,12 @@ export default function App() {
           : p.id;
       if (permissionId) await resolveNativePermission(permissionId, allow);
       if (allow) await p.run();
-      else setNotice(t("Action denied. No model changes were made."));
+      else {
+        p.cancelled?.();
+        setNotice(t("Action denied. No model changes were made."));
+      }
     } catch (e) {
+      p.cancelled?.();
       if (
         !p.targetProjectId ||
         useWorkspace.getState().project?.id === p.targetProjectId
@@ -1079,6 +1083,21 @@ export default function App() {
                   retainedLabel={retainedLabel}
                   onRetry={committedScene.retry}
                   onScreenshot={(data) => void captureScreenshot(data)}
+                  onVisibility={visibility.onVisibility}
+                  confirmEdit={(title, description, detail, run) =>
+                    new Promise<boolean>((resolve) => {
+                      void ask(
+                        title,
+                        description,
+                        detail,
+                        async () => resolve(await run()),
+                        "modify_project",
+                        project.id,
+                        undefined,
+                        () => resolve(false),
+                      );
+                    })
+                  }
                 />
               ),
               outliner: (
