@@ -35,7 +35,7 @@
   background: var(--hover);
 }
 .pie-menu button[aria-checked="true"] {
-  border-color: var(--accent);
+  background: var(--light-accent-surface);
   color: var(--accent-text);
 }
 .pie-menu button:disabled {
