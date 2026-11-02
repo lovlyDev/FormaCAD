@@ -16,6 +16,7 @@ import { snapSessionIncrements } from "../../snapping/incrementSnap";
 import { useTransformViewport } from "./transformStore";
 import { bodyMeshes, PreviewMatrices, transformTarget } from "./sceneTargets";
 import { cadWorldFrame } from "./renderBasis";
+import { transformableBodies } from "./transformable";
 import { pointerSample, unwrapAngle, type ScreenPoint } from "./pointerSample";
 import { modalKey } from "./modalKeys";
 import type { OrbitHandle } from "../../viewer/CameraControl";
@@ -175,6 +176,15 @@ export function ModalTransform({
         const targets = meshes.map((mesh) => transformTarget(mesh, frame));
         if (!meshes.length || targets.some((item) => !item))
           return "noSelection";
+        // Only bodies of the committed CAD document can become TransformBody commands.
+        if (
+          !transformableBodies(
+            object,
+            project,
+            meshes.map((mesh) => mesh.name),
+          )
+        )
+          return "unavailable";
         const session = beginTransform({
           capture: {
             projectId: project.id,

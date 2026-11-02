@@ -222,6 +222,24 @@ test("rotate preview, axis constraint, pies, visibility and themes (EN)", async 
   await expect.poll(visible).toBe(false);
   await page.keyboard.press("Alt+KeyH");
   await expect.poll(visible).toBe(true);
+  // Standard views: front, back (Ctrl) and top look along the expected render axes.
+  const direction = () =>
+    page.evaluate(() => (window as any).__m2.viewDirection());
+  for (const [key, expected] of [
+    ["Numpad1", [0, 0, -1]],
+    ["Control+Numpad1", [0, 0, 1]],
+    ["Numpad7", [0, -1, 0]],
+  ] as const) {
+    await page.keyboard.press(key);
+    await expect
+      .poll(async () =>
+        (await direction()).every(
+          (value: number, index: number) =>
+            Math.abs(value - expected[index]) < 1e-3,
+        ),
+      )
+      .toBe(true);
+  }
   expect(await calls(page, "apply_ir_commands")).toHaveLength(0);
 });
 

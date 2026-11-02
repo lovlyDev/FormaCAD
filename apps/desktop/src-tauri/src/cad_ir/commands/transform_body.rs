@@ -150,4 +150,28 @@ mod tests {
             ErrorCode::InvalidValue
         );
     }
+
+    #[test]
+    fn viewport_payload_deserializes_into_transform_body() {
+        // Exact shape sent by features/transform/transformCommands.ts.
+        let value = serde_json::json!({
+            "command": "transform_body",
+            "bodyId": "body",
+            "featureId": "transform_0123456789ab",
+            "name": "Move",
+            "matrix": [1., 0., 0., 10., 0., 1., 0., 0., 0., 0., 1., 0.]
+        });
+        let command: Command = serde_json::from_value(value).unwrap();
+        assert_eq!(
+            command,
+            Command::TransformBody {
+                body_id: "body".into(),
+                feature_id: "transform_0123456789ab".into(),
+                name: "Move".into(),
+                matrix: [1., 0., 0., 10., 0., 1., 0., 0., 0., 0., 1., 0.],
+            }
+        );
+        let staged = apply_commands(&document(), "before", "after", &[command]).unwrap();
+        assert_eq!(staged.bodies[0].source_feature_id, "transform_0123456789ab");
+    }
 }

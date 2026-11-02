@@ -270,6 +270,11 @@ export async function mountViewportTransformHarness(
       project: () => useWorkspace.getState().project,
       selection: () => useWorkspace.getState().selectedBodies,
       visible: () => live()?.scene.getObjectByName("body")?.visible ?? null,
+      viewDirection: () =>
+        live()
+          ?.camera.getWorldDirection(new THREE.Vector3())
+          .toArray()
+          .map((value: number) => Math.round(value * 1000) / 1000) ?? null,
       /** World-space render bounds of the body; render X equals CAD X. */
       bounds: () => {
         const body = live()?.scene.getObjectByName("body");

@@ -205,6 +205,23 @@ pub async fn prepare(
 mod tests {
     use super::*;
     use crate::cad_ir::{apply_commands, Command};
+    #[test]
+    fn f9_replacement_payload_deserializes() {
+        // Exact element shape sent by features/adjust-last/amendApi.ts.
+        let value = serde_json::json!([{
+            "commandIndex": 0,
+            "matrix": [1., 0., 0., 20., 0., 1., 0., 0., 0., 0., 1., 0.]
+        }]);
+        let replacements: Vec<TransformReplacement> = serde_json::from_value(value).unwrap();
+        assert_eq!(replacements[0].command_index, 0);
+        assert_eq!(replacements[0].matrix[3], 20.);
+        assert!(
+            serde_json::from_value::<Vec<TransformReplacement>>(serde_json::json!([
+                { "commandIndex": 0, "featureId": "x", "matrix": [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.] }
+            ]))
+            .is_err()
+        );
+    }
     fn before() -> Document {
         serde_json::from_value(serde_json::json!({"schemaVersion":2,"revisionId":"base","parameters":[],"features":[
             {"id":"profile","name":"Profile","operation":{"type":"rectangle","width":{"kind":"literal","mm":20},"depth":{"kind":"literal","mm":10}}},
