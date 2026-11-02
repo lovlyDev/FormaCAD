@@ -12,6 +12,7 @@ import type { ModalTransformHandle } from "../../transform/viewport/ModalTransfo
 import { useTransformViewport } from "../../transform/viewport/transformStore";
 import type { ViewportCommands } from "../../keymap/useViewportKeymap";
 import type { RenderMode } from "../renderMode";
+import type { SelectionFilter } from "../selectionFilter";
 import type { StandardView } from "./standardViews";
 import { usePieMenu, type PieItem } from "../../pie-menus/PieMenu";
 import { pivotPie, shadingPie, snapPie } from "../../pie-menus/viewportPies";
@@ -29,7 +30,7 @@ export interface ViewportCommandContext {
   fitSelection: () => void;
   setToolbarOpen: Dispatch<SetStateAction<boolean>>;
   setSidebarOpen: Dispatch<SetStateAction<boolean>>;
-  setSelectionMode: (mode: "body" | "face" | "edge") => void;
+  setSelectionMode: (mode: SelectionFilter) => void;
   hasCadFaces: boolean;
   hasCadEdges: boolean;
   onVisibility?: (action: VisibilityAction) => void;
@@ -139,6 +140,9 @@ export function viewportCommands(
       : undefined,
     "selection.edge": context.hasCadEdges
       ? () => context.setSelectionMode("edge")
+      : undefined,
+    "selection.vertex": context.hasCadEdges
+      ? () => context.setSelectionMode("vertex")
       : undefined,
     "visibility.hide": visibility("hide"),
     "visibility.hideOthers": visibility("hideOthers"),

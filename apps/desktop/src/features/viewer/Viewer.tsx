@@ -33,6 +33,7 @@ import {
   Pause,
   Square,
   MoveRight,
+  Dot,
 } from "lucide-react";
 import { IconButton, Select } from "../../components/ui";
 import { useWorkspace } from "../../stores/workspace";
@@ -57,10 +58,19 @@ import {
   BoxSelectOverlay,
 } from "../selection/region-select/BoxSelect";
 import { Cursor3D } from "../snapping/cursor/Cursor3D";
+import {
+  MeasureSnap,
+  type MeasurePoint,
+} from "../measure-snap/MeasureSnap";
 import { PieMenu } from "../pie-menus/PieMenu";
 import { navigationPresets } from "../keymap/registry";
 import type { VisibilityAction } from "../visibility/visibilityModel";
 import type { StandardView } from "./view-commands/standardViews";
+import type { SelectionFilter } from "./selectionFilter";
+import {
+  VertexSelectController,
+  VertexSelectionInfo,
+} from "../selection/vertex-select/VertexSelect";
 export type { RenderMode } from "./renderMode";
 export default function Viewer({
   object,
@@ -107,11 +117,22 @@ export default function Viewer({
   const [ortho, setOrtho] = usePersistentState(`${viewKey}.ortho`, false);
   const [fit, setFit] = useState(0);
   const [measure, setMeasure] = useState(false);
-  const [selectionMode, setSelectionMode] = useState<"body" | "face" | "edge">(
+  const [selectionMode, setSelectionMode] = useState<SelectionFilter>(
     "body",
   );
   const [measureKind, setMeasureKind] = useState<MeasureKind>("distance");
-  const [points, setPoints] = useState<THREE.Vector3[]>([]);
+  const [points, setPoints] = useState<MeasurePoint[]>([]);
+  const required = measureKind === "distance" ? 2 : 3;
+  const addPoint = useCallback(
+    (point: MeasurePoint) =>
+      setPoints((prev) => (prev.length < required ? [...prev, point] : [point])),
+    [required],
+  );
+  const refinePoint = useCallback(
+    (point: MeasurePoint) =>
+      setPoints((prev) => prev.map((item) => (item.id === point.id ? point : item))),
+    [],
+  );
   const [capture, setCapture] = useState<(() => string) | null>(null);
   const controlsRef = useRef<OrbitHandle | null>(null);
   const appliedPreset = useRef(preset);
@@ -280,6 +301,21 @@ export default function Viewer({
           >
             <MoveRight size={17} />
           </IconButton>
+          <IconButton
+            label={
+              hasCadEdges && !comparison
+                ? t("Select CAD vertex")
+                : t("CAD vertex selection requires a native model preview")
+            }
+            active={!measure && selectionMode === "vertex"}
+            disabled={!interactive || !hasCadEdges || comparison}
+            onClick={() => {
+              setMeasure(false);
+              setSelectionMode("vertex");
+            }}
+          >
+            <Dot size={20} />
+          </IconButton>
           <i />
           <IconButton
             label={
@@ -380,7 +416,19 @@ export default function Viewer({
                 {t("Радиус / диаметр по трём точкам")}
               </option>
             </Select>
-            <span>{measurement(points, measureKind)}</span>
+            <span>
+              {measurement(
+                points.map((item) => item.point),
+                measureKind,
+              )}
+            </span>
+            {points.length > 0 && (
+              <small className="quiet">
+                {points.every((item) => item.exact)
+                  ? t("exact (OCCT)")
+                  : t("approximate (mesh)")}
+              </small>
+            )}
           </div>
         )}
       </div>
@@ -429,12 +477,9 @@ export default function Viewer({
             selectionMode={selectionMode}
             revisionId={comparison ? null : revisionId}
             onPoint={(p) => {
-              if (interactive && measure)
-                setPoints((prev) =>
-                  prev.length < (measureKind === "distance" ? 2 : 3)
-                    ? [...prev, p]
-                    : [p],
-                );
+              // The main view snaps through MeasureSnap; the old revision keeps surface picks.
+              if (interactive && measure && comparison)
+                addPoint({ id: -Date.now(), point: p, exact: false });
             }}
           />
           <CameraControl
@@ -459,6 +504,17 @@ export default function Viewer({
             />
             <BoxSelectController object={object} controlsRef={controlsRef} />
             {editable && <Cursor3D object={object} light={light} />}
+            <MeasureSnap
+              object={object}
+              enabled={interactive && measure}
+              onPick={addPoint}
+              onRefine={refinePoint}
+            />
+            <VertexSelectController
+              object={object}
+              enabled={editable && !measure && selectionMode === "vertex"}
+              light={light}
+            />
           </>
         )}
         {grid && <AdaptiveGrid object={object} light={light} />}
@@ -555,6 +611,7 @@ export default function Viewer({
           <TransformHud />
           <AdjustLastPanel onAdopt={adopt} confirmEdit={confirmEdit} />
           <BoxSelectOverlay />
+          <VertexSelectionInfo />
           <PieMenu />
         </>
       )}

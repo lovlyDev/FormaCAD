@@ -57,7 +57,10 @@ describe("snap source ownership", () => {
     // Existing geometry may lie beyond the limit for a single transform input.
     expect(
       readExactSnap(
-        { ...sample, candidates: [{ ...candidate, pointMm: [25000, -1e9, 1e9] }] },
+        {
+          ...sample,
+          candidates: [{ ...candidate, pointMm: [25000, -1e9, 1e9] }],
+        },
         expected,
         expected,
       )?.candidates[0].pointMm,

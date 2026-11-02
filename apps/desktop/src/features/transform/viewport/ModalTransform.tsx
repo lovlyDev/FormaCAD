@@ -13,10 +13,17 @@ import {
   type TransformSession,
 } from "../transformSession";
 import { snapSessionIncrements } from "../../snapping/incrementSnap";
+import { applyVertexSnap } from "../../snapping/vertexSnap";
+import {
+  findSnapCandidate,
+  type SnapCandidate,
+} from "../../snapping/snapCandidate";
+import { resolveSnap } from "../../snapping/resolveSnap";
+import { useSnapSettings } from "../../snapping/cursor/snapSettings";
 import { useTransformViewport } from "./transformStore";
 import { bodyMeshes, PreviewMatrices, transformTarget } from "./sceneTargets";
 import { cadWorldFrame } from "./renderBasis";
-import { transformableBodies } from "./transformable";
+import { activeLocalFrame, transformableBodies } from "./transformable";
 import { pointerSample, unwrapAngle, type ScreenPoint } from "./pointerSample";
 import { modalKey } from "./modalKeys";
 import type { OrbitHandle } from "../../viewer/CameraControl";
@@ -60,6 +67,7 @@ export function ModalTransform({
     angle: number;
     precise: boolean;
     snap: boolean;
+    vertex: SnapCandidate | null;
   } | null>(null);
   const confirmRef = useRef(onConfirm);
   useEffect(() => {
@@ -69,12 +77,18 @@ export function ModalTransform({
   useEffect(() => {
     const element = gl.domElement;
     const store = useTransformViewport;
+    // Increments, then the vertex target: what is previewed is exactly what is committed.
+    const effective = (session: TransformSession) => {
+      const state = active.current!;
+      return applyVertexSnap(
+        snapSessionIncrements(session, state.snap),
+        state.vertex?.pointMm ?? null,
+      );
+    };
     const render = (session: TransformSession) => {
       const state = active.current;
       if (!state) return;
-      const intents = transformIntents(
-        snapSessionIncrements(session, state.snap),
-      );
+      const intents = transformIntents(effective(session));
       if (intents) state.preview.apply(intents);
       invalidate();
     };
@@ -88,6 +102,7 @@ export function ModalTransform({
       active.current = null;
       if (controlsRef.current) controlsRef.current.enabled = true;
       store.getState().setSession(null);
+      store.getState().setSnapTarget(null);
       invalidate();
     };
     const sample = (
@@ -115,6 +130,23 @@ export function ModalTransform({
       });
       if (!reading) return session;
       state.angle = unwrapAngle(state.angle, reading.angleDeg);
+      // Vertices of the moving bodies are excluded so a body never snaps to itself.
+      state.vertex =
+        session.kind === "move" && useSnapSettings.getState().exact
+          ? findSnapCandidate({
+              object,
+              camera,
+              screen: pointer.current,
+              size: {
+                width: element.clientWidth,
+                height: element.clientHeight,
+              },
+              frame: state.frame,
+              exclude: new Set(session.targets.map((item) => item.bodyId)),
+              surfaces: false,
+            })
+          : null;
+      store.getState().setSnapTarget(state.vertex ? "vertex" : null);
       return moveTransformPointer(
         session,
         { ...reading, angleDeg: state.angle },
@@ -125,15 +157,30 @@ export function ModalTransform({
       const session = store.getState().session;
       const state = active.current;
       if (!session || !state) return;
-      const snapped = snapSessionIncrements(session, state.snap);
+      const incremented = snapSessionIncrements(session, state.snap);
+      const vertex = state.vertex;
       active.current = null;
       if (controlsRef.current) controlsRef.current.enabled = true;
       store.getState().setSession(null);
+      store.getState().setSnapTarget(null);
+      // A referenced vertex is re-read from OCCT so the commit uses the exact BREP point.
+      const target = vertex
+        ? resolveSnap(vertex).then((resolved) => resolved?.pointMm ?? null)
+        : Promise.resolve(null);
       // Preview stays until the committed revision replaces the scene; failures restore it.
-      void confirmRef.current(snapped, object.uuid).then((committed) => {
-        if (!committed) state.preview.restore();
-        invalidate();
-      });
+      void target
+        .then((point) =>
+          vertex && !point
+            ? false
+            : confirmRef.current(
+                applyVertexSnap(incremented, point),
+                object.uuid,
+              ),
+        )
+        .then((committed) => {
+          if (!committed) state.preview.restore();
+          invalidate();
+        });
     };
     handleRef.current = {
       begin: (kind) => {
@@ -159,7 +206,7 @@ export function ModalTransform({
             pivotMode: current.pivotMode,
             cursorMm: store.getState().cursorMm,
             orientation: worldFrame,
-            local: worldFrame,
+            local: current.local,
           });
           if (restarted) update(restarted);
           return "started";
@@ -197,7 +244,11 @@ export function ModalTransform({
           pivotMode: store.getState().pivotMode,
           cursorMm: store.getState().cursorMm,
           orientation: worldFrame,
-          local: worldFrame,
+          // Local axes come from the active body's transform history (baked into BREP).
+          local: activeLocalFrame(
+            project,
+            workspace.selected ?? meshes[0].name,
+          ),
         });
         if (!session) return "unavailable";
         active.current = {
@@ -207,6 +258,7 @@ export function ModalTransform({
           angle: 0,
           precise: false,
           snap: store.getState().incrementSnap,
+          vertex: null,
         };
         if (controlsRef.current) controlsRef.current.enabled = false;
         store.getState().setStatus({ kind: "idle" });

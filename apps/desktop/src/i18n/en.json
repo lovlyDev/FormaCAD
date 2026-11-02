@@ -1457,5 +1457,11 @@
   "TRANSFORM_STALE": "The project or scene changed during the transform. Repeat the action.",
   "Apply the viewport transform as a new model revision.": "Apply the viewport transform as a new model revision.",
   "{{value0}} bodies": "{{value0}} bodies",
-  "Replace the parameters of the last transform. One Undo still returns to the state before it.": "Replace the parameters of the last transform. One Undo still returns to the state before it."
+  "Replace the parameters of the last transform. One Undo still returns to the state before it.": "Replace the parameters of the last transform. One Undo still returns to the state before it.",
+  "Select CAD vertex": "Select CAD vertex",
+  "CAD vertex selection requires a native model preview": "CAD vertex selection requires a native model preview",
+  "Vertex": "Vertex",
+  "exact (OCCT)": "exact (OCCT)",
+  "approximate (mesh)": "approximate (mesh)",
+  "Snapped to vertex": "Snapped to vertex"
 }

@@ -31,6 +31,11 @@ async fn exact_snaps_on_the_committed_body_leave_the_project_unchanged() {
             [0., -10., 10.],
             None,
         ),
+        (
+            json!({"kind":"vertex","reference":reference("vertex","box-vertex:xmax:ymin:zmax")}),
+            [20., -10., 10.],
+            None,
+        ),
     ] {
         let confirmed = snap_with_executable(
             &state,

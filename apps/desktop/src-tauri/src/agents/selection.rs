@@ -32,6 +32,7 @@ impl SelectionContext {
                     || match reference.kind {
                         crate::cad_ir::TopologyKind::Edge => self.edge_ordinal.is_none(),
                         crate::cad_ir::TopologyKind::Face => self.face_ordinal.is_none(),
+                        crate::cad_ir::TopologyKind::Vertex => true,
                     }
             })
             || self.semantic_key.as_deref().is_some_and(|key| {

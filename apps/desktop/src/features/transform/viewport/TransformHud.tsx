@@ -45,6 +45,7 @@ export function TransformHud() {
   const session = useTransformViewport((state) => state.session);
   const status = useTransformViewport((state) => state.status);
   const snap = useTransformViewport((state) => state.incrementSnap);
+  const snapTarget = useTransformViewport((state) => state.snapTarget);
   if (!session) {
     if (status.kind === "committing")
       return (
@@ -72,6 +73,9 @@ export function TransformHud() {
     <div className="transform-hud" role="status" aria-live="polite">
       <strong>{t(kindLabel[session.kind])}</strong>
       <span>{axisLabel(session)}</span>
+      {snapTarget === "vertex" && !session.input && (
+        <span className="snapped">{t("Snapped to vertex")}</span>
+      )}
       <span className={input.status === "invalid" ? "invalid" : ""}>
         {session.input
           ? `${t("Value")}: ${session.input}`

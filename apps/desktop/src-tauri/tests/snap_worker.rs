@@ -86,6 +86,10 @@ fn isolated_snap_rebuilds_exact_body_and_writes_only_a_sealed_query_report() {
             json!({"kind":"face","reference":reference("face","box-face:zmax"),"rayOriginMm":[12,3,50],"rayDirection":[0,0,-1]}),
             [12., 3., 5.],
         ),
+        (
+            json!({"kind":"vertex","reference":reference("vertex","box-vertex:xmin:ymax:zmax")}),
+            [0., 5., 5.],
+        ),
     ] {
         let request = request(&binding, &query);
         let response = run(directory.path(), &request);

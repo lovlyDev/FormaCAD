@@ -21,7 +21,8 @@ private:
   friend std::unique_ptr<SnapResult> snap_reference(const Shape&, int, const std::string&,
     const std::string&, const std::string&, const double*, std::size_t) noexcept;
 };
-// Tags: 0=edge arc-length midpoint, 1=analytic circle centre, 2=trimmed-face ray hit.
+// Tags: 0=edge arc-length midpoint, 1=analytic circle centre, 2=trimmed-face ray hit,
+// 3=exact semantic vertex.
 // Face ray is [origin x/y/z in mm, direction x/y/z]; other queries require zero ray values.
 std::unique_ptr<SnapResult> snap_reference(const Shape&, int, const std::string&,
   const std::string&, const std::string&, const double*, std::size_t) noexcept;

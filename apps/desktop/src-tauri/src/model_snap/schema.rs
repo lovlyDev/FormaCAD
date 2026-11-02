@@ -19,6 +19,9 @@ pub enum SnapQuery {
     CircleCenter {
         reference: TopologyReference,
     },
+    Vertex {
+        reference: TopologyReference,
+    },
     Face {
         reference: TopologyReference,
         ray_origin_mm: [f64; 3],
@@ -30,6 +33,7 @@ impl SnapQuery {
         match self {
             Self::EdgeMidpoint { reference }
             | Self::CircleCenter { reference }
+            | Self::Vertex { reference }
             | Self::Face { reference, .. } => reference,
         }
     }
@@ -38,6 +42,7 @@ impl SnapQuery {
             Self::EdgeMidpoint { .. } => 0,
             Self::CircleCenter { .. } => 1,
             Self::Face { .. } => 2,
+            Self::Vertex { .. } => 3,
         }
     }
     pub fn ray(&self) -> Option<[f64; 6]> {
@@ -59,6 +64,7 @@ impl SnapQuery {
             Self::EdgeMidpoint { .. } | Self::CircleCenter { .. } => {
                 reference.kind == TopologyKind::Edge
             }
+            Self::Vertex { .. } => reference.kind == TopologyKind::Vertex,
             Self::Face {
                 ray_origin_mm,
                 ray_direction,

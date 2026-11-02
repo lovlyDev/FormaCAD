@@ -1457,5 +1457,11 @@
   "TRANSFORM_STALE": "Проект или сцена изменились во время трансформации. Повторите действие.",
   "Apply the viewport transform as a new model revision.": "Применить трансформацию из viewport как новую ревизию модели.",
   "{{value0}} bodies": "Тел: {{value0}}",
-  "Replace the parameters of the last transform. One Undo still returns to the state before it.": "Заменить параметры последней трансформации. Один Undo по-прежнему вернёт состояние до неё."
+  "Replace the parameters of the last transform. One Undo still returns to the state before it.": "Заменить параметры последней трансформации. Один Undo по-прежнему вернёт состояние до неё.",
+  "Select CAD vertex": "Выбрать вершину CAD",
+  "CAD vertex selection requires a native model preview": "Выбор вершины CAD требует нативного предпросмотра модели",
+  "Vertex": "Вершина",
+  "exact (OCCT)": "точно (OCCT)",
+  "approximate (mesh)": "приблизительно (по сетке)",
+  "Snapped to vertex": "Привязка к вершине"
 }

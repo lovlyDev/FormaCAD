@@ -27,6 +27,9 @@ interface TransformViewportState {
   pivotMode: PivotMode;
   incrementSnap: boolean;
   cursorMm: Vec3;
+  /** Geometry the free move is currently snapped to, for the status line. */
+  snapTarget: "vertex" | null;
+  setSnapTarget: (target: "vertex" | null) => void;
   setSession: (session: TransformSession | null) => void;
   setStatus: (status: TransformStatus) => void;
   setLast: (last: LastTransform | null) => void;
@@ -46,6 +49,8 @@ export const useTransformViewport = create<TransformViewportState>((set) => ({
   pivotMode: "bounds",
   incrementSnap: false,
   cursorMm: [0, 0, 0],
+  snapTarget: null,
+  setSnapTarget: (snapTarget) => set({ snapTarget }),
   setSession: (session) => set({ session }),
   setStatus: (status) => set({ status }),
   setLast: (last) => set({ last }),

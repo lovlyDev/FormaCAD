@@ -53,7 +53,9 @@ std::string topology_reference_json(const TopologyCatalog& catalog, const TopoDS
   }
   if (!found) return "null";
   std::ostringstream json;
-  json << "{\"schemaVersion\":1,\"kind\":\"" << (entity.ShapeType() == TopAbs_EDGE ? "edge" : "face")
+  const char* kind = entity.ShapeType() == TopAbs_EDGE ? "edge" :
+                     entity.ShapeType() == TopAbs_VERTEX ? "vertex" : "face";
+  json << "{\"schemaVersion\":1,\"kind\":\"" << kind
        << "\",\"ownerFeatureId\":\"" << found->owner << "\",\"role\":\"" << found->role
        << "\",\"occurrencePath\":[";
   for (std::size_t i = 0; i < found->path.size(); ++i) {
@@ -91,6 +93,18 @@ std::unique_ptr<Shape> make_referenced_box(double width, double depth, double he
                         adjacent[0][0] != 'y' && adjacent[1][0] != 'y' ? 'y' : 'z';
       output->impl_->topology.push_back({edges(i), owner,
         std::string("box-edge:") + axis + ':' + adjacent[0] + ':' + adjacent[1], {}});
+    }
+    // Corners are named by their three constructor faces in x, y, z order.
+    NCollection_IndexedMap<TopoDS_Shape, TopTools_ShapeMapHasher> vertices;
+    TopExp::MapShapes(output->impl_->shape, TopAbs_VERTEX, vertices);
+    for (int i = 1; i <= vertices.Extent(); ++i) {
+      std::vector<std::string> adjacent;
+      for (std::size_t f = 0; f < faces.size(); ++f)
+        if (member(faces[f], vertices(i))) adjacent.push_back(names[f]);
+      if (adjacent.size() != 3 || adjacent[0][0] != 'x' || adjacent[1][0] != 'y' || adjacent[2][0] != 'z')
+        return failure("TOPOLOGY_REFERENCE_AMBIGUOUS", "Rectangle constructor corner adjacency is ambiguous");
+      output->impl_->topology.push_back({vertices(i), owner,
+        "box-vertex:" + adjacent[0] + ':' + adjacent[1] + ':' + adjacent[2], {}});
     }
     return output;
   } catch (const Standard_Failure& error) { return failure("OCCT_ERROR", error.GetMessageString()); }

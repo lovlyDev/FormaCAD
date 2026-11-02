@@ -22,6 +22,9 @@
 .transform-hud strong {
   color: var(--accent-text);
 }
+.transform-hud .snapped {
+  color: var(--accent-text);
+}
 .transform-hud small {
   flex-basis: 100%;
   text-align: center;

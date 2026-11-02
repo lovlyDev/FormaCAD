@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import * as THREE from "three";
 import { useWorkspace } from "../../stores/workspace";
 import type { RenderMode } from "./renderMode";
+import type { SelectionFilter } from "./selectionFilter";
 import { useTheme } from "../../lib/theme";
 import { useBodyAppearance } from "./appearance/useBodyAppearance";
 import {
@@ -32,7 +33,7 @@ export function Model({
   selected: string | null;
   selectedFace: FaceSelection | null;
   selectedEdge: EdgeSelection | null;
-  selectionMode: "body" | "face" | "edge";
+  selectionMode: SelectionFilter;
   revisionId: string | null;
   onPoint: (p: THREE.Vector3) => void;
   interactive?: boolean;
@@ -121,6 +122,8 @@ export function Model({
       }) => {
         e.stopPropagation();
         if (!interactive || e.object.userData.formaSelectionLocked) return;
+        // Vertices are picked by VertexSelectController from the BREP catalogue.
+        if (selectionMode === "vertex") return;
         if (selectionMode === "edge") {
           if (!revisionId) return;
           const rect = gl.domElement.getBoundingClientRect();

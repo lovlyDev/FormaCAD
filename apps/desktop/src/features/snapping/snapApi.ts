@@ -4,12 +4,14 @@ import {
   topologyReferenceSchema,
   type EdgeTopologyReference,
   type FaceTopologyReference,
+  type VertexTopologyReference,
 } from "../viewer/topology/topologyReference";
 import type { Vec3 } from "../transform/frames";
 
 export type ExactSnapQuery =
   | { kind: "edgeMidpoint"; reference: EdgeTopologyReference }
   | { kind: "circleCenter"; reference: EdgeTopologyReference }
+  | { kind: "vertex"; reference: VertexTopologyReference }
   | {
       kind: "face";
       reference: FaceTopologyReference;
@@ -27,7 +29,7 @@ const confirmed = z.object({
   evaluationSource: z.literal("rebuiltAuthoredBody"),
   query: z
     .object({
-      kind: z.enum(["edgeMidpoint", "circleCenter", "face"]),
+      kind: z.enum(["edgeMidpoint", "circleCenter", "vertex", "face"]),
       reference: topologyReferenceSchema,
     })
     .passthrough(),

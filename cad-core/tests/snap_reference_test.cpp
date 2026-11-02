@@ -12,6 +12,7 @@ static void point(const forma::SnapResult& result, const std::array<double, 3>& 
 }
 int main() {
   return run_test([] {
+    const std::array<double, 6> ray_hint{0, 0, 10, 0, 0, -1};
     auto box = forma::make_referenced_box(20, 10, 4, "pad");
     auto midpoint = forma::snap_reference(*box, 0, "pad", "box-edge:x:ymin:zmax", "", nullptr, 0);
     point(*midpoint, {0, -5, 4});
@@ -23,6 +24,13 @@ int main() {
     point(*transformed_midpoint, {15, 20, 34});
     require(!forma::snap_reference(*moved, 0, "pad", "box-edge:x:ymin:zmax", "wrong", nullptr, 0)->valid(), "Reject wrong semantic occurrence");
     require(std::abs(box->volume_mm3() - 800.) < 1e-8, "Read-only source invariant");
+    // Semantic corners follow rotation, translation and reflection exactly.
+    point(*forma::snap_reference(*box, 3, "pad", "box-vertex:xmax:ymin:zmax", "", nullptr, 0), {10, -5, 4});
+    point(*forma::snap_reference(*moved, 3, "pad", "box-vertex:xmax:ymin:zmax", "spin/offset", nullptr, 0), {15, 30, 34});
+    auto flipped = forma::topology_occurrence(*forma::mirror(*box, 0, 0, 0, 1, 0, 0), "flip");
+    point(*forma::snap_reference(*flipped, 3, "pad", "box-vertex:xmax:ymin:zmax", "flip", nullptr, 0), {-10, -5, 4});
+    require(!forma::snap_reference(*box, 3, "pad", "box-edge:x:ymin:zmax", "", nullptr, 0)->valid(), "Edge role is not a vertex");
+    require(!forma::snap_reference(*box, 3, "pad", "box-vertex:xmax:ymin:zmax", "", ray_hint.data(), ray_hint.size())->valid(), "Vertex query takes no ray");
 
     auto cylinder = forma::make_referenced_cylinder(5, 12, "cylinder");
     auto center = forma::snap_reference(*cylinder, 1, "cylinder", "cylinder-edge:top", "", nullptr, 0);

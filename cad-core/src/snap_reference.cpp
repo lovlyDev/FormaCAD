@@ -1,6 +1,7 @@
 #include "internal/shape_impl.hpp"
 #include "internal/topology_resolver.hpp"
 #include <BRepAdaptor_Curve.hxx>
+#include <BRep_Tool.hxx>
 #include <BRepAdaptor_Surface.hxx>
 #include <GCPnts_AbscissaPoint.hxx>
 #include <IntCurvesFace_ShapeIntersector.hxx>
@@ -27,7 +28,7 @@ std::unique_ptr<SnapResult> snap_reference(const Shape& source, int kind,
     if (!source.ok() || source.impl_->shape.IsNull()) {
       fail("INVALID_SOURCE", "Snapping requires a valid source BREP"); return result;
     }
-    if (kind < 0 || kind > 2 || (kind == 2 ? !ray || ray_count != 6 : ray_count != 0)) {
+    if (kind < 0 || kind > 3 || (kind == 2 ? !ray || ray_count != 6 : ray_count != 0)) {
       fail("INVALID_SNAP_QUERY", "Invalid snap mode or ray shape"); return result;
     }
     if (kind == 2) {
@@ -41,10 +42,12 @@ std::unique_ptr<SnapResult> snap_reference(const Shape& source, int kind,
       }
     }
     const auto resolved = resolve_topology(source.impl_->shape, source.impl_->topology,
-      kind == 2 ? TopAbs_FACE : TopAbs_EDGE, owner, role, path);
+      kind == 2 ? TopAbs_FACE : kind == 3 ? TopAbs_VERTEX : TopAbs_EDGE, owner, role, path);
     if (!resolved.valid()) { fail(resolved.code, resolved.detail); return result; }
     gp_Pnt point;
-    if (kind < 2) {
+    if (kind == 3) {
+      point = BRep_Tool::Pnt(TopoDS::Vertex(resolved.entity));
+    } else if (kind < 2) {
       BRepAdaptor_Curve curve(TopoDS::Edge(resolved.entity));
       if (kind == 1) {
         if (curve.GetType() != GeomAbs_Circle) {
