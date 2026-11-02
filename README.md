@@ -100,3 +100,5 @@ Local Sketcher: [holes and contours](docs/en/sketch-profiles.md), [editing and c
 [Two-PC collaboration](docs/en/collaboration.md): source through Git, user project data kept separate.
 
 Alternating development on two PCs: [workflow and handoff](docs/en/collaboration.md), [AI prompt](docs/en/collaboration-ai-prompt.md), [shared 2.0 specification](docs/architecture-2.0.md).
+
+Development research: [Blender workflow adaptation](docs/en/blender-parity.md), [independent observations](docs/parity/blender/README.md) and [2.0 readiness inventory](docs/parity/blender/readiness.md). These describe preparation, not newly shipped application features.

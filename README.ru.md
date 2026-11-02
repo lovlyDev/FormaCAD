@@ -98,3 +98,5 @@ npm run build
 [Совместная работа с двух ПК](docs/ru/collaboration.md): исходники через Git, пользовательские данные отдельно.
 
 Разработка по очереди с двух ПК: [порядок и передача](docs/ru/collaboration.md), [промпт AI](docs/ru/collaboration-ai-prompt.md), [общее ТЗ 2.0](docs/architecture-2.0.md).
+
+Исследование для разработки: [перенос приёмов Blender](docs/ru/blender-parity.md), [собственные наблюдения](docs/parity/blender/README.md) и [аудит готовности 2.0](docs/parity/blender/readiness.md). Это подготовка, а не новые выпущенные функции приложения.
