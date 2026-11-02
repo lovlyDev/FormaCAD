@@ -1,0 +1,52 @@
+.main-menu {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  height: 30px;
+  flex-shrink: 0;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+.main-menu-group {
+  position: relative;
+}
+.main-menu-group > button {
+  padding: 5px 9px;
+  color: var(--muted);
+  border-radius: 3px;
+}
+.main-menu-group > button:hover,
+.main-menu-group > [aria-expanded="true"] {
+  color: var(--text);
+  background: var(--panel2);
+}
+.main-menu [role="menu"] {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  z-index: 50;
+  min-width: 240px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: 0 8px 24px #0003;
+  border-radius: 5px;
+}
+.main-menu [role="menu"] button {
+  display: flex;
+  width: 100%;
+  gap: 20px;
+  padding: 8px;
+  text-align: left;
+  border-radius: 3px;
+}
+.main-menu [role="menu"] button:hover,
+.main-menu [role="menu"] button:focus-visible {
+  background: var(--panel2);
+}
+.main-menu kbd {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 10px;
+}
