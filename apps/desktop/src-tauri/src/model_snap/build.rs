@@ -51,9 +51,14 @@ pub async fn snap_with_executable(
         &captured.document,
         &workspace.path,
     )?;
-    let report =
-        client::snap_with_executable(&workspace.path, cancel, executable, &captured.binding, query)
-            .await?;
+    let report = client::snap_with_executable(
+        &workspace.path,
+        cancel,
+        executable,
+        &captured.binding,
+        query,
+    )
+    .await?;
     capture::recheck(state, &captured).await?;
     Ok(ConfirmedSnap {
         project_id: project_id.into(),

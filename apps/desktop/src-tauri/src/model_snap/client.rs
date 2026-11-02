@@ -76,7 +76,9 @@ pub async fn snap_with_executable(
         let code = identity.code.filter(|code| valid_code(code));
         let detail = identity.detail.filter(|detail| detail.len() <= 16 * 1024);
         if identity.measurement_sha256.is_some() || code.is_none() || detail.is_none() {
-            return Err(invalid("Failure response did not match the snap error contract"));
+            return Err(invalid(
+                "Failure response did not match the snap error contract",
+            ));
         }
         return Err(AppError::Invalid(
             serde_json::json!({"code":code,"message":detail}).to_string(),

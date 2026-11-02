@@ -75,11 +75,16 @@ async fn stale_revisions_unknown_bodies_and_invalid_rays_are_rejected_before_the
             .await
             .is_err()
     );
-    assert!(
-        snap_with_executable(&state, &project.id, &revision, "missing", &face, executable())
-            .await
-            .is_err()
-    );
+    assert!(snap_with_executable(
+        &state,
+        &project.id,
+        &revision,
+        "missing",
+        &face,
+        executable()
+    )
+    .await
+    .is_err());
     let zero = query(
         json!({"kind":"face","reference":reference("face","box-face:zmax"),"rayOriginMm":[0,0,100],"rayDirection":[0,0,0]}),
     );
