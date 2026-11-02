@@ -2,9 +2,13 @@
 
 [Documentation](index.md) · [Русский](../ru/status.md) · [Roadmap](roadmap.md)
 
+## Changes in 1.6.0
+
+Blender-style 3D viewport (M2): G/R/S move, rotate and scale with exact typed values and local axes, F9 for the last transform, box, brush and lasso selection, hide and isolate, 7 views, pie menus, a 3D cursor, exact OCCT snapping to faces, edges, centres and vertices, a ruler and protractor. Areas and workspaces (M1): a tree of editor areas and the Model, Inspect and Sketch presets. Main menu in the top bar, no coloured outlines, faster motion. Wasmtime 50.0.1. Details: [1.6.0 release](../releases/1.6.0.md), [Viewport and modal transforms](viewport-transforms.md) and [Areas and workspaces](workspace-areas.md). Windows x64, Linux x64, macOS ARM and macOS Intel installers are built by the Release workflow: [v1.6.0 release](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.6.0).
+
 ## Changes in 1.5.1
 
-Plugin actions in the 3D-view toolbar: own buttons for actions with an icon and a “Plugin actions” menu for the rest, without the command palette. Details: [1.5.1 release](../releases/1.5.1.md).
+Plugin actions in the 3D-view toolbar: own buttons for actions with an icon and a “Plugin actions” menu for the rest, without the command palette. Details: [1.5.1 release](../releases/1.5.1.md). Windows x64, Linux x64, macOS ARM and macOS Intel installers are published: [v1.5.1 release](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.5.1).
 
 ## Changes in 1.5.0
 
@@ -35,7 +39,7 @@ Five read routes use consistent snapshots and revalidate sources: history, attac
 [Windows EXE1.3.0](https://github.com/lovlyDev/FormaCAD/releases/download/v1.3.0/Forma_1.3.0_x64-setup.exe) · [GitHub release](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.3.0).
 
 
-Publication of1.3.0 is confirmed: downloaded EXE,signature and updater metadata match the local files; both Ed25519 signatures verify. [GitHub Quality](https://github.com/lovlyDev/FormaCAD/actions/runs/38170203431) succeeded for source commit `0eecb136338f772b1fe773cf5e9e6f67b2d1c0d1`. CI:37 browserPASS/35skipped without native fixtures; local full suite72PASS. The release comes from the task branch; [PR#1](https://github.com/lovlyDev/FormaCAD/pull/1) remains unmerged and main stays at1.2.6 until review and a decision by project head lovlyDev.
+Publication of1.3.0 is confirmed: downloaded EXE,signature and updater metadata match the local files; both Ed25519 signatures verify. [GitHub Quality](https://github.com/lovlyDev/FormaCAD/actions/runs/38170203431) succeeded for source commit `0eecb136338f772b1fe773cf5e9e6f67b2d1c0d1`. CI:37 browserPASS/35skipped without native fixtures; local full suite72PASS. The release comes from the task branch; [PR#1](https://github.com/lovlyDev/FormaCAD/pull/1) was not merged at that time. main now contains every later release.
 
 ## Consolidated release 1.2.6
 
