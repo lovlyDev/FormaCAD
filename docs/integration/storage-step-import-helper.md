@@ -1,6 +1,6 @@
 # Reuse STEP import intent / Повторное использование STEP intent
 
-Status: exact two-file patch prepared, not applied. Base `d1368cc`.
+Status: applied after lovlyDev explicitly approved both files on 3 November 2026. Base `d1368cc`. Transfer implementation and current-head runtime checks remain required.
 [Patch](storage-step-import-helper.patch).
 
 ## RU
