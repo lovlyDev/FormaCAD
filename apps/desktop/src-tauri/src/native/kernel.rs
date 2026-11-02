@@ -11,6 +11,28 @@ pub(crate) mod ffi {
         type Shape;
         type MeasurementResult;
         type PairMeasurementResult;
+        type SnapResult;
+        unsafe fn snap_reference(
+            source: &Shape,
+            query_kind: i32,
+            owner: &CxxString,
+            role: &CxxString,
+            occurrence_path: &CxxString,
+            ray: *const f64,
+            ray_count: usize,
+        ) -> UniquePtr<SnapResult>;
+        #[rust_name = "snap_valid"]
+        fn valid(self: &SnapResult) -> bool;
+        #[rust_name = "snap_query_kind"]
+        fn query_kind(self: &SnapResult) -> i32;
+        #[rust_name = "snap_point_mm"]
+        fn point_mm(self: &SnapResult) -> &CxxVector<f64>;
+        #[rust_name = "snap_normal"]
+        fn normal(self: &SnapResult) -> &CxxVector<f64>;
+        #[rust_name = "snap_error_code"]
+        fn error_code(self: &SnapResult) -> &CxxString;
+        #[rust_name = "snap_error_message"]
+        fn error_message(self: &SnapResult) -> &CxxString;
         #[allow(clippy::too_many_arguments)]
         fn measure_reference_pair(
             source: &Shape,

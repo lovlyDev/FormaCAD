@@ -31,6 +31,8 @@ pub mod reference_measurements;
 mod revolution;
 pub mod section;
 #[cfg(feature = "native-occt")]
+pub mod snapping;
+#[cfg(feature = "native-occt")]
 pub mod step_import;
 #[cfg(feature = "native-occt")]
 mod topology_refs;

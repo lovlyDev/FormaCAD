@@ -16,6 +16,16 @@ pub(super) fn handle(input: &[u8], cwd: &Path) -> Response {
             "Unsupported CAD worker request",
         );
     }
+    if request.operation.as_deref() == Some("snap_query") {
+        return super::snap::handle(request, cwd);
+    }
+    if request.snap_query.is_some() {
+        return failure(
+            request.request_id,
+            "INVALID_REQUEST",
+            "Snap query is not accepted by other operations",
+        );
+    }
     if request.operation.as_deref() == Some("measure_pair") {
         return super::pair_measurement::handle(request, cwd);
     }
