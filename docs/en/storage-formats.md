@@ -313,7 +313,13 @@ boxes using common CAD execution, undoes to 40 mm, closes, checks the saved STEP
 in a nonce-confirmed child process, then reopens and redoes to 80 mm. Inspection
 checks volume and bounds using the actual worker. The workflow requires one
 executed passing test; default library skips are not evidence for this route.
-This new vertical check still requires a successful current-head CI result.
+At `d1368cc`, native run `41430475640` explicitly executed this vertical test:
+1 passed, 0 failed. Its normal library run passed 491 tests (13 ignored), the
+worker suite passed 11 and host suites passed 7/7/9. Storage comparison
+`41430476355` passed; Windows, Linux, both macOS jobs and frontend also passed.
+Overall Quality remained red solely on the existing Wasmtime 50.0.0 security
+advisories. This evidence applies to that exact head; later source/transfer work
+requires its own CI and does not establish connected external-folder UI.
 
 Strict CI at `708877f` found that the publication-guard GAT caused a higher-ranked
 Send error and an unintended static AppState borrow. Publication now has a plain
