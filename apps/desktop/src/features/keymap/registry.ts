@@ -54,6 +54,7 @@ export const defaultBindings: readonly KeyBinding[] = [
   binding("view.shadingPie", "KeyZ"),
   binding("view.xray", "KeyZ", { alt: true }),
   binding("snap.pie", "KeyS", { shift: true }),
+  binding("transform.pivotPie", "Period"),
   binding("transform.confirm", "Enter", {}, "modal:transform"),
   binding("transform.cancel", "Escape", {}, "modal:transform"),
   ...["X", "Y", "Z"].flatMap((axis) => [
@@ -104,7 +105,7 @@ export function readKeymap(value: unknown): KeyBinding[] | null {
     if (
       !chord ||
       typeof chord.code !== "string" ||
-      !/^(Key[A-Z]|Digit[0-9]|Numpad(?:[0-9]|Divide|Decimal)|F(?:[1-9]|1[0-2])|Home|End|Space|Tab|Enter|Escape|Delete|Backspace)$/.test(
+      !/^(Key[A-Z]|Digit[0-9]|Numpad(?:[0-9]|Divide|Decimal)|Period|F(?:[1-9]|1[0-2])|Home|End|Space|Tab|Enter|Escape|Delete|Backspace)$/.test(
         chord.code,
       )
     )

@@ -11,6 +11,12 @@ const directions: Record<StandardView, [number, number, number]> = {
   top: [0, 1, 0],
   bottom: [0, -1, 0],
 };
+const views: readonly StandardView[] = ["iso", "front", "back", "right", "left", "top", "bottom"];
+/** Stored presets predate the full set; the former "side" view is the right view. */
+export function standardView(preset: string): StandardView {
+  if (preset === "side") return "right";
+  return views.includes(preset as StandardView) ? (preset as StandardView) : "iso";
+}
 export function standardViewPose(
   view: StandardView,
   target: Vector3,

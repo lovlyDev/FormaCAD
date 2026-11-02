@@ -8,6 +8,8 @@ import type { EdgeSelection } from "../features/viewer/edgeSelection";
 interface Workspace {
   project: Project | null;
   selected: string | null;
+  /** Ordered body selection; `selected` is its active element. */
+  selectedBodies: string[];
   selectedFace: FaceSelection | null;
   selectedEdge: EdgeSelection | null;
   busy: boolean;
@@ -15,6 +17,7 @@ interface Workspace {
   error: string | null;
   setProject: (p: Project | null) => void;
   setSelected: (s: string | null) => void;
+  setBodySelection: (bodies: readonly string[], active: string | null) => void;
   setSelectedFace: (selection: FaceSelection | null) => void;
   setSelectedEdge: (selection: EdgeSelection | null) => void;
   setBusy: (b: boolean, stage?: string) => void;
@@ -32,6 +35,7 @@ interface Workspace {
 export const useWorkspace = create<Workspace>((set, get) => ({
   project: null,
   selected: null,
+  selectedBodies: [],
   selectedFace: null,
   selectedEdge: null,
   busy: false,
@@ -40,11 +44,15 @@ export const useWorkspace = create<Workspace>((set, get) => ({
   setProject: (project) => {
     const current = get();
     const same = !!project && project.id === current.project?.id && project.currentRevision === current.project.currentRevision;
+    const sameProject = !!project && project.id === current.project?.id;
+    const selected = same ? current.selected : project
+      ? readState<string | null>(`forma.ui.project.${project.id}.selected`, null)
+      : null;
     set({
       project,
-      selected: same ? current.selected : project
-        ? readState(`forma.ui.project.${project.id}.selected`, null)
-        : null,
+      selected,
+      // Body ids survive a new revision of the same project; transforms keep the selection.
+      selectedBodies: sameProject ? current.selectedBodies : selected ? [selected] : [],
       selectedFace: same ? current.selectedFace : null,
       selectedEdge: same ? current.selectedEdge : null,
       error: null,
@@ -54,7 +62,14 @@ export const useWorkspace = create<Workspace>((set, get) => ({
     const id = get().project?.id;
     if (id)
       persist(`forma.ui.project.${id}.selected`, JSON.stringify(selected));
-    set({ selected, selectedFace: null, selectedEdge: null });
+    set({ selected, selectedBodies: selected ? [selected] : [], selectedFace: null, selectedEdge: null });
+  },
+  setBodySelection: (bodies, active) => {
+    const unique = [...new Set(bodies)];
+    const selected = active && unique.includes(active) ? active : (unique.at(-1) ?? null);
+    const id = get().project?.id;
+    if (id) persist(`forma.ui.project.${id}.selected`, JSON.stringify(selected));
+    set({ selected, selectedBodies: unique, selectedFace: null, selectedEdge: null });
   },
   setSelectedFace: (selectedFace) => set({ selectedFace, selectedEdge: null }),
   setSelectedEdge: (selectedEdge) => set({ selectedEdge, selectedFace: null }),

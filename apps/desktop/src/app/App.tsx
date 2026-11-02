@@ -1,4 +1,5 @@
 import { applicationMenus } from "../features/main-menu/applicationMenus";
+import { useBodyVisibility } from "../features/visibility/useBodyVisibility";
 import { copyProjectForEditing } from "../features/project-access/projectAccessApi";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
@@ -283,11 +284,7 @@ export default function App() {
     });
     return result;
   }, [object]);
-  useEffect(() => {
-    bodies.forEach((body, index) => {
-      body.visible = !hiddenBodies.includes(`${index}:${body.name}`);
-    });
-  }, [bodies, hiddenBodies]);
+  const visibility = useBodyVisibility(bodies, hiddenBodies, setHiddenBodies);
   useEffect(() => {
     bodies.forEach((body, index) => {
       body.userData.formaSelectionLocked = lockedBodies.includes(
@@ -1079,6 +1076,7 @@ export default function App() {
                   retainedLabel={retainedLabel}
                   onRetry={committedScene.retry}
                   onScreenshot={(data) => void captureScreenshot(data)}
+                  onVisibility={visibility.onVisibility}
                 />
               ),
               outliner: (

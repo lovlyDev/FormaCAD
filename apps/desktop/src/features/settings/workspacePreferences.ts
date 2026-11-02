@@ -16,6 +16,10 @@ export function useNavigationPreferences() {
     "forma.ui.navigation.panSpeed",
     0.3,
   );
+  const [mousePreset, setMousePreset] = usePersistentState<string>(
+    "forma.ui.navigation.mousePreset",
+    "forma",
+  );
   const [emulateNumpad, setEmulateNumpad] = usePersistentState(
     "forma.ui.input.emulateNumpad",
     false,
@@ -37,5 +41,9 @@ export function useNavigationPreferences() {
     setPanSpeed,
     emulateNumpad,
     setEmulateNumpad,
+    mousePreset: (mousePreset === "blender" ? "blender" : "forma") as
+      | "forma"
+      | "blender",
+    setMousePreset,
   };
 }

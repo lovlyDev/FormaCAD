@@ -3,6 +3,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useBounds } from "@react-three/drei";
 import * as THREE from "three";
 import { persist, readState } from "../../lib/persistence";
+import { standardView, standardViewPose } from "./view-commands/standardViews";
 export function CameraControl({
   preset,
   fit,
@@ -11,6 +12,7 @@ export function CameraControl({
   storageKey,
   controlsRef,
   appliedPreset,
+  fitBox = null,
 }: {
   preset: string;
   fit: number;
@@ -19,6 +21,8 @@ export function CameraControl({
   storageKey: string;
   controlsRef: RefObject<OrbitHandle | null>;
   appliedPreset: RefObject<string>;
+  /** Selection bounds for "frame selected"; null frames the whole model. */
+  fitBox?: THREE.Box3 | null;
 }) {
   const bounds = useBounds();
   const camera = useThree((state) => state.camera);
@@ -46,44 +50,34 @@ export function CameraControl({
       controls.update();
       return;
     }
-    if (!previous || previous.fit !== fit || previous.reset !== reset || previous.camera !== camera) api.current.refresh(object).clip().fit();
+    if (!previous || previous.fit !== fit || previous.reset !== reset || previous.camera !== camera) api.current.refresh(previous && previous.fit !== fit && fitBox ? fitBox : object).clip().fit();
     if (previous && previous.reset === reset) return;
-    const positions: Record<string, [number, number, number]> = {
-      iso: [180, 140, 180],
-      top: [0, 260, 0.001],
-      front: [0, 40, 260],
-      side: [260, 40, 0],
-    };
     const framing = api.current.refresh(object).clip();
     const { center } = framing.getSize();
     const distance = Math.max(camera.position.distanceTo(center), 1);
-    const direction = new THREE.Vector3(
-      ...(positions[preset] ?? positions.iso),
-    ).normalize();
+    const pose = standardViewPose(standardView(preset), center, distance);
+    if (!pose) return;
     framing
-      .moveTo(center.clone().addScaledVector(direction, distance))
-      .lookAt({ target: center, up: [0, 1, 0] });
+      .moveTo(pose.position)
+      .lookAt({ target: center, up: pose.up.toArray() });
     if (camera instanceof THREE.OrthographicCamera) framing.fit();
-  }, [preset, object, reset, camera, controlsRef, fit, storageKey]);
+  }, [preset, object, reset, camera, controlsRef, fit, fitBox, storageKey]);
   useFrame(() => {
     const controls = controlsRef.current;
     if (!controls || !last.current) return;
     if (appliedPreset.current !== preset) {
-      const directions: Record<string, [number, number, number]> = {
-        iso: [1, 0.8, 1],
-        top: [0, 1, 0.00001],
-        front: [0, 0, 1],
-        side: [1, 0, 0],
-      };
       const distance = Math.max(camera.position.distanceTo(controls.target), 1);
-      const direction = new THREE.Vector3(
-        ...(directions[preset] ?? directions.iso),
-      ).normalize();
-      const target = controls.target.clone();
+      const pose = standardViewPose(
+        standardView(preset),
+        controls.target.clone(),
+        distance,
+      );
       api.current.refresh(object).clip();
-      camera.position.copy(target).addScaledVector(direction, distance);
-      camera.up.set(0, preset === "top" ? 0 : 1, preset === "top" ? -1 : 0);
-      camera.lookAt(target);
+      if (pose) {
+        camera.position.copy(pose.position);
+        camera.up.copy(pose.up);
+        camera.lookAt(pose.target);
+      }
       controls.update();
       appliedPreset.current = preset;
     }

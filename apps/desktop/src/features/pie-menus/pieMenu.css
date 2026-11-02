@@ -1,0 +1,47 @@
+.pie-menu {
+  position: fixed;
+  z-index: 40;
+  width: 0;
+  height: 0;
+}
+.pie-menu-title {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--panel2);
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.pie-menu button {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--island-shadow);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.pie-menu button:hover,
+.pie-menu button:focus-visible {
+  background: var(--hover);
+}
+.pie-menu button[aria-checked="true"] {
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.pie-menu button:disabled {
+  opacity: 0.5;
+}
+.pie-menu kbd {
+  color: var(--muted);
+  font-family: inherit;
+}

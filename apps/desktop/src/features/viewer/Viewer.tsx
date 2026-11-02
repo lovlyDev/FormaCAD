@@ -13,7 +13,7 @@ import {
   GizmoViewport,
   Bounds,
 } from "@react-three/drei";
-import { useCallback, useState, useRef, useMemo, useEffect } from "react";
+import { useCallback, useState, useRef, useMemo } from "react";
 import { ViewportSidebar } from "../viewport-sidebar/ViewportSidebar";
 import { useNavigationPreferences } from "../settings/workspacePreferences";
 import { OrbitSelection } from "./navigation/OrbitSelection";
@@ -45,17 +45,32 @@ import { PluginToolbarMenu } from "../plugins/PluginToolbarMenu";
 import type { RenderMode } from "./renderMode";
 import { faceTriangleCounts } from "./faceSelection";
 import { cadEdges } from "./edgeSelection";
+import { useViewportInteraction } from "./interaction/useViewportInteraction";
+import { ModalTransform } from "../transform/viewport/ModalTransform";
+import { TransformHud } from "../transform/viewport/TransformHud";
+import { AdjustLastPanel } from "../adjust-last/AdjustLastPanel";
+import {
+  BoxSelectController,
+  BoxSelectOverlay,
+} from "../selection/region-select/BoxSelect";
+import { Cursor3D } from "../snapping/cursor/Cursor3D";
+import { PieMenu } from "../pie-menus/PieMenu";
+import { navigationPresets } from "../keymap/registry";
+import type { VisibilityAction } from "../visibility/visibilityModel";
+import type { StandardView } from "./view-commands/standardViews";
 export type { RenderMode } from "./renderMode";
 export default function Viewer({
   object,
   onScreenshot,
   comparison,
   interactive = true,
+  onVisibility,
 }: {
   object: THREE.Group;
   onScreenshot: (data: string) => void;
   comparison?: boolean;
   interactive?: boolean;
+  onVisibility?: (action: VisibilityAction) => void;
 }) {
   const projectId = useWorkspace((s) => s.project?.id ?? "empty");
   const viewKey = `forma.ui.project.${projectId}.view.${comparison ? "comparison" : "main"}`;
@@ -124,50 +139,44 @@ export default function Viewer({
     (fn: () => string) => setCapture(() => fn),
     [],
   );
-  useEffect(() => {
-    if (comparison) return;
-    const keydown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement;
-      if (
-        !target.closest('[data-editor="viewport3d"]') ||
-        target.closest(
-          "input,textarea,select,[contenteditable=true],[role=combobox]",
-        ) ||
-        event.ctrlKey ||
-        event.metaKey ||
-        event.altKey
-      )
-        return;
-      if (event.code === "KeyT") {
-        event.preventDefault();
-        setToolbarOpen((value) => !value);
-      }
-      if (event.code === "KeyN") {
-        event.preventDefault();
-        setSidebarOpen((value) => !value);
-      }
-      const code = navigation.emulateNumpad
-        ? event.code.replace("Digit", "Numpad")
-        : event.code;
-      const views: Record<string, string> = {
-        Numpad1: "front",
-        Numpad3: "side",
-        Numpad7: "top",
-      };
-      if (views[code]) {
-        event.preventDefault();
-        setPreset(views[code]);
-      }
-    };
-    window.addEventListener("keydown", keydown);
-    return () => window.removeEventListener("keydown", keydown);
-  }, [
-    comparison,
-    navigation.emulateNumpad,
+  const [fitBox, setFitBox] = useState<THREE.Box3 | null>(null);
+  const setView = useCallback(
+    (view: StandardView) => {
+      // Repeating the current view re-applies it after the user has orbited away.
+      appliedPreset.current = "";
+      setPreset(view);
+    },
+    [setPreset],
+  );
+  const editable = interactive && !comparison;
+  const { transformRef, onConfirm, adopt } = useViewportInteraction({
+    enabled: !comparison,
+    emulateNumpad: navigation.emulateNumpad,
+    object,
+    interactive: editable,
+    mode,
+    setMode,
+    setView,
+    setOrtho,
+    fitAll: () => {
+      setFitBox(null);
+      setFit((value) => value + 1);
+    },
+    fitBox: (box) => {
+      setFitBox(box);
+      setFit((value) => value + 1);
+    },
     setToolbarOpen,
     setSidebarOpen,
-    setPreset,
-  ]);
+    setSelectionMode: (value) => {
+      setMeasure(false);
+      setSelectionMode(value);
+    },
+    hasCadFaces: hasCadFaces && !comparison,
+    hasCadEdges: hasCadEdges && !comparison,
+    onVisibility,
+  });
+  const mouse = navigationPresets[navigation.mousePreset];
   return (
     <div
       className={`viewport ${toolbarOpen ? "" : "workspace-viewer-tools-hidden"}`}
@@ -384,8 +393,8 @@ export default function Viewer({
         shadows
         dpr={[1, 1.75]}
         gl={{ antialias: true, preserveDrawingBuffer: true }}
-        onPointerMissed={() => {
-          if (interactive && !comparison)
+        onPointerMissed={(event) => {
+          if (editable && !event.shiftKey)
             useWorkspace.getState().setSelected(null);
         }}
       >
@@ -430,8 +439,22 @@ export default function Viewer({
             object={object}
             controlsRef={controlsRef}
             appliedPreset={appliedPreset}
+            fitBox={fitBox}
           />
         </Bounds>
+        {!comparison && (
+          <>
+            <ModalTransform
+              object={object}
+              interactive={editable}
+              controlsRef={controlsRef}
+              handleRef={transformRef}
+              onConfirm={onConfirm}
+            />
+            <BoxSelectController object={object} controlsRef={controlsRef} />
+            {editable && <Cursor3D object={object} light={light} />}
+          </>
+        )}
         {grid && <AdaptiveGrid object={object} light={light} />}
         <SectionScene
           object={object}
@@ -445,11 +468,16 @@ export default function Viewer({
           makeDefault
           enableZoom={false}
           enableDamping={false}
-          mouseButtons={{
-            LEFT: THREE.MOUSE.ROTATE,
-            MIDDLE: THREE.MOUSE.DOLLY,
-            RIGHT: THREE.MOUSE.PAN,
-          }}
+          mouseButtons={
+            mouse.orbit === "middle"
+              ? // Blender-compatible: MMB orbits, Shift+MMB pans, LMB/RMB stay free.
+                { LEFT: -1 as THREE.MOUSE, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: -1 as THREE.MOUSE }
+              : {
+                  LEFT: THREE.MOUSE.ROTATE,
+                  MIDDLE: THREE.MOUSE.DOLLY,
+                  RIGHT: THREE.MOUSE.PAN,
+                }
+          }
           panSpeed={navigation.panSpeed}
           screenSpacePanning
           minDistance={3}
@@ -516,10 +544,27 @@ export default function Viewer({
           </Select>
         </div>
       </div>
+      {!comparison && (
+        <>
+          <TransformHud />
+          <AdjustLastPanel onAdopt={adopt} />
+          <BoxSelectOverlay />
+          <PieMenu />
+        </>
+      )}
       <div className="orbit-hint">
-        <Eye size={12} /> {t("Drag to orbit")}
-        <span>·</span> {t("Right button — pan")} <span>·</span>{" "}
-        {t("Scroll to zoom")}
+        <Eye size={12} />{" "}
+        {mouse.orbit === "middle" ? (
+          <>
+            {t("Middle button — orbit")} <span>·</span>{" "}
+            {t("Shift+middle button — pan")}
+          </>
+        ) : (
+          <>
+            {t("Drag to orbit")} <span>·</span> {t("Right button — pan")}
+          </>
+        )}{" "}
+        <span>·</span> {t("Scroll to zoom")}
       </div>
     </div>
   );

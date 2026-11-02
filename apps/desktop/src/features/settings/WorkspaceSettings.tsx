@@ -69,6 +69,20 @@ export function WorkspaceInputSettings() {
       >
         {t("Emulate numpad with number keys")}
       </Checkbox>
+      <label className="field">
+        {t("Mouse navigation")}
+        <Select
+          value={preferences.mousePreset}
+          onChange={(event) => preferences.setMousePreset(event.target.value)}
+        >
+          <option value="forma">
+            {t("Forma: left button orbits, right button pans")}
+          </option>
+          <option value="blender">
+            {t("Blender-compatible: middle button orbits, Shift+middle pans")}
+          </option>
+        </Select>
+      </label>
       <p>
         {t(
           "Shortcuts use physical keys and work with Russian and English layouts. Text fields keep their own shortcuts.",

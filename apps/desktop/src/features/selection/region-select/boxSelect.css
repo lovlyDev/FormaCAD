@@ -1,0 +1,21 @@
+.box-select-rect {
+  position: fixed;
+  z-index: 6;
+  border: 1px dashed var(--accent-text);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  pointer-events: none;
+}
+.box-select-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 6;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+  pointer-events: none;
+}
