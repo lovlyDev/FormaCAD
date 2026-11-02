@@ -1,5 +1,5 @@
 //! Nonserializable proof of a completely reread exact V2 generation backup.
-use super::{FolderReadSnapshot, FolderRepository, Opening};
+use super::{FolderReadSnapshot, FolderRepository, LocationIdentity, Opening};
 use crate::{
     core::{AppError, Result},
     models::{Project, ProjectFile},
@@ -23,10 +23,18 @@ pub(crate) struct VerifiedV2Backup {
     source_opening: Arc<Opening>,
     source_root: PathBuf,
     provenance: BackupProvenance,
+    location: LocationIdentity,
 }
 
 fn changed() -> AppError {
     AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into())
+}
+fn check_location(location: &LocationIdentity, root: &Path) -> Result<()> {
+    if location.recheck(root, Path::new(""))? {
+        Ok(())
+    } else {
+        Err(changed())
+    }
 }
 fn canonical_directory(path: &Path) -> Result<PathBuf> {
     if !path.is_absolute() {
@@ -60,17 +68,35 @@ impl FolderRepository {
         original: &FolderReadSnapshot,
         destination: &Path,
     ) -> Result<VerifiedV2Backup> {
+        self.backup_committed_inner(original, destination, None)
+    }
+
+    fn backup_committed_inner(
+        &self,
+        original: &FolderReadSnapshot,
+        destination: &Path,
+        after_write: Option<Box<dyn FnOnce() + Send>>,
+    ) -> Result<VerifiedV2Backup> {
         self.recheck(original)?;
         let source_root = canonical_directory(&self.root)?;
         let destination = canonical_directory(destination)?;
         disjoint(&source_root, &destination)?;
+        let location = LocationIdentity::capture(&destination, Path::new(""))?;
         original
             .saved
-            .backup_committed(&self.root, &destination, || self.recheck(original))?;
+            .backup_committed(&self.root, &destination, || {
+                self.recheck(original)?;
+                check_location(&location, &destination)
+            })?;
+        if let Some(after_write) = after_write {
+            after_write();
+        }
         let operation = (|| {
             self.recheck(original)?;
+            check_location(&location, &destination)?;
             let repository = FolderRepository::open(&destination)?;
             let snapshot = repository.capture()?;
+            check_location(&location, &destination)?;
             if snapshot.saved.manifest_sha256() != original.saved.manifest_sha256() {
                 return Err(changed());
             }
@@ -86,6 +112,7 @@ impl FolderRepository {
                 source_opening: Arc::clone(&self.opening),
                 source_root,
                 provenance,
+                location,
             };
             verified.recheck()?;
             verified.recheck_source(self, original)?;
@@ -113,9 +140,11 @@ impl VerifiedV2Backup {
         self.repository.read_asset(&self.snapshot, file)
     }
     pub(crate) fn recheck(&self) -> Result<()> {
+        check_location(&self.location, &self.provenance.root)?;
         self.repository.recheck(&self.snapshot)?;
         self.snapshot.saved.verify_all(&self.repository.root)?;
-        self.repository.recheck(&self.snapshot)
+        self.repository.recheck(&self.snapshot)?;
+        check_location(&self.location, &self.provenance.root)
     }
     pub(crate) fn recheck_source(
         &self,

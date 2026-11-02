@@ -2,10 +2,10 @@
 //! read-only; destination CAS/SQL are published by the normal creation route.
 use super::{
     cas::PreparedCasBatch,
-    creation, format,
+    creation, format, publication_verification,
     session::{FolderSession, FolderSnapshot},
 };
-use crate::core::Result;
+use crate::{core::Result, project_repository::location::LocationIdentity};
 use std::{collections::HashSet, path::Path};
 
 /// Trusted host API. A selected empty destination is required. Revision IDs and
@@ -42,15 +42,25 @@ pub(super) async fn save_copy(
     project.created_at = chrono::Utc::now().to_rfc3339();
     project.updated_at = project.created_at.clone();
     crate::project_history::validate_archive(&project, &history)?;
-    let outcome = creation::create_checked(destination, project, pending, Some(history), || {
-        source.recheck(original)
-    })
-    .await?;
+    let location = LocationIdentity::capture(destination, Path::new(""))?;
+    publication_verification::recheck_location(&location, destination)?;
+    let outcome =
+        creation::create_checked(destination, project, pending, Some(history), || async {
+            source.recheck(original).await?;
+            publication_verification::recheck_location(&location, destination)
+        })
+        .await?;
     // Creation owns its lease through actual connection close. If the source
     // changed while SQL was committing, never disguise the destination commit
     // as rollback or replay CAD/copy. The host can resolve this known UUID.
     match outcome {
-        format::CommitOutcome::Committed(saved) => match source.recheck(original).await {
+        format::CommitOutcome::Committed(saved) => match async {
+            source.recheck(original).await?;
+            publication_verification::verify(destination, &location, &saved).await?;
+            source.recheck(original).await
+        }
+        .await
+        {
             Ok(()) => Ok(format::CommitOutcome::Committed(saved)),
             Err(error) => Ok(format::CommitOutcome::Indeterminate {
                 commit_id: saved.expectation().commit_id().to_owned(),

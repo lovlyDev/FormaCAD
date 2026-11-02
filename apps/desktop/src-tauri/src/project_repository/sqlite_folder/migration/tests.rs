@@ -287,3 +287,88 @@ async fn source_close_after_commit_preserves_known_target_uuid_as_indeterminate(
     backup.recheck().unwrap();
     assert_eq!(captured.project().id, original.project().id);
 }
+
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn identical_payload_at_replaced_target_never_adopts_a_different_commit() {
+    for replace_directory in [false, true] {
+        let parent = tempfile::tempdir().unwrap();
+        let source_root = parent.path().join("source");
+        let backup_root = parent.path().join("backup");
+        let target = parent.path().join("target");
+        let replacement = parent.path().join("replacement");
+        let moved = parent.path().join("original-target");
+        for root in [&source_root, &backup_root, &target, &replacement, &moved] {
+            fs::create_dir(root).unwrap();
+        }
+        let source = fixture(&source_root);
+        let original = source.capture().unwrap();
+        let backup = source.backup_committed(&original, &backup_root).unwrap();
+        let mut pending = Vec::new();
+        for file in &backup.project().files {
+            pending.push((
+                file.sha256.clone().unwrap(),
+                backup.read_asset(file).unwrap(),
+            ));
+        }
+        let replacement_commit = match creation::create(
+            &replacement,
+            backup.project().clone(),
+            pending,
+            Some(backup.read_history().unwrap()),
+        )
+        .await
+        .unwrap()
+        {
+            format::CommitOutcome::Committed(saved) => saved.expectation().commit_id().to_owned(),
+            other => panic!("replacement not saved: {other:?}"),
+        };
+        let swap = target.clone();
+        let old = moved.clone();
+        let replacement_root = replacement.clone();
+        let report = migrate_inner(
+            &source,
+            &original,
+            &backup,
+            &target,
+            Some(Box::new(move || {
+                if replace_directory {
+                    fs::remove_dir(&old).unwrap(); // An explicitly created empty test directory.
+                    fs::rename(&swap, &old).unwrap();
+                    fs::rename(&replacement_root, &swap).unwrap();
+                } else {
+                    fs::rename(swap.join("project.sqlite"), old.join("project.sqlite")).unwrap();
+                    fs::copy(
+                        replacement_root.join("project.sqlite"),
+                        swap.join("project.sqlite"),
+                    )
+                    .unwrap();
+                    fs::create_dir(old.join("assets")).unwrap();
+                    for entry in fs::read_dir(swap.join("assets")).unwrap() {
+                        let entry = entry.unwrap();
+                        fs::copy(entry.path(), old.join("assets").join(entry.file_name())).unwrap();
+                    }
+                }
+            })),
+        )
+        .await;
+        let original_commit = match report.target.unwrap() {
+            format::CommitOutcome::Indeterminate { commit_id, .. } => commit_id,
+            other => panic!("substituted target adopted: {other:?}"),
+        };
+        assert_ne!(original_commit, replacement_commit);
+        let retained = FolderSession::open(&moved).await.unwrap();
+        assert_eq!(
+            retained.capture().await.unwrap().commit_id(),
+            original_commit
+        );
+        let substituted = FolderSession::open(&target).await.unwrap();
+        let current = substituted.capture().await.unwrap();
+        assert_eq!(current.commit_id(), replacement_commit);
+        assert_eq!(
+            serde_json::to_value(current.project()).unwrap(),
+            serde_json::to_value(original.project()).unwrap()
+        );
+        backup.recheck_source(&source, &original).unwrap();
+    }
+}

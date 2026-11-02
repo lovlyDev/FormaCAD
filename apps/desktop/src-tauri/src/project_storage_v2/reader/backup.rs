@@ -51,6 +51,7 @@ impl FolderSnapshot {
         recheck_source()?;
         let lease = FolderLease::initialize_empty(destination)?;
         let operation = (|| {
+            recheck_source()?;
             let writer = io::BackupTree::create(lease, &self.manifest.generation)?;
             for entry in &self.manifest.files {
                 recheck_source()?;

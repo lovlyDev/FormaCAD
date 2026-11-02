@@ -4,6 +4,35 @@ Status: implemented in the task branch under verification, with no runtime PASS 
 `ae1b0ab` and §10.11 of the assigned storage specification. This does not start
 stage 5, authorize shared wiring, or declare production FCP1 available.
 
+Review corrections: backup retains the destination identity captured before
+creation through capability mint; migration retains target identity through
+post-commit verification and compares the reopened target with the exact saved
+commit receipt. Linux regressions substitute identical-payload directories and
+databases, which must remain indeterminate with the original commit UUID.
+The same post-publication verifier is used by Save Copy: retained target identity,
+exact commit receipt, validated SQL/history and all referenced CAS. Reopening a
+new folder is never a way to refresh the original target authority.
+
+Native CI at `8b08238` passed 488 library tests and failed one migration test:
+the target serializes the validated archive in canonical struct field order,
+while the source fixture uses a different JSON object order. Verification now
+validates both full archives and compares their complete JSON values, including
+all ordered events and cursor state. Raw backup bytes remain exact; conversion
+does not promise identical JSON formatting. The correction requires fresh CI.
+
+Исправления ревью: identity backup захватывается до создания и сохраняется до
+выдачи capability; identity назначения удерживается через финальную проверку,
+а открытый target сравнивается с точным сохранённым commit receipt. Linux-тесты
+подменяют каталоги и БД с одинаковыми данными; исходный commit UUID должен
+сохраняться как неопределённый результат. На `8b08238` native CI прошёл 488
+library-тестов и нашёл один отказ миграции из-за различного порядка JSON-полей
+архива. Теперь проверяются оба полных архива и сравниваются их полные JSON-значения,
+включая порядок events и cursor. Байты backup остаются точными, форматирование
+JSON после конверсии не обещается. Исправления требуют нового CI.
+Общая финальная проверка используется также Save Copy: исходная identity
+назначения, точный commit receipt, SQL/history и все используемые CAS. Новое
+открытие папки не обновляет право принять результат старой операции.
+
 ## RU
 
 ### Что переносится

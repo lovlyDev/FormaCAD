@@ -117,3 +117,54 @@ fn source_asset_corruption_after_verified_backup_cannot_pass_original_boundary()
     assert!(verified.recheck_source(&source, &original).is_err());
     verified.recheck().unwrap();
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn byte_identical_backup_replacement_before_capability_mint_is_refused() {
+    fn copy_tree(source: &Path, destination: &Path) {
+        for entry in fs::read_dir(source).unwrap() {
+            let entry = entry.unwrap();
+            let target = destination.join(entry.file_name());
+            if entry.file_type().unwrap().is_dir() {
+                fs::create_dir(&target).unwrap();
+                copy_tree(&entry.path(), &target);
+            } else {
+                fs::copy(entry.path(), target).unwrap();
+            }
+        }
+    }
+    let parent = tempfile::tempdir().unwrap();
+    let source_root = parent.path().join("source");
+    let destination = parent.path().join("backup");
+    let replacement = parent.path().join("replacement");
+    let moved = parent.path().join("original-backup");
+    for root in [&source_root, &destination, &replacement] {
+        fs::create_dir(root).unwrap();
+    }
+    fixture(&source_root);
+    let source = FolderRepository::open(&source_root).unwrap();
+    let original = source.capture().unwrap();
+    let swap = destination.clone();
+    let retained = moved.clone();
+    let result = source.backup_committed_inner(
+        &original,
+        &destination,
+        Some(Box::new(move || {
+            copy_tree(&swap, &replacement);
+            fs::rename(&swap, &retained).unwrap();
+            fs::rename(&replacement, &swap).unwrap();
+        })),
+    );
+    assert!(result.is_err());
+    // Both folders contain valid bytes; their physical opening identity differs.
+    assert_eq!(
+        fs::read(destination.join("manifest.json")).unwrap(),
+        fs::read(moved.join("manifest.json")).unwrap()
+    );
+    FolderRepository::open(&destination)
+        .unwrap()
+        .capture()
+        .unwrap();
+    FolderRepository::open(&moved).unwrap().capture().unwrap();
+    source.recheck(&original).unwrap();
+}

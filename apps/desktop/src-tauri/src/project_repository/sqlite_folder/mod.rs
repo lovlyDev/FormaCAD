@@ -27,6 +27,8 @@ mod creation;
 mod format;
 #[cfg(any(target_os = "linux", windows))]
 mod migration;
+#[cfg(any(target_os = "linux", windows))]
+mod publication_verification;
 mod read_only;
 #[cfg(any(target_os = "linux", windows))]
 mod session;
