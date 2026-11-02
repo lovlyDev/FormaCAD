@@ -43,6 +43,14 @@ impl FolderSnapshot {
     pub(super) fn project(&self) -> &Project {
         self.saved.project()
     }
+
+    pub(super) fn history_state(&self) -> &crate::project_history::HistoryState {
+        self.saved.history_state()
+    }
+
+    pub(super) fn commit_id(&self) -> &str {
+        self.saved.expectation().commit_id()
+    }
 }
 
 fn changed() -> AppError {

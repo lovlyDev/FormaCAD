@@ -211,7 +211,7 @@ async fn read_only_copy_under_foreign_writer_lease_preserves_source_and_independ
         &original.project().revisions[1],
         undone.project().current_revision.as_deref(),
     );
-    assert!(!redone_again.saved.history_state().can_redo());
+    assert!(!redone_again.history_state().can_redo());
     source.recheck(&original).await.unwrap();
     assert_eq!(
         source.read_history(&original).await.unwrap(),

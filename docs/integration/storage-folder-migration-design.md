@@ -1,6 +1,6 @@
 # Draft: verified V2-to-FCP1 migration / Проверяемый перенос V2 в FCP1
 
-Status: design only, no implementation or test PASS. Inspected task head
+Status: implemented in the task branch under verification, with no runtime PASS yet. Inspected design base
 `ae1b0ab` and §10.11 of the assigned storage specification. This does not start
 stage 5, authorize shared wiring, or declare production FCP1 available.
 
@@ -16,6 +16,11 @@ stage 5, authorize shared wiring, or declare production FCP1 available.
 содержимое Project, курсор и переносимый архив истории; repository/commit UUID
 нового FCP1 создаются заново. Это отличается от `save_copy`, который назначает
 новый project UUID и новые timestamps.
+
+Конверсия сохраняет действующие пределы FCP1: 40 МиБ на вложение и 100 МиБ
+суммарных ссылок файлов кандидата. Допустимое V2-поколение, превышающее эти
+пределы, получает отказ до создания target; подтверждённый backup сохраняется.
+Не выполнять скрытое усечение, удаление вложений или расширение лимитов.
 
 Неизвестный storageVersion отклоняется существующим manifest validator до записи
 backup/target. Отсутствующий либо непроверяемый manifest не трактуется как V2.
@@ -35,8 +40,9 @@ Backup — отдельный явно выбранный пустой ката�
 опубликованного manifest и всех перечисленных им файлов текущего поколения**.
 Он остаётся читаемым V2. Это backup committed snapshot, а не рекурсивная копия
 всего source tree: неперечисленные файлы, старые поколения, lock hints и чужие
-настройки не копируются. В частности, неизвестные поля исходного project JSON
-сохраняются в raw backup, хотя типизированный Project их может не представлять.
+настройки не копируются. Сохраняются исходные whitespace и представление допустимого
+project JSON. Неизвестные поля Project отклоняет существующий строгий decoder;
+перенос не ослабляет его и не удаляет такие поля молча.
 Каноническая повторная сериализация Project не называется byte-exact backup.
 
 До создания target FCP1 необходимо:
@@ -136,7 +142,7 @@ pending recovery либо предоставить отдельный согла
 ### Проверки, которые доказывают реализацию
 
 - Source V2 с реальной сохранённой undo/redo историей, повторяющимися CAS hashes,
-  дополнительным валидным manifest entry и необычным whitespace/unknown JSON
+  дополнительным валидным manifest entry и необычным whitespace допустимого JSON
   полем: backup bytes/seal совпадают, target Project/history/revisions совпадают,
   original source tree побайтово неизменен. Новый процесс читает backup V2 и
   target FCP1, выполняет target undo/redo без app index.
@@ -172,9 +178,16 @@ refused rather than treated as old parametric projects. A genuine 1.1 folder is
 outside this API; importing its last STEP is a separate new-project operation
 with no claim to recovered parametric history.
 
+Conversion retains existing FCP1 limits: 40 MiB per attachment and 100 MiB of
+candidate file references. A valid V2 generation above those limits is refused
+before target creation, retaining its verified backup. No truncation, dropped
+attachments or hidden limit expansion is implied.
+
 Create and independently verify a separate **V2 committed-snapshot backup before
 conversion**. Preserve exact sealed manifest bytes and every manifest-listed
-entry, including raw Project JSON unknown fields. Do not recursively copy
+entry, including raw whitespace and representation of supported Project JSON.
+Unknown Project fields are refused by the existing strict decoder rather than
+silently dropped or accepted by weakening validation. Do not recursively copy
 unlisted files, old generations, lock hints or application settings. Read bounded
 entries through the existing hash validator; create only new destination files,
 retain location/lease checks, flush, and publish manifest last. Reopen the backup

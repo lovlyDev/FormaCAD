@@ -25,6 +25,8 @@ mod copy;
 ))]
 mod creation;
 mod format;
+#[cfg(any(target_os = "linux", windows))]
+mod migration;
 mod read_only;
 #[cfg(any(target_os = "linux", windows))]
 mod session;
