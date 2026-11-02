@@ -2,10 +2,11 @@
 
 [Documentation](index.md) · [Русский](../ru/changelog.md) · [Status](status.md)
 
-Current improvements are consolidated into release 1.2.6. The Windows package is built, verified and updater-signed.
+The latest release is 1.6.0. Windows, Linux and macOS installers are built by the Release workflow in GitHub Actions.
 
 | Release | Notes |
 | --- | --- |
+| Blender-style 3D viewport (M2), areas and workspaces (M1), main menu in the top bar | [1.6.0](../releases/1.6.0.md) |
 | Plugin actions in the 3D-view toolbar | [1.5.1](../releases/1.5.1.md) |
 | Turntable video recording by plugins (plugin-api 0.2) | [1.5.0](../releases/1.5.0.md) |
 | Plugins and the plugins.formacad.ru catalog | [1.4.0](../releases/1.4.0.md) |
