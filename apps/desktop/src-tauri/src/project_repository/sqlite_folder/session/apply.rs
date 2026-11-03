@@ -114,6 +114,12 @@ impl ApplyHost for FolderApplyHost<'_> {
     }
     async fn capture(&self) -> Result<(ReadBinding, FolderSnapshot)> {
         let snapshot = self.session.capture().await?;
+        {
+            let authorization = self.authorization.lock().map_err(|_| changed())?;
+            if let Some(grant) = authorization.as_ref() {
+                grant.check_capture(self.session, &snapshot)?;
+            }
+        }
         let access = self.session.read_binding(&snapshot).await?;
         access.check_active()?;
         Ok((access, snapshot))

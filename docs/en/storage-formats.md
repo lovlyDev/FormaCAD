@@ -301,7 +301,14 @@ revision contents/history as well as head/files, while retaining compatible late
 metadata. Pending recovery is refused rather than reconciled by this route.
 The folder adapter now uses that same algorithm with an opening-specific task
 UUID and an explicit single-use Rust host grant. The grant retains the original
-opening/location binding and never replaces the OS writer lease. Required STEP
+opening/location binding and never replaces the OS writer lease.
+The grant also retains a small original commit/project/cursor/archive stamp,
+without copying complete project/history payloads. Saved-state changes between
+explicit approval and the initial CAD capture are rejected before task
+registration, worker execution or writes. A fresh snapshot cannot silently stand
+in for the approved command; the host must present the current state again.
+After the initial capture, verified compatible metadata continuation remains
+supported without recapturing the original lifecycle. Required STEP
 inputs come from the original snapshot; final publication checks original
 model/history compatibility and the exact latest state before session commit.
 An indeterminate commit stays indeterminate. UI/IPC wiring remains incomplete.

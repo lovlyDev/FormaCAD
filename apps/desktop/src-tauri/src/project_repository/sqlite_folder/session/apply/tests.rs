@@ -137,6 +137,51 @@ async fn wait_for_task(tasks: &AsyncMutex<HashMap<String, Arc<AtomicBool>>>, key
 }
 
 #[tokio::test]
+async fn saved_state_changed_after_approval_cannot_be_recaptured_as_the_approved_command() {
+    let root = tempfile::tempdir().unwrap();
+    let work = tempfile::tempdir().unwrap();
+    let session = fixture(root.path(), true).await;
+    let original = session.capture().await.unwrap();
+    let grant = FolderAuthorization::authorize_modeling(&session, &original)
+        .await
+        .unwrap();
+    let mut renamed = original.project().clone();
+    renamed.name = "Saved by another operation after approval".into();
+    assert!(matches!(
+        session
+            .commit(&original, renamed.clone(), vec![], None)
+            .await
+            .unwrap(),
+        format::CommitOutcome::Committed(_)
+    ));
+    let before = std::fs::read(root.path().join("project.sqlite")).unwrap();
+    let host = FolderApplyHost::new(&session, runtime(work.path(), None), Some(grant));
+    let tasks = AsyncMutex::new(HashMap::new());
+    let gate = CadTaskGate::default();
+    assert!(repository_apply::apply(
+        ApplyRuntime::new(&tasks, &gate),
+        &host,
+        request(
+            original.project(),
+            "result = cq.Workplane('XY').box(80,20,10)"
+        ),
+    )
+    .await
+    .is_err());
+    assert_eq!(
+        before,
+        std::fs::read(root.path().join("project.sqlite")).unwrap()
+    );
+    assert_eq!(
+        serde_json::to_value(session.capture().await.unwrap().project()).unwrap(),
+        serde_json::to_value(&renamed).unwrap()
+    );
+    assert!(tasks.lock().await.is_empty());
+    assert!(gate.status().unwrap().is_empty());
+    assert_eq!(std::fs::read_dir(work.path()).unwrap().count(), 0);
+}
+
+#[tokio::test]
 async fn queued_cancellation_and_close_do_not_enter_worker_or_leave_registration() {
     for close in [false, true] {
         let root = tempfile::tempdir().unwrap();

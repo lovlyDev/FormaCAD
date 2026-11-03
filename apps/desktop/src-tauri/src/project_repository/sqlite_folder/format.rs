@@ -78,7 +78,21 @@ struct SavedStateSeals {
     cursor: String,
     history: String,
 }
+
+/// Small process-local comparison value; no project/history payload or authority.
+#[derive(Clone, PartialEq, Eq)]
+pub(super) struct SavedStateStamp {
+    expectation: Expectation,
+    seals: SavedStateSeals,
+}
 impl Snapshot {
+    pub(super) fn stamp(&self) -> SavedStateStamp {
+        SavedStateStamp {
+            expectation: self.expectation.clone(),
+            seals: self.saved_state.clone(),
+        }
+    }
+
     pub(super) fn project(&self) -> &Project {
         &self.project
     }

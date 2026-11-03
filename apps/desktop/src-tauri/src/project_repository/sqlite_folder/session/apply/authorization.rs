@@ -6,6 +6,7 @@ use std::sync::Arc;
 pub(in crate::project_repository::sqlite_folder) struct FolderAuthorization {
     opening: Arc<Opening>,
     binding: ReadBinding,
+    saved: super::format::SavedStateStamp,
 }
 
 pub(super) fn required() -> AppError {
@@ -24,7 +25,19 @@ impl FolderAuthorization {
         Ok(Self {
             opening: Arc::clone(&session.opening),
             binding,
+            saved: original.saved.stamp(),
         })
+    }
+    pub(super) fn check_capture(
+        &self,
+        session: &FolderSession,
+        snapshot: &FolderSnapshot,
+    ) -> Result<()> {
+        self.check(session)?;
+        if self.saved != snapshot.saved.stamp() {
+            return Err(changed());
+        }
+        Ok(())
     }
     pub(super) fn check(&self, session: &FolderSession) -> Result<()> {
         session.check()?;
