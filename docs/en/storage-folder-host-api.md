@@ -45,7 +45,26 @@ CAS sizes, first API open and raw distributions. This is a debug/test profile
 with unflushed filesystem caches; process RSS/time also include setup. It does
 not prove release-app, cold-disk or USB/NAS performance, nor equate metadata and
 complete validation guarantees. The workflow requires one executed test;
-current numerical results are not yet available.
+numerical results below apply only to their named SHA.
+
+The measurement executed on `d6af326` in
+[run 41739896245](https://github.com/lovlyDev/FormaCAD/actions/runs/41739896245),
+job `126278491804`: 1 passed, 0 failed. Linux x86_64, debug/test, warm cache;
+12 samples per mode. Times include capture, recheck and view drop, excluding
+fixture preparation and first API open.
+
+| Revisions | Project / archive bytes | Metadata median / p95, ms | Complete median / p95, ms |
+| --- | --- | --- | --- |
+| 4 | 3893 / 1103 | 8.550 / 8.773 | 9.987 / 10.265 |
+| 32 | 33535 / 8161 | 18.428 / 19.753 | 23.283 / 25.000 |
+| 128 | 133911 / 32355 | 50.621 / 54.103 | 65.600 / 75.710 |
+
+The measurement asserted independence from removed setup SQL and unchanged FCP1
+bytes. The same run passed strict Clippy with and without `native-worker-client`,
+92 ordinary folder
+backend tests (6 ignored) and the earlier storage-representation comparison.
+These timings cover different validation work, never permission to weaken
+complete write validation or proof of native CAD/installed-app acceptance.
 
 ## Publication and CAD
 
