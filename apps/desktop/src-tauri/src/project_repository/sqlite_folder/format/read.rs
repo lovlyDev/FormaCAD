@@ -1,10 +1,18 @@
 //! Fixed bounded SELECTs only. Never repair, migrate, enable a writer or touch CAS.
 use super::*;
 use sqlx::{sqlite::SqliteRow, Connection, Row};
+mod history;
 
 pub(super) async fn read(connection: &mut SqliteConnection) -> Result<Snapshot> {
+    read_scoped(connection, ReadScope::Complete).await
+}
+
+pub(super) async fn read_scoped(
+    connection: &mut SqliteConnection,
+    scope: ReadScope,
+) -> Result<Snapshot> {
     let mut transaction = connection.begin_with("BEGIN DEFERRED").await?;
-    let result = within(&mut transaction).await;
+    let result = within_scoped(&mut transaction, scope).await;
     transaction.rollback().await?;
     result
 }
@@ -56,6 +64,10 @@ fn checked_hash(value: String) -> Result<String> {
 }
 
 pub(super) async fn within(connection: &mut SqliteConnection) -> Result<Snapshot> {
+    within_scoped(connection, ReadScope::Complete).await
+}
+
+async fn within_scoped(connection: &mut SqliteConnection, scope: ReadScope) -> Result<Snapshot> {
     let application: i64 = sqlx::query_scalar("PRAGMA application_id")
         .fetch_one(&mut *connection)
         .await?;
@@ -143,21 +155,10 @@ pub(super) async fn within(connection: &mut SqliteConnection) -> Result<Snapshot
     if serde_json::to_string(&history_state)? != cursor {
         return Err(corrupt());
     }
-    // Bound event cells before shared export crosses the driver. Invalid foreign
-    // rows are rejected, rather than hidden by export's project_id predicate.
-    let invalid_events: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM project_history_events WHERE project_id IS NULL OR project_id<>? OR length(CAST(project_id AS BLOB))<>36 OR length(CAST(kind AS BLOB))>4 OR length(CAST(created_at AS BLOB))>80 OR (from_revision IS NOT NULL AND length(CAST(from_revision AS BLOB))<>36) OR (to_revision IS NOT NULL AND length(CAST(to_revision AS BLOB))<>36) OR (target_revision IS NOT NULL AND length(CAST(target_revision AS BLOB))<>36)")
-        .bind(&project_id).fetch_one(&mut *connection).await?;
-    if invalid_events != 0 {
-        return Err(corrupt());
-    }
-    let event_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM project_history_events")
-        .fetch_one(&mut *connection)
-        .await?;
-    if event_count > 30_000 {
-        return Err(limited());
-    }
-    let history = crate::project_history::export_history(connection, &project).await?;
-    crate::project_history::validate_archive(&project, &history)?;
+    let history = match scope {
+        ReadScope::Complete => Some(history::archive(connection, &project).await?),
+        ReadScope::Metadata => None,
+    };
     let commit_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM folder_commits")
         .fetch_one(&mut *connection)
         .await?;
@@ -199,7 +200,9 @@ pub(super) async fn within(connection: &mut SqliteConnection) -> Result<Snapshot
         || head.revision != project.current_revision
         || head.project_hash != crate::artifacts::digest(payload.as_bytes())
         || head.cursor_hash != crate::artifacts::digest(cursor.as_bytes())
-        || head.history_hash != crate::artifacts::digest(&history)
+        || history
+            .as_ref()
+            .is_some_and(|archive| head.history_hash != crate::artifacts::digest(archive))
     {
         return Err(corrupt());
     }

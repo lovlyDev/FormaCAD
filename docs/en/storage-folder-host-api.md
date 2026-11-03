@@ -10,9 +10,11 @@ and the V2 reader remain separate.
 
 ## Reading
 
-The host explicitly selects a path, calls `FolderProject::open` and obtains an
-opaque `ReadView` with `capture`. The view retains its physical opening and
-consistent SQL/history state, is not serializable and provides no write authority.
+The host explicitly selects a path and calls `FolderProject::open` for an opaque
+`ReadView`. `capture_metadata` checks Project, cursor and declared commit seals
+without reading event rows; `capture` additionally exports and validates the full
+archive. The view retains its physical opening and original saved state, is not
+serializable and provides no write authority.
 Asset/history reads, `recheck` and `resolve_commit` use that original view.
 Project/history/commit getters expose snapshot data; delayed results still need
 rechecking before acceptance.
@@ -23,10 +25,15 @@ another opening with the same ID remains valid, and old snapshots cannot enter
 a new handle. Checks surround awaited operations. Readers never acquire writer
 leases, repair journals or run recovery.
 
-Current performance limitation: FCP1 capture still validates the complete bounded
-history archive and commit chain. It is not a lazy metadata-only read; optimization
-and measurements remain acceptance work. Managed capture retains its archive-free
-read path. Sharing an API does not prove equal read cost across backends.
+Common `capture` uses metadata mode; `capture_with_history` uses complete mode.
+`read_history` performs complete validation under the original opening and compares
+commit/project/cursor/archive seals against the original view, never legitimizing
+a fresh state. `approve_write` also requires complete validation before granting.
+Metadata confirms a declared archive hash, not archive bytes: event corruption
+may leave metadata readable while history, copy and write are refused. CAS reads
+from metadata views verify their own bytes without exporting the archive.
+Project revision metadata and the commit chain are still read; this is not O(1)
+or proof of equal backend costs. Current-revision measurements remain required.
 
 ## Publication and CAD
 
@@ -71,6 +78,10 @@ an older grant.
 API tests use real isolated SQLite/CAS for reopen without app index, foreign
 opening/grant refusal, read-only copy under another writer lease and pure common
 reading. Fixtures are synthetic and never replace real-worker roundtrips.
+A dedicated SQL authorizer denies reads of `project_history_events`: metadata
+must succeed while complete capture is refused. Fault regressions check refusal
+of history/copy/write with a damaged archive and retention of the original view
+after an external commit; an artificial "archive unread" flag is not the proof.
 The public `apply_model` has an explicit ignored
 `api::worker_tests::real_worker_host_api_roundtrip`: a real 40×20×10 box,
 grant-free no-op, refusal of an unapproved edit, close and independent-process

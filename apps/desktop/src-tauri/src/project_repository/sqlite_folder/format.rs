@@ -12,6 +12,8 @@ use crate::{
 use sqlx::{Connection, Row, SqliteConnection};
 
 mod compatibility;
+#[cfg(test)]
+mod metadata_tests;
 mod outcome;
 mod read;
 mod write;
@@ -32,6 +34,11 @@ pub(super) async fn resolve_commit(
 pub(super) const APPLICATION_ID: i64 = 0x4643_5031;
 pub(super) const USER_VERSION: i64 = 1;
 pub(super) const FORMAT_MARKER: &str = "FormaCAD.FolderProject";
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ReadScope {
+    Metadata,
+    Complete,
+}
 const SCHEMA: &str = include_str!("format/schema.sql");
 const MAX_PROJECT_BYTES: i64 = 128 * 1024 * 1024;
 const MAX_HISTORY_BYTES: i64 = 16 * 1024 * 1024;
@@ -69,7 +76,7 @@ pub(super) struct Snapshot {
     expectation: Expectation,
     project: Project,
     history_state: HistoryState,
-    history: Vec<u8>,
+    history: Option<Vec<u8>>,
     saved_state: SavedStateSeals,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -98,8 +105,11 @@ impl Snapshot {
     pub(super) fn project(&self) -> &Project {
         &self.project
     }
-    pub(super) fn history(&self) -> &[u8] {
-        &self.history
+    pub(super) fn history(&self) -> Option<&[u8]> {
+        self.history.as_deref()
+    }
+    pub(super) fn into_history(self) -> Option<Vec<u8>> {
+        self.history
     }
     pub(super) fn history_state(&self) -> &HistoryState {
         &self.history_state
@@ -126,6 +136,12 @@ pub(super) enum CommitOutcome {
 
 pub(super) async fn read(connection: &mut SqliteConnection) -> Result<Snapshot> {
     read::read(connection).await
+}
+
+/// Checks project/cursor and the declared immutable commit seals, without
+/// exporting events. History bytes remain unverified until an explicit full read.
+pub(super) async fn read_metadata(connection: &mut SqliteConnection) -> Result<Snapshot> {
+    read::read_scoped(connection, ReadScope::Metadata).await
 }
 
 pub(super) async fn read_compatible(

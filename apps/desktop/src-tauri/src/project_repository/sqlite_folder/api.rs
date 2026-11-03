@@ -47,12 +47,19 @@ impl ReadView {
 impl FolderProject {
     pub async fn open(root: &Path) -> Result<Self> {
         Ok(Self {
-            session: FolderSession::open(root).await?,
+            session: FolderSession::open_metadata(root).await?,
         })
     }
     pub async fn capture(&self) -> Result<ReadView> {
         Ok(ReadView {
             snapshot: self.session.capture().await?,
+        })
+    }
+    /// Capture project/cursor and declared history seal without reading events.
+    /// History is verified by read_history, write approval, or complete capture.
+    pub async fn capture_metadata(&self) -> Result<ReadView> {
+        Ok(ReadView {
+            snapshot: self.session.capture_metadata().await?,
         })
     }
     pub async fn recheck(&self, original: &ReadView) -> Result<()> {
@@ -85,6 +92,8 @@ impl FolderProject {
     }
 }
 
+#[cfg(test)]
+mod metadata_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(all(test, feature = "native-worker-client"))]

@@ -1,6 +1,7 @@
 //! Real standalone database fixtures, without AppState or managed app SQL.
 #![cfg(any(target_os = "linux", windows))]
 use super::*;
+use crate::models::ProjectFile;
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqliteJournalMode},
     Connection, SqliteConnection,

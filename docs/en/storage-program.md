@@ -28,8 +28,9 @@ On `edd2f92`, the production V2 backup/migration API passed strict Clippy withou
 native client and all six API tests in run `41609704135`; the whole run again
 failed on known snap E0609. Windows/Linux/macOS ARM Quality jobs passed. A separate
 macOS correction scopes writer stamps to supported Windows/Linux without
-disabling macOS jobs. UI/index, lazy metadata-only FCP1
-reads, a genuine 1.1 fixture and hardware gates remain incomplete. Historical
+disabling macOS jobs. FCP1 metadata/archive separation is now implemented but
+needs current regressions and measurements. UI/index, a genuine 1.1 fixture and
+hardware gates remain incomplete. Historical
 results below prove only their explicitly named SHAs.
 
 ## Shared snapshot lifecycle correction

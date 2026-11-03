@@ -149,8 +149,8 @@ impl<'a> ProjectRepository<'a> {
         }
     }
 
-    /// Managed metadata capture skips the SQL event archive. The current FCP1
-    /// validator still reads its complete bounded history; lazy FCP1 is pending.
+    /// Capture project/cursor without loading the SQL event archive. FCP1 keeps
+    /// its declared archive seal; explicit history reads verify its bytes later.
     pub async fn capture(&self) -> Result<RepositorySnapshot> {
         self.capture_inner(false).await
     }
@@ -181,7 +181,11 @@ impl<'a> ProjectRepository<'a> {
                 )
             ))]
             Backend::Independent(repository) => {
-                CapturedBackend::Independent(Box::new(repository.capture().await?))
+                CapturedBackend::Independent(Box::new(if with_archive {
+                    repository.capture().await?
+                } else {
+                    repository.capture_metadata().await?
+                }))
             }
         };
         self.check_open()?;

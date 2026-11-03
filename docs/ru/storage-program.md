@@ -28,8 +28,8 @@ consumer. Точный однострочный патч ожидает согл
 client и все шесть API-тестов в run `41609704135`; полный run снова отклонил
 известный snap E0609. Windows/Linux/macOS ARM Quality jobs прошли. Отдельное
 macOS исправление ограничивает writer stamp поддерживаемыми Windows/Linux,
-не выключая macOS jobs. UI/index,
-ленивое metadata-only FCP1 чтение, настоящая fixture 1.1 и hardware gates остаются
+не выключая macOS jobs. Разделение metadata/archive теперь добавлено в FCP1,
+но требует текущих регрессий и замеров. UI/index, настоящая fixture 1.1 и hardware gates остаются
 незавершёнными. Исторические результаты ниже относятся только к указанным SHA.
 
 ## Исправление сеанса общего снимка

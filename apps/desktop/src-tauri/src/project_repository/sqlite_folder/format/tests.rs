@@ -461,7 +461,8 @@ async fn model_edit_undo_redo_and_imported_history_round_trip_in_folder_sql_only
         );
     }
     assert_eq!(current.expectation().sequence(), 4);
-    crate::project_history::validate_archive(current.project(), current.history()).unwrap();
+    crate::project_history::validate_archive(current.project(), current.history().unwrap())
+        .unwrap();
     let mut copy = current.project().clone();
     copy.id = uuid::Uuid::new_v4().to_string();
     let mut independent = self::connection().await;
@@ -470,7 +471,7 @@ async fn model_edit_undo_redo_and_imported_history_round_trip_in_folder_sql_only
             &mut independent,
             &uuid::Uuid::new_v4().to_string(),
             &copy,
-            Some(current.history()),
+            Some(current.history().unwrap()),
         )
         .await
         .unwrap(),
@@ -540,7 +541,7 @@ async fn same_commit_identity_cannot_hide_changed_saved_bytes_with_recomputed_ch
         revision: original.current_revision.clone(),
         project_hash: crate::artifacts::digest(payload.as_bytes()),
         cursor_hash: crate::artifacts::digest(cursor.as_bytes()),
-        history_hash: crate::artifacts::digest(first.history()),
+        history_hash: crate::artifacts::digest(first.history().unwrap()),
         seal: String::new(),
     };
     rewritten.seal = record_seal(

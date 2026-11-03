@@ -10,8 +10,10 @@ Windows и Linux x86_64/aarch64. Текущая ревизия ещё требу
 ## Чтение
 
 Host открывает явно выбранный путь через `FolderProject::open` и получает
-непрозрачный `ReadView` вызовом `capture`. View сохраняет физическое открытие и
-согласованный снимок SQL/history, не сериализуется и не даёт права записи.
+непрозрачный `ReadView`. `capture_metadata` проверяет Project, cursor и объявленные
+commit seals без чтения таблицы событий; `capture` дополнительно выгружает и
+проверяет полный archive. View сохраняет физическое открытие и исходный saved
+state, не сериализуется и не даёт права записи.
 `read_asset`, `read_history`, `recheck`, `resolve_commit` используют исходный view.
 Геттеры project/history/commit возвращают данные снимка; перед принятием
 отложенного результата всё равно нужен `recheck`.
@@ -22,11 +24,15 @@ app SQL или managed row. `close` отзывает только конкрет
 в новый handle. Проверки окружают awaited операции. Reader не получает writer
 lease, не исправляет journal и не запускает recovery.
 
-Текущее ограничение производительности: FCP1 capture ещё проверяет полный
-ограниченный archive истории и цепочку commit. Это не ленивое metadata-only чтение;
-его оптимизация и замеры остаются пунктом приёмки. Managed capture сохраняет
-своё чтение без event archive. Наличие общего API не доказывает равную стоимость
-чтения разных backend.
+Общий `capture` использует metadata-режим; `capture_with_history` — полный.
+`read_history` выполняет полную проверку под исходным открытием и сравнивает
+commit/project/cursor/archive seals с исходным view, а не узаконивает новый
+снимок. `approve_write` также требует полной проверки до выдачи grant.
+Metadata view подтверждает объявленный hash архива, но не его байты: повреждение
+events может не мешать метаданным, однако история, copy и запись получают отказ.
+CAS read из metadata view проверяет собственные байты без выгрузки архива.
+Project с метаданными ревизий и commit chain всё ещё читаются; это не O(1) и не
+обещание одинаковой стоимости backend. Замеры новой ревизии остаются обязательны.
 
 ## Запись и CAD
 
@@ -71,6 +77,10 @@ view и не возрождает старый grant.
 Тесты API используют настоящую изолированную SQLite/CAS: reopen без app index,
 отказ чужому opening/grant, read-only copy при чужом writer lease и чистый общий
 reader. Fixtures синтетические и не заменяют настоящие worker roundtrips.
+Отдельный SQL authorizer запрещает чтение `project_history_events`: metadata
+должен проходить, полный capture — отказывать. Fault-регрессии проверяют отказ
+history/copy/write при повреждённом archive и сохранение исходного view после
+внешнего commit; они не подменяют проверки флагом «архив не читался».
 Для самого публичного `apply_model` выделен ignored-тест
 `api::worker_tests::real_worker_host_api_roundtrip`: настоящая коробка 40×20×10,
 no-op без grant, отказ изменению без grant, close и открытие отдельным процессом
