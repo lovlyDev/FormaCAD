@@ -68,6 +68,34 @@ complete write validation or proof of native CAD/installed-app acceptance.
 
 ## Publication and CAD
 
+### Window opening registry
+
+`FolderSources` is a nonpersistent Rust host registry, one instance per window.
+`open` accepts an already explicitly selected host folder and returns
+`OpenedFolder` with its original `ReadView` and opaque `FolderSourceId`. `lookup`
+returns an Arc to that same opening, never reopens a path or keys by project ID.
+Two folders sharing a project ID remain distinct. `close` immediately revokes
+the original session. `close_all` permanently closes the window scope, including
+pending openings; another window creates another registry.
+
+Ready and pending sources together are limited to 16. Capacity is reserved before
+file IO. The map mutex never crosses SQL/disk/worker/await operations. Cancellation
+releases its slot; after map publication but before returning the result, the
+guard also removes and revokes only its own opening. Physical SQL connection
+close happens outside the map lock and may complete later. After a successful
+response the host owns cleanup: close unused late results and all sources on
+window shutdown.
+
+Keys include the window scope, nonwrapping monotonic sequence and a random nonce
+for each opening. Knowing another sequence number cannot create a valid key.
+Old keys are never reused after close/reopen; foreign scopes and forged nonces
+are refused. Keys are not persisted in index/settings and confer no writer grant.
+`WriteApproval` still requires an independent host decision and complete source
+recheck. Internal `PROJECT_SOURCE_LIMIT` currently belongs to the Rust-only API;
+agreed UI/IPC wiring must add RU/EN translation at the display boundary. Tests use
+actual folders and production RAII reservations for duplicate project IDs,
+foreign nonce/window, close/reopen/drop, pre-IO quota and post-publish cancellation.
+
 After the explicit user decision, the host invokes `approve_write` for the
 original view. Single-use `WriteApproval` retains the original saved-state stamp.
 Project IDs, UI tokens and settings cannot reconstruct it. It never replaces

@@ -14,9 +14,11 @@ mod migration;
 mod model;
 pub use migration::{BackupRecord, MigrationReport, V2Backup};
 mod publication;
+mod sources;
 mod write;
 pub use model::{ModelChange, ModelIntent, ModelRuntime};
 pub use publication::{CommitPresence, Publication, SavedCommit};
+pub use sources::{FolderSourceId, FolderSources, OpenedFolder, MAX_FOLDER_SOURCES};
 pub use write::WriteApproval;
 #[cfg(feature = "native-worker-client")]
 mod step;
