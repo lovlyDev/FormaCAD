@@ -2,6 +2,10 @@
 
 [Documentation](index.md) · [Русский](../ru/status.md) · [Roadmap](roadmap.md)
 
+## Changes in 1.6.1
+
+Viewport fixes: Fit model and Home frame the model by its bounding sphere instead of pushing the camera back; the measure panel no longer collapses; the non-working Tools and Item buttons are gone (panels toggle with T and N); the browser right-click menu is disabled outside text fields. Details: [1.6.1 release](../releases/1.6.1.md). Windows x64, Linux x64, macOS ARM and macOS Intel installers: [v1.6.1 release](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.6.1).
+
 ## Changes in 1.6.0
 
 Blender-style 3D viewport (M2): G/R/S move, rotate and scale with exact typed values and local axes, F9 for the last transform, box, brush and lasso selection, hide and isolate, 7 views, pie menus, a 3D cursor, exact OCCT snapping to faces, edges, centres and vertices, a ruler and protractor. Areas and workspaces (M1): a tree of editor areas and the Model, Inspect and Sketch presets. Main menu in the top bar, no coloured outlines, faster motion. Wasmtime 50.0.1. Details: [1.6.0 release](../releases/1.6.0.md), [Viewport and modal transforms](viewport-transforms.md) and [Areas and workspaces](workspace-areas.md). Windows x64, Linux x64, macOS ARM and macOS Intel installers are built by the Release workflow: [v1.6.0 release](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.6.0).
