@@ -1,8 +1,12 @@
 import * as THREE from "three";
 export type CameraPose={position:THREE.Vector3;target:THREE.Vector3};
+export const finiteBox=(bounds:THREE.Box3)=>!bounds.isEmpty()&&[...bounds.min.toArray(),...bounds.max.toArray()].every(Number.isFinite);
 export function fitPose(camera:THREE.PerspectiveCamera,target:THREE.Vector3,object:THREE.Object3D):CameraPose|null{
- object.updateWorldMatrix(true,true);const bounds=new THREE.Box3().setFromObject(object);
- if(bounds.isEmpty()||![...bounds.min.toArray(),...bounds.max.toArray()].every(Number.isFinite))return null;
+ object.updateWorldMatrix(true,true);return fitBoxPose(camera,target,new THREE.Box3().setFromObject(object));
+}
+/** Pose that fits the bounding sphere of a box in the frustum, keeping the current view direction. */
+export function fitBoxPose(camera:THREE.PerspectiveCamera,target:THREE.Vector3,bounds:THREE.Box3):CameraPose|null{
+ if(!finiteBox(bounds))return null;
  const sphere=bounds.getBoundingSphere(new THREE.Sphere()),radius=Math.max(sphere.radius,.01);
  const halfVertical=THREE.MathUtils.degToRad(camera.fov/2),halfHorizontal=Math.atan(Math.tan(halfVertical)*camera.aspect);
  const distance=radius/Math.sin(Math.min(halfVertical,halfHorizontal))*1.15;

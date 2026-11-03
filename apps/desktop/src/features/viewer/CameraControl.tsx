@@ -4,6 +4,10 @@ import { useBounds } from "@react-three/drei";
 import * as THREE from "three";
 import { persist, readState } from "../../lib/persistence";
 import { standardView, standardViewPose } from "./view-commands/standardViews";
+import { finiteBox, fitBoxPose } from "../model-preview/cameraFit";
+
+/** Framed while the model has no geometry yet: a 100 mm cube on the origin. */
+const EMPTY_FRAME = new THREE.Box3(new THREE.Vector3(-50, -50, -50), new THREE.Vector3(50, 50, 50));
 export function CameraControl({
   preset,
   fit,
@@ -50,7 +54,20 @@ export function CameraControl({
       controls.update();
       return;
     }
-    if (!previous || previous.fit !== fit || previous.reset !== reset || previous.camera !== camera) api.current.refresh(previous && previous.fit !== fit && fitBox ? fitBox : object).clip().fit();
+    if (!previous || previous.fit !== fit || previous.reset !== reset || previous.camera !== camera) {
+      // drei's fit measures with atan and a wide margin, which leaves models far away; frame the bounding sphere instead.
+      object.updateWorldMatrix(true, true);
+      const measured = previous && previous.fit !== fit && fitBox ? fitBox.clone() : new THREE.Box3().setFromObject(object);
+      const box = finiteBox(measured) ? measured : EMPTY_FRAME.clone();
+      const framing = api.current.refresh(box).clip();
+      const pose = camera instanceof THREE.PerspectiveCamera ? fitBoxPose(camera, controls.target, box) : null;
+      if (pose) {
+        camera.position.copy(pose.position);
+        controls.target.copy(pose.target);
+        camera.lookAt(pose.target);
+        controls.update();
+      } else framing.fit();
+    }
     if (previous && previous.reset === reset) return;
     const framing = api.current.refresh(object).clip();
     const { center } = framing.getSize();
