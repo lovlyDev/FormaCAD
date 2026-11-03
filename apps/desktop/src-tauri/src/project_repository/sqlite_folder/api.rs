@@ -18,6 +18,10 @@ mod write;
 pub use model::{ModelChange, ModelIntent, ModelRuntime};
 pub use publication::{CommitPresence, Publication, SavedCommit};
 pub use write::WriteApproval;
+#[cfg(feature = "native-worker-client")]
+mod step;
+#[cfg(feature = "native-worker-client")]
+pub use step::{SelectedStepFile, StepDestinationApproval, StepProjectIntent, StepRead};
 
 /// One physical opening. Closing it revokes every previously captured view.
 pub struct FolderProject {

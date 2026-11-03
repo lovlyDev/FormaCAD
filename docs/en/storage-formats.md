@@ -356,8 +356,9 @@ intent hidden in an unrelated app SQL database. Managed callers require the pure
 legacy recovery check. A genuine 1.1 project is not accepted as V2; its last STEP
 requires a separate new-project import without a claim to restored parametrics.
 
-`project_repository/selected_step` is a test-only source for an explicitly selected
-STEP, not an old database reader. It retains the original file handle, directory
+`project_repository/selected_step` is an explicitly selected STEP source exposed
+through `api::SelectedStepFile` in supported native-client Rust builds. It is not
+an old database reader. It retains the original file handle, directory
 identity, SHA-256, bounded size and distinct opening. It rejects unsafe links and
 nonregular inputs, checks the 40 MiB limit before allocating a payload, and uses
 one mutex-protected file without descriptor duplication. Recheck hashes in 32 KiB

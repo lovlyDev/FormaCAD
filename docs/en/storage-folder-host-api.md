@@ -76,5 +76,13 @@ The public `apply_model` has an explicit ignored
 grant-free no-op, refusal of an unapproved edit, close and independent-process
 reopen with worker verification of 8000 mm³ and bounds. The workflow requires one
 executed PASS; current-revision success is not yet established.
-Production UI/index, STEP facade, actual USB/NAS and a genuine 1.1
+With `native-worker-client`, the API also exposes `SelectedStepFile`, opaque
+`StepRead`, single-use `StepDestinationApproval` and `transfer_to_folder` using
+the same `ModelRuntime`. This delegates to existing [STEP transfer](storage-step-transfer.md)
+without old app SQL or recovered parametric history. Hash/read and approval are
+blocking file operations; a UI host must schedule them away from its UI thread.
+A new synthetic regression covers foreign opening and destination data added
+after approval. The real STEP roundtrip now calls this public API. Exact-head
+native-client verification remains required.
+Production UI/index, actual USB/NAS and a genuine 1.1
 fixture remain incomplete gates. This API does not change versions or release.

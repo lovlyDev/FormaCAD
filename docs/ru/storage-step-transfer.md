@@ -2,7 +2,8 @@
 
 [Документация](index.md) · [English](../en/storage-step-transfer.md) · [Формат папки](storage-formats.md)
 
-Это backend API этапа 4, пока только в тестовой сборке с native worker client.
+Это Rust host API этапа 4 для поддерживаемых Windows/Linux сборок с native worker
+client. Текущая ревизия ещё требует компиляции и runtime-проверки.
 Пользовательская кнопка и IPC ещё не подключены. Его назначение — взять явно
 выбранный последний STEP и создать независимый FCP1-проект с настоящей проверенной
 геометрией. Старая БД не ищется, не разбирается и не мигрирует. Старые credentials,
@@ -12,13 +13,16 @@
 
 ## Действия host
 
-1. После явного выбора файла host открывает `SelectedStep` и удерживает исходный
-   `StepSnapshot`. Файл ограничен 40 МиБ; чтение проверяет identity, hash и lifecycle.
+1. После явного выбора файла host открывает `api::SelectedStepFile` и удерживает
+   исходный `StepRead`. Внутри остаются те же `SelectedStep`/`StepSnapshot`.
+   Файл ограничен 40 МиБ; чтение проверяет identity, hash и lifecycle.
 2. После явного решения создать проект host получает одноразовый
-   `StepTransferGrant` для этого source opening и выбранной пустой папки. Grant
+   `StepDestinationApproval` вызовом `approve_destination` для этого source
+   opening и выбранной пустой папки. Внутренний `StepTransferGrant`
    непрозрачен, не сериализуется и не заменяет OS writer lease.
-3. `step_transfer::transfer` принимает название, agent и prompt как новый intent,
-   trusted CAD runtime paths и task services. Новый project UUID создаётся внутри.
+3. `transfer_to_folder` принимает `StepProjectIntent` (название, agent, prompt)
+   и доверенный `ModelRuntime`. Он делегирует существующему
+   `step_transfer::transfer`. Новый project UUID создаётся внутри.
    Единицы нового проекта — mm. База приложения и recent index не нужны.
 4. Существующая `conversion::import_document::source` строит проверенный ImportStep
    CAD IR, содержащий hash выбранного asset. Затем общий `repository_apply::apply`
@@ -52,8 +56,9 @@ Unit-тесты проверяют закрытое/другое открыти�
 worker workdir и регистрации CAD-задачи. Это synthetic policy fixtures, не CAD.
 Native workflow явно запускает ignored `real_worker_step_transfer_roundtrip` с
 `FORMA_FOLDER_TEST_WORKER`. Он создаёт настоящий STEP коробки 40×20×10 через worker,
-переносит его, проверяет первый commit и единственный ImportStep, перечитывает
-геометрию/объём новым процессом и проверяет неизменность исходных файлов. Невалидный
+переносит его через публичный `SelectedStepFile::transfer_to_folder`, проверяет
+первый commit и единственный ImportStep, перечитывает геометрию/объём новым
+процессом и проверяет неизменность исходных файлов. Невалидный
 STEP должен отказать до создания SQL/CAS назначения. Workflow требует один
 выполненный PASS; отсутствие test match не считается успехом.
 

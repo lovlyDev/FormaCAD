@@ -12,6 +12,26 @@ PR №5 подтверждён объединённым через API; 29 ок�
 этапы — №28–34; область Issue №3 прочитана и остаётся исключённой.
 Версии, релизы, установка и область native/Cargo/worker исключены из изменений.
 
+## Текущее положение: 3 ноября 2026
+
+Активен этап 4; этапы 5–7 не завершены. В задачную ветку принят `main`
+`a4aec3e6` с M2; согласованный патч сохраняет amend/Undo и исходный storage
+сеанс. [Rust host API](storage-folder-host-api.md) подключает FCP1 к обычной
+поддерживаемой сборке и общему reader без app SQL. На `ca66156` strict Clippy
+без native client и четыре API-теста прошли в
+[run 41607907708](https://github.com/lovlyDev/FormaCAD/actions/runs/41607907708).
+Полный run красный: обязательный native-client gate нашёл E0609 нового snap
+consumer. Точный однострочный патч ожидает согласования в
+[Issue #31](https://github.com/lovlyDev/FormaCAD/issues/31#issuecomment-6599119794).
+
+На `edd2f92` production V2 backup/migration API прошёл strict Clippy без native
+client и все шесть API-тестов в run `41609704135`; полный run снова отклонил
+известный snap E0609. Windows/Linux/macOS ARM Quality jobs прошли. Отдельное
+macOS исправление ограничивает writer stamp поддерживаемыми Windows/Linux,
+не выключая macOS jobs. UI/index,
+ленивое metadata-only FCP1 чтение, настоящая fixture 1.1 и hardware gates остаются
+незавершёнными. Исторические результаты ниже относятся только к указанным SHA.
+
 ## Исправление сеанса общего снимка
 
 Пользователь продолжает пользоваться существующими чтением вложений,

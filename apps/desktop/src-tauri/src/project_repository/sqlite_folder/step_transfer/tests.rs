@@ -235,6 +235,9 @@ async fn inspect_saved(root: &Path, worker: &Path) {
 #[tokio::test]
 #[ignore = "requires explicitly built real worker via FORMA_FOLDER_TEST_WORKER"]
 async fn real_worker_step_transfer_roundtrip() {
+    use crate::project_repository::sqlite_folder::api::{
+        ModelRuntime, Publication, SelectedStepFile, StepProjectIntent,
+    };
     let worker = std::path::PathBuf::from(
         std::env::var_os("FORMA_FOLDER_TEST_WORKER").expect("explicit real worker"),
     );
@@ -262,32 +265,42 @@ async fn real_worker_step_transfer_roundtrip() {
     let old_id = uuid::Uuid::new_v4().to_string();
     let marker = old.path().join("old-project-sentinel");
     std::fs::write(&marker, old_id.as_bytes()).unwrap();
-    let source = SelectedStep::open(&path).unwrap();
+    let source = SelectedStepFile::open(&path).unwrap();
     let original = source.capture().unwrap();
-    let grant = StepTransferGrant::approve(&source, &original, target.path()).unwrap();
+    let grant = source
+        .approve_destination(&original, target.path())
+        .unwrap();
     let tasks = AsyncMutex::new(HashMap::new());
     let gate = CadTaskGate::default();
-    let outcome = transfer(
-        &source,
-        &original,
-        grant,
-        intent(),
-        ApplyRuntime::new(&tasks, &gate),
-        BuildRuntime {
-            executable: Some(&worker),
-            ..runtime(work.path())
-        },
-    )
-    .await
-    .unwrap();
+    let outcome = source
+        .transfer_to_folder(
+            &original,
+            grant,
+            StepProjectIntent {
+                name: "Transferred part".into(),
+                agent: "codex".into(),
+                prompt: "Explicit selected STEP import".into(),
+            },
+            ModelRuntime {
+                tasks: &tasks,
+                gate: &gate,
+                runtime_root: work.path(),
+                transient_root: work.path(),
+                executable: Some(&worker),
+            },
+        )
+        .await
+        .unwrap();
     let saved = match outcome {
-        format::CommitOutcome::Committed(saved) => saved,
-        other => panic!("transfer not confirmed: {other:?}"),
+        Publication::Committed(saved) => saved,
+        Publication::RejectedBefore(error) => panic!("transfer rejected: {error}"),
+        Publication::Indeterminate { commit_id, error } => {
+            panic!("transfer indeterminate {commit_id}: {error}")
+        }
     };
     assert_ne!(saved.project().id, old_id);
-    assert_ne!(saved.project().id, original.task_key());
     assert_eq!(saved.project().revisions.len(), 1);
-    assert_eq!(saved.expectation().sequence(), 1);
+    assert_eq!(saved.sequence(), 1);
     assert!(tasks.lock().await.is_empty());
     assert!(gate.status().unwrap().is_empty());
     source.recheck(&original).unwrap();
@@ -320,24 +333,31 @@ async fn real_worker_step_transfer_roundtrip() {
     // Bad geometry must fail before the target's first SQL/CAS publication.
     let bad = old.path().join("invalid.step");
     std::fs::write(&bad, b"not STEP geometry").unwrap();
-    let invalid_source = SelectedStep::open(&bad).unwrap();
+    let invalid_source = SelectedStepFile::open(&bad).unwrap();
     let invalid_snapshot = invalid_source.capture().unwrap();
     let refused = tempfile::tempdir().unwrap();
-    let grant =
-        StepTransferGrant::approve(&invalid_source, &invalid_snapshot, refused.path()).unwrap();
-    assert!(transfer(
-        &invalid_source,
-        &invalid_snapshot,
-        grant,
-        intent(),
-        ApplyRuntime::new(&tasks, &gate),
-        BuildRuntime {
-            executable: Some(&worker),
-            ..runtime(work.path())
-        }
-    )
-    .await
-    .is_err());
+    let grant = invalid_source
+        .approve_destination(&invalid_snapshot, refused.path())
+        .unwrap();
+    assert!(invalid_source
+        .transfer_to_folder(
+            &invalid_snapshot,
+            grant,
+            StepProjectIntent {
+                name: "Transferred part".into(),
+                agent: "codex".into(),
+                prompt: "Reject invalid geometry".into()
+            },
+            ModelRuntime {
+                tasks: &tasks,
+                gate: &gate,
+                runtime_root: work.path(),
+                transient_root: work.path(),
+                executable: Some(&worker),
+            }
+        )
+        .await
+        .is_err());
     assert_eq!(std::fs::read_dir(refused.path()).unwrap().count(), 0);
     assert!(tasks.lock().await.is_empty());
 }

@@ -12,6 +12,9 @@ impl SavedCommit {
     pub fn commit_id(&self) -> &str {
         self.saved.expectation().commit_id()
     }
+    pub fn sequence(&self) -> u64 {
+        self.saved.expectation().sequence()
+    }
 }
 
 pub enum Publication {

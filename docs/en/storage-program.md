@@ -12,6 +12,26 @@ connector account's HTTP 403 does not apply to it. The program is tracked in
 Issue #3 boundaries were read and remain excluded. Versions, releases, installation and native/Cargo/worker
 files are outside these changes.
 
+## Current position: 3 November 2026
+
+Stage 4 is active; stages 5–7 are incomplete. The task branch includes accepted
+M2 main `a4aec3e6`; the approved integration preserves amendment/Undo and original
+storage sessions. The [Rust host API](storage-folder-host-api.md) brings FCP1 into
+ordinary supported builds and the common reader without app SQL. On `ca66156`,
+strict Clippy without native client and four API tests passed in
+[run 41607907708](https://github.com/lovlyDev/FormaCAD/actions/runs/41607907708).
+The whole run failed: mandatory native-client compilation found E0609 in the new
+snap consumer. Its exact one-line patch awaits agreement in
+[Issue #31](https://github.com/lovlyDev/FormaCAD/issues/31#issuecomment-6599119794).
+
+On `edd2f92`, the production V2 backup/migration API passed strict Clippy without
+native client and all six API tests in run `41609704135`; the whole run again
+failed on known snap E0609. Windows/Linux/macOS ARM Quality jobs passed. A separate
+macOS correction scopes writer stamps to supported Windows/Linux without
+disabling macOS jobs. UI/index, lazy metadata-only FCP1
+reads, a genuine 1.1 fixture and hardware gates remain incomplete. Historical
+results below prove only their explicitly named SHAs.
+
 ## Shared snapshot lifecycle correction
 
 Users keep the existing attachment, copy and export actions. No new settings are

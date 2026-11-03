@@ -74,7 +74,10 @@ impl FolderProject {
             )
             .await?
             {
-                RepositoryApply::NoOp(project) => ModelChange::NoOp(project),
+                RepositoryApply::NoOp(project) => {
+                    self.recheck(original).await?;
+                    ModelChange::NoOp(project)
+                }
                 RepositoryApply::Published(outcome) => ModelChange::Published(outcome.into()),
             },
         )

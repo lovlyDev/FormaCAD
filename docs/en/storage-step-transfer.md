@@ -2,7 +2,8 @@
 
 [Documentation](index.md) · [Русский](../ru/storage-step-transfer.md) · [Folder format](storage-formats.md)
 
-This stage-4 backend API is currently test-only with the native worker client.
+This stage-4 Rust host API is available to supported Windows/Linux builds with
+the native worker client. Current-revision compile/runtime verification is pending.
 No UI button or IPC is connected. It takes an explicitly selected last STEP and
 creates an independent FCP1 project with real validated geometry. It neither
 discovers nor parses/migrates an old database. Old credentials, settings, history
@@ -12,13 +13,16 @@ does not prove full 1.1 compatibility.
 
 ## Host flow
 
-1. Explicit file selection opens `SelectedStep` and retains its original snapshot.
+1. Explicit file selection opens `api::SelectedStepFile` and retains `StepRead`.
+   Internally these retain the same `SelectedStep`/`StepSnapshot` implementation.
    The 40 MiB input limit precedes allocation; reads check identity/hash/lifecycle.
-2. An explicit creation decision mints a single-use `StepTransferGrant` bound to
+2. An explicit creation decision calls `approve_destination`, producing a
+   single-use `StepDestinationApproval` whose internal `StepTransferGrant` binds
    that source opening and an empty selected directory. It is private,
    nonserializable and distinct from the real OS writer lease.
-3. `step_transfer::transfer` accepts the new name/agent/prompt, trusted CAD runtime
-   paths and task services. It generates a fresh project UUID and uses mm units.
+3. `transfer_to_folder` accepts `StepProjectIntent` (new name/agent/prompt) and
+   trusted `ModelRuntime`, delegating to existing `step_transfer::transfer`.
+   It generates a fresh project UUID and uses mm units.
    No app database or recent index is required.
 4. Existing `conversion::import_document::source` produces validated ImportStep IR
    referencing the selected asset hash. Common `repository_apply::apply` handles
@@ -53,7 +57,8 @@ the foreign file, creating SQL/CAS or a worker workspace, or registering a CAD
 task. These policy fixtures use synthetic bytes.
 The native workflow explicitly invokes ignored `real_worker_step_transfer_roundtrip`
 with `FORMA_FOLDER_TEST_WORKER`. It generates a real 40×20×10 box STEP, transfers
-it, checks a first commit with one ImportStep, inspects saved geometry/volume in a
+it through public `SelectedStepFile::transfer_to_folder`, checks a first commit
+with one ImportStep, and inspects saved geometry/volume in a
 fresh process and checks source file purity. Invalid STEP must fail before target
 SQL/CAS creation. The workflow requires one executed passing test; zero matching
 tests are not a pass.

@@ -76,5 +76,14 @@ reader. Fixtures синтетические и не заменяют насто�
 no-op без grant, отказ изменению без grant, close и открытие отдельным процессом
 с проверкой объёма 8000 мм³ и размеров через worker. Workflow явно требует один
 выполненный PASS; тест ещё не подтверждён на текущей ревизии.
-Production UI/index, STEP facade, реальные USB/NAS и fixture 1.1 ещё
+При `native-worker-client` API также предоставляет `SelectedStepFile`,
+непрозрачный `StepRead`, одноразовый `StepDestinationApproval` и
+`transfer_to_folder` с тем же `ModelRuntime`. Это прямой доступ к существующему
+контроллеру [переноса STEP](storage-step-transfer.md), без старой app SQL и
+восстановления параметрики. Hash/read и approve — блокирующие файловые операции;
+UI host должен планировать их отдельно от своего потока интерфейса. Новая
+синтетическая регрессия проверяет чужое открытие и файл, появившийся в назначении
+после разрешения. Настоящий STEP roundtrip теперь вызывает этот публичный API.
+Проверка native-client ревизии всё ещё обязательна.
+Production UI/index, реальные USB/NAS и fixture 1.1 ещё
 не приняты. Версии и релиз этот API не меняет.
