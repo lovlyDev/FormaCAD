@@ -192,6 +192,47 @@ pub fn account_cancel_sign_in(account: tauri::State<'_, AccountState>) {
     }
 }
 
+/// The cached access token, or a fresh one from the stored refresh token. The caller holds
+/// the session lock so a rotated refresh token is never sent twice.
+async fn session_access(
+    session: &mut Option<(String, Instant)>,
+    server: &str,
+    client: &ServerClient,
+) -> AccountResult<String> {
+    if let Some((token, until)) = session.as_ref() {
+        if *until > Instant::now() {
+            return Ok(token.clone());
+        }
+    }
+    let refresh = token_store::load(server)?.ok_or(AccountError::SignedOut)?;
+    match client.refresh(&refresh).await {
+        Ok(tokens) => {
+            token_store::save(server, &tokens.refresh_token)?;
+            *session = Some((
+                tokens.access_token.clone(),
+                Instant::now() + Duration::from_secs(tokens.expires_in.saturating_sub(30)),
+            ));
+            Ok(tokens.access_token)
+        }
+        Err(AccountError::SessionEnded) => {
+            *session = None;
+            token_store::clear(server)?;
+            Err(AccountError::SessionEnded)
+        }
+        Err(e) => Err(e),
+    }
+}
+
+/// Server origin and a valid access token for in-process calls (e.g. the beta updater).
+/// The token stays in Rust and never reaches the WebView.
+pub(crate) async fn access_token(account: &AccountState) -> AccountResult<(String, String)> {
+    let server = config::server_origin()?;
+    let client = ServerClient::new(server.clone())?;
+    let mut session = account.session.lock().await;
+    let token = session_access(&mut session, &server, &client).await?;
+    Ok((server, token))
+}
+
 /// Online re-check: rotates the refresh token, refreshes profile and rights.
 /// Offline keeps the cached (bounded) rights; a revoked session signs out.
 #[tauri::command]
@@ -202,28 +243,7 @@ pub async fn account_refresh(
     let server = config::server_origin()?;
     let client = ServerClient::new(server.clone())?;
     let mut session = account.session.lock().await;
-    let access = match session.as_ref() {
-        Some((token, until)) if *until > Instant::now() => token.clone(),
-        _ => {
-            let refresh = token_store::load(&server)?.ok_or(AccountError::SignedOut)?;
-            match client.refresh(&refresh).await {
-                Ok(tokens) => {
-                    token_store::save(&server, &tokens.refresh_token)?;
-                    *session = Some((
-                        tokens.access_token.clone(),
-                        Instant::now() + Duration::from_secs(tokens.expires_in.saturating_sub(30)),
-                    ));
-                    tokens.access_token
-                }
-                Err(AccountError::SessionEnded) => {
-                    *session = None;
-                    token_store::clear(&server)?;
-                    return Err(AccountError::SessionEnded);
-                }
-                Err(e) => return Err(e),
-            }
-        }
-    };
+    let access = session_access(&mut session, &server, &client).await?;
     match sync(&state, &client, &access).await {
         Ok(cache) => Ok(build_status(&server, true, &cache)),
         Err(AccountError::SessionEnded) => {
