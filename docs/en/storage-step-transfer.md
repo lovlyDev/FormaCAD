@@ -47,7 +47,10 @@ reads only.
 ## Reproduction and limits
 
 Policy unit tests cover closed/cross-opening grants, full-future Send, queued
-cancel/close, nonempty destination and invalid intent. They use synthetic bytes.
+cancel/close, nonempty destination and invalid intent. A separate regression
+populates the destination after approval: transfer must refuse without replacing
+the foreign file, creating SQL/CAS or a worker workspace, or registering a CAD
+task. These policy fixtures use synthetic bytes.
 The native workflow explicitly invokes ignored `real_worker_step_transfer_roundtrip`
 with `FORMA_FOLDER_TEST_WORKER`. It generates a real 40×20×10 box STEP, transfers
 it, checks a first commit with one ImportStep, inspects saved geometry/volume in a

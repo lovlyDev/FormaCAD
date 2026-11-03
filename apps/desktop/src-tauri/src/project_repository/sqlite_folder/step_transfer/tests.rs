@@ -161,6 +161,42 @@ async fn nonempty_target_and_invalid_project_intent_are_refused_before_publicati
     source.recheck(&original).unwrap();
 }
 
+#[tokio::test]
+async fn destination_populated_after_approval_is_never_overwritten() {
+    let old = tempfile::tempdir().unwrap();
+    let target = tempfile::tempdir().unwrap();
+    let work = tempfile::tempdir().unwrap();
+    let path = old.path().join("last.step");
+    std::fs::write(&path, b"selected immutable input").unwrap();
+    let source = SelectedStep::open(&path).unwrap();
+    let original = source.capture().unwrap();
+    let grant = StepTransferGrant::approve(&source, &original, target.path()).unwrap();
+    let foreign = target.path().join("keep.step");
+    std::fs::write(&foreign, b"another user's destination data").unwrap();
+    let tasks = AsyncMutex::new(HashMap::new());
+    let gate = CadTaskGate::default();
+    assert!(transfer(
+        &source,
+        &original,
+        grant,
+        intent(),
+        ApplyRuntime::new(&tasks, &gate),
+        runtime(work.path()),
+    )
+    .await
+    .is_err());
+    assert_eq!(
+        std::fs::read(foreign).unwrap(),
+        b"another user's destination data"
+    );
+    assert_eq!(std::fs::read_dir(target.path()).unwrap().count(), 1);
+    assert_eq!(std::fs::read_dir(work.path()).unwrap().count(), 0);
+    assert!(tasks.lock().await.is_empty());
+    assert!(gate.status().unwrap().is_empty());
+    source.recheck(&original).unwrap();
+    assert_eq!(std::fs::read(path).unwrap(), b"selected immutable input");
+}
+
 async fn inspect_saved(root: &Path, worker: &Path) {
     let session = super::super::session::FolderSession::open(root)
         .await

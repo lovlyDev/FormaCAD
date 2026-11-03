@@ -47,7 +47,9 @@ receipt, SQL/history и все CAS через общий publication verifier.
 ## Воспроизведение
 
 Unit-тесты проверяют закрытое/другое открытие, Send всей future, очередь/cancel,
-непустую папку и невалидный intent. Это synthetic policy fixtures, не CAD.
+непустую папку и невалидный intent. Отдельная регрессия заполняет назначение чужим
+файлом уже после разрешения: перенос обязан отказать без перезаписи, SQL/CAS,
+worker workdir и регистрации CAD-задачи. Это synthetic policy fixtures, не CAD.
 Native workflow явно запускает ignored `real_worker_step_transfer_roundtrip` с
 `FORMA_FOLDER_TEST_WORKER`. Он создаёт настоящий STEP коробки 40×20×10 через worker,
 переносит его, проверяет первый commit и единственный ImportStep, перечитывает
