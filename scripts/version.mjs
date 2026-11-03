@@ -2,7 +2,8 @@ import fs from "node:fs";
 const paths = ["package.json", "apps/desktop/package.json", "apps/desktop/src-tauri/tauri.conf.json"];
 const desired = process.argv[2];
 const version = desired || JSON.parse(fs.readFileSync(paths[0], "utf8")).version;
-if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error("Use a stable x.y.z version");
+// Stable x.y.z, or x.y.z-beta.N for the private supporter beta channel.
+if (!/^\d+\.\d+\.\d+(-beta\.\d+)?$/.test(version)) throw new Error("Use x.y.z or x.y.z-beta.N");
 for (const path of paths) {
   const data = JSON.parse(fs.readFileSync(path, "utf8"));
   if (desired) { data.version = version; fs.writeFileSync(path, JSON.stringify(data, null, 2) + "\n"); }
