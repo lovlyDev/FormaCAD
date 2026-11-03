@@ -81,3 +81,5 @@ impl FolderProject {
 
 #[cfg(test)]
 mod tests;
+#[cfg(all(test, feature = "native-worker-client"))]
+mod worker_tests;

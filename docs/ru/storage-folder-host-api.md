@@ -54,5 +54,10 @@ view и не возрождает старый grant.
 Тесты API используют настоящую изолированную SQLite/CAS: reopen без app index,
 отказ чужому opening/grant, read-only copy при чужом writer lease и чистый общий
 reader. Fixtures синтетические и не заменяют настоящие worker roundtrips.
+Для самого публичного `apply_model` выделен ignored-тест
+`api::worker_tests::real_worker_host_api_roundtrip`: настоящая коробка 40×20×10,
+no-op без grant, отказ изменению без grant, close и открытие отдельным процессом
+с проверкой объёма 8000 мм³ и размеров через worker. Workflow явно требует один
+выполненный PASS; тест ещё не подтверждён на текущей ревизии.
 Production UI/index, STEP/migration facade, реальные USB/NAS и fixture 1.1 ещё
 не приняты. Версии и релиз этот API не меняет.

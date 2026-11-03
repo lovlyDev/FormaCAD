@@ -164,7 +164,7 @@ impl ReadOnlyDatabase {
         }
     }
 
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(all(test, any(target_os = "linux", windows)))]
     pub(super) async fn close(self) -> Result<()> {
         self.connection.close().await?;
         Ok(())

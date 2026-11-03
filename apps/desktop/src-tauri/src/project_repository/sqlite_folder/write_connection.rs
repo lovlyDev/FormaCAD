@@ -98,6 +98,7 @@ impl WriteConnection {
         }
     }
 
+    #[cfg(test)]
     pub(super) async fn open(
         root: &Path,
         lease: FolderLease,

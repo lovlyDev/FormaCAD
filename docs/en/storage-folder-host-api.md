@@ -55,5 +55,10 @@ an older grant.
 API tests use real isolated SQLite/CAS for reopen without app index, foreign
 opening/grant refusal, read-only copy under another writer lease and pure common
 reading. Fixtures are synthetic and never replace real-worker roundtrips.
+The public `apply_model` has an explicit ignored
+`api::worker_tests::real_worker_host_api_roundtrip`: a real 40×20×10 box,
+grant-free no-op, refusal of an unapproved edit, close and independent-process
+reopen with worker verification of 8000 mm³ and bounds. The workflow requires one
+executed PASS; current-revision success is not yet established.
 Production UI/index, STEP/migration facades, actual USB/NAS and a genuine 1.1
 fixture remain incomplete gates. This API does not change versions or release.

@@ -44,6 +44,7 @@ pub(super) struct Source {
 }
 
 impl Source {
+    #[cfg(test)]
     pub fn capture(
         root: &Path,
         lease: FolderLease,
