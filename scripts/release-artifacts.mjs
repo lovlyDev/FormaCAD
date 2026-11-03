@@ -25,7 +25,8 @@ if (mode === "collect") {
   if (!updater) throw new Error(`Missing updater for ${platform}`);
   fs.writeFileSync(path.join(output,`manifest-${platform}.json`),JSON.stringify({version,platform,...updater}));
 } else if (mode === "merge") {
-  const repository = process.env.GITHUB_REPOSITORY || "lovlyDev/FormaCAD";
+  // Beta assets live in the private beta repository; the account server rewrites these URLs for supporters.
+  const repository = process.env.RELEASE_REPOSITORY || process.env.GITHUB_REPOSITORY || "lovlyDev/FormaCAD";
   const manifest = {version,notes:fs.readFileSync(`docs/releases/${version}.md`,"utf8"),pub_date:new Date().toISOString(),platforms:{}};
   for (const platform of platforms) {
     const file=path.join(root,`manifest-${platform}.json`);

@@ -149,8 +149,32 @@ jobs:
           pattern: release-*
           path: .release-artifacts
           merge-multiple: true
-      - run: node scripts/release-artifacts.mjs merge
+      - name: Merge updater manifest
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          # Beta tags (vX.Y.Z-beta.N) go only to the private beta repository, never to the public latest.json.
+          if [[ "$RELEASE_TAG" == *-beta.* ]]; then export RELEASE_REPOSITORY=lovlyDev/FormaCAD-beta; fi
+          node scripts/release-artifacts.mjs merge
+      - name: Publish beta to the private repository
+        if: contains(github.ref_name, '-beta.')
+        env:
+          GH_TOKEN: ${{ secrets.BETA_RELEASE_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if [[ -z "$GH_TOKEN" ]]; then echo 'Add BETA_RELEASE_TOKEN (contents: write on lovlyDev/FormaCAD-beta) in GitHub Actions secrets' >&2; exit 1; fi
+          BETA_REPO=lovlyDev/FormaCAD-beta
+          if gh release view "$RELEASE_TAG" -R "$BETA_REPO" >/dev/null 2>&1; then
+            echo 'Beta release already exists; refusing to overwrite it.'
+            exit 1
+          fi
+          VERSION="${RELEASE_TAG#v}"
+          sed -E "s#\]\(\.\./#](https://github.com/${GITHUB_REPOSITORY}/blob/${RELEASE_TAG}/docs/#g" "docs/releases/$VERSION.md" > .release-notes.md
+          gh release create "$RELEASE_TAG" -R "$BETA_REPO" --target main --draft --prerelease --title "Forma $VERSION" --notes-file .release-notes.md
+          gh release upload "$RELEASE_TAG" -R "$BETA_REPO" .release-artifacts/*
+          gh release edit "$RELEASE_TAG" -R "$BETA_REPO" --draft=false
       - name: Publish complete release
+        if: ${{ !contains(github.ref_name, '-beta.') }}
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
