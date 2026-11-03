@@ -10,7 +10,9 @@ use crate::{
 };
 use std::path::Path;
 
+mod migration;
 mod model;
+pub use migration::{BackupRecord, MigrationReport, V2Backup};
 mod publication;
 mod write;
 pub use model::{ModelChange, ModelIntent, ModelRuntime};

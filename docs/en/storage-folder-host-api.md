@@ -50,6 +50,17 @@ refused. Runtime paths are never accepted from IPC.
 
 ## Outcomes and verification
 
+`V2Backup::create` produces an exact independently reread backup of an explicitly
+selected published V2 session. This is blocking file IO: a future UI host must
+schedule it on a blocking worker. The proof object is not serializable;
+`BackupRecord` only describes its location, manifest SHA, generation and project
+ID and cannot restore migration authority. `V2Backup::migrate` delegates to the
+existing checked converter with a separate empty FCP1 destination; the source
+and backup are never write targets. Destination refusal still returns backup
+provenance in `MigrationReport`. Reopening the same path cannot inherit an older
+opening's proof. Two new API tests check exact manifest bytes, project/history
+preservation and close/reopen refusal; current results are not yet established.
+
 `Publication::Committed` exposes saved project and UUID, not a new capability.
 `RejectedBefore` retains pre-commit refusal. `Indeterminate` retains the known
 UUID and technical error: never replay automatically or pretend rollback.
@@ -65,5 +76,5 @@ The public `apply_model` has an explicit ignored
 grant-free no-op, refusal of an unapproved edit, close and independent-process
 reopen with worker verification of 8000 mm³ and bounds. The workflow requires one
 executed PASS; current-revision success is not yet established.
-Production UI/index, STEP/migration facades, actual USB/NAS and a genuine 1.1
+Production UI/index, STEP facade, actual USB/NAS and a genuine 1.1
 fixture remain incomplete gates. This API does not change versions or release.

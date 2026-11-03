@@ -41,8 +41,8 @@ jobs:
         run: |
           set -o pipefail
           cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --all-targets --no-default-features -- -D warnings 2>&1 | tee storage-evidence/host-api-clippy.log
-          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib project_repository::sqlite_folder::api::tests -- --nocapture 2>&1 | tee storage-evidence/host-api-tests.log
-          grep -F 'test result: ok. 4 passed; 0 failed;' storage-evidence/host-api-tests.log
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib project_repository::sqlite_folder::api:: -- --nocapture 2>&1 | tee storage-evidence/host-api-tests.log
+          grep -F 'test result: ok. 6 passed; 0 failed;' storage-evidence/host-api-tests.log
       - name: Compile shared measurement integration with strict lint
         run: |
           set -o pipefail

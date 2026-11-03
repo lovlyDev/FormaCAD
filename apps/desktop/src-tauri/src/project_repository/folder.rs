@@ -15,9 +15,9 @@ use std::{
     },
 };
 
-#[cfg(all(test, any(target_os = "linux", windows)))]
+#[cfg(any(target_os = "linux", windows))]
 mod backup;
-#[cfg(all(test, any(target_os = "linux", windows)))]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) use backup::{BackupProvenance, VerifiedV2Backup};
 
 struct Opening {
