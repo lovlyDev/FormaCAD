@@ -28,12 +28,13 @@ impl FolderAuthorization {
             saved: original.saved.stamp(),
         })
     }
-    pub(super) fn check_capture(
+    pub(in crate::project_repository::sqlite_folder) fn check_capture(
         &self,
         session: &FolderSession,
         snapshot: &FolderSnapshot,
     ) -> Result<()> {
         self.check(session)?;
+        session.owns(snapshot)?;
         if self.saved != snapshot.saved.stamp() {
             return Err(changed());
         }

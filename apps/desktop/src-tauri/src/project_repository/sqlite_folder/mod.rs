@@ -1,5 +1,12 @@
-//! Independent folder storage foundations under verification. Production routing
-//! is enabled only after the read session and writer lifecycle are integrated.
+//! Independent FCP1 Rust host API. UI/IPC routing is a separate integration gate.
+#[cfg(any(
+    windows,
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    )
+))]
+pub mod api;
 #[cfg(any(
     windows,
     all(
@@ -25,14 +32,18 @@ mod copy;
 ))]
 mod creation;
 mod format;
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(all(test, any(target_os = "linux", windows)))]
 mod migration;
 #[cfg(any(target_os = "linux", windows))]
 mod publication_verification;
 mod read_only;
 #[cfg(any(target_os = "linux", windows))]
 mod session;
-#[cfg(all(feature = "native-worker-client", any(target_os = "linux", windows)))]
+#[cfg(all(
+    test,
+    feature = "native-worker-client",
+    any(target_os = "linux", windows)
+))]
 mod step_transfer;
 #[cfg(any(
     windows,

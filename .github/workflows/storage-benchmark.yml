@@ -36,6 +36,12 @@ jobs:
           lsblk -o NAME,TYPE,SIZE,ROTA,MOUNTPOINTS >> storage-evidence/environment.txt
           rustc --version >> storage-evidence/environment.txt
           git rev-parse HEAD >> storage-evidence/environment.txt
+      - name: Compile and test independent folder host API without native client
+        run: |
+          set -o pipefail
+          cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --all-targets --no-default-features -- -D warnings 2>&1 | tee storage-evidence/host-api-clippy.log
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib project_repository::sqlite_folder::api::tests -- --nocapture 2>&1 | tee storage-evidence/host-api-tests.log
+          grep -F 'test result: ok. 4 passed; 0 failed;' storage-evidence/host-api-tests.log
       - name: Compile shared measurement integration with strict lint
         run: |
           set -o pipefail

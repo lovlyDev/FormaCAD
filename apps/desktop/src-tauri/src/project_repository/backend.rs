@@ -1,5 +1,13 @@
 //! Explicit read dispatch over managed SQL and independent folder sources.
 //! Snapshots retain their original backend and opening; none is a writer lease.
+#[cfg(any(
+    windows,
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    )
+))]
+use super::sqlite_folder::api::{FolderProject, ReadView};
 use super::{
     folder::{FolderReadSnapshot, FolderRepository},
     legacy::{self, CommittedSnapshot},
@@ -8,7 +16,11 @@ use crate::{
     core::{AppError, AppState, Result},
     models::{Project, ProjectFile},
 };
-use std::{borrow::Cow, path::Path};
+use std::{
+    borrow::Cow,
+    path::Path,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 enum Backend<'a> {
     Managed {
@@ -16,6 +28,14 @@ enum Backend<'a> {
         project_id: String,
     },
     Folder(FolderRepository),
+    #[cfg(any(
+        windows,
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        )
+    ))]
+    Independent(FolderProject),
 }
 
 enum CapturedBackend {
@@ -24,6 +44,14 @@ enum CapturedBackend {
         with_archive: bool,
     },
     Folder(Box<FolderReadSnapshot>),
+    #[cfg(any(
+        windows,
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        )
+    ))]
+    Independent(Box<ReadView>),
 }
 
 /// A read handle to one explicitly selected source. Constructing a managed
@@ -31,6 +59,7 @@ enum CapturedBackend {
 pub struct ProjectRepository<'a> {
     backend: Backend<'a>,
     identity: uuid::Uuid,
+    active: AtomicBool,
 }
 
 /// Immutable public data view with private backend/session authority. Tokens
@@ -45,6 +74,14 @@ impl RepositorySnapshot {
         match &self.backend {
             CapturedBackend::Managed { snapshot, .. } => &snapshot.project,
             CapturedBackend::Folder(snapshot) => snapshot.project(),
+            #[cfg(any(
+                windows,
+                all(
+                    target_os = "linux",
+                    any(target_arch = "x86_64", target_arch = "aarch64")
+                )
+            ))]
+            CapturedBackend::Independent(snapshot) => snapshot.project(),
         }
     }
 }
@@ -59,6 +96,7 @@ impl<'a> ProjectRepository<'a> {
                 project_id: project_id.into(),
             },
             identity: uuid::Uuid::new_v4(),
+            active: AtomicBool::new(true),
         })
     }
 
@@ -66,7 +104,49 @@ impl<'a> ProjectRepository<'a> {
         Ok(Self {
             backend: Backend::Folder(FolderRepository::open(root)?),
             identity: uuid::Uuid::new_v4(),
+            active: AtomicBool::new(true),
         })
+    }
+
+    /// Explicit FCP1 selection. No AppState, managed row or import is created.
+    #[cfg(any(
+        windows,
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        )
+    ))]
+    pub async fn independent_folder(root: &Path) -> Result<Self> {
+        Ok(Self {
+            backend: Backend::Independent(FolderProject::open(root).await?),
+            identity: uuid::Uuid::new_v4(),
+            active: AtomicBool::new(true),
+        })
+    }
+
+    fn check_open(&self) -> Result<()> {
+        if self.active.load(Ordering::Acquire) {
+            Ok(())
+        } else {
+            Err(legacy::changed())
+        }
+    }
+
+    /// Revoke this repository handle without closing another managed tab.
+    pub fn close(&self) {
+        self.active.store(false, Ordering::Release);
+        match &self.backend {
+            Backend::Managed { .. } => (),
+            Backend::Folder(source) => source.close(),
+            #[cfg(any(
+                windows,
+                all(
+                    target_os = "linux",
+                    any(target_arch = "x86_64", target_arch = "aarch64")
+                )
+            ))]
+            Backend::Independent(source) => source.close(),
+        }
     }
 
     /// Capture project metadata without loading the SQL event archive.
@@ -81,6 +161,7 @@ impl<'a> ProjectRepository<'a> {
     }
 
     async fn capture_inner(&self, with_archive: bool) -> Result<RepositorySnapshot> {
+        self.check_open()?;
         let backend = match &self.backend {
             Backend::Managed { state, project_id } => CapturedBackend::Managed {
                 snapshot: Box::new(if with_archive {
@@ -91,7 +172,18 @@ impl<'a> ProjectRepository<'a> {
                 with_archive,
             },
             Backend::Folder(repository) => CapturedBackend::Folder(Box::new(repository.capture()?)),
+            #[cfg(any(
+                windows,
+                all(
+                    target_os = "linux",
+                    any(target_arch = "x86_64", target_arch = "aarch64")
+                )
+            ))]
+            Backend::Independent(repository) => {
+                CapturedBackend::Independent(Box::new(repository.capture().await?))
+            }
         };
+        self.check_open()?;
         Ok(RepositorySnapshot {
             backend,
             repository: self.identity,
@@ -101,6 +193,7 @@ impl<'a> ProjectRepository<'a> {
     /// Revalidate the ORIGINAL captured authority and saved state. This is an
     /// optimistic check; it does not block later external modifications.
     pub async fn recheck(&self, snapshot: &RepositorySnapshot) -> Result<()> {
+        self.check_open()?;
         if snapshot.repository != self.identity {
             return Err(legacy::changed());
         }
@@ -113,8 +206,19 @@ impl<'a> ProjectRepository<'a> {
             (Backend::Folder(repository), CapturedBackend::Folder(snapshot)) => {
                 repository.recheck(snapshot)
             }
+            #[cfg(any(
+                windows,
+                all(
+                    target_os = "linux",
+                    any(target_arch = "x86_64", target_arch = "aarch64")
+                )
+            ))]
+            (Backend::Independent(repository), CapturedBackend::Independent(snapshot)) => {
+                repository.recheck(snapshot).await
+            }
             _ => Err(legacy::changed()),
-        }
+        }?;
+        self.check_open()
     }
 
     /// Read only a descriptor that exactly belongs to this captured project.
@@ -137,6 +241,16 @@ impl<'a> ProjectRepository<'a> {
             }
             (Backend::Folder(repository), CapturedBackend::Folder(snapshot)) => {
                 repository.read_asset(snapshot, file)?
+            }
+            #[cfg(any(
+                windows,
+                all(
+                    target_os = "linux",
+                    any(target_arch = "x86_64", target_arch = "aarch64")
+                )
+            ))]
+            (Backend::Independent(repository), CapturedBackend::Independent(snapshot)) => {
+                repository.read_asset(snapshot, file).await?
             }
             _ => return Err(legacy::changed()),
         };
@@ -178,6 +292,16 @@ impl<'a> ProjectRepository<'a> {
             }
             (Backend::Folder(repository), CapturedBackend::Folder(snapshot)) => {
                 repository.read_history(snapshot)?.map(Cow::Owned)
+            }
+            #[cfg(any(
+                windows,
+                all(
+                    target_os = "linux",
+                    any(target_arch = "x86_64", target_arch = "aarch64")
+                )
+            ))]
+            (Backend::Independent(repository), CapturedBackend::Independent(snapshot)) => {
+                Some(Cow::Owned(repository.read_history(snapshot).await?))
             }
             _ => return Err(legacy::changed()),
         };
