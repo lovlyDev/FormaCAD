@@ -1,6 +1,8 @@
 # M2 snap retained snapshot / Исходный снимок M2 snap
 
-Status: proposed, not applied. Base `bf9e854`.
+Status: applied after lovlyDev explicitly approved the single target on 4 November
+2026. Original patch base `bf9e854`; applicability rechecked on accepted-main
+integration `2423200`. Current runtime verification remains required.
 [Exact patch](storage-snap-snapshot.patch), one target:
 `apps/desktop/src-tauri/src/model_snap/build.rs`.
 
