@@ -61,6 +61,16 @@ Historical **1.2.6** was published through this separate route: its EXE and upda
 
 The Release workflow above remains the route for a future automated matrix triggered by a new tag. It builds platforms, signs updater artifacts and merges metadata. Manually uploading the current Windows package does not prove that matrix passed and does not install anything on the user computer.
 
+## Beta releases
+
+A `vX.Y.Z-beta.N` tag runs the same Release workflow (checks, all-platform build, signing) but publishes only to the private `lovlyDev/FormaCAD-beta` repository as a prerelease; the public `latest.json` and "Latest release" stay unchanged. Before tagging, bump with `node scripts/version.mjs X.Y.Z-beta.N` and add `docs/releases/X.Y.Z-beta.N.md`.
+
+One-time setup:
+- Actions secret `BETA_RELEASE_TOKEN` in lovlyDev/FormaCAD — a fine-grained token limited to `lovlyDev/FormaCAD-beta` with Contents: Read and write;
+- in the site server `.env`, `BETA_GITHUB_REPOSITORY=lovlyDev/FormaCAD-beta` and `BETA_GITHUB_TOKEN` — a separate read-only fine-grained token (Contents: Read-only) for the same repository.
+
+The site server serves the private files and `latest.json` only to active supporters; see the FormaCAD-Server "Supporter program" docs.
+
 ## Application behavior
 Forma checks at startup and every six hours. A newer release opens an Install / Later dialog when no operation or editor is active. Later defers that prompt; the update button remains available. Installation verifies the artifact signature, saves preferences and creates a SQLite backup before invoking the platform installer. Windows restarts through NSIS; macOS and AppImage relaunch after replacement.
 

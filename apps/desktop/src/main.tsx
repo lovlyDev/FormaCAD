@@ -8,6 +8,7 @@ import "./styles.css";
 import { getLocale, setLocale } from "./i18n";
 import { applyTheme } from "./lib/theme";
 import { restorePreferences, persist } from "./lib/persistence";
+import { suppressBrowserContextMenu } from "./lib/browserContextMenu";
 async function start() {
 await restorePreferences().catch(console.error);
 setLocale(localStorage.getItem("forma.locale") === "en" ? "en" : "ru");
@@ -21,6 +22,7 @@ applyTheme(localStorage.getItem("forma.theme") ?? "dark");
 const client = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
 });
+suppressBrowserContextMenu();
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={client}>

@@ -2,6 +2,7 @@ pub mod account;
 pub mod agents;
 pub mod app_profile;
 pub mod artifacts;
+mod beta_update;
 pub mod cad;
 pub mod cad_document;
 pub mod cad_ir;
@@ -140,6 +141,7 @@ pub fn run() {
             model_inspection::inspect_model,
             conversion::convert_step,
             updates::update_support,
+            beta_update::beta_update_check,
             updates::get_ui_preferences,
             updates::set_ui_preferences,
             updates::prepare_update,

@@ -32,15 +32,6 @@
 .workspace-viewer-tools-hidden .viewport-toolbars {
   display: none;
 }
-.workspace-viewport-panel-toggles {
-  display: flex;
-  gap: 4px;
-}
-.workspace-viewport-panel-toggles button {
-  padding: 2px 6px;
-  border: 1px solid var(--line);
-  border-radius: 3px;
-}
 [data-density="compact"] .workspace-area-header {
   height: 28px;
 }
@@ -64,9 +55,11 @@
   width: 20px;
   height: 1px;
 }
+/* Positioned against the narrow tool column, so size it by the viewport container instead. */
 .workspace-editor[data-editor="viewport3d"] .measure-result {
   position: absolute;
   left: 48px;
   top: 0;
-  max-width: calc(100% - 48px);
+  width: min(320px, calc(100cqw - 72px));
+  max-width: none;
 }
