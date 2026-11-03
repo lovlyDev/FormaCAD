@@ -39,7 +39,8 @@ ordinary supported builds and the common reader without app SQL. On `ca66156`,
 strict Clippy without native client and four API tests passed in
 [run 41607907708](https://github.com/lovlyDev/FormaCAD/actions/runs/41607907708).
 The whole run failed: mandatory native-client compilation found E0609 in the new
-snap consumer. Its exact one-line patch awaits agreement in
+snap consumer. Its exact one-line patch was subsequently approved by lovlyDev on
+4 November and applied in `1b54cd4`; new native checks are still running. Scope is in
 [Issue #31](https://github.com/lovlyDev/FormaCAD/issues/31#issuecomment-6599119794).
 
 On `edd2f92`, the production V2 backup/migration API passed strict Clippy without

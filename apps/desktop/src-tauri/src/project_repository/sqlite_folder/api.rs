@@ -93,6 +93,8 @@ impl FolderProject {
 }
 
 #[cfg(test)]
+mod benchmark;
+#[cfg(test)]
 mod metadata_tests;
 #[cfg(test)]
 mod tests;

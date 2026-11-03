@@ -45,6 +45,13 @@ jobs:
           grep -E '^test result: ok\. [1-9][0-9]* passed; 0 failed;' storage-evidence/host-api-tests.log
           grep -E 'test project_repository::sqlite_folder::format::metadata_tests::metadata_succeeds_with_event_reads_denied_and_cannot_be_mistaken_for_full_archive \.\.\. ok' storage-evidence/host-api-tests.log
           grep -E 'test project_repository::sqlite_folder::api::metadata_tests::metadata_does_not_adopt_unverified_archive_as_write_copy_or_history_authority \.\.\. ok' storage-evidence/host-api-tests.log
+      - name: Measure actual FCP1 metadata and complete read scopes
+        env:
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          set -o pipefail
+          /usr/bin/time -v -o storage-evidence/fcp1-read-resources.txt cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib project_repository::sqlite_folder::api::benchmark::measure_scoped_reads -- --ignored --exact --nocapture 2>&1 | tee storage-evidence/fcp1-read-benchmark.log
+          grep -F 'test result: ok. 1 passed; 0 failed;' storage-evidence/fcp1-read-benchmark.log
       - name: Compile shared measurement integration with strict lint
         run: |
           set -o pipefail

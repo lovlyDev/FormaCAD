@@ -35,6 +35,18 @@ from metadata views verify their own bytes without exporting the archive.
 Project revision metadata and the commit chain are still read; this is not O(1)
 or proof of equal backend costs. Current-revision measurements remain required.
 
+Ignored `api::benchmark::measure_scoped_reads` times actual FCP1
+`capture + recheck + drop` for metadata and complete modes: 12 alternating-order
+samples after warmup, median/p95 for each of three sizes. It reuses synthetic
+revision/chat/STEP-labelled fixtures from the earlier comparison, not CAD.
+The temporary setup SQL database is removed before opening FCP1; the FCP1 file
+is hash-compared before/after reads. `FCP1_READ_BENCHMARK` reports Project/archive/
+CAS sizes, first API open and raw distributions. This is a debug/test profile
+with unflushed filesystem caches; process RSS/time also include setup. It does
+not prove release-app, cold-disk or USB/NAS performance, nor equate metadata and
+complete validation guarantees. The workflow requires one executed test;
+current numerical results are not yet available.
+
 ## Publication and CAD
 
 After the explicit user decision, the host invokes `approve_write` for the

@@ -39,7 +39,8 @@ geometry или подключённый пользователю folder UI.
 без native client и четыре API-теста прошли в
 [run 41607907708](https://github.com/lovlyDev/FormaCAD/actions/runs/41607907708).
 Полный run красный: обязательный native-client gate нашёл E0609 нового snap
-consumer. Точный однострочный патч ожидает согласования в
+consumer. Точный однострочный патч затем одобрен lovlyDev 4 ноября и применён в
+`1b54cd4`; его новые native-проверки ещё выполняются. Scope зафиксирован в
 [Issue #31](https://github.com/lovlyDev/FormaCAD/issues/31#issuecomment-6599119794).
 
 На `edd2f92` production V2 backup/migration API прошёл strict Clippy без native
