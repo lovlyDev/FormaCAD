@@ -12,7 +12,25 @@ PR №5 подтверждён объединённым через API; 29 ок�
 этапы — №28–34; область Issue №3 прочитана и остаётся исключённой.
 Версии, релизы, установка и область native/Cargo/worker исключены из изменений.
 
-## Текущее положение: 3 ноября 2026
+## Текущее положение: 4 ноября 2026
+
+`7e02a7c` прошёл strict Clippy без native client и 92 теста папочного backend
+(0 failed, 5 ignored) в
+[run 41736623409](https://github.com/lovlyDev/FormaCAD/actions/runs/41736623409),
+job `126267360681`. Включены SQL authorizer с запретом event reads, отказ
+history/copy/write повреждённому archive и original-view проверка после внешнего
+commit. Следующий обязательный native-client gate снова остановился на известном
+snap E0609; весь run остаётся красным.
+
+`2423200` совмещает принятую владельцем основу `6a882fe` с задачной веткой;
+конфликты были только в RU/EN i18n и разрешены объединением ключей. Версия 1.6.1,
+Cargo/lock/Tauri и release-файлы унаследованы из main без задачного изменения.
+Локально на совмещённом коде прошли frontend build, 294 unit tests в 104 файлах,
+51 browser test (41 native-fixture skip, 0 failed), i18n 1480, docs 172,
+migrations и Rust formatting. Две пустые строки EOF в settings-and-updates
+унаследованы из main; собственные staged изменения прошли diff check.
+Current-head remote CI ещё не подтверждён. Эти результаты не доказывают native
+geometry или подключённый пользователю folder UI.
 
 Активен этап 4; этапы 5–7 не завершены. В задачную ветку принят `main`
 `a4aec3e6` с M2; согласованный патч сохраняет amend/Undo и исходный storage

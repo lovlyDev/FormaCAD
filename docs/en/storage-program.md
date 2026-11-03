@@ -12,7 +12,25 @@ connector account's HTTP 403 does not apply to it. The program is tracked in
 Issue #3 boundaries were read and remain excluded. Versions, releases, installation and native/Cargo/worker
 files are outside these changes.
 
-## Current position: 3 November 2026
+## Current position: 4 November 2026
+
+`7e02a7c` passed strict Clippy without native client and 92 folder backend tests
+(0 failed, 5 ignored) in
+[run 41736623409](https://github.com/lovlyDev/FormaCAD/actions/runs/41736623409),
+job `126267360681`. Coverage includes actual event-read denial by SQL authorizer,
+refusal of history/copy/write with a damaged archive and original-view validation
+after an external commit. The mandatory following native-client gate again
+failed on known snap E0609; the complete run remains red.
+
+`2423200` combines owner-accepted main `6a882fe` into the task branch. Only RU/EN
+i18n conflicted; both sets of keys were retained. Version 1.6.1, Cargo/lock/Tauri
+and release files are inherited from main without task-specific changes. Local
+checks of the combined code passed frontend build, 294 unit tests in 104 files,
+51 browser tests (41 native-fixture skips, 0 failed), i18n 1480, docs 172,
+migrations and Rust formatting. Two EOF blank lines in settings-and-updates are
+inherited unchanged; task-owned staged changes passed diff checking. Current-head
+remote CI is not yet confirmed. These checks do not prove native geometry or
+connected user-facing folder UI.
 
 Stage 4 is active; stages 5–7 are incomplete. The task branch includes accepted
 M2 main `a4aec3e6`; the approved integration preserves amendment/Undo and original
