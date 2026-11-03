@@ -1462,5 +1462,10 @@
   "exact (OCCT)": "точно (OCCT)",
   "approximate (mesh)": "приблизительно (по сетке)",
   "Snapped to vertex": "Привязка к вершине",
-  "Paint to add bodies · Shift removes · wheel changes size · Esc finishes": "Закрашивайте, чтобы добавить тела · Shift — исключить · колесо — размер · Esc — завершить"
+  "Paint to add bodies · Shift removes · wheel changes size · Esc finishes": "Закрашивайте, чтобы добавить тела · Shift — исключить · колесо — размер · Esc — завершить",
+  "updates.channel": "Канал обновлений",
+  "updates.channelStable": "Стабильный",
+  "updates.channelBeta": "Бета (для сторонников)",
+  "updates.channelStableHint": "Проверенные версии для всех.",
+  "updates.channelBetaHint": "Новые функции раньше стабильной версии. Бета может содержать ошибки; проекты и настройки сохраняются при обновлении."
 }

@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { check, type Update } from "@tauri-apps/plugin-updater";
+import type { Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Download } from "lucide-react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Button, IconButton, Modal } from "./ui";
+import { Button, IconButton, Modal, Select } from "./ui";
+import { accountAvailable, accountStatus } from "../features/account/api";
+import { checkChannel, effectiveChannel, UPDATE_CHANNEL_KEY, type UpdateChannel } from "./updates/updateChannel";
 import { t, number } from "../i18n";
-import { flushPreferences, preferences } from "../lib/persistence";
+import { flushPreferences, preferences, usePersistentState } from "../lib/persistence";
 import { version } from "../../package.json";
 
 const releaseNotesBase = (releaseVersion: string) =>
@@ -52,6 +54,16 @@ export function Updates({ blocked }: { blocked: boolean }) {
   const resource = useRef<Update | null>(null);
   const blockedRef = useRef(blocked);
   blockedRef.current = blocked;
+  const [preferred, setPreferred] = usePersistentState<UpdateChannel>(UPDATE_CHANNEL_KEY, "stable");
+  const [capabilities, setCapabilities] = useState<string[]>([]);
+  const channel = effectiveChannel(preferred, capabilities);
+  const channelRef = useRef(channel);
+  channelRef.current = channel;
+  // Account rights decide whether the beta channel is offered; signed out means stable only.
+  useEffect(() => {
+    if (!accountAvailable()) return;
+    void accountStatus().then(s => setCapabilities(s.signedIn ? s.capabilities : [])).catch(() => setCapabilities([]));
+  }, [open]);
 
   const checkNow = useCallback(async (manual: boolean) => {
     if (inFlight.current) return;
@@ -66,7 +78,7 @@ export function Updates({ blocked }: { blocked: boolean }) {
       // Debian/RPM packages use their package manager; AppImage supports self-update.
       if (!support.supported) { setStatus("updates.packageManager"); return; }
       setStatus("updates.checking");
-      const found = await check({ timeout: 15000 });
+      const found = await checkChannel(channelRef.current);
       await resource.current?.close();
       resource.current = found;
       setUpdate(found);
@@ -128,6 +140,13 @@ export function Updates({ blocked }: { blocked: boolean }) {
   return <>
     <IconButton label={update ? t("updates.newVersion", {version: update.version}) : t("updates.title")} active={!!update} onClick={() => {setOpen(true); if (!update) void checkNow(true);}}><Download size={17}/></IconButton>
     <Modal open={open} wide onClose={() => { if (!working) setOpen(false); }} title={t("updates.title")} description={t("updates.installed", {version})}>
+      {capabilities.includes("beta.access") && <label className="update-channel"><span>{t("updates.channel")}</span>
+        <Select aria-label={t("updates.channel")} value={channel} disabled={working || checking} onChange={event => { setPreferred(event.target.value as UpdateChannel); void resource.current?.close(); resource.current = null; setUpdate(null); setStatus("updates.ready"); }}>
+          <option value="stable">{t("updates.channelStable")}</option>
+          <option value="beta">{t("updates.channelBeta")}</option>
+        </Select>
+        <small>{channel === "beta" ? t("updates.channelBetaHint") : t("updates.channelStableHint")}</small>
+      </label>}
       <div className="update-summary" role="status">
         <span className="update-summary-icon"><Download size={18}/></span>
         <div><strong>{update ? t("updates.newVersion", {version: update.version}) : t(status)}</strong>

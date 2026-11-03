@@ -2631,3 +2631,7 @@ body { background: var(--bg); }
 }
 
 .render-select{padding-left:0;gap:0}
+
+.update-channel { display: grid; grid-template-columns: auto minmax(0, 220px); gap: 6px 12px; align-items: center; margin: 0 0 14px; }
+.update-channel > span { font-weight: 600; }
+.update-channel > small { grid-column: 1 / -1; color: var(--muted); }
