@@ -8,7 +8,10 @@
 #include <Standard_Failure.hxx>
 #include <TopAbs_Orientation.hxx>
 #include <TopAbs_ShapeEnum.hxx>
+#include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
+#include <NCollection_IndexedMap.hxx>
+#include <TopTools_ShapeMapHasher.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopLoc_Location.hxx>
@@ -169,6 +172,21 @@ bool write_glb(const Shape& source, const std::string& path, std::string& code) 
         json << '[' << coordinates[0] << ',' << coordinates[1] << ',' << coordinates[2] << ']';
       }
       json << "]}";
+    }
+    // Every BREP vertex for selection mapping; catalog references make it exactly snappable.
+    json << "],\"formaVertices\":[";
+    {
+      NCollection_IndexedMap<TopoDS_Shape, TopTools_ShapeMapHasher> vertices;
+      TopExp::MapShapes(source.impl_->shape, TopAbs_VERTEX, vertices);
+      const int count = std::min(vertices.Extent(), 20000);
+      for (int index = 1; index <= count; ++index) {
+        const gp_Pnt point = BRep_Tool::Pnt(TopoDS::Vertex(vertices(index)));
+        if (!finite_point(point)) throw std::runtime_error("CAD vertex is invalid");
+        if (index != 1) json << ',';
+        json << "{\"topologyRef\":" << topology_reference_json(source.impl_->topology, vertices(index))
+             << ",\"point\":[" << point.X() / 1000.0 << ',' << point.Z() / 1000.0 << ','
+             << -point.Y() / 1000.0 << "]}";
+      }
     }
     json << "]}}]}],"
             "\"buffers\":[{\"byteLength\":" << binary.size() << "}],"

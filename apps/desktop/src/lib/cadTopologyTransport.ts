@@ -8,6 +8,7 @@ export function preserveCadTopology(mesh: THREE.Mesh) {
     faceTriangleCounts: mesh.geometry.userData.formaFaceTriangleCounts,
     faceAreasMm2: mesh.geometry.userData.formaFaceAreasMm2,
     faceReferences: mesh.geometry.userData.formaFaceReferences,
+    vertices: mesh.geometry.userData.formaVertices,
   };
 }
 export function restoreCadTopology(mesh: THREE.Mesh) {
@@ -17,6 +18,7 @@ export function restoreCadTopology(mesh: THREE.Mesh) {
   mesh.geometry.userData.formaFaceTriangleCounts = topology.faceTriangleCounts;
   mesh.geometry.userData.formaFaceAreasMm2 = topology.faceAreasMm2;
   mesh.geometry.userData.formaFaceReferences = topology.faceReferences;
+  mesh.geometry.userData.formaVertices = topology.vertices;
 }
 export function hasCadTopology(root: THREE.Object3D) {
   let valid = false;

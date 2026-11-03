@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import * as THREE from "three";
 import { useWorkspace } from "../../stores/workspace";
 import type { RenderMode } from "./renderMode";
+import type { SelectionFilter } from "./selectionFilter";
 import { useTheme } from "../../lib/theme";
 import { useBodyAppearance } from "./appearance/useBodyAppearance";
 import {
@@ -32,13 +33,15 @@ export function Model({
   selected: string | null;
   selectedFace: FaceSelection | null;
   selectedEdge: EdgeSelection | null;
-  selectionMode: "body" | "face" | "edge";
+  selectionMode: SelectionFilter;
   revisionId: string | null;
   onPoint: (p: THREE.Vector3) => void;
   interactive?: boolean;
 }) {
   const { camera, gl, size } = useThree();
   const select = useWorkspace((s) => s.setSelected);
+  const selectedBodies = useWorkspace((s) => s.selectedBodies);
+  const setBodySelection = useWorkspace((s) => s.setBodySelection);
   const selectFace = useWorkspace((s) => s.setSelectedFace);
   const selectEdge = useWorkspace((s) => s.setSelectedEdge);
   const light = useTheme() === "light";
@@ -47,8 +50,9 @@ export function Model({
     mode,
     selectionMode === "body" || mode === "ghost" ? selected : null,
     light,
+    selectionMode === "body" || mode === "ghost" ? selectedBodies : undefined,
   );
-  useBodyOutline(object, mode, selected, light);
+  useBodyOutline(object, mode, selected, light, selectedBodies);
   useEffect(() => {
     if (!selectedFace || selectedFace.revisionId !== revisionId) return;
     const mesh = object.getObjectByName(selectedFace.bodyId);
@@ -118,6 +122,8 @@ export function Model({
       }) => {
         e.stopPropagation();
         if (!interactive || e.object.userData.formaSelectionLocked) return;
+        // Vertices are picked by VertexSelectController from the BREP catalogue.
+        if (selectionMode === "vertex") return;
         if (selectionMode === "edge") {
           if (!revisionId) return;
           const rect = gl.domElement.getBoundingClientRect();
@@ -151,7 +157,17 @@ export function Model({
         }
         if (e.object.userData.formaSelectionOverlay) return;
         if (!(e.object instanceof THREE.Mesh)) return;
-        select(e.object.name);
+        if (selectionMode === "body" && e.nativeEvent.shiftKey) {
+          // Shift toggles a body; an inactive selected body becomes active first.
+          const name = e.object.name;
+          const keep = selectedBodies.includes(name) && selected === name;
+          setBodySelection(
+            keep
+              ? selectedBodies.filter((id) => id !== name)
+              : [...selectedBodies.filter((id) => id !== name), name],
+            keep ? null : name,
+          );
+        } else select(e.object.name);
         if (
           selectionMode === "face" &&
           revisionId &&

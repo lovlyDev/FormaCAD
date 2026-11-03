@@ -1,0 +1,27 @@
+# M2: независимые модели управления viewport
+
+[RU](../../ru/viewport-transforms.md) · [EN](../../en/viewport-transforms.md)
+
+Решение: адаптировать поведенческое описание G/R/S, ограничений осей, точек опоры, пространств, выделения и изоляции из согласованного задания. Реестр, числовая грамматика, математические функции и state machine написаны самостоятельно для FormaCAD. Исходники, декомпиляция, keymap/theme-файлы, иконки и другие ресурсы Blender не использованы.
+
+Отличия и ограничения: длины нормализуются в мм; точная привязка требует ответа нашего OCCT worker, а не точки на mesh. Отражение отделено от положительного масштаба. Формулы с `=` пока отклоняются. Сессия привязана к конкретным проекту, ревизии и сцене; результат подтверждения не является автоматически выполненной транзакцией. Текущий этап — независимые модули до интеграции M1, а не полная приёмка M2.
+
+Проверка: собственные геометрические примеры, поворот вокруг смещённой точки, русская раскладка, отмена, повторное подтверждение, точные единицы, выбранные/скрытые тела, region containment и отклонение устаревшего snap-ответа. Native affine primitive дополнительно проверяется независимыми измерениями и STEP. Проверки пользовательских сценариев и FPS должны быть выполнены после подключения адаптеров.
+
+English: M2 uses independently authored behavior models for FormaCAD. No Blender source, decompilation, keymap/theme files or assets were used. Millimetre normalization, revision/scene captures and an authoritative OCCT snap boundary are FormaCAD decisions. These prepared modules do not yet constitute complete modal-tool or native transaction acceptance.
+
+Дополнение F9: собственный host-маршрут заменяет последний логический слот Undo и сохраняет все физические ревизии неизменными. Текущий контракт ограничен матрицами последнего независимого пакета трансформаций тел. Реальный worker, Undo/Redo и portable archive проверены; интерфейс исходного инструмента ещё не подключён. Этот порядок хранения выбран для гарантий FormaCAD и не заявляется копией внутренней реализации Blender.
+
+F9 update: the independently authored host route replaces the final logical Undo slot while retaining immutable physical revisions. Current support is limited to matrices in the latest independent body-transform batch. Real-worker persistence, Undo/Redo and portable archives are tested; modal UI integration remains pending. This is a FormaCAD storage decision, not a claim about Blender internals.
+
+Дополнение привязок: собственный OCCT-модуль вычисляет середину по длине ребра, центр окружности и пересечение луча с обрезанной гранью. Геометрические оракулы проверяют координаты и наружные нормали после поворота, отражения и affine; эллипс явно отклоняется для центра окружности. CTest 17/17 PASS. Проверка подготовленного Rust/worker-маршрута остановилась из-за нехватки памяти Windows; подключение к viewport и паритет пользовательского сценария пока не подтверждены.
+
+Snapping update: the independently authored OCCT module evaluates arc-length edge midpoints, analytic circle centres and ray intersections with trimmed faces. Geometric oracles check coordinates and outward normals after rotation, reflection and affine transforms; ellipse centres are explicitly unsupported by the circle query. CTest 17/17 passes. Windows memory exhaustion stopped validation of the prepared Rust/worker route; viewport integration and user-workflow parity remain unverified.
+
+Дополнение интеграции: адаптеры viewport подключены к оболочке M1. G/R/S, F9, множественный выбор, рамка, скрытие/изоляция, семь стандартных видов, круговые меню Z/Shift+S/«.», пресет мыши Blender и 3D-курсор с точной привязкой OCCT реализованы собственными модулями FormaCAD. Отличия: трансформируются целые тела, ориентация только глобальная, нет режима правки и вершин, рамка выбирает заслонённые тела. Подробности — в [описании M2](../../ru/viewport-transforms.md).
+
+Integration update: viewport adapters are connected to the M1 shell. G/R/S, F9, multi-selection, box select, hide/isolate, seven standard views, Z/Shift+S/period pie menus, a Blender-compatible mouse preset and an OCCT-exact 3D cursor are FormaCAD-authored modules. Differences: whole bodies only, global orientation only, no edit mode or vertices, and box select includes occluded bodies. See the [M2 description](../../en/viewport-transforms.md).
+
+Дополнение вершин: собственная семантика восьми углов прямоугольного построения в OCCT, режим выбора вершин, привязка перемещения, 3D-курсора и линейки к вершинам с уточнением OCCT, локальные оси по истории трансформаций тела. Отличие от Blender: нет режима правки сетки — вершины BREP не перемещаются по отдельности.
+
+Vertex update: FormaCAD-authored semantics for the eight corners of rectangular construction in OCCT, a vertex selection mode, vertex snapping for moves, the 3D cursor and the ruler with OCCT refinement, and local axes from the body's transform history. Unlike Blender there is no mesh edit mode: BREP vertices are not moved individually.

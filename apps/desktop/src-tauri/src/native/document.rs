@@ -250,6 +250,17 @@ pub fn build_body_with_assets(
                 ),
                 _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
             },
+            Operation::Transform {
+                body_feature_id,
+                matrix,
+            } => match get(body_feature_id)? {
+                FeatureValue::Solid(source) => FeatureValue::Solid(
+                    source
+                        .transformed(matrix)?
+                        .with_topology_occurrence(&feature.id)?,
+                ),
+                _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
+            },
             Operation::Rotate {
                 body_feature_id,
                 axis_origin_mm,

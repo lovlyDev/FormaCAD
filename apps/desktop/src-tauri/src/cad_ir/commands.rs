@@ -3,6 +3,7 @@ mod bindings;
 mod bindings_tests;
 mod sketch;
 mod topology_refs;
+mod transform_body;
 mod transforms;
 use super::validation::valid_id;
 use super::*;
@@ -31,6 +32,7 @@ pub fn apply_commands(
     let mut staged = current.clone();
     for command in commands {
         match command {
+            Command::TransformBody { .. } => transform_body::apply(&mut staged, command)?,
             Command::SetTopologyReference { .. } => topology_refs::apply(&mut staged, command)?,
             Command::AddParameter { parameter } => staged.parameters.push(parameter.clone()),
             Command::AddFeature { feature } => staged.features.push(feature.clone()),

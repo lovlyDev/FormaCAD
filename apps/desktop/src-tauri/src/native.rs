@@ -7,6 +7,8 @@ mod kernel;
 pub(super) use kernel::ffi;
 #[cfg(feature = "native-occt")]
 pub use kernel::{box_volume, Solid};
+#[cfg(feature = "native-occt")]
+mod affine_transform;
 pub mod assets;
 #[cfg(feature = "native-occt")]
 mod chamfer;
@@ -28,6 +30,8 @@ pub mod reference_measurements;
 #[cfg(feature = "native-occt")]
 mod revolution;
 pub mod section;
+#[cfg(feature = "native-occt")]
+pub mod snapping;
 #[cfg(feature = "native-occt")]
 pub mod step_import;
 #[cfg(feature = "native-occt")]

@@ -105,3 +105,4 @@ Alternating development on two PCs: [workflow and handoff](docs/en/collaboration
 
 [Workspace areas and editors](docs/en/workspace-areas.md): split/join, saved layouts, contextual properties, command search and viewport preservation.
 Development research: [Blender workflow adaptation](docs/en/blender-parity.md), [independent observations](docs/parity/blender/README.md) and [2.0 readiness inventory](docs/parity/blender/readiness.md). These describe preparation, not newly shipped application features.
+[Viewport and modal transforms (M2)](docs/en/viewport-transforms.md): G/R/S with exact values, F9, multi-selection, box select, hide/isolate, standard views, pie menus and exact cursor snapping.

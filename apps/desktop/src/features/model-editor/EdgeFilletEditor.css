@@ -30,9 +30,9 @@
   color: var(--text);
   font-size: 11px;
   cursor: pointer;
-  transition: background 140ms ease, border-color 140ms ease;
+  transition: background 90ms ease, border-color 90ms ease;
 }
-.edge-fillet-controls button:hover:not(:disabled) { border-color: var(--accent); }
+.edge-fillet-controls button:hover:not(:disabled) { background: var(--hover); }
 .edge-fillet-controls button:disabled { opacity: .4; cursor: default; }
 .edge-fillet-editor small { color: var(--muted); font-size: 10px; }
 .edge-fillet-editor summary::marker { content: ""; }

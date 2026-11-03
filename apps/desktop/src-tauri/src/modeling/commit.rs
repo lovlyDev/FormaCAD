@@ -19,13 +19,31 @@ pub(super) fn program_for_revision(
     Ok(program.trim().to_string())
 }
 
+pub(super) struct AmendContext<'a> {
+    pub before: &'a Project,
+    pub history: &'a crate::project_history::HistoryState,
+    pub capture: &'a crate::project_history::AmendCapture,
+}
+
 /// Persist only a candidate assembled by the common orchestrator under its host locks.
 pub(super) async fn persist_prepared(
     state: &AppState,
     prepared: PreparedModelChange,
+    amend: Option<AmendContext<'_>>,
 ) -> Result<Project> {
     let (project, pending) = prepared.into_parts();
-    crate::projects::persist(state, project, pending, None).await
+    match amend {
+        Some(amend) => {
+            let intent = crate::project_history::prepare_amend(
+                amend.before,
+                &project,
+                amend.history,
+                amend.capture,
+            )?;
+            crate::projects::persist_with_history(state, project, pending, None, intent).await
+        }
+        None => crate::projects::persist(state, project, pending, None).await,
+    }
 }
 #[cfg(test)]
 mod tests {

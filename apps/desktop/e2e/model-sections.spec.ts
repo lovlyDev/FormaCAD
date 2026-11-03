@@ -71,7 +71,7 @@ for (const locale of ["ru", "en"] as const) test(`native sections ${locale}: exa
   await expect(panel.getByRole("spinbutton", { name: labels.offset })).toHaveValue("4");
   await expect.poll(() => panel.getByRole("combobox",{name:labels.axis,exact:true}).evaluate(element => element.getBoundingClientRect().height)).toBe(32);
   expect(await panel.getByRole("spinbutton", { name: labels.offset }).evaluate(element => element.getBoundingClientRect().height)).toBe(32);
-  expect(await panel.evaluate(element => getComputedStyle(element).animationDuration)).toBe("0.2s");
+  expect(await panel.evaluate(element => getComputedStyle(element).animationDuration)).toBe("0.12s");
   const checkbox = panel.getByRole("checkbox"); await expect(checkbox).toBeEnabled(); await checkbox.check();
   await expect.poll(() => page.evaluate(() => !!window.__sectionState?.report)).toBe(true);
   await expect.poll(() => page.evaluate(() => window.__sectionInspection.lowerHits)).toBe(0);
@@ -111,8 +111,8 @@ for (const locale of ["ru", "en"] as const) test(`native sections ${locale}: exa
     await panel.locator("summary").click(); await expect(panel).toHaveAttribute("data-open", "false");
     await expect(panel).toHaveCount(0);
     await page.getByTestId("open-section").click(); await expect(panel).toBeVisible();
-    expect(await panel.evaluate(element => getComputedStyle(element).animationDuration)).toBe("0.2s");
-    expect(await panel.locator("summary svg").last().evaluate(element => getComputedStyle(element).transitionDuration)).toBe("0.26s");
+    expect(await panel.evaluate(element => getComputedStyle(element).animationDuration)).toBe("0.12s");
+    expect(await panel.locator("summary svg").last().evaluate(element => getComputedStyle(element).transitionDuration)).toBe("0.14s");
     expect(await panel.locator(".editor-disclosure-body").getAttribute("data-animation-count")).not.toBeNull();
   }
   await checkbox.uncheck();

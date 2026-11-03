@@ -13,6 +13,7 @@ pub struct ApplyRequest {
     pub expected_revision: Option<String>,
     pub review_plan: Option<ReviewPlan>,
     pub(super) next_revision: Option<String>,
+    pub(super) history_amend: Option<crate::project_history::AmendCapture>,
 }
 impl ApplyRequest {
     pub fn new(
@@ -28,6 +29,7 @@ impl ApplyRequest {
             expected_revision,
             review_plan: None,
             next_revision: None,
+            history_amend: None,
         }
     }
 }
@@ -61,6 +63,7 @@ async fn run_managed(
         state,
         project_id: &project_id,
         executable,
+        amend: request.history_amend.clone(),
     };
     match repository_apply::apply(ApplyRuntime::from_state(state), &host, request).await? {
         RepositoryApply::NoOp(project) => Ok(ApplyOutcome {

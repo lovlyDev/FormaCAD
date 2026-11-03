@@ -2,11 +2,11 @@ import * as THREE from "three";
 import type { RenderMode } from "../renderMode";
 
 /** X-Ray explicitly bypasses the depth buffer to reveal edges inside enclosing bodies. */
-export function addBodyOutlines(object: THREE.Group, mode: RenderMode, selected: string | null, light: boolean) {
+export function addBodyOutlines(object: THREE.Group, mode: RenderMode, selected: string | null, light: boolean, also: readonly string[] = []) {
   const lines: THREE.LineSegments[] = [];
   if (mode === "edges" || mode === "xray" || mode === "ghost") object.traverse(node => {
     if (!(node instanceof THREE.Mesh) || node.userData.formaSelectionOverlay) return;
-    const focused = node.name === selected, xray = mode === "xray";
+    const focused = node.name === selected || also.includes(node.name), xray = mode === "xray";
     const line = new THREE.LineSegments(new THREE.EdgesGeometry(node.geometry, 25), new THREE.LineBasicMaterial({
       color: xray ? (light ? "#4338ca" : "#c4b5fd") : focused && mode === "ghost" ? (light ? "#6d28d9" : "#c4b5fd") : light ? "#495667" : "#657487",
       transparent: true,

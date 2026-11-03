@@ -24,6 +24,7 @@ async fn publication_guard_outlives_temporary_host_and_keeps_real_state_locked()
             state: &state,
             project_id: &project.id,
             executable: None,
+            amend: None,
         };
         host.lock_publication().await.unwrap()
     };
@@ -43,6 +44,7 @@ async fn no_op_needs_no_grant_or_task_and_future_is_send() {
         state: &state,
         project_id: &project.id,
         executable: None,
+        amend: None,
     };
     assert_send(apply(
         ApplyRuntime::from_state(&state),
@@ -77,6 +79,7 @@ async fn latest_preserves_metadata_but_rejects_same_head_revision_tampering() {
         state: &state,
         project_id: &project.id,
         executable: None,
+        amend: None,
     };
     let (_access, original) = host.capture().await.unwrap();
     let mut renamed = project.clone();
@@ -98,6 +101,7 @@ async fn history_seal_rejects_saved_head_aba_even_when_project_returns_to_origin
         state: &state,
         project_id: &project.id,
         executable: None,
+        amend: None,
     };
     let (_access, original) = host.capture().await.unwrap();
     fixture::next_head(&state, &project).await;
@@ -116,6 +120,7 @@ async fn queued_stale_job_never_enters_worker_and_cleans_own_registration() {
         state: &state,
         project_id: &project.id,
         executable: None,
+        amend: None,
     };
     state.grants.lock().await.insert(
         uuid::Uuid::new_v4().to_string(),

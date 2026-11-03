@@ -13,12 +13,12 @@ export function restoreExportAppearance(object: THREE.Object3D) {
 }
 
 /** Display materials are owned clones. Source materials and geometry stay untouched. */
-export function applyBodyAppearance(object: THREE.Group, mode: RenderMode, selected: string | null, light: boolean) {
+export function applyBodyAppearance(object: THREE.Group, mode: RenderMode, selected: string | null, light: boolean, also: readonly string[] = []) {
   const owned: { mesh: THREE.Mesh; original: THREE.Material | THREE.Material[]; clones: THREE.Material[]; order: number }[] = [];
   object.traverse(node => {
     if (!(node instanceof THREE.Mesh) || node.userData.formaSelectionOverlay) return;
     const original = node.material, order = node.renderOrder;
-    const focused = node.name === selected;
+    const focused = node.name === selected || also.includes(node.name);
     const clones = (Array.isArray(original) ? original : [original]).map((source: THREE.Material) => {
       const material = source.clone();
       // SectionScene owns this temporary plane. Inheriting it would make it the

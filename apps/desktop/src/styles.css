@@ -8,7 +8,7 @@
 .update-progress-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; color: var(--text); font-size: 12px; }
 .update-progress-heading strong { color: var(--light-accent-ink, #c4b5fd); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .update-progress-track { height: 10px; overflow: hidden; background: var(--light-accent-surface, #302640); border-radius: 999px; }
-.update-progress-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), #d47bdf); box-shadow: 0 0 12px #7c3aed66; transition: width 220ms ease-out; }
+.update-progress-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), #d47bdf); box-shadow: 0 0 12px #7c3aed66; transition: width 120ms ease-out; }
 .update-progress-track.indeterminate .update-progress-fill { width: 35%; animation: update-progress-wait 1.5s ease-in-out infinite; }
 @keyframes update-progress-wait { from { transform: translateX(-110%); } to { transform: translateX(290%); } }
 @media (prefers-reduced-motion: reduce) { .update-progress-fill { transition: none; } .update-progress-track.indeterminate .update-progress-fill { animation: none; } }
@@ -30,7 +30,7 @@
 .update-notes strong { font-weight: 650; }
 .update-notes a { color: var(--light-accent-ink, #b791f5); text-decoration: underline; text-underline-offset: 3px; }
 .update-notes a:hover { opacity: .8; }
-.update-notes a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.update-notes a:focus-visible { outline: none; background: var(--hover); }
 .update-notes blockquote { padding: 4px 0 4px 15px; border-left: 3px solid var(--accent); color: var(--muted); }
 .update-notes blockquote > :last-child { margin-bottom: 0; }
 .update-notes code, .update-notes pre { font-family: Consolas, "SFMono-Regular", monospace; font-size: 11px; }
@@ -95,14 +95,15 @@ textarea,
 select {
   outline: none;
 }
+/* Project rule: no coloured outlines or rings; keyboard focus is a background tint. */
 button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: none;
+  background: var(--hover);
 }
 input:focus,
 textarea:focus,
 select:focus {
-  border-color: var(--light-accent-border, #6b3ca3);
+  outline: none;
 }
 input,
 select,
@@ -259,7 +260,7 @@ kbd {
   font-weight: 600;
   white-space: nowrap;
   min-height: 33px;
-  transition: background 0.15s;
+  transition: background 0.09s;
 }
 .button:hover {
   background: var(--hover);
@@ -794,7 +795,7 @@ dd > span {
   color: var(--light-accent-ink, #9f72d6);
   margin: 0 auto 19px;
   background: var(--light-accent-surface, #26212c);
-  border: 1px solid var(--light-accent-border, #312541);
+  border: 1px solid var(--line);
   border-radius: 12px;
 }
 .assistant-welcome h2 {
@@ -841,7 +842,6 @@ dd > span {
 }
 .suggestions > button:hover {
   background: var(--light-surface, #25292e);
-  border-color: var(--light-accent-border, #4e326f);
 }
 .chat-tip {
   display: flex;
@@ -862,15 +862,13 @@ dd > span {
   padding: 12px 14px 13px;
 }
 .composer {
-  border: 1px solid var(--light-accent-border, #3d3349);
+  border: 1px solid var(--line);
   background: var(--light-surface, #222325);
   border-radius: 7px;
   overflow: hidden;
   box-shadow: 0 2px 8px #0002;
 }
-.composer:focus-within {
-  border-color: var(--light-accent-border, #643a97);
-}
+
 .composer textarea {
   height: 84px;
   border: 0;
@@ -1067,7 +1065,6 @@ dd > span {
   font-size: 10px;
 }
 .new-project-card:hover {
-  border-color: var(--light-accent-border, #7c4bb7);
   background: var(--light-surface, #211f23);
 }
 .project-card {
@@ -1077,7 +1074,6 @@ dd > span {
   background: var(--panel);
 }
 .dashboard-import-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.project-card.is-pinned { border-color: var(--light-accent-border, #69438e); }
 .project-art {
   height: 158px;
   width: 100%;
@@ -1110,7 +1106,7 @@ dd > span {
   align-items: center;
   gap: 5px;
   padding: 5px 7px;
-  border: 1px solid var(--light-accent-border);
+  border: 1px solid var(--line);
   border-radius: 7px;
   background: var(--light-accent-surface);
   color: var(--light-accent-ink);
@@ -1162,7 +1158,7 @@ dd > span {
   background: var(--light-surface, #1a1c1f);
 }
 .template-grid > button:hover {
-  border-color: var(--light-accent-border, #4c3469);
+  background: var(--hover);
 }
 .template-grid > button > svg:first-child {
   color: var(--light-accent-ink, #8d67bd);
@@ -1284,7 +1280,7 @@ dd > span {
   gap: 12px;
   padding: 16px;
   background: var(--light-accent-surface, #221b29);
-  border: 1px solid var(--light-accent-border, #35224b);
+  border: 1px solid var(--line);
   border-radius: 6px;
   color: var(--light-accent-ink, #a273db);
 }
@@ -1570,7 +1566,7 @@ dd > span {
   margin-top: 3px;
 }
 .message.error {
-  border: 1px solid var(--light-accent-border, #413057);
+  border: 1px solid var(--line);
   background: var(--light-accent-surface, #261d30);
   border-radius: 5px;
   padding: 12px;
@@ -1706,7 +1702,7 @@ dd > span {
   gap: 8px;
   align-items: center;
   padding: 10px 14px;
-  border: 1px solid var(--light-accent-border, #493462);
+  border: 1px solid var(--line);
   background: var(--light-accent-surface, #292230);
   color: var(--light-accent-ink, #aa78e7);
   border-radius: 5px;
@@ -1876,20 +1872,20 @@ input,
 textarea,
 .tree-row {
   transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease,
-    box-shadow 160ms ease,
-    opacity 160ms ease,
-    transform 160ms ease;
+    background-color 100ms ease,
+    border-color 100ms ease,
+    color 100ms ease,
+    box-shadow 100ms ease,
+    opacity 100ms ease,
+    transform 100ms ease;
 }
-.project-card { transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease; }
+.project-card { transition: background-color 100ms ease, border-color 100ms ease, box-shadow 100ms ease; }
 button:active:not(:disabled) {
   transform: translateY(1px);
 }
 button:focus-visible {
-  outline: 2px solid #7c3aed;
-  outline-offset: 3px;
+  outline: none;
+  background: var(--hover);
 }
 .custom-select {
   display: flex;
@@ -1907,12 +1903,9 @@ button:focus-visible {
   text-align: left;
   cursor: pointer;
 }
-.custom-select[data-state="open"] {
-  border-color: var(--light-accent-border, #8646d5);
-  box-shadow: 0 0 0 2px #8646d518;
-}
+
 .custom-select svg {
-  transition: transform 180ms;
+  transition: transform 100ms;
 }
 .custom-select[data-state="open"] svg {
   transform: rotate(180deg);
@@ -1955,7 +1948,7 @@ button:focus-visible {
 }
 .select-menu[data-state="open"],
 .tooltip[data-state="delayed-open"] {
-  animation: pop-in 150ms ease-out;
+  animation: pop-in 90ms ease-out;
 }
 .select-menu[data-state="closed"] {
   animation: pop-out 100ms ease-in;
@@ -2035,7 +2028,7 @@ button:focus-visible {
   border-color: #7c3aed;
 }
 .custom-checkbox[data-state="checked"] svg {
-  animation: pop-in 140ms ease-out;
+  animation: pop-in 90ms ease-out;
 }
 .tree-folder > .tree-row {
   width: 100%;
@@ -2049,7 +2042,7 @@ button:focus-visible {
   font-size: 10px;
 }
 .chevron {
-  transition: transform 180ms ease;
+  transition: transform 100ms ease;
 }
 .chevron.expanded {
   transform: rotate(90deg);
@@ -2059,8 +2052,8 @@ button:focus-visible {
   grid-template-rows: 0fr;
   opacity: 0;
   transition:
-    grid-template-rows 200ms ease,
-    opacity 160ms ease;
+    grid-template-rows 120ms ease,
+    opacity 100ms ease;
 }
 .tree-collapse.expanded {
   grid-template-rows: 1fr;
@@ -2071,21 +2064,21 @@ button:focus-visible {
   min-height: 0;
 }
 .modal[data-state="open"] {
-  animation: modal-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: modal-in 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .modal[data-state="closed"] {
-  animation: modal-out 140ms ease;
+  animation: modal-out 90ms ease;
 }
 .modal-overlay[data-state="open"] {
-  animation: fade-in 160ms ease;
+  animation: fade-in 100ms ease;
 }
 .modal-overlay[data-state="closed"] {
-  animation: fade-out 140ms ease;
+  animation: fade-out 90ms ease;
 }
 .revision-item,
 .message,
 .health-row {
-  animation: pop-in 180ms ease-out;
+  animation: pop-in 100ms ease-out;
 }
 @keyframes pop-in {
   from {
@@ -2156,9 +2149,9 @@ button:focus-visible {
 .tree-collapse:not(.expanded) {
   visibility: hidden;
   transition:
-    grid-template-rows 200ms ease,
-    opacity 160ms ease,
-    visibility 0s 200ms;
+    grid-template-rows 120ms ease,
+    opacity 100ms ease,
+    visibility 0s 120ms;
 }
 
 .project-switch .custom-select {
@@ -2172,17 +2165,17 @@ button:focus-visible {
   background: var(--light-hover-wash, #ffffff08);
 }
 .left-panel {
-  animation: panel-in 220ms ease-out;
+  animation: panel-in 120ms ease-out;
 }
 .chat-panel {
-  animation: fade-in 220ms ease-out;
+  animation: fade-in 120ms ease-out;
 }
 .panel-tabs button,
 .segmented button {
   transition:
-    background 180ms ease,
-    color 180ms ease,
-    box-shadow 180ms ease;
+    background 100ms ease,
+    color 100ms ease,
+    box-shadow 100ms ease;
 }
 .tree-row:hover {
   background: var(--light-hover-wash, #ffffff07);
@@ -2215,7 +2208,7 @@ button:focus-visible {
 .message.user {
   margin-left: 26px;
   background: linear-gradient(140deg, var(--light-accent-surface, #2e2736), var(--light-surface, #28262a));
-  border: 1px solid var(--light-accent-border, #472f6555);
+  border: 1px solid var(--line);
   border-bottom-right-radius: 4px;
 }
 .message.assistant {
@@ -2293,7 +2286,7 @@ button:focus-visible {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  animation: pop-in 180ms ease-out;
+  animation: pop-in 100ms ease-out;
   color: var(--light-ink, #96a6b7);
   font-size: 10px;
 }
@@ -2317,7 +2310,7 @@ button:focus-visible {
   background: #7c3aed;
 }
 .task-timeline {
-  border: 1px solid var(--light-accent-border, #472e6555);
+  border: 1px solid var(--line);
   background: linear-gradient(110deg, var(--light-accent-surface, #773ac110), var(--light-surface, #20252c));
   border-radius: 12px;
   padding: 13px;
@@ -2327,8 +2320,8 @@ button:focus-visible {
   background: var(--light-surface, #20252b);
   box-shadow: 0 8px 25px #0002;
   transition:
-    border-color 180ms,
-    box-shadow 180ms;
+    border-color 100ms,
+    box-shadow 100ms;
 }
 .composer:focus-within {
   border-color: #7c3aed;
@@ -2471,7 +2464,7 @@ body { background: var(--bg); }
   width: 31px;
   height: 31px;
   justify-content: center;
-  border: 1px solid var(--light-accent-border);
+  border: 1px solid var(--line);
   border-radius: 9px;
   background: var(--light-accent-surface);
   color: var(--light-accent-ink);
@@ -2533,11 +2526,9 @@ body { background: var(--bg); }
 }
 .document-tab > svg { color: var(--light-accent-ink); }
 .revision-badge { border-radius: 6px; }
+/* The 3D view fills its area edge to edge: no inner frame or margin. */
 .viewer-area {
-  margin: 0 9px 8px;
   overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 10px;
   background: var(--light-surface);
 }
 .viewport { background: var(--light-surface); }
@@ -2563,10 +2554,10 @@ body { background: var(--bg); }
 .suggestions > button:hover { background: var(--hover); }
 .composer-wrap { padding: 11px 13px 13px; border-top: 1px solid var(--line); }
 .composer { border-radius: 12px; background: var(--panel2); box-shadow: none; }
-.composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--light-accent-surface); }
+
 .send-button { width: 30px; height: 30px; border-radius: 8px; }
 .message { border-radius: 12px; }
-.message.user { background: var(--light-accent-surface); border-color: var(--light-accent-border); }
+.message.user { background: var(--light-accent-surface); }
 .message.assistant { background: var(--panel2); border-color: var(--line); }
 .message-label { color: var(--light-accent-ink); }
 .live-dot { background: var(--accent); }

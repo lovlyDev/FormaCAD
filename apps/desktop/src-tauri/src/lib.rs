@@ -18,6 +18,7 @@ pub mod model_measurement;
 pub mod model_pair_measurement;
 pub mod model_preview;
 pub mod model_section;
+pub mod model_snap;
 pub mod modeling;
 pub mod models;
 #[cfg(feature = "native-worker-client")]
@@ -111,6 +112,7 @@ pub fn run() {
             model_measurement::measure_model_reference,
             model_face_section::section_model_reference,
             model_pair_measurement::measure_model_pair,
+            model_snap::snap_model_reference,
             cadpack::export::export_project_bundle,
             cadpack::import_project_bundle,
             permissions::request_permission,
@@ -129,6 +131,8 @@ pub fn run() {
             artifacts::read_project_file,
             modeling::apply_program,
             modeling::apply_ir_commands,
+            modeling::amend_transform::ipc::last_transform,
+            modeling::amend_transform::ipc::amend_last_transform,
             sketch_analysis::analyze_sketch,
             model_preview::preview_model,
             model_preview::cancel_model_preview,

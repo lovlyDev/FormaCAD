@@ -1,0 +1,40 @@
+.transform-hud {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 12px;
+  max-width: calc(100% - 32px);
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--island-shadow);
+  font-size: 12px;
+  pointer-events: none;
+}
+.transform-hud strong {
+  color: var(--accent-text);
+}
+.transform-hud .snapped {
+  color: var(--accent-text);
+}
+.transform-hud small {
+  flex-basis: 100%;
+  text-align: center;
+  color: var(--muted);
+}
+.transform-hud .invalid,
+.transform-hud.error {
+  color: var(--light-danger-ink);
+}
+.transform-hud.error {
+  border-color: var(--light-danger-border);
+  background: var(--light-danger-surface);
+}

@@ -1,5 +1,5 @@
-.section-controls { position: absolute; z-index: 22; top: 100px; left: 14px; width: min(280px, calc(100% - 28px)); max-height: calc(100% - 230px); overflow: auto; border-radius: 10px; animation: fade-in 200ms ease-out; }
-.section-controls[data-open="false"] { pointer-events: none; animation: fade-out 140ms ease-in both; }
+.section-controls { position: absolute; z-index: 22; top: 100px; left: 14px; width: min(280px, calc(100% - 28px)); max-height: calc(100% - 230px); overflow: auto; border-radius: 10px; animation: fade-in 120ms ease-out; }
+.section-controls[data-open="false"] { pointer-events: none; animation: fade-out 90ms ease-in both; }
 .section-controls .model-editor-source { margin-top: 0; }.section-controls-content { display: grid; gap: 12px; padding: 10px 14px 14px; }
 .section-controls-content > label, .section-normal label { display: grid; gap: 5px; font-size: 11px; }
 .section-controls-content input { width: 100%; min-width: 0; height: 32px; }.section-controls-content .custom-select { height: 32px; min-height: 32px; }

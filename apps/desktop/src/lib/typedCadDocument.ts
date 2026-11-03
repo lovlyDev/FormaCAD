@@ -12,7 +12,9 @@ const body = z.looseObject({ id, name: z.string(), sourceFeatureId: id });
 const documentSchema = z.looseObject({
   schemaVersion: z.literal(2),
   revisionId: id,
-  parameters: z.array(z.looseObject({ id, name: z.string(), valueMm: z.number() })),
+  parameters: z.array(
+    z.looseObject({ id, name: z.string(), valueMm: z.number() }),
+  ),
   features: z.array(feature),
   bodies: z.array(body),
 });
@@ -33,34 +35,66 @@ export function featureDependencies(feature: TypedCadFeature): string[] {
   const op = feature.operation;
   switch (op.type) {
     case "extrude":
-    case "revolve": return typeof op.sketchId === "string" ? [op.sketchId] : [];
+    case "revolve":
+      return typeof op.sketchId === "string" ? [op.sketchId] : [];
     case "hole":
     case "fillet":
     case "filletEdge":
     case "filletReferencedEdge":
     case "chamfer":
     case "translate":
+    case "transform":
     case "rotate":
     case "mirror":
       return typeof op.bodyFeatureId === "string" ? [op.bodyFeatureId] : [];
     case "boolean":
-      return [op.leftFeatureId, op.rightFeatureId].filter((value): value is string => typeof value === "string");
-    default: return [];
+      return [op.leftFeatureId, op.rightFeatureId].filter(
+        (value): value is string => typeof value === "string",
+      );
+    default:
+      return [];
   }
 }
 
 export function canSuppressFeature(feature: TypedCadFeature): boolean {
-  return ["hole", "fillet", "filletEdge", "filletReferencedEdge", "chamfer", "translate", "rotate", "mirror"].includes(feature.operation.type);
+  return [
+    "hole",
+    "fillet",
+    "filletEdge",
+    "filletReferencedEdge",
+    "chamfer",
+    "translate",
+    "transform",
+    "rotate",
+    "mirror",
+  ].includes(feature.operation.type);
 }
 
 export function solidFeature(feature: TypedCadFeature): boolean {
-  return ["importStep", "sphere", "cone", "extrude", "revolve", "hole", "fillet", "filletEdge", "filletReferencedEdge", "chamfer", "translate", "rotate", "mirror", "boolean"].includes(feature.operation.type);
+  return [
+    "importStep",
+    "sphere",
+    "cone",
+    "extrude",
+    "revolve",
+    "hole",
+    "fillet",
+    "filletEdge",
+    "filletReferencedEdge",
+    "chamfer",
+    "translate",
+    "transform",
+    "rotate",
+    "mirror",
+    "boolean",
+  ].includes(feature.operation.type);
 }
 
 export function activeFeatureIds(document: TypedCadDocument): Set<string> {
   const active = new Set(document.bodies.map((body) => body.sourceFeatureId));
   for (const feature of [...document.features].reverse()) {
-    if (active.has(feature.id)) featureDependencies(feature).forEach((id) => active.add(id));
+    if (active.has(feature.id))
+      featureDependencies(feature).forEach((id) => active.add(id));
   }
   return active;
 }

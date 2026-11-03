@@ -120,8 +120,12 @@ export async function loadModel(
     bounds.isEmpty()
   )
     throw new Error("Invalid model bounds.");
-  const center = bounds.getCenter(new THREE.Vector3());
-  group.position.set(-center.x, -bounds.min.y, -center.z);
+  // Native CAD previews keep CAD coordinates so viewport transforms and the
+  // 3D cursor stay where the model is; other files are centred on the grid.
+  if (!group.userData.formaNativeCadPreview) {
+    const center = bounds.getCenter(new THREE.Vector3());
+    group.position.set(-center.x, -bounds.min.y, -center.z);
+  }
   group.updateMatrixWorld(true);
   return group;
 }

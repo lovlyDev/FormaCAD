@@ -24,6 +24,9 @@ impl Operation {
             | Self::Translate {
                 body_feature_id, ..
             }
+            | Self::Transform {
+                body_feature_id, ..
+            }
             | Self::Rotate {
                 body_feature_id, ..
             }
@@ -66,6 +69,9 @@ impl Operation {
                 body_feature_id, ..
             }
             | Self::Translate {
+                body_feature_id, ..
+            }
+            | Self::Transform {
                 body_feature_id, ..
             }
             | Self::Rotate {

@@ -3,6 +3,7 @@ import { useProjectNavigation } from "../features/project-catalog/useProjectNavi
 import { readProjectSnapshot } from "../features/project-catalog/api";
 import { invalidateProjectCatalog } from "../features/project-catalog/cache";
 import { applicationMenus } from "../features/main-menu/applicationMenus";
+import { useBodyVisibility } from "../features/visibility/useBodyVisibility";
 import { copyProjectForEditing } from "../features/project-access/projectAccessApi";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
@@ -283,11 +284,7 @@ export default function App() {
     });
     return result;
   }, [object]);
-  useEffect(() => {
-    bodies.forEach((body, index) => {
-      body.visible = !hiddenBodies.includes(`${index}:${body.name}`);
-    });
-  }, [bodies, hiddenBodies]);
+  const visibility = useBodyVisibility(bodies, hiddenBodies, setHiddenBodies);
   useEffect(() => {
     bodies.forEach((body, index) => {
       body.userData.formaSelectionLocked = lockedBodies.includes(
@@ -407,6 +404,7 @@ export default function App() {
     action = "modify_project",
     targetProjectId = project?.id,
     review?: CandidateReviewData,
+    cancelled?: () => void,
   ) {
     try {
       if (!review && !needsConfirmation(await confirmationSettings(), action)) {
@@ -426,8 +424,10 @@ export default function App() {
         id,
         review,
         targetProjectId,
+        cancelled,
       });
     } catch (e) {
+      cancelled?.();
       if (
         !targetProjectId ||
         useWorkspace.getState().project?.id === targetProjectId
@@ -465,8 +465,12 @@ export default function App() {
           : p.id;
       if (permissionId) await resolveNativePermission(permissionId, allow);
       if (allow) await p.run();
-      else setNotice(t("Action denied. No model changes were made."));
+      else {
+        p.cancelled?.();
+        setNotice(t("Action denied. No model changes were made."));
+      }
     } catch (e) {
+      p.cancelled?.();
       if (
         !p.targetProjectId ||
         useWorkspace.getState().project?.id === p.targetProjectId
@@ -812,6 +816,58 @@ export default function App() {
         ) : (
           <span className="project-switch">{t("Your workspace")}</span>
         )}
+        <MainMenu
+          groups={applicationMenus(
+            {
+              duplicate: () => {
+                if (project)
+                  void ask(
+                    t("Duplicate project"),
+                    t(
+                      "Create an independent project with the same files and history.",
+                    ),
+                    project.name,
+                    async () => {
+                      if (native) {
+                        await openProject(
+                          await copyProjectForEditing(project.id),
+                        );
+                        return;
+                      }
+                      await openProject(
+                        await saveProject({
+                          ...project,
+                          id: crypto.randomUUID(),
+                          name: t("{{value0}} copy", { value0: project.name }),
+                          createdAt: stamp(),
+                          updatedAt: stamp(),
+                        }),
+                      );
+                    },
+                  );
+              },
+              create: () => setModal("new"),
+              import: () => fileInput.current?.click(),
+              export: () => setModal("export"),
+              parameters: () => setModal("parameters"),
+              palette: () => setModal("palette"),
+              settings: (page) => {
+                if (page) persist("forma.ui.settingsPage", JSON.stringify(page));
+                setModal("settings");
+              },
+              workspaces: () =>
+                document
+                  .querySelector<HTMLElement>(
+                    '[role="tablist"][aria-label="' +
+                      t("Workspaces") +
+                      '"] button',
+                  )
+                  ?.focus(),
+            },
+            !!project,
+            editingBlocked,
+          )}
+        />
         {project && (
           <span className="saved">
             <span className="status-dot" />
@@ -868,58 +924,6 @@ export default function App() {
           {t("Opening the selected project. The current model is kept until reading succeeds.")}
         </div>
       )}
-      <MainMenu
-        groups={applicationMenus(
-          {
-            duplicate: () => {
-              if (project)
-                void ask(
-                  t("Duplicate project"),
-                  t(
-                    "Create an independent project with the same files and history.",
-                  ),
-                  project.name,
-                  async () => {
-                    if (native) {
-                      await openProject(
-                        await copyProjectForEditing(project.id),
-                      );
-                      return;
-                    }
-                    await openProject(
-                      await saveProject({
-                        ...project,
-                        id: crypto.randomUUID(),
-                        name: t("{{value0}} copy", { value0: project.name }),
-                        createdAt: stamp(),
-                        updatedAt: stamp(),
-                      }),
-                    );
-                  },
-                );
-            },
-            create: () => setModal("new"),
-            import: () => fileInput.current?.click(),
-            export: () => setModal("export"),
-            parameters: () => setModal("parameters"),
-            palette: () => setModal("palette"),
-            settings: (page) => {
-              if (page) persist("forma.ui.settingsPage", JSON.stringify(page));
-              setModal("settings");
-            },
-            workspaces: () =>
-              document
-                .querySelector<HTMLElement>(
-                  '[role="tablist"][aria-label="' +
-                    t("Workspaces") +
-                    '"] button',
-                )
-                ?.focus(),
-          },
-          !!project,
-          editingBlocked,
-        )}
-      />
       {project && (
         <ProjectAccessNotice
           projectId={project.id}
@@ -1023,6 +1027,21 @@ export default function App() {
                   retainedLabel={retainedLabel}
                   onRetry={committedScene.retry}
                   onScreenshot={(data) => void captureScreenshot(data)}
+                  onVisibility={visibility.onVisibility}
+                  confirmEdit={(title, description, detail, run) =>
+                    new Promise<boolean>((resolve) => {
+                      void ask(
+                        title,
+                        description,
+                        detail,
+                        async () => resolve(await run()),
+                        "modify_project",
+                        project.id,
+                        undefined,
+                        () => resolve(false),
+                      );
+                    })
+                  }
                 />
               ),
               outliner: (

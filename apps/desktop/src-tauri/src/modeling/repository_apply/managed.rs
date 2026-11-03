@@ -17,6 +17,7 @@ pub(in crate::modeling) struct ManagedHost<'a> {
     pub state: &'a AppState,
     pub project_id: &'a str,
     pub executable: Option<&'a Path>,
+    pub amend: Option<crate::project_history::AmendCapture>,
 }
 
 impl<'state> ApplyHost for ManagedHost<'state> {
@@ -86,9 +87,24 @@ impl<'state> ApplyHost for ManagedHost<'state> {
         _guard: MutexGuard<'state, ()>,
         prepared: PreparedModelChange,
     ) -> Result<Project> {
+        let history = if self.amend.is_some() {
+            Some(crate::project_history::load_state(&self.state.pool, &latest.project).await?)
+        } else {
+            None
+        };
+        // Validate the retained source again after the history SQL await.
         legacy::recheck_lifecycle(self.state, original)?;
         legacy::recheck(self.state, latest).await?;
         legacy::recheck_lifecycle(self.state, original)?;
-        commit::persist_prepared(self.state, prepared).await
+        let amend = self
+            .amend
+            .as_ref()
+            .zip(history.as_ref())
+            .map(|(capture, history)| commit::AmendContext {
+                before: &latest.project,
+                history,
+                capture,
+            });
+        commit::persist_prepared(self.state, prepared, amend).await
     }
 }

@@ -1,0 +1,25 @@
+.vertex-selection-info {
+  position: absolute;
+  top: 52px;
+  right: 12px;
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  max-width: calc(100% - 24px);
+  padding: 7px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--island-shadow);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.vertex-selection-info strong {
+  color: var(--accent-text);
+}
+.vertex-selection-info small {
+  color: var(--muted);
+}

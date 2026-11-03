@@ -1,4 +1,5 @@
 import { AdaptiveGrid } from "./grid/AdaptiveGrid";
+import "./viewportResponsive.css";
 import { useSectionView } from "./sections/useSectionView";
 import { SectionControls } from "./sections/SectionControls";
 import { SectionScene } from "./sections/SectionScene";
@@ -13,7 +14,7 @@ import {
   GizmoViewport,
   Bounds,
 } from "@react-three/drei";
-import { useCallback, useState, useRef, useMemo, useEffect } from "react";
+import { useCallback, useState, useRef, useMemo } from "react";
 import { ViewportSidebar } from "../viewport-sidebar/ViewportSidebar";
 import { useNavigationPreferences } from "../settings/workspacePreferences";
 import { OrbitSelection } from "./navigation/OrbitSelection";
@@ -33,6 +34,7 @@ import {
   Pause,
   Square,
   MoveRight,
+  Dot,
 } from "lucide-react";
 import { IconButton, Select } from "../../components/ui";
 import { useWorkspace } from "../../stores/workspace";
@@ -45,17 +47,46 @@ import { PluginToolbarMenu } from "../plugins/PluginToolbarMenu";
 import type { RenderMode } from "./renderMode";
 import { faceTriangleCounts } from "./faceSelection";
 import { cadEdges } from "./edgeSelection";
+import {
+  useViewportInteraction,
+  type ConfirmEdit,
+} from "./interaction/useViewportInteraction";
+import { ModalTransform } from "../transform/viewport/ModalTransform";
+import { TransformHud } from "../transform/viewport/TransformHud";
+import { AdjustLastPanel } from "../adjust-last/AdjustLastPanel";
+import {
+  RegionSelectController,
+  RegionSelectOverlay,
+} from "../selection/region-select/RegionSelect";
+import { Cursor3D } from "../snapping/cursor/Cursor3D";
+import {
+  MeasureSnap,
+  type MeasurePoint,
+} from "../measure-snap/MeasureSnap";
+import { PieMenu } from "../pie-menus/PieMenu";
+import { navigationPresets } from "../keymap/registry";
+import type { VisibilityAction } from "../visibility/visibilityModel";
+import type { StandardView } from "./view-commands/standardViews";
+import type { SelectionFilter } from "./selectionFilter";
+import {
+  VertexSelectController,
+  VertexSelectionInfo,
+} from "../selection/vertex-select/VertexSelect";
 export type { RenderMode } from "./renderMode";
 export default function Viewer({
   object,
   onScreenshot,
   comparison,
   interactive = true,
+  onVisibility,
+  confirmEdit,
 }: {
   object: THREE.Group;
   onScreenshot: (data: string) => void;
   comparison?: boolean;
   interactive?: boolean;
+  onVisibility?: (action: VisibilityAction) => void;
+  confirmEdit?: ConfirmEdit;
 }) {
   const projectId = useWorkspace((s) => s.project?.id ?? "empty");
   const viewKey = `forma.ui.project.${projectId}.view.${comparison ? "comparison" : "main"}`;
@@ -87,11 +118,22 @@ export default function Viewer({
   const [ortho, setOrtho] = usePersistentState(`${viewKey}.ortho`, false);
   const [fit, setFit] = useState(0);
   const [measure, setMeasure] = useState(false);
-  const [selectionMode, setSelectionMode] = useState<"body" | "face" | "edge">(
+  const [selectionMode, setSelectionMode] = useState<SelectionFilter>(
     "body",
   );
   const [measureKind, setMeasureKind] = useState<MeasureKind>("distance");
-  const [points, setPoints] = useState<THREE.Vector3[]>([]);
+  const [points, setPoints] = useState<MeasurePoint[]>([]);
+  const required = measureKind === "distance" ? 2 : 3;
+  const addPoint = useCallback(
+    (point: MeasurePoint) =>
+      setPoints((prev) => (prev.length < required ? [...prev, point] : [point])),
+    [required],
+  );
+  const refinePoint = useCallback(
+    (point: MeasurePoint) =>
+      setPoints((prev) => prev.map((item) => (item.id === point.id ? point : item))),
+    [],
+  );
   const [capture, setCapture] = useState<(() => string) | null>(null);
   const controlsRef = useRef<OrbitHandle | null>(null);
   const appliedPreset = useRef(preset);
@@ -124,50 +166,45 @@ export default function Viewer({
     (fn: () => string) => setCapture(() => fn),
     [],
   );
-  useEffect(() => {
-    if (comparison) return;
-    const keydown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement;
-      if (
-        !target.closest('[data-editor="viewport3d"]') ||
-        target.closest(
-          "input,textarea,select,[contenteditable=true],[role=combobox]",
-        ) ||
-        event.ctrlKey ||
-        event.metaKey ||
-        event.altKey
-      )
-        return;
-      if (event.code === "KeyT") {
-        event.preventDefault();
-        setToolbarOpen((value) => !value);
-      }
-      if (event.code === "KeyN") {
-        event.preventDefault();
-        setSidebarOpen((value) => !value);
-      }
-      const code = navigation.emulateNumpad
-        ? event.code.replace("Digit", "Numpad")
-        : event.code;
-      const views: Record<string, string> = {
-        Numpad1: "front",
-        Numpad3: "side",
-        Numpad7: "top",
-      };
-      if (views[code]) {
-        event.preventDefault();
-        setPreset(views[code]);
-      }
-    };
-    window.addEventListener("keydown", keydown);
-    return () => window.removeEventListener("keydown", keydown);
-  }, [
-    comparison,
-    navigation.emulateNumpad,
+  const [fitBox, setFitBox] = useState<THREE.Box3 | null>(null);
+  const setView = useCallback(
+    (view: StandardView) => {
+      // Repeating the current view re-applies it after the user has orbited away.
+      appliedPreset.current = "";
+      setPreset(view);
+    },
+    [setPreset],
+  );
+  const editable = interactive && !comparison;
+  const { transformRef, onConfirm, adopt } = useViewportInteraction({
+    enabled: !comparison,
+    emulateNumpad: navigation.emulateNumpad,
+    object,
+    interactive: editable,
+    mode,
+    setMode,
+    setView,
+    setOrtho,
+    fitAll: () => {
+      setFitBox(null);
+      setFit((value) => value + 1);
+    },
+    fitBox: (box) => {
+      setFitBox(box);
+      setFit((value) => value + 1);
+    },
     setToolbarOpen,
     setSidebarOpen,
-    setPreset,
-  ]);
+    setSelectionMode: (value) => {
+      setMeasure(false);
+      setSelectionMode(value);
+    },
+    hasCadFaces: hasCadFaces && !comparison,
+    hasCadEdges: hasCadEdges && !comparison,
+    onVisibility,
+    confirmEdit,
+  });
+  const mouse = navigationPresets[navigation.mousePreset];
   return (
     <div
       className={`viewport ${toolbarOpen ? "" : "workspace-viewer-tools-hidden"}`}
@@ -264,6 +301,21 @@ export default function Viewer({
             }}
           >
             <MoveRight size={17} />
+          </IconButton>
+          <IconButton
+            label={
+              hasCadEdges && !comparison
+                ? t("Select CAD vertex")
+                : t("CAD vertex selection requires a native model preview")
+            }
+            active={!measure && selectionMode === "vertex"}
+            disabled={!interactive || !hasCadEdges || comparison}
+            onClick={() => {
+              setMeasure(false);
+              setSelectionMode("vertex");
+            }}
+          >
+            <Dot size={20} />
           </IconButton>
           <i />
           <IconButton
@@ -365,7 +417,19 @@ export default function Viewer({
                 {t("Радиус / диаметр по трём точкам")}
               </option>
             </Select>
-            <span>{measurement(points, measureKind)}</span>
+            <span>
+              {measurement(
+                points.map((item) => item.point),
+                measureKind,
+              )}
+            </span>
+            {points.length > 0 && (
+              <small className="quiet">
+                {points.every((item) => item.exact)
+                  ? t("exact (OCCT)")
+                  : t("approximate (mesh)")}
+              </small>
+            )}
           </div>
         )}
       </div>
@@ -384,8 +448,8 @@ export default function Viewer({
         shadows
         dpr={[1, 1.75]}
         gl={{ antialias: true, preserveDrawingBuffer: true }}
-        onPointerMissed={() => {
-          if (interactive && !comparison)
+        onPointerMissed={(event) => {
+          if (editable && !event.shiftKey)
             useWorkspace.getState().setSelected(null);
         }}
       >
@@ -414,12 +478,9 @@ export default function Viewer({
             selectionMode={selectionMode}
             revisionId={comparison ? null : revisionId}
             onPoint={(p) => {
-              if (interactive && measure)
-                setPoints((prev) =>
-                  prev.length < (measureKind === "distance" ? 2 : 3)
-                    ? [...prev, p]
-                    : [p],
-                );
+              // The main view snaps through MeasureSnap; the old revision keeps surface picks.
+              if (interactive && measure && comparison)
+                addPoint({ id: -Date.now(), point: p, exact: false });
             }}
           />
           <CameraControl
@@ -430,8 +491,38 @@ export default function Viewer({
             object={object}
             controlsRef={controlsRef}
             appliedPreset={appliedPreset}
+            fitBox={fitBox}
           />
         </Bounds>
+        {!comparison && (
+          <>
+            <ModalTransform
+              object={object}
+              interactive={editable}
+              controlsRef={controlsRef}
+              handleRef={transformRef}
+              onConfirm={onConfirm}
+            />
+            <RegionSelectController
+              object={object}
+              controlsRef={controlsRef}
+              enabled={editable && !measure}
+              through={mode === "xray" || mode === "wireframe"}
+            />
+            {editable && <Cursor3D object={object} light={light} />}
+            <MeasureSnap
+              object={object}
+              enabled={interactive && measure}
+              onPick={addPoint}
+              onRefine={refinePoint}
+            />
+            <VertexSelectController
+              object={object}
+              enabled={editable && !measure && selectionMode === "vertex"}
+              light={light}
+            />
+          </>
+        )}
         {grid && <AdaptiveGrid object={object} light={light} />}
         <SectionScene
           object={object}
@@ -445,11 +536,16 @@ export default function Viewer({
           makeDefault
           enableZoom={false}
           enableDamping={false}
-          mouseButtons={{
-            LEFT: THREE.MOUSE.ROTATE,
-            MIDDLE: THREE.MOUSE.DOLLY,
-            RIGHT: THREE.MOUSE.PAN,
-          }}
+          mouseButtons={
+            mouse.orbit === "middle"
+              ? // Blender-compatible: MMB orbits, Shift+MMB pans, LMB/RMB stay free.
+                { LEFT: -1 as THREE.MOUSE, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: -1 as THREE.MOUSE }
+              : {
+                  LEFT: THREE.MOUSE.ROTATE,
+                  MIDDLE: THREE.MOUSE.DOLLY,
+                  RIGHT: THREE.MOUSE.PAN,
+                }
+          }
           panSpeed={navigation.panSpeed}
           screenSpacePanning
           minDistance={3}
@@ -516,10 +612,28 @@ export default function Viewer({
           </Select>
         </div>
       </div>
+      {!comparison && (
+        <>
+          <TransformHud />
+          <AdjustLastPanel onAdopt={adopt} confirmEdit={confirmEdit} />
+          <RegionSelectOverlay />
+          <VertexSelectionInfo />
+          <PieMenu />
+        </>
+      )}
       <div className="orbit-hint">
-        <Eye size={12} /> {t("Drag to orbit")}
-        <span>·</span> {t("Right button — pan")} <span>·</span>{" "}
-        {t("Scroll to zoom")}
+        <Eye size={12} />{" "}
+        {mouse.orbit === "middle" ? (
+          <>
+            {t("Middle button — orbit")} <span>·</span>{" "}
+            {t("Shift+middle button — pan")}
+          </>
+        ) : (
+          <>
+            {t("Drag to orbit")} <span>·</span> {t("Right button — pan")}
+          </>
+        )}{" "}
+        <span>·</span> {t("Scroll to zoom")}
       </div>
     </div>
   );

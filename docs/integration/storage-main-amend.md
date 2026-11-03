@@ -1,6 +1,8 @@
 # M2 history amendment and storage publication / M2 и публикация хранилища
 
-Status: proposed, not applied. [Exact patch](storage-main-amend.patch).
+Status: applied after lovlyDev explicitly approved all four targets on 3 November
+2026; integrated with accepted main. Runtime verification remains required.
+[Exact patch](storage-main-amend.patch).
 Task base: `e965129`, accepted owner integration: `a4aec3e6`.
 
 ## RU

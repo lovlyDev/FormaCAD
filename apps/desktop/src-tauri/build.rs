@@ -38,6 +38,8 @@ fn main() {
             .file("../../../cad-core/src/fillet.cpp")
             .file("../../../cad-core/src/chamfer.cpp")
             .file("../../../cad-core/src/transforms.cpp")
+            .file("../../../cad-core/src/affine_transform.cpp")
+            .file("../../../cad-core/src/snap_reference.cpp")
             .file("../../../cad-core/src/rotation.cpp")
             .file("../../../cad-core/src/mirror.cpp")
             .file("../../../cad-core/src/booleans.cpp")
@@ -55,6 +57,7 @@ fn main() {
         println!("cargo:rerun-if-changed=build/occt.rs");
         println!("cargo:rerun-if-changed=../../../cad-core/src");
         println!("cargo:rerun-if-changed=../../../cad-core/include/forma_core.hpp");
+        println!("cargo:rerun-if-changed=../../../cad-core/include/forma_snap.hpp");
         println!("cargo:rerun-if-env-changed=FORMA_OCCT_ROOT");
     }
     tauri_build::build()

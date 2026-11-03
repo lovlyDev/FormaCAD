@@ -40,9 +40,10 @@ impl Solid {
         cxx::let_cxx_string!(owner_b = &b.owner_feature_id);
         cxx::let_cxx_string!(role_b = &b.role);
         cxx::let_cxx_string!(path_b = b.occurrence_path.join("/"));
+        // The pair schema admits only edge/edge and face/face references.
         let kind = |value: TopologyKind| match value {
             TopologyKind::Edge => 0,
-            TopologyKind::Face => 1,
+            TopologyKind::Face | TopologyKind::Vertex => 1,
         };
         let result = ffi::measure_reference_pair(
             self.as_ref(),

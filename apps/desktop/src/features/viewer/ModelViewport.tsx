@@ -9,6 +9,8 @@ import type * as THREE from "three";
 import { AlertCircle, LoaderCircle } from "lucide-react";
 import { Button } from "../../components/ui";
 import { t } from "../../i18n";
+import type { VisibilityAction } from "../visibility/visibilityModel";
+import type { ConfirmEdit } from "./interaction/useViewportInteraction";
 const Viewer = lazy(() => import("./Viewer"));
 class ViewerBoundary extends Component<
   { children: ReactNode },
@@ -47,6 +49,8 @@ export function ModelViewport({
   retainedLabel,
   onRetry,
   onScreenshot,
+  onVisibility,
+  confirmEdit,
 }: {
   projectId: string;
   object: THREE.Group;
@@ -61,6 +65,8 @@ export function ModelViewport({
   retainedLabel: string | null;
   onRetry: () => void;
   onScreenshot: (data: string) => void;
+  onVisibility?: (action: VisibilityAction) => void;
+  confirmEdit?: ConfirmEdit;
 }) {
   return (
     <section className="center-panel">
@@ -92,6 +98,8 @@ export function ModelViewport({
               object={object}
               interactive={interactive}
               onScreenshot={onScreenshot}
+              onVisibility={onVisibility}
+              confirmEdit={confirmEdit}
             />
           </Suspense>
         </ViewerBoundary>

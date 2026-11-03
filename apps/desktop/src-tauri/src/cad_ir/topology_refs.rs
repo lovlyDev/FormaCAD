@@ -10,6 +10,7 @@ pub const MAX_OCCURRENCE_PATH: usize = 64;
 pub enum TopologyKind {
     Edge,
     Face,
+    Vertex,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -20,6 +21,16 @@ pub struct TopologyReference {
     pub owner_feature_id: String,
     pub role: String,
     pub occurrence_path: Vec<String>,
+}
+
+/// Box corners named by their x, y and z constructor faces, e.g. `box-vertex:xmin:ymax:zmax`.
+pub fn valid_box_vertex_role(role: &str) -> bool {
+    let parts: Vec<_> = role.split(':').collect();
+    parts.len() == 4
+        && parts[0] == "box-vertex"
+        && matches!(parts[1], "xmin" | "xmax")
+        && matches!(parts[2], "ymin" | "ymax")
+        && matches!(parts[3], "zmin" | "zmax")
 }
 
 impl TopologyReference {
@@ -52,6 +63,7 @@ impl TopologyReference {
                         | "cylinder-face:top"
                         | "cylinder-face:side"
                 ),
+                TopologyKind::Vertex => valid_box_vertex_role(&self.role),
             }
     }
 }

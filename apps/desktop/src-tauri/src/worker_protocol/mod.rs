@@ -4,6 +4,7 @@ mod face_section;
 mod measurement;
 mod pair_measurement;
 mod schema;
+mod snap;
 use std::{
     fs,
     io::{self, Read},
