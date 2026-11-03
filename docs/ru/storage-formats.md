@@ -360,7 +360,9 @@ Windows запрещает write/delete sharing выбранного файла;
 optimistic identity/hash capture/recheck, а не epoch чужих записей. Close сразу
 отзывает capability; удерживаемый снимком файловый handle может закрыться позже.
 Это проверка выбранных байтов, не проверка CAD-геометрии и не восстановление
-истории 1.1. Transfer через общий CAD executor ещё не подключён.
+истории 1.1. [Контроллер переноса](storage-step-transfer.md) теперь использует
+общий CAD executor и публикует первый SQL commit только после проверки модели;
+его runtime-тесты ещё требуют CI. UI/IPC не подключены.
 
 Доверенный backend `FolderSession::apply_history` использует существующий чистый
 планировщик истории и настоящий session commit. Ему нужен захваченный снимок,

@@ -36,6 +36,7 @@ struct Input {
 pub(crate) struct SelectedStep {
     input: Arc<Input>,
 }
+#[derive(Clone)]
 pub(crate) struct StepSnapshot {
     input: Arc<Input>,
 }

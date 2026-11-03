@@ -1,11 +1,11 @@
 name: Storage comparison
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - 'apps/desktop/src-tauri/src/project_repository/**'
-      - 'apps/desktop/src-tauri/src/project_history/**'
-      - '.github/workflows/storage-benchmark.yml'
+  push:
+    branches: [codex/storage-week]
+  workflow_dispatch:
+concurrency:
+  group: storage-comparison-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -49,5 +49,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: storage-comparison-${{ github.event.pull_request.head.sha }}
+          name: storage-comparison-${{ github.sha }}
           path: storage-evidence/

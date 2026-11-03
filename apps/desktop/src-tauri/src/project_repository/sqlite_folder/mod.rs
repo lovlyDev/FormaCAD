@@ -32,6 +32,8 @@ mod publication_verification;
 mod read_only;
 #[cfg(any(target_os = "linux", windows))]
 mod session;
+#[cfg(all(feature = "native-worker-client", any(target_os = "linux", windows)))]
+mod step_transfer;
 #[cfg(any(
     windows,
     all(

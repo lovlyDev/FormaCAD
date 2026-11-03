@@ -359,7 +359,9 @@ Windows denies write/delete sharing; Linux uses optimistic identity/hash checks,
 not an epoch for external writes. Close revokes the capability immediately while
 a retained snapshot can keep its physical handle alive longer. This establishes
 input-byte provenance, not valid CAD geometry or recovered 1.1 history. Transfer
-through common CAD execution remains incomplete.
+through common CAD execution is implemented by the test-only
+[transfer controller](storage-step-transfer.md), with first SQL publication after
+worker validation. Its runtime tests still need CI; UI/IPC remain incomplete.
 
 The trusted `FolderSession::apply_history` backend now uses the existing pure
 history planner and session commit route. It requires a captured snapshot rather

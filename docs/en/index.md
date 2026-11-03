@@ -85,5 +85,6 @@ These guides describe the consolidated 1.2.6 candidate and its limits. Final pac
 - [Folder format decision](storage-format-decision.md).
 - [Repository read contract](storage-contract.md).
 - [Pure backend project catalog](storage-catalog.md).
+- [Transfer selected STEP into a new folder](storage-step-transfer.md).
 - [Workspace areas and editors](workspace-areas.md): project/workspace tabs, split/join, stable viewport, contextual properties and navigation settings.
 - [Preparing Blender workflow adaptations](blender-parity.md): research method, local evidence, checks and limitations; [topic notes](../parity/blender/README.md) and [2.0 gap inventory](../parity/blender/readiness.md).
