@@ -80,12 +80,14 @@ struct SavedStateSeals {
 }
 
 /// Small process-local comparison value; no project/history payload or authority.
+#[cfg(any(target_os = "linux", windows))]
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct SavedStateStamp {
     expectation: Expectation,
     seals: SavedStateSeals,
 }
 impl Snapshot {
+    #[cfg(any(target_os = "linux", windows))]
     pub(super) fn stamp(&self) -> SavedStateStamp {
         SavedStateStamp {
             expectation: self.expectation.clone(),

@@ -23,6 +23,11 @@ another opening with the same ID remains valid, and old snapshots cannot enter
 a new handle. Checks surround awaited operations. Readers never acquire writer
 leases, repair journals or run recovery.
 
+Current performance limitation: FCP1 capture still validates the complete bounded
+history archive and commit chain. It is not a lazy metadata-only read; optimization
+and measurements remain acceptance work. Managed capture retains its archive-free
+read path. Sharing an API does not prove equal read cost across backends.
+
 ## Publication and CAD
 
 After the explicit user decision, the host invokes `approve_write` for the

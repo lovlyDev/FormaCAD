@@ -139,3 +139,13 @@ covered by that evidence. USB/NAS, the full new folder-write route, late pair/fa
 responses and installed UI remain separate gates.
 
 A navigation regression separately switches A/B with identical revision and body IDs in an opaque fixture model program: late A cannot replace B. All five navigation tests passed after strengthening the fixture. This checks frontend identity/generation, not CAD-document or kernel validity.
+
+## Dependency cache for owned checks
+
+The owned storage comparison/native workflows enable `cache-on-failure: true`
+for `Swatinem/rust-cache@v2`. Standard toolchain/Cargo environment keys remain;
+workspace crates are not added to the cache. Cached dependencies never replace
+test results, source SHA or compile gates. This avoids rebuilding unchanged
+dependencies after fixing task code; actual speed improvement must be measured
+on subsequent runs. Owner Quality, Cargo and versions are unchanged.
+The input is documented in [rust-cache configuration](https://github.com/Swatinem/rust-cache#configuration).

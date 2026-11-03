@@ -149,7 +149,8 @@ impl<'a> ProjectRepository<'a> {
         }
     }
 
-    /// Capture project metadata without loading the SQL event archive.
+    /// Managed metadata capture skips the SQL event archive. The current FCP1
+    /// validator still reads its complete bounded history; lazy FCP1 is pending.
     pub async fn capture(&self) -> Result<RepositorySnapshot> {
         self.capture_inner(false).await
     }

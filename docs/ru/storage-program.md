@@ -142,3 +142,14 @@ job 123428058352, head `147a0dd05e1a15c94c7656b9569eca4f028b795c`:
 поздние pair/face ответы и установленный UI остаются отдельными gates.
 
 Навигационная регрессия отдельно переключает проекты A/B с одинаковыми revision ID и body ID в непрозрачном тестовом model program: поздний ответ A не заменяет B. Проверены пять navigation-тестов после усиления фикстуры. Это проверка frontend identity/generation, не корректности CAD-документа или ядра.
+
+## Кэш зависимостей собственных проверок
+
+В storage comparison/native workflows `Swatinem/rust-cache@v2` сохраняет кэш
+зависимостей и при ошибке job (`cache-on-failure: true`). Стандартные ключи
+toolchain/Cargo environment сохранены; workspace crates не включены в кэш.
+Результаты тестов, source SHA и compile gates этим не заменяются. Настройка
+уменьшает повторную компиляцию неизменившихся зависимостей после исправления
+нашего кода; фактическое ускорение нужно оценивать по времени следующих runs.
+Quality владельца, Cargo и версии не меняются.
+Параметр описан в [документации rust-cache](https://github.com/Swatinem/rust-cache#configuration).
