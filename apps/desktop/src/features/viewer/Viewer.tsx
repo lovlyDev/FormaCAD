@@ -218,24 +218,6 @@ export default function Viewer({
           {ortho ? t("Orthographic") : t("Perspective")}{" "}
           <span className="tiny-dot" /> {t("mm")}
         </span>
-        {!comparison && (
-          <div className="workspace-viewport-panel-toggles">
-            <button
-              aria-pressed={toolbarOpen}
-              aria-label={t("Toggle viewport toolbar (T)")}
-              onClick={() => setToolbarOpen(!toolbarOpen)}
-            >
-              {t("Tools")}
-            </button>
-            <button
-              aria-pressed={sidebarOpen}
-              aria-label={t("Toggle viewport sidebar (N)")}
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-            >
-              {t("Item")}
-            </button>
-          </div>
-        )}
       </div>
       {sidebarOpen && !comparison && (
         <ViewportSidebar

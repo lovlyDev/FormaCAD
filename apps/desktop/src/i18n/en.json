@@ -1405,8 +1405,6 @@
   "Display transform; exact CAD properties are in Properties.": "Display transform; exact CAD properties are in Properties.",
   "Position {{value0}}": "Position {{value0}}",
   "Enabled plugin actions use the existing permission checks.": "Enabled plugin actions use the existing permission checks.",
-  "Toggle viewport toolbar (T)": "Toggle viewport toolbar (T)",
-  "Toggle viewport sidebar (N)": "Toggle viewport sidebar (N)",
   "Open projects": "Open projects",
   "Dashboard": "Dashboard",
   "Close project tab {{value0}}": "Close project tab {{value0}}",
