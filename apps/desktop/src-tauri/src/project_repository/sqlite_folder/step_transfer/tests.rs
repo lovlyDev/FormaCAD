@@ -73,7 +73,7 @@ async fn queued_close_or_cancellation_never_runs_worker_or_creates_project() {
         let source = SelectedStep::open(&path).unwrap();
         let original = source.capture().unwrap();
         let grant = StepTransferGrant::approve(&source, &original, target.path()).unwrap();
-        let tasks = AsyncMutex::new(HashMap::new());
+        let tasks: AsyncMutex<HashMap<String, Arc<AtomicBool>>> = AsyncMutex::new(HashMap::new());
         let gate = CadTaskGate::default();
         let occupied = gate
             .acquire(
