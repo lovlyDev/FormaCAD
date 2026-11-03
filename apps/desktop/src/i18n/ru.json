@@ -1405,8 +1405,6 @@
   "Display transform; exact CAD properties are in Properties.": "Трансформация отображения. Точные свойства CAD находятся в редакторе «Свойства».",
   "Position {{value0}}": "Положение {{value0}}",
   "Enabled plugin actions use the existing permission checks.": "Действия включённых плагинов проходят штатную проверку прав.",
-  "Toggle viewport toolbar (T)": "Переключить панель инструментов (T)",
-  "Toggle viewport sidebar (N)": "Переключить боковую панель (N)",
   "Open projects": "Открытые проекты",
   "Dashboard": "Главная",
   "Close project tab {{value0}}": "Закрыть вкладку проекта {{value0}}",

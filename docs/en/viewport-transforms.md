@@ -40,7 +40,7 @@ Confirmation creates one revision with a `transform` operation for each selected
 ### Views and navigation
 
 - **Numpad 1/3/7** front, right, top; with **Ctrl** back, left, bottom. Pressing again restores the view after orbiting.
-- **Numpad 5** perspective/orthographic, **Numpad .** frame selected, **Home** frame all.
+- **Numpad 5** perspective/orthographic, **Numpad .** frame selected, **Home** and “Fit model” frame all. The model is framed by its bounding sphere with a 15% margin, keeping the current view direction; an empty project frames a 100 mm cube around the origin.
 - **T/N** toolbar and sidebar, **Alt+Z** X-ray.
 - Settings → Input can emulate the numpad with number keys and choose mouse navigation: Forma (LMB orbit, RMB pan) or Blender-compatible (middle button orbit, Shift+middle pan).
 

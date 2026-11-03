@@ -30,7 +30,7 @@ F3 opens the command palette; Ctrl+K remains available. Search includes existing
 
 ## Viewport panels and settings
 
-T toggles viewport tools and N toggles the sidebar while the viewport editor has focus. Header buttons provide the same actions. The sidebar shows the selected element's display transform, view actions and existing plugin actions. Display transforms are explicitly distinguished from exact B-Rep properties.
+T toggles viewport tools and N toggles the sidebar while the viewport editor has focus. There are no viewport header buttons for this; the status bar shows the “T/N: view panels” hint. Right-click never opens the browser menu (Back, Reload, Print); text fields keep cut, copy and paste. The sidebar shows the selected element's display transform, view actions and existing plugin actions. Display transforms are explicitly distinguished from exact B-Rep properties.
 
 Interface settings control density and text size. Input enables number-row numpad emulation for front, side and top views (1/3/7); the complete new numpad mapping belongs to M2. Navigation controls orbit around selection, zoom toward the pointer and zoom/pan sensitivity. Pointer zoom uses a plane through the orbit center, not an exact CAD snap. View settings do not create revisions. Theme changes apply immediately to the interface, WebGL background and grid.
 
