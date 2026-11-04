@@ -1,0 +1,1108 @@
+diff --git a/apps/desktop/src-tauri/src/model_measurement/snapshot.rs b/apps/desktop/src-tauri/src/model_measurement/snapshot.rs
+index f485f72..c64fc5d 100644
+--- a/apps/desktop/src-tauri/src/model_measurement/snapshot.rs
++++ b/apps/desktop/src-tauri/src/model_measurement/snapshot.rs
+@@ -1,28 +1,40 @@
+-//! Compatibility boundary for the shared, pure committed snapshot reader.
++//! Measurement error compatibility over the shared original-source reader.
+ use super::failure;
+ use crate::{
+     core::{AppError, AppState, Result},
+-    project_repository::legacy::{self, CommittedSnapshot},
++    project_repository::backend::{ProjectRepository, RepositoryRead},
+ };
+ 
+-pub(super) async fn read(state: &AppState, project_id: &str) -> Result<CommittedSnapshot> {
+-    legacy::capture_project(state, project_id)
++pub(super) async fn read<'a>(state: &'a AppState, project_id: &str) -> Result<RepositoryRead<'a>> {
++    RepositoryRead::capture(ProjectRepository::managed(state, project_id)?)
+         .await
+         .map_err(compatible)
+ }
+-
+-pub(super) async fn recheck(state: &AppState, snapshot: &CommittedSnapshot) -> Result<()> {
+-    legacy::recheck(state, snapshot).await.map_err(compatible)
++pub(super) async fn recheck(snapshot: &RepositoryRead<'_>) -> Result<()> {
++    snapshot.recheck().await.map_err(compatible)
+ }
+-
+-/// Preserve the original opening while geometry-specific recapture compares
+-/// revision, source/document/import seals and preview. Unrelated metadata saves
+-/// must not invalidate a queued exact measurement.
+-pub(super) fn recheck_lifecycle(state: &AppState, snapshot: &CommittedSnapshot) -> Result<()> {
+-    legacy::recheck_lifecycle(state, snapshot).map_err(compatible)
++pub(super) async fn recheck_lifecycle(snapshot: &RepositoryRead<'_>) -> Result<()> {
++    snapshot.recheck_source().await.map_err(compatible)
+ }
+-
+-fn compatible(error: AppError) -> AppError {
++pub(super) async fn refresh<'a>(snapshot: &RepositoryRead<'a>) -> Result<RepositoryRead<'a>> {
++    snapshot.recapture_metadata().await.map_err(compatible)
++}
++pub(super) fn asset_error(error: AppError) -> AppError {
++    match error {
++        AppError::Invalid(ref code)
++            if matches!(
++                code.as_str(),
++                "PROJECT_SNAPSHOT_MISSING"
++                    | "PROJECT_SNAPSHOT_CHANGED"
++                    | "PROJECT_SNAPSHOT_RECOVERY_REQUIRED"
++            ) =>
++        {
++            compatible(error)
++        }
++        other => failure("ASSET_CHECKSUM_MISMATCH", other.to_string()),
++    }
++}
++pub(super) fn compatible(error: AppError) -> AppError {
+     match error {
+         AppError::Invalid(ref code)
+             if code == "PROJECT_SNAPSHOT_MISSING" || code == "PROJECT_SNAPSHOT_CHANGED" =>
+diff --git a/apps/desktop/src-tauri/src/model_measurement/capture.rs b/apps/desktop/src-tauri/src/model_measurement/capture.rs
+index 4cdd201..bed7112 100644
+--- a/apps/desktop/src-tauri/src/model_measurement/capture.rs
++++ b/apps/desktop/src-tauri/src/model_measurement/capture.rs
+@@ -5,8 +5,8 @@ use super::{
+ use crate::{
+     cad_ir::Document,
+     core::{AppState, Result},
+-    models::{Project, ProjectFile, Revision},
+-    project_repository::legacy::CommittedSnapshot,
++    models::{ProjectFile, Revision},
++    project_repository::backend::RepositoryRead,
+ };
+ use std::path::Path;
+ 
+@@ -17,8 +17,8 @@ struct PreviewSeal {
+     size: u64,
+ }
+ 
+-pub(crate) struct CapturedMeasurement {
+-    pub snapshot: CommittedSnapshot,
++pub(crate) struct CapturedMeasurement<'a> {
++    pub snapshot: RepositoryRead<'a>,
+     pub revision: Revision,
+     pub document: Document,
+     pub program_bytes: Vec<u8>,
+@@ -35,7 +35,7 @@ fn is_step(file: &ProjectFile) -> bool {
+         })
+ }
+ 
+-fn sealed_bytes(state: &AppState, project: &Project, file: &ProjectFile) -> Result<Vec<u8>> {
++async fn sealed_bytes(read: &RepositoryRead<'_>, file: &ProjectFile) -> Result<Vec<u8>> {
+     let hash = file
+         .sha256
+         .as_deref()
+@@ -49,32 +49,10 @@ fn sealed_bytes(state: &AppState, project: &Project, file: &ProjectFile) -> Resu
+     if file.size == 0 || file.size > crate::artifacts::MAX_FILE_BYTES as u64 {
+         return Err(failure("ASSET_LIMIT", "Measurement input size is invalid"));
+     }
+-    if file.data.is_none() {
+-        crate::security::file_name(&file.name)?;
+-        let extension = Path::new(&file.name)
+-            .extension()
+-            .and_then(|value| value.to_str())
+-            .ok_or_else(|| {
+-                failure(
+-                    "ASSET_INVALID",
+-                    "Measurement attachment extension is missing",
+-                )
+-            })?
+-            .to_ascii_lowercase();
+-        let path = crate::security::guarded(
+-            &state.root,
+-            Path::new(&format!("{}/attachments/{hash}.{extension}", project.id)),
+-        )?;
+-        let metadata = std::fs::metadata(path)?;
+-        if !metadata.is_file() || metadata.len() != file.size {
+-            return Err(failure(
+-                "ASSET_CHECKSUM_MISMATCH",
+-                "Measurement attachment size differs from its seal",
+-            ));
+-        }
+-    }
+-    let bytes = crate::artifacts::read(state, &project.id, file)
+-        .map_err(|error| failure("ASSET_CHECKSUM_MISMATCH", error.to_string()))?;
++    let bytes = read
++        .read_asset(file)
++        .await
++        .map_err(super::snapshot::asset_error)?;
+     if bytes.len() as u64 != file.size || crate::artifacts::digest(&bytes) != hash {
+         return Err(failure(
+             "ASSET_CHECKSUM_MISMATCH",
+@@ -84,12 +62,7 @@ fn sealed_bytes(state: &AppState, project: &Project, file: &ProjectFile) -> Resu
+     Ok(bytes)
+ }
+ 
+-pub(crate) async fn capture(
+-    state: &AppState,
+-    project_id: &str,
+-    expected_revision: &str,
+-    body_id: &str,
+-) -> Result<CapturedMeasurement> {
++fn validate_input(project_id: &str, expected_revision: &str, body_id: &str) -> Result<()> {
+     crate::security::valid_id(project_id)?;
+     crate::security::valid_id(expected_revision)?;
+     if body_id.is_empty() || body_id.len() > 80 {
+@@ -98,8 +71,27 @@ pub(crate) async fn capture(
+             "Selected body identifier is invalid",
+         ));
+     }
++    Ok(())
++}
++
++pub(crate) async fn capture<'a>(
++    state: &'a AppState,
++    project_id: &str,
++    expected_revision: &str,
++    body_id: &str,
++) -> Result<CapturedMeasurement<'a>> {
++    validate_input(project_id, expected_revision, body_id)?;
+     let snapshot = super::snapshot::read(state, project_id).await?;
+-    let project = &snapshot.project;
++    capture_bound(snapshot, expected_revision, body_id).await
++}
++
++pub(crate) async fn capture_bound<'a>(
++    snapshot: RepositoryRead<'a>,
++    expected_revision: &str,
++    body_id: &str,
++) -> Result<CapturedMeasurement<'a>> {
++    validate_input(&snapshot.project().id, expected_revision, body_id)?;
++    let project = snapshot.project();
+     if project.current_revision.as_deref() != Some(expected_revision) {
+         return Err(failure(
+             "MEASUREMENT_STALE",
+@@ -149,27 +141,25 @@ pub(crate) async fn capture(
+                 "Measurement requires a committed exact STEP source",
+             )
+         })?;
+-    let source_bytes = sealed_bytes(state, project, source)?;
++    let source_bytes = sealed_bytes(&snapshot, source).await?;
+     let source_sha256 = crate::artifacts::digest(&source_bytes);
+     let source_size = source.size;
+     drop(source_bytes); // Queued requests retain seals, not a 40 MB STEP buffer.
+-    let preview = revision
+-        .preview
+-        .as_deref()
+-        .map(|name| {
+-            let file = project
+-                .files
+-                .iter()
+-                .find(|entry| entry.name == name)
+-                .ok_or_else(|| failure("ASSET_MISSING", "Committed preview is missing"))?;
+-            let bytes = sealed_bytes(state, project, file)?;
+-            Ok::<_, crate::core::AppError>(PreviewSeal {
+-                name: name.into(),
+-                sha256: crate::artifacts::digest(&bytes),
+-                size: file.size,
+-            })
++    let preview = if let Some(name) = revision.preview.as_deref() {
++        let file = project
++            .files
++            .iter()
++            .find(|entry| entry.name == name)
++            .ok_or_else(|| failure("ASSET_MISSING", "Committed preview is missing"))?;
++        let bytes = sealed_bytes(&snapshot, file).await?;
++        Some(PreviewSeal {
++            name: name.into(),
++            sha256: crate::artifacts::digest(&bytes),
++            size: file.size,
+         })
+-        .transpose()?;
++    } else {
++        None
++    };
+     let mut imported_asset_seals = Vec::new();
+     let mut total = 0usize;
+     for (asset_id, hash) in
+@@ -180,7 +170,7 @@ pub(crate) async fn capture(
+             .iter()
+             .find(|file| file.sha256.as_deref() == Some(hash) && is_step(file))
+             .ok_or_else(|| failure("ASSET_MISSING", "Authored imported STEP is missing"))?;
+-        let bytes = sealed_bytes(state, project, file)?;
++        let bytes = sealed_bytes(&snapshot, file).await?;
+         total = total
+             .checked_add(bytes.len())
+             .ok_or_else(|| failure("ASSET_LIMIT", "Measurement STEP input size overflow"))?;
+@@ -211,7 +201,7 @@ pub(crate) async fn capture(
+             "Captured input binding exceeds measurement limits",
+         ));
+     }
+-    super::snapshot::recheck(state, &snapshot).await?;
++    super::snapshot::recheck(&snapshot).await?;
+     Ok(CapturedMeasurement {
+         snapshot,
+         revision,
+@@ -222,28 +212,29 @@ pub(crate) async fn capture(
+     })
+ }
+ 
+-pub(crate) fn source_bytes(state: &AppState, captured: &CapturedMeasurement) -> Result<Vec<u8>> {
++pub(crate) async fn source_bytes(captured: &CapturedMeasurement<'_>) -> Result<Vec<u8>> {
+     let file = captured
+         .snapshot
+-        .project
++        .project()
+         .files
+         .iter()
+         .find(|file| Some(&file.name) == captured.revision.source.as_ref())
+         .ok_or_else(|| failure("ASSET_MISSING", "Captured exact source is missing"))?;
+-    sealed_bytes(state, &captured.snapshot.project, file)
++    sealed_bytes(&captured.snapshot, file).await
+ }
+ 
+-pub(crate) async fn recheck(state: &AppState, captured: &CapturedMeasurement) -> Result<()> {
+-    super::snapshot::recheck_lifecycle(state, &captured.snapshot)?;
+-    let latest = capture(
+-        state,
+-        &captured.snapshot.project.id,
++pub(crate) async fn recheck(captured: &mut CapturedMeasurement<'_>) -> Result<()> {
++    super::snapshot::recheck_lifecycle(&captured.snapshot).await?;
++    let latest = capture_bound(
++        super::snapshot::refresh(&captured.snapshot).await?,
+         &captured.binding.revision_id,
+         &captured.binding.body_id,
+     )
+     .await?;
+-    super::snapshot::recheck_lifecycle(state, &captured.snapshot)?;
+-    if latest.revision != captured.revision
++    super::snapshot::recheck_lifecycle(&captured.snapshot).await?;
++    if latest.snapshot.project().id != captured.snapshot.project().id
++        || latest.snapshot.task_scope_id() != captured.snapshot.task_scope_id()
++        || latest.revision != captured.revision
+         || latest.binding != captured.binding
+         || latest.preview != captured.preview
+     {
+@@ -252,5 +243,8 @@ pub(crate) async fn recheck(state: &AppState, captured: &CapturedMeasurement) ->
+             "Committed measurement inputs changed while the request was running",
+         ));
+     }
++    // Only the validated IO metadata advances. Geometry bindings and the same
++    // source/request family remain original; release the old large projection.
++    captured.snapshot = latest.snapshot;
+     Ok(())
+ }
+diff --git a/apps/desktop/src-tauri/src/model_measurement/mod.rs b/apps/desktop/src-tauri/src/model_measurement/mod.rs
+index 86aefa9..c87f5df 100644
+--- a/apps/desktop/src-tauri/src/model_measurement/mod.rs
++++ b/apps/desktop/src-tauri/src/model_measurement/mod.rs
+@@ -7,6 +7,8 @@ pub mod schema;
+ #[cfg(feature = "native-worker-client")]
+ mod snapshot;
+ #[cfg(feature = "native-worker-client")]
++pub(crate) mod staging;
++#[cfg(feature = "native-worker-client")]
+ pub(crate) mod workspace;
+ 
+ use crate::core::{AppError, AppState, Result};
+diff --git a/apps/desktop/src-tauri/src/model_measurement/build.rs b/apps/desktop/src-tauri/src/model_measurement/build.rs
+index cf007b3..2988cee 100644
+--- a/apps/desktop/src-tauri/src/model_measurement/build.rs
++++ b/apps/desktop/src-tauri/src/model_measurement/build.rs
+@@ -2,6 +2,7 @@ use super::{
+     capture, failure, schema::MeasurementQuery, workspace::Workspace, ConfirmedMeasurement,
+ };
+ use crate::core::{AppState, Result};
++use crate::project_repository::backend::RepositoryRead;
+ use std::{
+     path::Path,
+     sync::{
+@@ -62,6 +63,57 @@ async fn measure_inner(
+     cancel: Arc<AtomicBool>,
+     executable: &Path,
+     hook: PhaseHook<'_>,
++) -> Result<ConfirmedMeasurement> {
++    measure_inner_source(
++        state,
++        project_id,
++        expected_revision,
++        body_id,
++        query,
++        cancel,
++        executable,
++        hook,
++        None,
++    )
++    .await
++}
++
++#[allow(clippy::too_many_arguments)]
++pub async fn measure_source_with_executable<'a>(
++    state: &'a AppState,
++    source: RepositoryRead<'a>,
++    expected_revision: &str,
++    body_id: &str,
++    query: &MeasurementQuery,
++    cancel: Arc<AtomicBool>,
++    executable: &Path,
++) -> Result<ConfirmedMeasurement> {
++    let project_id = source.project().id.clone();
++    measure_inner_source(
++        state,
++        &project_id,
++        expected_revision,
++        body_id,
++        query,
++        cancel,
++        executable,
++        PhaseHook::default(),
++        Some(source),
++    )
++    .await
++}
++
++#[allow(clippy::too_many_arguments)]
++async fn measure_inner_source<'a>(
++    state: &'a AppState,
++    project_id: &str,
++    expected_revision: &str,
++    body_id: &str,
++    query: &MeasurementQuery,
++    cancel: Arc<AtomicBool>,
++    executable: &Path,
++    hook: PhaseHook<'_>,
++    source: Option<RepositoryRead<'a>>,
+ ) -> Result<ConfirmedMeasurement> {
+     if !query.valid() {
+         return Err(failure(
+@@ -70,13 +122,17 @@ async fn measure_inner(
+         ));
+     }
+     cancelled(&cancel)?;
+-    let captured = capture::capture(state, project_id, expected_revision, body_id).await?;
++    let mut captured = match source {
++        Some(read) => capture::capture_bound(read, expected_revision, body_id).await?,
++        None => capture::capture(state, project_id, expected_revision, body_id).await?,
++    };
++    let task_scope = captured.snapshot.task_scope_id().to_owned();
+     let _permit = state
+         .cad_tasks
+-        .acquire(project_id, "reference_measurement", cancel.clone())
++        .acquire(&task_scope, "reference_measurement", cancel.clone())
+         .await?;
+     cancelled(&cancel)?;
+-    capture::recheck(state, &captured).await?;
++    capture::recheck(&mut captured).await?;
+     let workspace = Workspace::create(&state.root, project_id)?;
+     crate::artifacts::immutable_write(
+         &workspace.path,
+@@ -86,14 +142,14 @@ async fn measure_inner(
+     crate::artifacts::immutable_write(
+         &workspace.path,
+         Path::new("source.step"),
+-        &capture::source_bytes(state, &captured)?,
++        &capture::source_bytes(&captured).await?,
+     )?;
+-    crate::native::assets::stage_project_assets(
+-        state,
+-        &captured.snapshot.project,
++    crate::model_measurement::staging::stage_assets(
++        &captured.snapshot,
+         &captured.document,
+         &workspace.path,
+-    )?;
++    )
++    .await?;
+     cancelled(&cancel)?;
+     let report = crate::native::reference_measurements::client::measure_with_executable(
+         &workspace.path,
+@@ -116,7 +172,7 @@ async fn measure_inner(
+     }
+     #[cfg(not(test))]
+     let _ = hook;
+-    capture::recheck(state, &captured).await?;
++    capture::recheck(&mut captured).await?;
+     cancelled(&cancel)?;
+     Ok(ConfirmedMeasurement {
+         project_id: project_id.into(),
+@@ -127,3 +183,17 @@ async fn measure_inner(
+ #[cfg(test)]
+ #[path = "build_tests.rs"]
+ mod tests;
++
++#[cfg(all(
++    test,
++    feature = "native-occt",
++    any(
++        windows,
++        all(
++            target_os = "linux",
++            any(target_arch = "x86_64", target_arch = "aarch64")
++        )
++    )
++))]
++#[path = "folder_build_tests.rs"]
++mod folder_tests;
+diff --git a/apps/desktop/src-tauri/src/model_measurement/build_tests.rs b/apps/desktop/src-tauri/src/model_measurement/build_tests.rs
+index cc2d1da..38ecb30 100644
+--- a/apps/desktop/src-tauri/src/model_measurement/build_tests.rs
++++ b/apps/desktop/src-tauri/src/model_measurement/build_tests.rs
+@@ -1,6 +1,6 @@
+ use super::*;
+ #[allow(dead_code)]
+-mod fixture {
++pub(super) mod fixture {
+     use crate as forma_core;
+     include!(concat!(
+         env!("CARGO_MANIFEST_DIR"),
+diff --git a/apps/desktop/src-tauri/src/model_pair_measurement/build.rs b/apps/desktop/src-tauri/src/model_pair_measurement/build.rs
+index 8a9a657..db3d7f5 100644
+--- a/apps/desktop/src-tauri/src/model_pair_measurement/build.rs
++++ b/apps/desktop/src-tauri/src/model_pair_measurement/build.rs
+@@ -1,6 +1,7 @@
+ use super::{
+     failure, schema::PairMeasurementQuery, workspace::Workspace, ConfirmedPairMeasurement,
+ };
++use crate::project_repository::backend::RepositoryRead;
+ use crate::{
+     core::{AppState, Result},
+     model_measurement::capture,
+@@ -65,6 +66,57 @@ async fn measure_inner(
+     cancel: Arc<AtomicBool>,
+     executable: &Path,
+     hook: PhaseHook<'_>,
++) -> Result<ConfirmedPairMeasurement> {
++    measure_inner_source(
++        state,
++        project_id,
++        expected_revision,
++        body_id,
++        query,
++        cancel,
++        executable,
++        hook,
++        None,
++    )
++    .await
++}
++
++#[allow(clippy::too_many_arguments)]
++pub async fn measure_source_with_executable<'a>(
++    state: &'a AppState,
++    source: RepositoryRead<'a>,
++    expected_revision: &str,
++    body_id: &str,
++    query: &PairMeasurementQuery,
++    cancel: Arc<AtomicBool>,
++    executable: &Path,
++) -> Result<ConfirmedPairMeasurement> {
++    let project_id = source.project().id.clone();
++    measure_inner_source(
++        state,
++        &project_id,
++        expected_revision,
++        body_id,
++        query,
++        cancel,
++        executable,
++        PhaseHook::default(),
++        Some(source),
++    )
++    .await
++}
++
++#[allow(clippy::too_many_arguments)]
++async fn measure_inner_source<'a>(
++    state: &'a AppState,
++    project_id: &str,
++    expected_revision: &str,
++    body_id: &str,
++    query: &PairMeasurementQuery,
++    cancel: Arc<AtomicBool>,
++    executable: &Path,
++    hook: PhaseHook<'_>,
++    source: Option<RepositoryRead<'a>>,
+ ) -> Result<ConfirmedPairMeasurement> {
+     if !query.valid() {
+         return Err(failure(
+@@ -73,13 +125,17 @@ async fn measure_inner(
+         ));
+     }
+     cancelled(&cancel)?;
+-    let captured = capture::capture(state, project_id, expected_revision, body_id).await?;
++    let mut captured = match source {
++        Some(read) => capture::capture_bound(read, expected_revision, body_id).await?,
++        None => capture::capture(state, project_id, expected_revision, body_id).await?,
++    };
++    let task_scope = captured.snapshot.task_scope_id().to_owned();
+     let _permit = state
+         .cad_tasks
+-        .acquire(project_id, "pair_measurement", cancel.clone())
++        .acquire(&task_scope, "pair_measurement", cancel.clone())
+         .await?;
+     cancelled(&cancel)?;
+-    capture::recheck(state, &captured).await?;
++    capture::recheck(&mut captured).await?;
+     let workspace = Workspace::create(&state.root, project_id)?;
+     crate::artifacts::immutable_write(
+         &workspace.path,
+@@ -89,14 +145,14 @@ async fn measure_inner(
+     crate::artifacts::immutable_write(
+         &workspace.path,
+         Path::new("source.step"),
+-        &capture::source_bytes(state, &captured)?,
++        &capture::source_bytes(&captured).await?,
+     )?;
+-    crate::native::assets::stage_project_assets(
+-        state,
+-        &captured.snapshot.project,
++    crate::model_measurement::staging::stage_assets(
++        &captured.snapshot,
+         &captured.document,
+         &workspace.path,
+-    )?;
++    )
++    .await?;
+     cancelled(&cancel)?;
+     let report = crate::native::pair_measurements::client::measure_with_executable(
+         &workspace.path,
+@@ -119,7 +175,7 @@ async fn measure_inner(
+     }
+     #[cfg(not(test))]
+     let _ = hook;
+-    capture::recheck(state, &captured).await?;
++    capture::recheck(&mut captured).await?;
+     cancelled(&cancel)?;
+     Ok(ConfirmedPairMeasurement {
+         project_id: project_id.into(),
+diff --git a/apps/desktop/src-tauri/src/model_face_section/build.rs b/apps/desktop/src-tauri/src/model_face_section/build.rs
+index 595e451..b5beee6 100644
+--- a/apps/desktop/src-tauri/src/model_face_section/build.rs
++++ b/apps/desktop/src-tauri/src/model_face_section/build.rs
+@@ -1,4 +1,5 @@
+ use super::{failure, schema::FaceSectionQuery, workspace::Workspace, ConfirmedFaceSection};
++use crate::project_repository::backend::RepositoryRead;
+ use crate::{
+     core::{AppState, Result},
+     model_measurement::capture,
+@@ -56,6 +57,57 @@ async fn section_inner(
+     cancel: Arc<AtomicBool>,
+     executable: &Path,
+     hook: PhaseHook<'_>,
++) -> Result<ConfirmedFaceSection> {
++    section_inner_source(
++        state,
++        project_id,
++        expected_revision,
++        body_id,
++        query,
++        cancel,
++        executable,
++        hook,
++        None,
++    )
++    .await
++}
++
++#[allow(clippy::too_many_arguments)]
++pub async fn section_source_with_executable<'a>(
++    state: &'a AppState,
++    source: RepositoryRead<'a>,
++    expected_revision: &str,
++    body_id: &str,
++    query: &FaceSectionQuery,
++    cancel: Arc<AtomicBool>,
++    executable: &Path,
++) -> Result<ConfirmedFaceSection> {
++    let project_id = source.project().id.clone();
++    section_inner_source(
++        state,
++        &project_id,
++        expected_revision,
++        body_id,
++        query,
++        cancel,
++        executable,
++        PhaseHook::default(),
++        Some(source),
++    )
++    .await
++}
++
++#[allow(clippy::too_many_arguments)]
++async fn section_inner_source<'a>(
++    state: &'a AppState,
++    project_id: &str,
++    expected_revision: &str,
++    body_id: &str,
++    query: &FaceSectionQuery,
++    cancel: Arc<AtomicBool>,
++    executable: &Path,
++    hook: PhaseHook<'_>,
++    source: Option<RepositoryRead<'a>>,
+ ) -> Result<ConfirmedFaceSection> {
+     if !query.valid() {
+         return Err(failure(
+@@ -64,13 +116,17 @@ async fn section_inner(
+         ));
+     }
+     cancelled(&cancel)?;
+-    let captured = capture::capture(state, project_id, expected_revision, body_id).await?;
++    let mut captured = match source {
++        Some(read) => capture::capture_bound(read, expected_revision, body_id).await?,
++        None => capture::capture(state, project_id, expected_revision, body_id).await?,
++    };
++    let task_scope = captured.snapshot.task_scope_id().to_owned();
+     let _permit = state
+         .cad_tasks
+-        .acquire(project_id, "face_section", cancel.clone())
++        .acquire(&task_scope, "face_section", cancel.clone())
+         .await?;
+     cancelled(&cancel)?;
+-    capture::recheck(state, &captured).await?;
++    capture::recheck(&mut captured).await?;
+     let workspace = Workspace::create(&state.root, project_id)?;
+     crate::artifacts::immutable_write(
+         &workspace.path,
+@@ -80,14 +136,14 @@ async fn section_inner(
+     crate::artifacts::immutable_write(
+         &workspace.path,
+         Path::new("source.step"),
+-        &capture::source_bytes(state, &captured)?,
++        &capture::source_bytes(&captured).await?,
+     )?;
+-    crate::native::assets::stage_project_assets(
+-        state,
+-        &captured.snapshot.project,
++    crate::model_measurement::staging::stage_assets(
++        &captured.snapshot,
+         &captured.document,
+         &workspace.path,
+-    )?;
++    )
++    .await?;
+     cancelled(&cancel)?;
+     let report = crate::native::face_section::client::section_with_executable(
+         &workspace.path,
+@@ -110,7 +166,7 @@ async fn section_inner(
+     }
+     #[cfg(not(test))]
+     let _ = hook;
+-    capture::recheck(state, &captured).await?;
++    capture::recheck(&mut captured).await?;
+     cancelled(&cancel)?;
+     Ok(ConfirmedFaceSection {
+         project_id: project_id.into(),
+diff --git a/apps/desktop/src-tauri/src/model_snap/build.rs b/apps/desktop/src-tauri/src/model_snap/build.rs
+index ab175db..36d1d27 100644
+--- a/apps/desktop/src-tauri/src/model_snap/build.rs
++++ b/apps/desktop/src-tauri/src/model_snap/build.rs
+@@ -1,5 +1,6 @@
+ //! Read-only exact snap against the committed authored body; never writes the live project.
+ use super::{client, schema::SnapQuery, ConfirmedSnap};
++use crate::project_repository::backend::RepositoryRead;
+ use crate::{
+     core::{AppError, AppState, Result},
+     model_measurement::{capture, workspace::Workspace},
+@@ -20,6 +21,48 @@ pub async fn snap_with_executable(
+     body_id: &str,
+     query: &SnapQuery,
+     executable: &Path,
++) -> Result<ConfirmedSnap> {
++    snap_inner(
++        state,
++        project_id,
++        expected_revision,
++        body_id,
++        query,
++        executable,
++        None,
++    )
++    .await
++}
++
++pub async fn snap_source_with_executable<'a>(
++    state: &'a AppState,
++    source: RepositoryRead<'a>,
++    expected_revision: &str,
++    body_id: &str,
++    query: &SnapQuery,
++    executable: &Path,
++) -> Result<ConfirmedSnap> {
++    let project_id = source.project().id.clone();
++    snap_inner(
++        state,
++        &project_id,
++        expected_revision,
++        body_id,
++        query,
++        executable,
++        Some(source),
++    )
++    .await
++}
++
++async fn snap_inner<'a>(
++    state: &'a AppState,
++    project_id: &str,
++    expected_revision: &str,
++    body_id: &str,
++    query: &SnapQuery,
++    executable: &Path,
++    source: Option<RepositoryRead<'a>>,
+ ) -> Result<ConfirmedSnap> {
+     if !query.valid() {
+         return Err(failure(
+@@ -28,12 +71,16 @@ pub async fn snap_with_executable(
+         ));
+     }
+     let cancel = Arc::new(AtomicBool::new(false));
+-    let captured = capture::capture(state, project_id, expected_revision, body_id).await?;
++    let mut captured = match source {
++        Some(read) => capture::capture_bound(read, expected_revision, body_id).await?,
++        None => capture::capture(state, project_id, expected_revision, body_id).await?,
++    };
++    let task_scope = captured.snapshot.task_scope_id().to_owned();
+     let _permit = state
+         .cad_tasks
+-        .acquire(project_id, "exact_snap", cancel.clone())
++        .acquire(&task_scope, "exact_snap", cancel.clone())
+         .await?;
+-    capture::recheck(state, &captured).await?;
++    capture::recheck(&mut captured).await?;
+     let workspace = Workspace::create(&state.root, project_id)?;
+     crate::artifacts::immutable_write(
+         &workspace.path,
+@@ -43,14 +90,14 @@ pub async fn snap_with_executable(
+     crate::artifacts::immutable_write(
+         &workspace.path,
+         Path::new("source.step"),
+-        &capture::source_bytes(state, &captured)?,
++        &capture::source_bytes(&captured).await?,
+     )?;
+-    crate::native::assets::stage_project_assets(
+-        state,
+-        &captured.snapshot.project,
++    crate::model_measurement::staging::stage_assets(
++        &captured.snapshot,
+         &captured.document,
+         &workspace.path,
+-    )?;
++    )
++    .await?;
+     let report = client::snap_with_executable(
+         &workspace.path,
+         cancel,
+@@ -59,7 +106,7 @@ pub async fn snap_with_executable(
+         query,
+     )
+     .await?;
+-    capture::recheck(state, &captured).await?;
++    capture::recheck(&mut captured).await?;
+     Ok(ConfirmedSnap {
+         project_id: project_id.into(),
+         report,
+diff --git a/apps/desktop/src-tauri/src/model_measurement/staging.rs b/apps/desktop/src-tauri/src/model_measurement/staging.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/model_measurement/staging.rs
+@@ -0,0 +1,67 @@
++//! Move verified source bytes into the existing native reference stager.
++use super::failure;
++use crate::{cad_ir::Document, core::Result, project_repository::backend::RepositoryRead};
++use std::{
++    collections::{HashMap, VecDeque},
++    path::Path,
++};
++
++pub(crate) async fn stage_assets(
++    read: &RepositoryRead<'_>,
++    document: &Document,
++    cwd: &Path,
++) -> Result<()> {
++    document.validate().map_err(crate::cad_ir::app_error)?;
++    let mut inputs: HashMap<String, VecDeque<Vec<u8>>> = HashMap::new();
++    let mut total = 0usize;
++    for (_, hash) in
++        crate::cad_ir::assets::references(document).map_err(crate::cad_ir::app_error)?
++    {
++        let file = read
++            .project()
++            .files
++            .iter()
++            .find(|file| {
++                file.sha256.as_deref() == Some(hash)
++                    && Path::new(&file.name)
++                        .extension()
++                        .and_then(|v| v.to_str())
++                        .is_some_and(|v| {
++                            v.eq_ignore_ascii_case("step") || v.eq_ignore_ascii_case("stp")
++                        })
++            })
++            .ok_or_else(|| {
++                failure(
++                    "ASSET_MISSING",
++                    "Referenced STEP is absent from this project",
++                )
++            })?;
++        if file.size == 0 || file.size > crate::artifacts::MAX_FILE_BYTES as u64 {
++            return Err(failure("ASSET_LIMIT", "Project STEP exceeds input limits"));
++        }
++        let bytes = read
++            .read_asset(file)
++            .await
++            .map_err(super::snapshot::asset_error)?;
++        total = total
++            .checked_add(bytes.len())
++            .ok_or_else(|| failure("ASSET_LIMIT", "STEP input size overflow"))?;
++        if total > crate::native::assets::MAX_TOTAL_STEP_BYTES {
++            return Err(failure(
++                "ASSET_LIMIT",
++                "Total project STEP inputs exceed 128 MB",
++            ));
++        }
++        inputs.entry(hash.to_owned()).or_default().push_back(bytes);
++    }
++    // Move each buffer, including duplicate-reference occurrences. The native
++    // stager retains its original validation and aggregate limit; no clone doubles RSS.
++    crate::native::assets::stage_assets_with(read.project(), document, cwd, |file| {
++        file.sha256
++            .as_deref()
++            .and_then(|hash| inputs.get_mut(hash))
++            .and_then(VecDeque::pop_front)
++            .ok_or_else(|| failure("ASSET_MISSING", "Captured STEP staging bytes are missing"))
++    })?;
++    read.recheck().await.map_err(super::snapshot::compatible)
++}
+diff --git a/apps/desktop/src-tauri/src/model_measurement/folder_build_tests.rs b/apps/desktop/src-tauri/src/model_measurement/folder_build_tests.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/model_measurement/folder_build_tests.rs
+@@ -0,0 +1,236 @@
++use super::tests::fixture;
++use super::*;
++use crate::{
++    cad_ir::{Body, Document, Feature, Operation},
++    project_repository::{
++        backend::RepositoryRead,
++        sqlite_folder::api::{FolderProject, Publication},
++    },
++};
++
++async fn imported_folder(
++    state: &AppState,
++    baseline: &crate::models::Project,
++    root: &Path,
++) -> Arc<FolderProject> {
++    let mut project = baseline.clone();
++    let revision = project.current_revision.clone().unwrap();
++    let source_name = project
++        .revisions
++        .iter()
++        .find(|entry| entry.id == revision)
++        .unwrap()
++        .source
++        .clone()
++        .unwrap();
++    let source_hash = project
++        .files
++        .iter()
++        .find(|file| file.name == source_name)
++        .unwrap()
++        .sha256
++        .clone()
++        .unwrap();
++    let document = Document {
++        schema_version: 2,
++        revision_id: revision.clone(),
++        parameters: vec![],
++        features: vec![Feature {
++            id: "imported".into(),
++            name: "Imported fixture".into(),
++            suppressed: false,
++            operation: Operation::ImportStep {
++                asset_id: format!("step_{source_hash}"),
++                sha256: source_hash,
++            },
++        }],
++        bodies: vec![Body {
++            id: "body".into(),
++            name: "Body".into(),
++            source_feature_id: "imported".into(),
++        }],
++    };
++    let authored = project
++        .revisions
++        .iter_mut()
++        .find(|entry| entry.id == revision)
++        .unwrap();
++    authored.program = Some(serde_json::to_string(&document).unwrap());
++    // The old mesh describes the box's original authored feature IDs, not this
++    // import document. Exact measurements support a saved STEP without preview.
++    authored.preview = None;
++    let mut pending = Vec::new();
++    for file in &project.files {
++        pending.push((
++            file.sha256.clone().unwrap(),
++            crate::artifacts::read(state, &project.id, file).unwrap(),
++        ));
++    }
++    assert!(matches!(
++        FolderProject::create(root, project, pending, None)
++            .await
++            .unwrap(),
++        Publication::Committed(_)
++    ));
++    // The folder owns independent bytes; a managed attachment with the same
++    // project/hash/name must never be a fallback for capture or reference staging.
++    for file in &baseline.files {
++        let hash = file.sha256.as_deref().unwrap();
++        let ext = Path::new(&file.name)
++            .extension()
++            .unwrap()
++            .to_str()
++            .unwrap()
++            .to_ascii_lowercase();
++        let path = state
++            .root
++            .join(&baseline.id)
++            .join("attachments")
++            .join(format!("{hash}.{ext}"));
++        let mut bytes = std::fs::read(&path).unwrap();
++        bytes[0] ^= 1;
++        std::fs::write(path, bytes).unwrap();
++    }
++    Arc::new(FolderProject::open(root).await.unwrap())
++}
++
++#[tokio::test]
++async fn queued_folder_measurement_preserves_metadata_and_stages_actual_import() {
++    let app = tempfile::tempdir().unwrap();
++    let folder = tempfile::tempdir().unwrap();
++    let (state, baseline) = fixture::fixture(app.path()).await;
++    let source = imported_folder(&state, &baseline, folder.path()).await;
++    let original = source.capture_metadata().await.unwrap();
++    let scope = original.task_scope_id().to_owned();
++    let revision = original.project().current_revision.clone().unwrap();
++    let read = RepositoryRead::from_folder_view(
++        Arc::clone(&source),
++        source.capture_metadata().await.unwrap(),
++    )
++    .await
++    .unwrap();
++    let hold = state
++        .cad_tasks
++        .acquire(&baseline.id, "hold", fixture::token())
++        .await
++        .unwrap();
++    let job_state = Arc::clone(&state);
++    let job_revision = revision.clone();
++    let job = tokio::spawn(async move {
++        measure_source_with_executable(
++            &job_state,
++            read,
++            &job_revision,
++            "body",
++            &MeasurementQuery::BodyMetrics {},
++            fixture::token(),
++            fixture::executable(),
++        )
++        .await
++    });
++    tokio::time::timeout(std::time::Duration::from_secs(15), async {
++        loop {
++            if state.cad_tasks.status().unwrap().iter().any(|task| {
++                task.project_id == scope
++                    && task.kind == "reference_measurement"
++                    && task.state == "queued"
++            }) {
++                break;
++            }
++            assert!(
++                !job.is_finished(),
++                "The real measurement must enter its queue before metadata publication"
++            );
++            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
++        }
++    })
++    .await
++    .unwrap();
++    let approval = source.approve_write(&original).await.unwrap();
++    let mut metadata = original.project().clone();
++    metadata.name = "Folder metadata winner".into();
++    metadata.messages.push(crate::models::Message {
++        id: uuid::Uuid::new_v4().to_string(),
++        role: "assistant".into(),
++        text: "Queued metadata".into(),
++        created_at: "2026-11-04T00:00:00Z".into(),
++    });
++    assert!(matches!(
++        source
++            .commit(&original, approval, metadata.clone(), vec![])
++            .await
++            .unwrap(),
++        Publication::Committed(_)
++    ));
++    let app_before = fixture::snapshot(&state, &baseline.id).await;
++    let folder_before = std::fs::read(folder.path().join("project.sqlite")).unwrap();
++    drop(hold);
++    let report = job.await.unwrap().unwrap();
++    assert_eq!(report.report.imported_asset_seals.len(), 1);
++    match report.report.result {
++        crate::model_measurement::schema::MeasurementValue::BodyMetrics {
++            volume_mm3,
++            extents_mm,
++            ..
++        } => {
++            assert!((volume_mm3 - 8000.0).abs() < 1e-6);
++            for (a, b) in extents_mm.into_iter().zip([40.0, 20.0, 10.0]) {
++                assert!((a - b).abs() < 1e-6);
++            }
++        }
++        _ => panic!("Expected genuine body metrics"),
++    }
++    assert_eq!(fixture::snapshot(&state, &baseline.id).await, app_before);
++    assert_eq!(
++        std::fs::read(folder.path().join("project.sqlite")).unwrap(),
++        folder_before
++    );
++    let latest = source.capture_metadata().await.unwrap();
++    assert_eq!(latest.project().messages, metadata.messages);
++    assert_eq!(latest.project().name, metadata.name);
++    fixture::clean(&state).await;
++}
++
++#[tokio::test]
++async fn folder_close_after_real_measurement_refuses_the_late_report() {
++    let app = tempfile::tempdir().unwrap();
++    let folder = tempfile::tempdir().unwrap();
++    let (state, baseline) = fixture::fixture(app.path()).await;
++    let source = imported_folder(&state, &baseline, folder.path()).await;
++    let original = source.capture_metadata().await.unwrap();
++    let revision = original.project().current_revision.clone().unwrap();
++    let read = RepositoryRead::from_folder_view(Arc::clone(&source), original)
++        .await
++        .unwrap();
++    let app_before = fixture::snapshot(&state, &baseline.id).await;
++    let folder_before = std::fs::read(folder.path().join("project.sqlite")).unwrap();
++    let called = AtomicBool::new(false);
++    let after_worker = || {
++        called.store(true, Ordering::Relaxed);
++        source.close();
++    };
++    let error = measure_inner_source(
++        &state,
++        &baseline.id,
++        &revision,
++        "body",
++        &MeasurementQuery::BodyMetrics {},
++        fixture::token(),
++        fixture::executable(),
++        PhaseHook {
++            after_worker: Some(&after_worker),
++            ..Default::default()
++        },
++        Some(read),
++    )
++    .await
++    .unwrap_err();
++    assert!(called.load(Ordering::Relaxed));
++    assert!(error.to_string().contains("MEASUREMENT_STALE"), "{error}");
++    assert_eq!(fixture::snapshot(&state, &baseline.id).await, app_before);
++    assert_eq!(
++        std::fs::read(folder.path().join("project.sqlite")).unwrap(),
++        folder_before
++    );
++    fixture::clean(&state).await;
++}
