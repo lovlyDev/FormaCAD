@@ -2,6 +2,42 @@
 use super::*;
 use crate::{models::Project, project_repository::sqlite_folder::api::Publication};
 
+#[tokio::test]
+async fn common_readers_keep_original_window_source_and_close_only_their_own_handle() {
+    use crate::project_repository::backend::ProjectRepository;
+    let root = tempfile::tempdir().unwrap();
+    fixture(root.path(), &uuid::Uuid::new_v4().to_string()).await;
+    let sources = FolderSources::default();
+    let opened = sources.open(root.path()).await.unwrap();
+    let key = opened.id.to_string();
+    let first = ProjectRepository::from_folder_source(sources.lookup(&key).unwrap());
+    let second = ProjectRepository::from_folder_source(sources.lookup(&key).unwrap());
+    let first_view = first.capture().await.unwrap();
+    let second_view = second.capture_with_history().await.unwrap();
+    assert!(second.recheck(&first_view).await.is_err());
+    assert!(first.recheck(&second_view).await.is_err());
+    assert!(second.read_history(&second_view).await.unwrap().is_some());
+    first.close();
+    assert!(first.recheck(&first_view).await.is_err());
+    second.recheck(&second_view).await.unwrap();
+    sources
+        .lookup(&key)
+        .unwrap()
+        .recheck(&opened.snapshot)
+        .await
+        .unwrap();
+    assert!(sources.close(&key).unwrap());
+    assert!(second.recheck(&second_view).await.is_err());
+    assert!(second.capture().await.is_err());
+    assert!(second.read_history(&second_view).await.is_err());
+    let reopened = sources.open(root.path()).await.unwrap();
+    let third =
+        ProjectRepository::from_folder_source(sources.lookup(&reopened.id.to_string()).unwrap());
+    assert!(third.recheck(&second_view).await.is_err());
+    third.capture().await.unwrap();
+    assert!(second.capture().await.is_err());
+}
+
 async fn fixture(root: &Path, id: &str) {
     let project: Project = serde_json::from_value(serde_json::json!({
         "schemaVersion":1,"id":id,"name":"Source registry fixture",

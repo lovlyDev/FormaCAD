@@ -35,7 +35,10 @@ enum Backend<'a> {
             any(target_arch = "x86_64", target_arch = "aarch64")
         )
     ))]
-    Independent(FolderProject),
+    Independent {
+        source: std::sync::Arc<FolderProject>,
+        owns_opening: bool,
+    },
 }
 
 enum CapturedBackend {
@@ -118,10 +121,34 @@ impl<'a> ProjectRepository<'a> {
     ))]
     pub async fn independent_folder(root: &Path) -> Result<Self> {
         Ok(Self {
-            backend: Backend::Independent(FolderProject::open(root).await?),
+            backend: Backend::Independent {
+                source: std::sync::Arc::new(FolderProject::open(root).await?),
+                owns_opening: true,
+            },
             identity: uuid::Uuid::new_v4(),
             active: AtomicBool::new(true),
         })
+    }
+
+    /// A request-local reader over the window's existing opening. Closing this
+    /// wrapper revokes its own snapshots; only the window/source owner closes
+    /// the shared opening. No path lookup or new source capture authorizes it.
+    #[cfg(any(
+        windows,
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        )
+    ))]
+    pub fn from_folder_source(source: std::sync::Arc<FolderProject>) -> Self {
+        Self {
+            backend: Backend::Independent {
+                source,
+                owns_opening: false,
+            },
+            identity: uuid::Uuid::new_v4(),
+            active: AtomicBool::new(true),
+        }
     }
 
     fn check_open(&self) -> Result<()> {
@@ -145,7 +172,14 @@ impl<'a> ProjectRepository<'a> {
                     any(target_arch = "x86_64", target_arch = "aarch64")
                 )
             ))]
-            Backend::Independent(source) => source.close(),
+            Backend::Independent {
+                source,
+                owns_opening,
+            } => {
+                if *owns_opening {
+                    source.close();
+                }
+            }
         }
     }
 
@@ -180,13 +214,13 @@ impl<'a> ProjectRepository<'a> {
                     any(target_arch = "x86_64", target_arch = "aarch64")
                 )
             ))]
-            Backend::Independent(repository) => {
-                CapturedBackend::Independent(Box::new(if with_archive {
-                    repository.capture().await?
-                } else {
-                    repository.capture_metadata().await?
-                }))
-            }
+            Backend::Independent {
+                source: repository, ..
+            } => CapturedBackend::Independent(Box::new(if with_archive {
+                repository.capture().await?
+            } else {
+                repository.capture_metadata().await?
+            })),
         };
         self.check_open()?;
         Ok(RepositorySnapshot {
@@ -218,9 +252,12 @@ impl<'a> ProjectRepository<'a> {
                     any(target_arch = "x86_64", target_arch = "aarch64")
                 )
             ))]
-            (Backend::Independent(repository), CapturedBackend::Independent(snapshot)) => {
-                repository.recheck(snapshot).await
-            }
+            (
+                Backend::Independent {
+                    source: repository, ..
+                },
+                CapturedBackend::Independent(snapshot),
+            ) => repository.recheck(snapshot).await,
             _ => Err(legacy::changed()),
         }?;
         self.check_open()
@@ -254,9 +291,12 @@ impl<'a> ProjectRepository<'a> {
                     any(target_arch = "x86_64", target_arch = "aarch64")
                 )
             ))]
-            (Backend::Independent(repository), CapturedBackend::Independent(snapshot)) => {
-                repository.read_asset(snapshot, file).await?
-            }
+            (
+                Backend::Independent {
+                    source: repository, ..
+                },
+                CapturedBackend::Independent(snapshot),
+            ) => repository.read_asset(snapshot, file).await?,
             _ => return Err(legacy::changed()),
         };
         if bytes.len() as u64 != file.size
@@ -305,9 +345,12 @@ impl<'a> ProjectRepository<'a> {
                     any(target_arch = "x86_64", target_arch = "aarch64")
                 )
             ))]
-            (Backend::Independent(repository), CapturedBackend::Independent(snapshot)) => {
-                Some(Cow::Owned(repository.read_history(snapshot).await?))
-            }
+            (
+                Backend::Independent {
+                    source: repository, ..
+                },
+                CapturedBackend::Independent(snapshot),
+            ) => Some(Cow::Owned(repository.read_history(snapshot).await?)),
             _ => return Err(legacy::changed()),
         };
         self.recheck(snapshot).await?;

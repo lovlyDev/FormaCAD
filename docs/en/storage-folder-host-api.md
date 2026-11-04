@@ -78,6 +78,15 @@ Two folders sharing a project ID remain distinct. `close` immediately revokes
 the original session. `close_all` permanently closes the window scope, including
 pending openings; another window creates another registry.
 
+The common `ProjectRepository::from_folder_source` reader accepts the actual
+Arc returned by this registry. It does not reopen the path or create a managed
+project. Each request wrapper binds its own snapshots; closing that wrapper
+revokes only its own views. The window registry still owns the source lifetime:
+closing its key revokes every wrapper, and reopening cannot revive old views.
+The standalone `independent_folder` constructor retains ownership of its own
+opening and closes it with its handle. A real-folder regression exercises both
+wrapper isolation and source-wide revocation through the common history route.
+
 Ready and pending sources together are limited to 16. Capacity is reserved before
 file IO. The map mutex never crosses SQL/disk/worker/await operations. Cancellation
 releases its slot; after map publication but before returning the result, the
