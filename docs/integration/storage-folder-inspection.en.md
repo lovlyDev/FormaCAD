@@ -2,7 +2,8 @@
 
 [Русский](storage-folder-inspection.md) · [Host API](../en/storage-folder-host-api.md)
 
-Status: **prepared, not applied**. Base:
+Status: **applied after lovlyDev approved all 10 files** on 4 November 2026.
+Strict compilation and native tests for the new revision are pending. Patch base:
 `4e16dd42da581b664618837a2c0e1041acfc1e2c`, Issue #31 / PR #35.
 Implementation owner: wenlixxq; scope agreement and acceptance: lovlyDev.
 
@@ -47,7 +48,7 @@ Rust paths are relative to `apps/desktop/src-tauri/src/`:
 Exact diff: [storage-folder-inspection.patch](storage-folder-inspection.patch).
 `git apply --check` and staged Rust formatting passed. The base passed
 [Storage comparison](https://github.com/lovlyDev/FormaCAD/actions/runs/41810364767);
-the prepared patch itself is unapplied and uncompiled.
+the subsequently applied patch still needs its own compilation and native tests.
 
 The new native regression builds a real 40×20×10 STEP, saves FCP1, and installs a
 conflicting managed row sharing its ID with intentionally invalid STEP bytes.

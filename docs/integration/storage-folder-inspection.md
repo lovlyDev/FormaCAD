@@ -2,7 +2,8 @@
 
 [English](storage-folder-inspection.en.md) · [Host API](../ru/storage-folder-host-api.md)
 
-Статус: **подготовлен, не применён**. Основа —
+Статус: **применён после разрешения lovlyDev на все 10 файлов** 4 ноября 2026.
+Строгая компиляция и native-проверки новой ревизии ещё ожидаются. Основа патча —
 `4e16dd42da581b664618837a2c0e1041acfc1e2c`, Issue #31 / PR #35.
 Ответственный за реализацию — wenlixxq, согласование и приёмка — lovlyDev.
 
@@ -47,7 +48,7 @@ Frontend `inspectSavedModel` принимает необязательный с�
 Точный diff: [storage-folder-inspection.patch](storage-folder-inspection.patch).
 `git apply --check` и rustfmt staged Rust прошли. Основа прошла
 [Storage comparison](https://github.com/lovlyDev/FormaCAD/actions/runs/41810364767);
-сам подготовленный патч не применён и не скомпилирован.
+применённый позже патч ещё требует собственной компиляции и native-проверок.
 
 Новая native-регрессия строит настоящий STEP 40×20×10, сохраняет FCP1 и создаёт
 конфликтующую managed-строку с тем же ID, но заведомо неверными STEP-байтами.

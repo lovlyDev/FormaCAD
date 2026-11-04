@@ -20,7 +20,7 @@ impl WindowSources {
         ))]
         {
             crate::security::file_name(name)?;
-            let read = self.capture_expected(label, key, id, expected).await?;
+            let read = self.capture_read(label, key, id, expected).await?;
             let file = read
                 .project()
                 .files

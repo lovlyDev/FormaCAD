@@ -76,11 +76,11 @@ async fn assets_bind_original_source_commit_and_descriptor_without_app_index() {
         .is_err()
     );
     let closing_read = windows
-        .capture_expected("assets", &key_a, &id, commit_a)
+        .capture_read("assets", &key_a, &id, commit_a)
         .await
         .unwrap();
     let stale_read = windows
-        .capture_expected("assets", &key_a, &id, commit_a)
+        .capture_read("assets", &key_a, &id, commit_a)
         .await
         .unwrap();
     assert!(stale_read.read_history().await.unwrap().is_some());
@@ -111,7 +111,7 @@ async fn assets_bind_original_source_commit_and_descriptor_without_app_index() {
         .await
         .is_err());
     let closing_source = windows
-        .capture_expected("assets", &key_b, &id, commit_b)
+        .capture_read("assets", &key_b, &id, commit_b)
         .await
         .unwrap();
     assert!(windows.close_source("assets", &key_b).unwrap());

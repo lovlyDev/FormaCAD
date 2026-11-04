@@ -4,6 +4,7 @@ use crate::{
     models::Project,
 };
 mod assets;
+mod capture;
 pub mod ipc;
 
 #[cfg(any(
@@ -68,7 +69,7 @@ impl WindowSources {
             )
         ))]
         {
-            let read = self.capture_expected(label, key, id, expected).await?;
+            let read = self.capture_read(label, key, id, expected).await?;
             let project = read.project().clone();
             read.recheck().await?;
             Ok(project)

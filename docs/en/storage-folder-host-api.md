@@ -11,6 +11,30 @@ and the V2 reader remain separate.
 
 ## Reading
 
+### Exact saved STEP properties
+
+The existing `inspect_model` now accepts the same optional source/expected-commit
+pair as metadata and attachment IPC. `inspectSavedModel` accepts a
+`FolderSourceRef`. Managed calls keep their existing arguments. Invalid/partial
+folder references fail before inspection; unsupported builds and browser folder
+calls use the existing localized unsupported-environment error.
+
+Both backends use one inspection algorithm over `RepositoryRead`. It selects the
+saved STEP revision/descriptor, verifies bytes through the common reader, checks
+the original view after waiting for the CAD gate and after the actual worker,
+and retains byte/cancellation checks. The output property fields and geometry
+algorithm are unchanged. There is no recovery or writer grant in this route.
+
+The new native regression creates genuine 40×20×10 STEP in FCP1, then installs
+invalid STEP bytes in a managed row with the same project ID. Folder inspection
+must still report 8000 mm³ and correct bounds. Closing the original folder after
+the real worker must refuse its late properties, while source SQL/app state stay
+unchanged. This applied revision is not yet verified by native CI.
+
+CAD gate/status/cancel still use project ID conservatively. Source-specific task
+identity, remaining geometry consumers, workspace propagation and the folder UI
+remain incomplete gates. This inspection route does not complete stage 4.
+
 ### Window-bound attachments
 
 `backend::RepositoryRead` keeps one `ProjectRepository` together with its original

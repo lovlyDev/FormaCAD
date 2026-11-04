@@ -1,6 +1,6 @@
 use super::*;
 use crate::project_repository::legacy::read_test_fixture as fixture;
-fn worker() -> PathBuf {
+pub(super) fn worker() -> PathBuf {
     option_env!("CARGO_BIN_EXE_forma-cad-worker")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
@@ -13,7 +13,7 @@ fn worker() -> PathBuf {
                 .join(format!("forma-cad-worker{}", std::env::consts::EXE_SUFFIX))
         })
 }
-async fn saved_step(state: &AppState) -> crate::models::Project {
+pub(super) async fn saved_step(state: &AppState) -> crate::models::Project {
     let mut project = fixture::project(state, 4).await;
     // Generate the genuine STEP in an isolated process, as the desktop does.
     // Worker exit closes its native IO before the host reads and removes staging.
