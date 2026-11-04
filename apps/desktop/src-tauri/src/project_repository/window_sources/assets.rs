@@ -20,17 +20,17 @@ impl WindowSources {
         ))]
         {
             crate::security::file_name(name)?;
-            let (source, view) = self.capture_expected(label, key, id, expected).await?;
-            let file = view
+            let read = self.capture_expected(label, key, id, expected).await?;
+            let file = read
                 .project()
                 .files
                 .iter()
                 .find(|file| file.name == name)
                 .ok_or_else(|| AppError::Invalid("Project attachment was not found".into()))?;
-            let bytes = source.read_asset(&view, file).await?;
+            let bytes = read.read_asset(file).await?;
             let response = crate::artifacts::data_url(&file.name, &bytes);
             // Encoding can be substantial; recheck the same original view after it.
-            source.recheck(&view).await?;
+            read.recheck().await?;
             Ok(response)
         }
         #[cfg(not(any(

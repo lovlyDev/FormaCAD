@@ -66,6 +66,34 @@ async fn assets_bind_original_source_commit_and_descriptor_without_app_index() {
         std::fs::read(a.path().join("project.sqlite")).unwrap()
     );
     let source = scope.lookup(&key_a).unwrap();
+    let foreign_view = source.capture_metadata().await.unwrap();
+    assert!(
+        crate::project_repository::backend::RepositoryRead::from_folder_view(
+            scope.lookup(&key_b).unwrap(),
+            foreign_view
+        )
+        .await
+        .is_err()
+    );
+    let closing_read = windows
+        .capture_expected("assets", &key_a, &id, commit_a)
+        .await
+        .unwrap();
+    let stale_read = windows
+        .capture_expected("assets", &key_a, &id, commit_a)
+        .await
+        .unwrap();
+    assert!(stale_read.read_history().await.unwrap().is_some());
+    closing_read.close();
+    assert!(closing_read.recheck().await.is_err());
+    stale_read.recheck().await.unwrap();
+    assert_eq!(
+        windows
+            .read_asset("assets", &key_a, &id, commit_a, "fixture.pdf")
+            .await
+            .unwrap(),
+        crate::artifacts::data_url("fixture.pdf", b"source-A bytes")
+    );
     let approval = source.approve_write(&first.snapshot).await.unwrap();
     let mut changed = first.snapshot.project().clone();
     changed.name = "Externally changed metadata".into();
@@ -76,11 +104,18 @@ async fn assets_bind_original_source_commit_and_descriptor_without_app_index() {
             .unwrap(),
         Publication::Committed(_)
     ));
+    assert!(stale_read.recheck().await.is_err());
+    assert!(stale_read.read_history().await.is_err());
     assert!(windows
         .read_asset("assets", &key_a, &id, commit_a, "fixture.pdf")
         .await
         .is_err());
+    let closing_source = windows
+        .capture_expected("assets", &key_b, &id, commit_b)
+        .await
+        .unwrap();
     assert!(windows.close_source("assets", &key_b).unwrap());
+    assert!(closing_source.recheck().await.is_err());
     assert!(windows
         .read_asset("assets", &key_b, &id, commit_b, "fixture.pdf")
         .await

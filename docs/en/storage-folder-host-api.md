@@ -13,6 +13,22 @@ and the V2 reader remain separate.
 
 ### Window-bound attachments
 
+`backend::RepositoryRead` keeps one `ProjectRepository` together with its original
+`RepositorySnapshot`. Native readers can take this bound value through queued
+work and recheck the same saved state afterward. Managed callers explicitly
+choose metadata capture or `capture_with_history`; no metadata-only managed view
+can acquire an archive implicitly. For FCP1, `from_folder_view` adopts the exact
+original host view and verifies it against the supplied opening before returning;
+it never reopens a path or replaces the view with a fresh capture.
+
+Window metadata and attachment readers use this same common bound route. Request
+`close` revokes only that reader; the window still owns the shared source. Source
+close revokes every retained reader. The attachment regression also checks refusal
+of a foreign opening/view pair, request-close isolation, and rejection of history
+after an external publication instead of adopting its newer saved state. These
+bound-reader changes still need exact-head compilation and tests. Geometry IPC
+consumers are the subsequent shared integration step.
+
 Rust hosts can call `WindowSources::read_asset(windowLabel, sourceId, projectId,
 expectedCommitId, name)`. It shares the expected-source capture used for metadata
 reads, selects the file descriptor from that captured project and reads through

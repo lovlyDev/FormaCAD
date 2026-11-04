@@ -68,9 +68,9 @@ impl WindowSources {
             )
         ))]
         {
-            let (source, view) = self.capture_expected(label, key, id, expected).await?;
-            let project = view.project().clone();
-            source.recheck(&view).await?;
+            let read = self.capture_expected(label, key, id, expected).await?;
+            let project = read.project().clone();
+            read.recheck().await?;
             Ok(project)
         }
         #[cfg(not(any(

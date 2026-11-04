@@ -22,6 +22,9 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
+mod read;
+pub use read::RepositoryRead;
+
 enum Backend<'a> {
     Managed {
         state: &'a AppState,

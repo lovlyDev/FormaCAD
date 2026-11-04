@@ -1,7 +1,7 @@
 use super::{changed, WindowSources};
 use crate::{
     core::{AppError, Result},
-    project_repository::sqlite_folder::api::{FolderProject, FolderSources, ReadView},
+    project_repository::{backend::RepositoryRead, sqlite_folder::api::FolderSources},
 };
 use std::sync::Arc;
 
@@ -12,13 +12,13 @@ impl WindowSources {
         key: &str,
         id: &str,
         expected: &str,
-    ) -> Result<(Arc<FolderProject>, ReadView)> {
+    ) -> Result<RepositoryRead<'static>> {
         let source = self.existing(label)?.lookup(key)?;
         let view = source.capture_metadata().await?;
         if view.project().id != id || view.commit_id() != expected {
             return Err(changed());
         }
-        Ok((source, view))
+        RepositoryRead::from_folder_view(source, view).await
     }
     pub(super) fn for_window(&self, label: &str) -> Result<Arc<FolderSources>> {
         let mut scopes = self.scopes.lock().map_err(|_| changed())?;
