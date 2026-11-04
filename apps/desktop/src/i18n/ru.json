@@ -1,6 +1,8 @@
 {
   "Torus": "Тор",
   "Add torus": "Добавить тор",
+  "Adjust torus": "Изменить тор",
+  "Replace the radii in the last modeling step.": "Замените радиусы в последнем шаге моделирования.",
   "Major radius": "Большой радиус",
   "Tube radius": "Радиус трубки",
   "Torus radii: {{major}} / {{minor}} mm": "Радиусы тора: {{major}} / {{minor}} мм",

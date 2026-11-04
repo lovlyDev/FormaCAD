@@ -131,6 +131,8 @@ pub fn run() {
             artifacts::read_project_file,
             modeling::apply_program,
             modeling::apply_ir_commands,
+            modeling::amend_torus::ipc::last_torus,
+            modeling::amend_torus::ipc::amend_last_torus,
             modeling::amend_transform::ipc::last_transform,
             modeling::amend_transform::ipc::amend_last_transform,
             sketch_analysis::analyze_sketch,

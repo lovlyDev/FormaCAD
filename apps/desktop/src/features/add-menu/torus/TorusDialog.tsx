@@ -7,19 +7,23 @@ export function TorusDialog({
   close,
   disabled,
   onApply,
+  initialRadii,
+  error,
 }: {
   close: () => void;
   disabled: boolean;
   onApply: (majorRadiusMm: number, minorRadiusMm: number) => void;
+  initialRadii?: { majorRadiusMm: number; minorRadiusMm: number };
+  error?: string;
 }) {
-  const [majorInput, setMajor] = useState("10");
-  const [minorInput, setMinor] = useState("3");
+  const [majorInput, setMajor] = useState(String(initialRadii?.majorRadiusMm ?? 10));
+  const [minorInput, setMinor] = useState(String(initialRadii?.minorRadiusMm ?? 3));
   const major = parseTransformNumber(majorInput, "length");
   const minor = parseTransformNumber(minorInput, "length");
   const valid = major.status === "valid" && minor.status === "valid"
     && minor.value > 1e-7 && major.value - minor.value > 1e-7;
   return (
-    <Modal open onClose={close} title={t("Add torus")}
+    <Modal open onClose={close} title={initialRadii ? t("Adjust torus") : t("Add torus")}
       description={t("Create a solid ring around the Z axis at the model origin.")}>
       <form onSubmit={(event) => {
         event.preventDefault();
@@ -36,9 +40,10 @@ export function TorusDialog({
             onChange={(event) => setMinor(event.target.value)} />
         </label>
         {!valid && <p role="status">{t("Enter two positive radii. The major radius must exceed the tube radius.")}</p>}
+        {error && <p role="alert">{error}</p>}
         <div className="modal-actions">
           <Button type="button" onClick={close}>{t("Cancel")}</Button>
-          <Button type="submit" className="primary" disabled={disabled || !valid}>{t("Построить")}</Button>
+          <Button type="submit" className="primary" disabled={disabled || !valid}>{initialRadii ? t("Apply") : t("Построить")}</Button>
         </div>
       </form>
     </Modal>

@@ -1,6 +1,8 @@
 {
   "Torus": "Torus",
   "Add torus": "Add torus",
+  "Adjust torus": "Adjust torus",
+  "Replace the radii in the last modeling step.": "Replace the radii in the last modeling step.",
   "Major radius": "Major radius",
   "Tube radius": "Tube radius",
   "Torus radii: {{major}} / {{minor}} mm": "Torus radii: {{major}} / {{minor}} mm",

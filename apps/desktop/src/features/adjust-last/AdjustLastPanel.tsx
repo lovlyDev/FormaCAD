@@ -8,6 +8,7 @@ import { useTransformViewport } from "../transform/viewport/transformStore";
 import type { Axis } from "../transform/frames";
 import { fieldsFromSession, type AdjustFields } from "./adjustFields";
 import { amendLast } from "./amendLast";
+import { AdjustTorus } from "../add-menu/torus/AdjustTorus";
 import type { ConfirmEdit } from "../viewer/interaction/useViewportInteraction";
 import "./adjustLast.css";
 
@@ -97,7 +98,7 @@ export function AdjustLastPanel({
         )
       : run());
   };
-  return (
+  const panel = (
     <section className="adjust-last" aria-label={t("Adjust last operation")}>
       <header>
         <strong>
@@ -191,4 +192,10 @@ export function AdjustLastPanel({
       )}
     </section>
   );
+  if (!valid && project?.currentRevision) {
+    return <AdjustTorus key={`${project.id}:${project.currentRevision}`}
+      projectId={project.id} revisionId={project.currentRevision}
+      close={close} onAdopt={onAdopt} confirmEdit={confirmEdit} fallback={panel} />;
+  }
+  return panel;
 }
