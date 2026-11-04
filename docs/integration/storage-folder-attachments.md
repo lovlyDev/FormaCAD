@@ -2,7 +2,8 @@
 
 [English](storage-folder-attachments.en.md) · [Host API](../ru/storage-folder-host-api.md)
 
-Статус: **подготовлен, не применён**. Основа —
+Статус: **применён после разрешения lovlyDev на все шесть файлов** 4 ноября
+2026. Проверки применённой ревизии выполняются. Основа патча —
 `1c15f96ba607d2745c26889c889696b27a15ee42`, Issue #31 / PR #35.
 Ответственный — wenlixxq, согласование общей области и приёмка — lovlyDev.
 
@@ -33,15 +34,15 @@
 
 Точный diff: [storage-folder-attachments.patch](storage-folder-attachments.patch).
 Проверены применимость `git apply --check` и rustfmt подготовленного Rust-файла.
-Общий патч не скомпилирован и не применён. Тесты host reader в собственной области
+Общий патч применён; его строгая компиляция ещё ожидается. Тесты host reader в собственной области
 отправлены отдельно в `1c15f96`: две настоящие папки с одинаковыми ID/именами и
 разными байтами, исходный SQL без изменений при чтении, чужой commit, отсутствующее
 имя, обход пути, отказ старому commit после публикации и закрытому источнику.
 Основа прошла [Storage comparison](https://github.com/lovlyDev/FormaCAD/actions/runs/41807057154):
 98 folder-тестов и два window/asset-теста, оба строгих Clippy-режима и оба
-измерительных шага. Это не подтверждает компиляцию ещё не применённого общего патча.
+измерительных шага. Это не подтверждает компиляцию применённого позже общего патча.
 
-После согласования необходимы strict Clippy, window/asset packet, build,
+После применения необходимы strict Clippy, window/asset packet, build,
 check:i18n и существующие frontend-проверки на точном применённом SHA.
 Согласование требуется §5 ТЗ для `artifacts`, frontend API и i18n. Кнопка,
 workspace source state, geometry/model IPC и recent index этим патчем ещё не

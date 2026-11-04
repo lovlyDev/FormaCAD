@@ -2,6 +2,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { getLocale, t } from "../i18n";
 import { reviewPlanSchema, type ReviewPlan } from "../features/agents/review/plan/reviewPlan";
 import type { Project, Health, Parameters } from "../types";
+import type { FolderSourceRef } from "../features/project-sources/contract";
 import { cadDocumentSchema, type CadDocument } from "./cadDocument";
 export const native = isTauri();
 export interface InterruptedSession {
@@ -85,8 +86,12 @@ export async function deleteProject(id: string): Promise<void> {
 export async function readProjectFile(
   projectId: string,
   name: string,
+  source?: FolderSourceRef,
 ): Promise<string> {
-  return invoke("read_project_file", { projectId, name });
+  if (source && !native) throw new Error(t("PROJECT_FOLDER_UNSUPPORTED"));
+  return invoke("read_project_file", source
+    ? { projectId, name, sourceId: source.sourceId, expectedCommitId: source.commitId }
+    : { projectId, name });
 }
 export async function health(): Promise<Health[]> {
   if (native) return invoke("detect_environment");

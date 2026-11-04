@@ -21,8 +21,13 @@ The existing bounded CAS reader verifies the saved descriptor and bytes; the
 original view is rechecked after data-URL encoding as well. There is no managed
 blob fallback or app-index dependency. Unsupported platforms refuse the route.
 
-This is currently a host API; the shared `read_project_file` IPC has not been
-changed to accept a folder key. The real-folder regression uses two sources with
+The shared `read_project_file` IPC now accepts `sourceId` and `expectedCommitId`
+together, using the actual invoking window. Calls without both fields retain
+the managed route; a partial pair or invalid folder reference is refused without
+fallback. `readProjectFile` and `readProjectSnapshot` accept the same optional
+`FolderSourceRef` type. Browser calls with a folder reference refuse the route
+before managed lookup or invoke. Source quota and unsupported-environment errors
+have RU/EN translations. The real-folder regression uses two sources with
 identical project IDs and filenames but different bytes, checks pure SQL bytes,
 refuses a foreign commit/missing name/path traversal, then rejects an old commit
 after an actual publication and rejects a closed source. These are attachment
@@ -30,7 +35,7 @@ byte tests; geometry acceptance is covered by the real worker tests below.
 On `1c15f96ba607d2745c26889c889696b27a15ee42`,
 [Storage comparison](https://github.com/lovlyDev/FormaCAD/actions/runs/41807057154)
 passed: 98 folder tests, two window/asset tests, both strict Clippy modes and both
-measurement steps. This does not validate the still-unapplied attachment IPC patch
+measurement steps. This does not validate the subsequently applied attachment IPC patch
 or a desktop geometry flow.
 
 ### Window IPC

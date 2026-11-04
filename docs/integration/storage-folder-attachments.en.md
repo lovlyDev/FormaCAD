@@ -2,7 +2,8 @@
 
 [Русский](storage-folder-attachments.md) · [Host API](../en/storage-folder-host-api.md)
 
-Status: **prepared, not applied**. Base:
+Status: **applied after lovlyDev approved all six files** on 4 November 2026.
+Applied-revision checks are running. Patch base:
 `1c15f96ba607d2745c26889c889696b27a15ee42`, Issue #31 / PR #35.
 Owner: wenlixxq; shared-scope agreement and acceptance: lovlyDev.
 
@@ -35,15 +36,15 @@ is added; the legacy Rust helper remains compatible.
 
 Exact diff: [storage-folder-attachments.patch](storage-folder-attachments.patch).
 `git apply --check` and rustfmt of the staged Rust file passed. This shared patch
-is neither applied nor compiled. Owned host reader tests were separately pushed
+is applied; strict compilation is pending. Owned host reader tests were separately pushed
 in `1c15f96`: two actual folders sharing ID/name with different bytes, unchanged
 source SQL during reading, foreign commit, missing name, path traversal, old
 commit after publication and closed source. That base passed
 [Storage comparison](https://github.com/lovlyDev/FormaCAD/actions/runs/41807057154):
 98 folder tests, two window/asset tests, both strict Clippy modes and both
-measurement steps. This does not validate compilation of the unapplied shared patch.
+measurement steps. This does not validate compilation of the subsequently applied shared patch.
 
-After approval: strict Clippy, window/asset packet, build, check:i18n and existing
+After application: strict Clippy, window/asset packet, build, check:i18n and existing
 frontend checks on the applied SHA. Spec §5 requires agreement for artifacts,
 frontend API and i18n. Buttons, workspace source state, geometry/model IPC and
 recent index remain unwired; this does not complete the folder user flow.

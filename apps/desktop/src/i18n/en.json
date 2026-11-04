@@ -1,4 +1,6 @@
 {
+  "PROJECT_SOURCE_LIMIT": "Too many project folders are open. Close an unused folder and retry.",
+  "PROJECT_FOLDER_UNSUPPORTED": "Projects in folders are not supported in this environment.",
   "Feature history": "Feature history",
   "Suppressed": "Suppressed",
   "Suppress": "Suppress",
