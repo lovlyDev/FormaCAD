@@ -29,6 +29,7 @@ These guides describe the consolidated 1.2.6 candidate and its limits. Final pac
 - [Plugins](plugins.md): install from a file or the catalog, permissions, settings, removal and limitations.
 - [FormaCAD account](account.md): optional browser sign-in, rights and offline mode.
 - [Releases and updates](releases.md): publication state and update installation.
+- [License and code signing](code-signing.md): GPL-3.0, installer signing policy, roles and privacy.
 
 ## For developers
 
