@@ -3,7 +3,7 @@
 [Русский](storage-folder-task-scope.md) · [Host API](../en/storage-folder-host-api.md)
 
 Status: **applied after lovlyDev approved all 8 files** on 4 November 2026.
-New scope assertions and native checks remain pending. Patch base:
+Scope assertions and native regression passed CI at `5899c64`. Patch base:
 `4fd64373fa0e029896f4a296456a567bae3d1775`, Issue #31 / PR #35.
 Owner: wenlixxq; scope agreement and acceptance: lovlyDev.
 
@@ -43,10 +43,13 @@ Rust paths are relative to `apps/desktop/src-tauri/src/`:
 ## Evidence and limitations
 
 Exact diff: [storage-folder-task-scope.patch](storage-folder-task-scope.patch).
-Applicability and staged rustfmt passed; this patch is applied, strict compilation pending.
-Its base passed [Storage comparison](https://github.com/lovlyDev/FormaCAD/actions/runs/41811954864),
-but new scope assertions need their own ordinary/native tests after application.
-Test presence is not PASS evidence.
+At `5899c64fe30bd5f83beb31caceaf7884acd56948`, strict compilation of both variants
+and [Storage comparison](https://github.com/lovlyDev/FormaCAD/actions/runs/41817187435)
+passed: 98 folder, 2 window/asset and 3 original-source refresh tests.
+[Native CI](https://github.com/lovlyDev/FormaCAD/actions/runs/41817187467) passed
+`independent_step_properties_use_original_folder_and_refuse_late_close`, including
+the original opening task group assertion: 535 library PASS, 18 ignored; 11 smoke
+PASS, 41 host consumer PASS and three separately executed folder roundtrip PASS.
 
 UI task filtering, other geometry consumers and workspace/model/history/index
 remain unwired. Source closure revokes its results; individual operation cancel

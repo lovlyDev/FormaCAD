@@ -3,7 +3,7 @@
 [English](storage-folder-inspection.en.md) · [Host API](../ru/storage-folder-host-api.md)
 
 Статус: **применён после разрешения lovlyDev на все 10 файлов** 4 ноября 2026.
-Строгая компиляция и native-проверки новой ревизии ещё ожидаются. Основа патча —
+Строгая компиляция и native-регрессия прошли на `5899c64`. Основа патча —
 `4e16dd42da581b664618837a2c0e1041acfc1e2c`, Issue #31 / PR #35.
 Ответственный за реализацию — wenlixxq, согласование и приёмка — lovlyDev.
 
@@ -46,17 +46,20 @@ Frontend `inspectSavedModel` принимает необязательный с�
 ## Проверки и незавершённые критерии
 
 Точный diff: [storage-folder-inspection.patch](storage-folder-inspection.patch).
-`git apply --check` и rustfmt staged Rust прошли. Основа прошла
-[Storage comparison](https://github.com/lovlyDev/FormaCAD/actions/runs/41810364767);
-применённый позже патч ещё требует собственной компиляции и native-проверок.
+На `5899c64fe30bd5f83beb31caceaf7884acd56948` прошли оба строгих Clippy и
+[Storage comparison](https://github.com/lovlyDev/FormaCAD/actions/runs/41817187435).
+[Native CI](https://github.com/lovlyDev/FormaCAD/actions/runs/41817187467) подтвердил
+`independent_step_properties_use_original_folder_and_refuse_late_close`.
 
 Новая native-регрессия строит настоящий STEP 40×20×10, сохраняет FCP1 и создаёт
 конфликтующую managed-строку с тем же ID, но заведомо неверными STEP-байтами.
 Folder inspection должна получить объём 8000 мм³ и правильные bounds. Затем
 после настоящего worker закрывается исходная папка: поздний результат должен
 быть отвергнут. SQL папки и app state сравниваются с исходными байтами/состоянием.
-Существующие native-тесты managed-пути не ослабляются. Это пока описание теста,
-не PASS. После применения нужны strict Clippy и реальные native-тесты на точном SHA.
+Существующие native-тесты managed-пути не ослабляются. Native CI указанного SHA:
+535 library PASS / 18 ignored, 11 smoke PASS, 41 host consumer PASS и три
+отдельно запускаемых folder roundtrip PASS. Это доказательство backend-маршрута;
+пользовательский интерфейс папок остаётся отдельным незавершённым критерием.
 
 В исходной ревизии этого патча группировка задач инспекции использовала project ID.
 Последующий [task-scope патч](storage-folder-task-scope.md) переводит FCP1-инспекцию

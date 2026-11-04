@@ -3,7 +3,7 @@
 [Русский](storage-folder-inspection.md) · [Host API](../en/storage-folder-host-api.md)
 
 Status: **applied after lovlyDev approved all 10 files** on 4 November 2026.
-Strict compilation and native tests for the new revision are pending. Patch base:
+Strict compilation and native regression passed at `5899c64`. Patch base:
 `4e16dd42da581b664618837a2c0e1041acfc1e2c`, Issue #31 / PR #35.
 Implementation owner: wenlixxq; scope agreement and acceptance: lovlyDev.
 
@@ -46,17 +46,20 @@ Rust paths are relative to `apps/desktop/src-tauri/src/`:
 ## Evidence and incomplete gates
 
 Exact diff: [storage-folder-inspection.patch](storage-folder-inspection.patch).
-`git apply --check` and staged Rust formatting passed. The base passed
-[Storage comparison](https://github.com/lovlyDev/FormaCAD/actions/runs/41810364767);
-the subsequently applied patch still needs its own compilation and native tests.
+At `5899c64fe30bd5f83beb31caceaf7884acd56948`, both strict Clippy variants and
+[Storage comparison](https://github.com/lovlyDev/FormaCAD/actions/runs/41817187435) passed.
+[Native CI](https://github.com/lovlyDev/FormaCAD/actions/runs/41817187467) passed
+`independent_step_properties_use_original_folder_and_refuse_late_close`.
 
 The new native regression builds a real 40×20×10 STEP, saves FCP1, and installs a
 conflicting managed row sharing its ID with intentionally invalid STEP bytes.
 Folder inspection must return 8000 mm³ and the correct bounds. After a subsequent
 actual worker completes, closing the original folder must reject the late result.
 Folder SQL and app state are compared with their original bytes/state. Existing
-managed native tests are preserved. Test presence is not PASS; after application,
-strict Clippy and real native tests on the exact SHA are required.
+managed native tests are preserved. Native CI at that SHA passed 535 library tests
+(18 ignored), 11 smoke tests, 41 host consumer tests and three separately executed
+folder roundtrips. This proves the backend route; folder UI remains a separate
+unfinished acceptance gate.
 
 The original revision of this patch used project-ID task groups. The subsequent
 [task-scope patch](storage-folder-task-scope.en.md) moves FCP1 inspection to the
