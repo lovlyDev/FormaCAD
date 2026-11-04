@@ -1,6 +1,6 @@
 use super::*;
 #[allow(dead_code)]
-mod fixture {
+pub(super) mod fixture {
     use crate as forma_core;
     include!(concat!(
         env!("CARGO_MANIFEST_DIR"),

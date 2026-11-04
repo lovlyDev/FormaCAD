@@ -2,7 +2,7 @@
 
 [Русский](storage-measurement-source-core.md) · [Host API](../en/storage-folder-host-api.md)
 
-Status: **prepared, unapplied; lovlyDev approval required**.
+Status: **applied after lovlyDev approved all 10 files** on 4 November 2026.
 Base `5899c64fe30bd5f83beb31caceaf7884acd56948`, Issue #31 / PR #35.
 Owner: wenlixxq. Exact diff: [storage-measurement-source-core.patch](storage-measurement-source-core.patch).
 
@@ -45,9 +45,10 @@ the fixture module only gains pub(super) visibility.
 
 ## Validation and limits
 
-Patch applicability and staged Rust formatting passed. Compilation and new runtime
-tests are pending application and CI. Strict Clippy and native tests, including
-existing managed regressions, are required after approval. The base passed
+Patch applicability and applied Rust formatting passed. Compilation and new runtime
+tests are pending CI. Strict Clippy and native tests, including existing managed
+regressions, are required. The owned native workflow separately executes both new
+folder tests and requires exactly 2 PASS. The base passed
 [Quality](https://github.com/lovlyDev/FormaCAD/actions/runs/41817194409),
 [comparison](https://github.com/lovlyDev/FormaCAD/actions/runs/41817187435) and
 [native](https://github.com/lovlyDev/FormaCAD/actions/runs/41817187467).

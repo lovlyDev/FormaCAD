@@ -1,28 +1,40 @@
-//! Compatibility boundary for the shared, pure committed snapshot reader.
+//! Measurement error compatibility over the shared original-source reader.
 use super::failure;
 use crate::{
     core::{AppError, AppState, Result},
-    project_repository::legacy::{self, CommittedSnapshot},
+    project_repository::backend::{ProjectRepository, RepositoryRead},
 };
 
-pub(super) async fn read(state: &AppState, project_id: &str) -> Result<CommittedSnapshot> {
-    legacy::capture_project(state, project_id)
+pub(super) async fn read<'a>(state: &'a AppState, project_id: &str) -> Result<RepositoryRead<'a>> {
+    RepositoryRead::capture(ProjectRepository::managed(state, project_id)?)
         .await
         .map_err(compatible)
 }
-
-pub(super) async fn recheck(state: &AppState, snapshot: &CommittedSnapshot) -> Result<()> {
-    legacy::recheck(state, snapshot).await.map_err(compatible)
+pub(super) async fn recheck(snapshot: &RepositoryRead<'_>) -> Result<()> {
+    snapshot.recheck().await.map_err(compatible)
 }
-
-/// Preserve the original opening while geometry-specific recapture compares
-/// revision, source/document/import seals and preview. Unrelated metadata saves
-/// must not invalidate a queued exact measurement.
-pub(super) fn recheck_lifecycle(state: &AppState, snapshot: &CommittedSnapshot) -> Result<()> {
-    legacy::recheck_lifecycle(state, snapshot).map_err(compatible)
+pub(super) async fn recheck_lifecycle(snapshot: &RepositoryRead<'_>) -> Result<()> {
+    snapshot.recheck_source().await.map_err(compatible)
 }
-
-fn compatible(error: AppError) -> AppError {
+pub(super) async fn refresh<'a>(snapshot: &RepositoryRead<'a>) -> Result<RepositoryRead<'a>> {
+    snapshot.recapture_metadata().await.map_err(compatible)
+}
+pub(super) fn asset_error(error: AppError) -> AppError {
+    match error {
+        AppError::Invalid(ref code)
+            if matches!(
+                code.as_str(),
+                "PROJECT_SNAPSHOT_MISSING"
+                    | "PROJECT_SNAPSHOT_CHANGED"
+                    | "PROJECT_SNAPSHOT_RECOVERY_REQUIRED"
+            ) =>
+        {
+            compatible(error)
+        }
+        other => failure("ASSET_CHECKSUM_MISMATCH", other.to_string()),
+    }
+}
+pub(super) fn compatible(error: AppError) -> AppError {
     match error {
         AppError::Invalid(ref code)
             if code == "PROJECT_SNAPSHOT_MISSING" || code == "PROJECT_SNAPSHOT_CHANGED" =>

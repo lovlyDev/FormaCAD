@@ -2,7 +2,7 @@
 
 [English](storage-measurement-source-core.en.md) · [Host API](../ru/storage-folder-host-api.md)
 
-Статус: **подготовлен, не применён; требуется согласование lovlyDev**.
+Статус: **применён после разрешения lovlyDev на все 10 файлов** 4 ноября 2026.
 Основа `5899c64fe30bd5f83beb31caceaf7884acd56948`, Issue #31 / PR #35.
 Ответственный — wenlixxq. Точный diff: [storage-measurement-source-core.patch](storage-measurement-source-core.patch).
 
@@ -47,9 +47,10 @@ entrypoints в этот патч не входят.
 
 ## Проверки и границы
 
-Проверены применимость к основе и форматирование staged Rust. Патч ещё не
-скомпилирован и новые runtime-тесты ещё не выполнены. После согласования нужны
-строгий Clippy и native CI, включая существующие managed-регрессии.
+Проверены применимость к основе и форматирование применённого Rust. Патч ещё не
+скомпилирован и новые runtime-тесты ещё не выполнены. Нужны строгий Clippy и
+native CI, включая существующие managed-регрессии. Собственный native workflow
+отдельно запускает два новых folder-теста и требует ровно 2 PASS.
 У основы все три CI успешны: [Quality](https://github.com/lovlyDev/FormaCAD/actions/runs/41817194409),
 [comparison](https://github.com/lovlyDev/FormaCAD/actions/runs/41817187435),
 [native](https://github.com/lovlyDev/FormaCAD/actions/runs/41817187467).

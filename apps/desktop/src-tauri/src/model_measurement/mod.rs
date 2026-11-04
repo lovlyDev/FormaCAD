@@ -7,6 +7,8 @@ pub mod schema;
 #[cfg(feature = "native-worker-client")]
 mod snapshot;
 #[cfg(feature = "native-worker-client")]
+pub(crate) mod staging;
+#[cfg(feature = "native-worker-client")]
 pub(crate) mod workspace;
 
 use crate::core::{AppError, AppState, Result};

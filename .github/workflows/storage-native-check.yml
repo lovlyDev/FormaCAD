@@ -46,6 +46,16 @@ jobs:
           set -o pipefail
           git rev-parse HEAD > storage-native-evidence/source-sha.txt
           cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target x86_64-unknown-linux-gnu --features native-occt --test reference_measurements_host --test pair_measurements_host --test face_sections_host --test model_apply_transaction --test transform_worker --test snap_host --test snap_worker -- --nocapture 2>&1 | tee storage-native-evidence/host-consumers.log
+      - name: Execute original-source folder measurements with the real worker
+        env:
+          FORMA_OCCT_ROOT: ${{ github.workspace }}/.local/occt-install-unix-x86_64-unknown-linux-gnu
+          FORMA_MEASUREMENT_TEST_WORKER: ${{ github.workspace }}/apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/forma-cad-worker
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          set -o pipefail
+          test -x "$FORMA_MEASUREMENT_TEST_WORKER"
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target x86_64-unknown-linux-gnu --features native-occt --lib model_measurement::build::folder_tests:: -- --nocapture 2>&1 | tee storage-native-evidence/folder-measurements.log
+          grep -F 'test result: ok. 2 passed; 0 failed;' storage-native-evidence/folder-measurements.log
       - name: Execute independent folder CAD roundtrip with the real worker
         env:
           FORMA_OCCT_ROOT: ${{ github.workspace }}/.local/occt-install-unix-x86_64-unknown-linux-gnu
