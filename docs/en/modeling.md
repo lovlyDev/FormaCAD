@@ -18,6 +18,12 @@ In the desktop app, open an empty project or a project with a saved CAD IR v2 mo
 
 A CAD IR v2 document contains `schemaVersion: 2`, `revisionId`, and `parameters`, `features`, and `bodies` arrays. Element IDs remain stable across edits. A parameter has a name and a canonical millimeter value. A feature dimension is either a literal value or a reference to a parameter, so changing one parameter rebuilds dependent features. A body names its final feature with `sourceFeatureId`. Multiple bodies can be independent or participate in Boolean operations. See the [types](../../apps/desktop/src-tauri/src/cad_ir/mod.rs) and [validation rules](../../apps/desktop/src-tauri/src/cad_ir/validation.rs).
 
+### Datum geometry in the kernel (M3)
+
+The `forma::datum` module builds OCCT construction geometry in model coordinates. A plane is a square face with a centre and normal, an axis is a segment with a midpoint and direction, and a point is a vertex. The kernel checks coordinates, direction and size. Construction elements have their own topology and require no positive volume.
+
+`forma_datum_test` rejects a zero normal, a zero span and an infinite coordinate. After an independent STEP round-trip it checks BREP validity, plane area and direction, axis length and midpoint, and point position. Document storage, anchors on existing geometry and the user interface are pending.
+
 Current schema operations:
 
 | Group | Operations | Result |
