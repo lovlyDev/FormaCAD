@@ -25,9 +25,12 @@
 | Система | Пакет | Обновление |
 | --- | --- | --- |
 | Windows x64 | EXE-установщик | В приложении |
+| Windows x64 | `winget install lovlyDev.FormaCAD` | `winget upgrade lovlyDev.FormaCAD` или в приложении |
 | macOS Apple Silicon / Intel | DMG | В приложении |
 | Linux x64 | AppImage | В приложении |
 | Linux x64 | DEB / RPM | Установка нового пакета |
+
+На Windows тот же установщик есть в каталоге Microsoft winget: [установка через winget](docs/ru/package-managers.md).
 
 Файлы появятся после успешной [релизной сборки](.github/workflows/release.yml). Подпись/notarization macOS и подпись обновлений — разные механизмы: [руководство по релизам](docs/ru/releases.md). Для AI-моделирования нужен отдельно установленный CLI; релизные сборки включают нативное CAD-ядро. Python/CadQuery остаётся необязательным для старых моделей: [подготовка окружения](docs/ru/development.md). Для просмотра сохранённых моделей AI-аккаунт не нужен.
 

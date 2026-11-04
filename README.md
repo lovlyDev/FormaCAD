@@ -21,9 +21,12 @@ Download a verified published package from [GitHub Releases](https://github.com/
 | System | Package | Updates |
 | --- | --- | --- |
 | Windows x64 | EXE installer | In the app |
+| Windows x64 | `winget install lovlyDev.FormaCAD` | `winget upgrade lovlyDev.FormaCAD` or in the app |
 | macOS Apple Silicon / Intel | DMG | In the app |
 | Linux x64 | AppImage | In the app |
 | Linux x64 | DEB / RPM | Install the newer package |
+
+On Windows the same installer is also in the Microsoft winget catalog: [winget installation](docs/en/package-managers.md).
 
 Artifacts appear after the [release workflow](.github/workflows/release.yml) succeeds. macOS notarization and updater signing are separate mechanisms: see the [release guide](docs/en/releases.md). AI modeling needs a separately installed supported CLI; tagged builds include the native CAD kernel. Python/CadQuery remains optional for older models; see [setup](docs/en/development.md). Viewing saved models does not need an AI account.
 
