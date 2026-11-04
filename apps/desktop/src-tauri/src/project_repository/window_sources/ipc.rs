@@ -8,6 +8,7 @@ use tauri::State;
 pub struct FolderOpen {
     source_id: String,
     commit_id: String,
+    task_scope_id: String,
     project: Project,
 }
 
@@ -49,6 +50,7 @@ pub async fn open_project_folder(
         Ok(Some(FolderOpen {
             source_id: opened.id.to_string(),
             commit_id: opened.snapshot.commit_id().into(),
+            task_scope_id: opened.snapshot.task_scope_id().into(),
             project: opened.snapshot.project().clone(),
         }))
     }

@@ -31,9 +31,19 @@ must still report 8000 mm³ and correct bounds. Closing the original folder afte
 the real worker must refuse its late properties, while source SQL/app state stay
 unchanged. This applied revision is not yet verified by native CI.
 
-CAD gate/status/cancel still use project ID conservatively. Source-specific task
-identity, remaining geometry consumers, workspace propagation and the folder UI
-remain incomplete gates. This inspection route does not complete stage 4.
+For FCP1 inspection, the task group now comes from the actual opening's existing
+UUID, matching FolderApplyHost. `open_project_folder` returns it as `taskScopeId`
+in addition to sourceId/commitId/project; FolderSourceRef includes this field for
+workspace status filtering. It is not persisted or accepted as authority by
+read/write/inspection IPC. The server derives the group from the bound view.
+Managed/V2 retain their project-ID groups. Distinct folder openings with equal
+project IDs have different groups; commit retains the group, reopen changes it.
+The global one-worker semaphore and individual task UUID/cancel API are unchanged.
+
+New assertions check group separation/stability and actual registered inspection
+group during the real worker; exact-revision ordinary/native verification is
+pending. Workspace task filtering, remaining geometry consumers and folder UI
+are still incomplete. This inspection route does not complete stage 4.
 
 ### Window-bound attachments
 

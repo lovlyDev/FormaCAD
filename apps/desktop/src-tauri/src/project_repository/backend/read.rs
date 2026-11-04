@@ -28,6 +28,22 @@ impl<'a> RepositoryRead<'a> {
         })
     }
 
+    /// Managed/V2 retain project grouping; FCP1 uses its actual opening group.
+    pub fn task_scope_id(&self) -> &str {
+        match &self.snapshot.backend {
+            super::CapturedBackend::Managed { snapshot, .. } => &snapshot.project.id,
+            super::CapturedBackend::Folder(snapshot) => &snapshot.project().id,
+            #[cfg(any(
+                windows,
+                all(
+                    target_os = "linux",
+                    any(target_arch = "x86_64", target_arch = "aarch64")
+                )
+            ))]
+            super::CapturedBackend::Independent(snapshot) => snapshot.task_scope_id(),
+        }
+    }
+
     pub fn project(&self) -> &Project {
         self.snapshot.project()
     }

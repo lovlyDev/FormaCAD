@@ -41,6 +41,10 @@ pub(super) struct FolderSnapshot {
 }
 
 impl FolderSnapshot {
+    pub(super) fn task_scope_id(&self) -> &str {
+        &self.opening.task_id
+    }
+
     fn scope(&self) -> format::ReadScope {
         if self.saved.history().is_some() {
             format::ReadScope::Complete

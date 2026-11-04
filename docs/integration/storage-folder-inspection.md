@@ -58,9 +58,10 @@ Folder inspection должна получить объём 8000 мм³ и пра
 Существующие native-тесты managed-пути не ослабляются. Это пока описание теста,
 не PASS. После применения нужны strict Clippy и реальные native-тесты на точном SHA.
 
-CAD gate/status/cancel пока консервативно используют project ID. Одинаковые ID
-могут разделять очередь; разделение task identity по источникам требуется до
-включения UI папок. Этот патч не завершает workspace/source state, остальные
+В исходной ревизии этого патча группировка задач инспекции использовала project ID.
+Последующий [task-scope патч](storage-folder-task-scope.md) переводит FCP1-инспекцию
+на UUID открытия. Workspace task filtering ещё требуется до включения UI папок.
+Этот патч не завершает workspace/source state, остальные
 geometry consumers, model writes/permissions, history IPC, recent index или весь
 этап 4. §5 ТЗ требует отдельного согласования model_inspection и frontend API.
 Native/Cargo/C++/worker protocol/permissions/SQL-схемы/версии неизменны.

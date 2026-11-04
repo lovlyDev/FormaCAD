@@ -35,6 +35,11 @@ pub struct ReadView {
     snapshot: FolderSnapshot,
 }
 impl ReadView {
+    /// Nonpersistent opening group for task status/cancellation, never access authority.
+    pub fn task_scope_id(&self) -> &str {
+        self.snapshot.task_scope_id()
+    }
+
     pub fn project(&self) -> &Project {
         self.snapshot.project()
     }

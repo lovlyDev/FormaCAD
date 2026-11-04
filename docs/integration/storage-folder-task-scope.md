@@ -2,7 +2,8 @@
 
 [English](storage-folder-task-scope.en.md) · [Host API](../ru/storage-folder-host-api.md)
 
-Статус: **подготовлен, не применён**. Основа —
+Статус: **применён после разрешения lovlyDev на все 8 файлов** 4 ноября 2026.
+Новые scope-assertions и native-регрессия ещё требуют проверки. Основа патча —
 `4fd64373fa0e029896f4a296456a567bae3d1775`, Issue #31 / PR #35.
 Ответственный — wenlixxq; согласование и приёмка — lovlyDev.
 
@@ -42,7 +43,7 @@ Rust-пути относительно `apps/desktop/src-tauri/src/`:
 ## Проверки и ограничения
 
 Точный diff: [storage-folder-task-scope.patch](storage-folder-task-scope.patch).
-Проверены применимость и staged rustfmt; патч не применён и не скомпилирован.
+Проверены применимость и staged rustfmt; патч применён, строгая компиляция ожидается.
 Основа прошла [Storage comparison](https://github.com/lovlyDev/FormaCAD/actions/runs/41811954864),
 но новые scope-assertions требуют собственных обычных и native тестов после
 применения. Наличие теста не является PASS.

@@ -34,6 +34,12 @@ async fn assets_bind_original_source_commit_and_descriptor_without_app_index() {
     let key_b = second.id.to_string();
     let commit_a = first.snapshot.commit_id();
     let commit_b = second.snapshot.commit_id();
+    let scope_a = first.snapshot.task_scope_id().to_owned();
+    let scope_b = second.snapshot.task_scope_id().to_owned();
+    crate::security::valid_id(&scope_a).unwrap();
+    crate::security::valid_id(&scope_b).unwrap();
+    assert_ne!(scope_a, scope_b);
+    assert_ne!(scope_a, id);
     let before = std::fs::read(a.path().join("project.sqlite")).unwrap();
     assert_eq!(
         windows
@@ -83,6 +89,7 @@ async fn assets_bind_original_source_commit_and_descriptor_without_app_index() {
         .capture_read("assets", &key_a, &id, commit_a)
         .await
         .unwrap();
+    assert_eq!(stale_read.task_scope_id(), scope_a);
     assert!(stale_read.read_history().await.unwrap().is_some());
     closing_read.close();
     assert!(closing_read.recheck().await.is_err());
@@ -104,6 +111,8 @@ async fn assets_bind_original_source_commit_and_descriptor_without_app_index() {
             .unwrap(),
         Publication::Committed(_)
     ));
+    let fresh = source.capture_metadata().await.unwrap();
+    assert_eq!(fresh.task_scope_id(), scope_a);
     assert!(stale_read.recheck().await.is_err());
     assert!(stale_read.read_history().await.is_err());
     assert!(windows
@@ -116,6 +125,9 @@ async fn assets_bind_original_source_commit_and_descriptor_without_app_index() {
         .unwrap();
     assert!(windows.close_source("assets", &key_b).unwrap());
     assert!(closing_source.recheck().await.is_err());
+    let reopened = scope.open(b.path()).await.unwrap();
+    assert_ne!(reopened.snapshot.task_scope_id(), scope_b);
+    assert_ne!(reopened.snapshot.task_scope_id(), scope_a);
     assert!(windows
         .read_asset("assets", &key_b, &id, commit_b, "fixture.pdf")
         .await

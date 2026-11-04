@@ -60,7 +60,7 @@ where
     F: FnOnce(PathBuf, Arc<AtomicBool>) -> Fut,
     Fut: Future<Output = Result<ExactProperties>>,
 {
-    let id = read.project().id.clone();
+    let task_scope = read.task_scope_id().to_owned();
     let revision = read
         .project()
         .revisions
@@ -93,7 +93,7 @@ where
     let cancel = Arc::new(AtomicBool::new(false));
     let _cad = state
         .cad_tasks
-        .acquire(&id, "inspection", cancel.clone())
+        .acquire(&task_scope, "inspection", cancel.clone())
         .await?;
     read.recheck().await?;
     let workspace = crate::project_access::transient::Workspace::create(&state.root)?;

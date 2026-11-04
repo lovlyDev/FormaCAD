@@ -43,8 +43,21 @@ async fn independent_step_properties_use_original_folder_and_refuse_late_close()
     let read = RepositoryRead::from_folder_view(Arc::clone(&source), original)
         .await
         .unwrap();
-    let properties = run_bound(&state, read, &revision, |p, c| async move {
-        crate::native::inspection::inspect_with_executable(&p, c, &tests::worker()).await
+    let expected_scope = read.task_scope_id().to_owned();
+    assert_ne!(expected_scope, id);
+    let properties = run_bound(&state, read, &revision, |p, c| {
+        let state = &state;
+        let expected_scope = &expected_scope;
+        async move {
+            assert!(state
+                .cad_tasks
+                .status()?
+                .iter()
+                .any(|task| task.kind == "inspection"
+                    && task.project_id == *expected_scope
+                    && task.state == "running"));
+            crate::native::inspection::inspect_with_executable(&p, c, &tests::worker()).await
+        }
     })
     .await
     .unwrap()

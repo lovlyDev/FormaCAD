@@ -30,9 +30,19 @@ Windows и Linux x86_64/aarch64. Текущая ревизия ещё требу
 worker должно отвергнуть поздние свойства без изменения SQL папки/app state.
 Эта применённая ревизия пока не подтверждена native CI.
 
-CAD gate/status/cancel пока консервативно используют project ID. Идентичность
-задач по источникам, остальные geometry consumers, workspace propagation и UI
-папки остаются незавершёнными критериями. Инспекция не завершает весь этап 4.
+Для FCP1-инспекции группа задач теперь берётся из существующего UUID настоящего
+открытия, как у FolderApplyHost. `open_project_folder` возвращает `taskScopeId`
+вместе с sourceId/commitId/project; FolderSourceRef содержит это поле для
+workspace task filtering. Оно не сохраняется и не принимается как authority
+read/write/inspection IPC. Сервер выбирает группу из связанного view.
+Managed/V2 сохраняют группы по project ID. Разные открытия папок с одинаковым
+project ID имеют разные группы; commit сохраняет группу, reopen меняет её.
+Глобальный semaphore одного worker и индивидуальный task UUID/cancel API прежние.
+
+Новые assertions проверяют разделение/стабильность групп и настоящую регистрацию
+инспекции во время worker; обычные/native-проверки точной ревизии ещё ожидаются.
+Workspace task filtering, остальные geometry consumers и UI папки не завершены.
+Инспекция не завершает весь этап 4.
 
 ### Вложения исходного сеанса окна
 

@@ -2,7 +2,8 @@
 
 [Русский](storage-folder-task-scope.md) · [Host API](../en/storage-folder-host-api.md)
 
-Status: **prepared, not applied**. Base:
+Status: **applied after lovlyDev approved all 8 files** on 4 November 2026.
+New scope assertions and native checks remain pending. Patch base:
 `4fd64373fa0e029896f4a296456a567bae3d1775`, Issue #31 / PR #35.
 Owner: wenlixxq; scope agreement and acceptance: lovlyDev.
 
@@ -42,7 +43,7 @@ Rust paths are relative to `apps/desktop/src-tauri/src/`:
 ## Evidence and limitations
 
 Exact diff: [storage-folder-task-scope.patch](storage-folder-task-scope.patch).
-Applicability and staged rustfmt passed; this patch is unapplied and uncompiled.
+Applicability and staged rustfmt passed; this patch is applied, strict compilation pending.
 Its base passed [Storage comparison](https://github.com/lovlyDev/FormaCAD/actions/runs/41811954864),
 but new scope assertions need their own ordinary/native tests after application.
 Test presence is not PASS evidence.

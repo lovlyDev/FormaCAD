@@ -58,8 +58,9 @@ Folder SQL and app state are compared with their original bytes/state. Existing
 managed native tests are preserved. Test presence is not PASS; after application,
 strict Clippy and real native tests on the exact SHA are required.
 
-CAD gate/status/cancel conservatively still use project ID. Equal IDs can share
-the queue; task identity must be separated by source before enabling folder UI.
+The original revision of this patch used project-ID task groups. The subsequent
+[task-scope patch](storage-folder-task-scope.en.md) moves FCP1 inspection to the
+opening UUID. Workspace task filtering remains required before enabling folder UI.
 This does not complete workspace/source state, other geometry consumers, model
 writes/permissions, history IPC, recent index or all of stage 4. Spec §5 requires
 agreement for model_inspection/frontend API. No native/Cargo/C++/worker protocol,

@@ -3,4 +3,6 @@
 export interface FolderSourceRef {
   readonly sourceId: string;
   readonly commitId: string;
+  // Host-provided grouping only. Read/write IPC still validates sourceId + commitId.
+  readonly taskScopeId: string;
 }
