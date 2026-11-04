@@ -5,7 +5,7 @@ import { captureApply } from "../../model-apply/capturedApply";
 
 export function captureTorus(
   project: Project,
-  expectedRevision: string,
+  expectedRevision: string | null,
   majorRadiusMm: number,
   minorRadiusMm: number,
 ) {

@@ -68,3 +68,33 @@ async fn torus_command_commits_one_revision_and_failed_attempts_leave_no_artifac
     assert!((torus.volume_mm3() - expected).abs() < 1e-5);
     clean(&state).await;
 }
+
+#[tokio::test]
+async fn torus_can_start_a_document_without_overwriting_a_concurrent_first_revision() {
+    let root = tempfile::tempdir().unwrap();
+    let (state, empty) = empty_fixture(root.path()).await;
+    let prepare_first = || {
+        prepare(
+            &state,
+            empty.id.clone(),
+            add_torus(3.),
+            "Torus".into(),
+            None,
+        )
+    };
+    let initial = prepare_first().await.unwrap();
+    let competing = prepare_first().await.unwrap();
+    let first = apply_with_executable(&state, initial, executable())
+        .await
+        .unwrap();
+    assert!(first.committed);
+    assert_eq!(first.project.revisions.len(), 1);
+    assert!(first.project.revisions[0].parent.is_none());
+    let before = snapshot(&state, &empty.id).await;
+    assert!(apply_with_executable(&state, competing, executable())
+        .await
+        .is_err());
+    assert!(prepare_first().await.is_err());
+    assert_eq!(snapshot(&state, &empty.id).await, before);
+    clean(&state).await;
+}

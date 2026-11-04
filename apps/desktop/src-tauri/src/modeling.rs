@@ -39,7 +39,7 @@ pub async fn apply_ir_commands(
     project_id: String,
     commands: Vec<crate::cad_ir::Command>,
     prompt: String,
-    expected_revision: String,
+    expected_revision: Option<String>,
     state: State<'_, AppState>,
     app: tauri::AppHandle,
 ) -> Result<Project> {

@@ -64,7 +64,7 @@ pub async fn automatic(state: &AppState) {
     sqlx::query("INSERT INTO settings(key,value) VALUES('confirmations',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
         .bind(r#"{"mode":"none","overrides":{}}"#).execute(&state.pool).await.unwrap();
 }
-pub async fn fixture(root: &Path) -> (Arc<AppState>, Project) {
+pub async fn empty_fixture(root: &Path) -> (Arc<AppState>, Project) {
     let state = state(root).await;
     automatic(&state).await;
     let project: Project = serde_json::from_value(json!({"schemaVersion":1,"id":uuid::Uuid::new_v4().to_string(),
@@ -73,6 +73,11 @@ pub async fn fixture(root: &Path) -> (Arc<AppState>, Project) {
     let empty = forma_core::projects::persist(&state, project, vec![], None)
         .await
         .unwrap();
+    (state, empty)
+}
+
+pub async fn fixture(root: &Path) -> (Arc<AppState>, Project) {
+    let (state, empty) = empty_fixture(root).await;
     let first = apply_with_executable(&state, request(&empty, document(40.)), executable())
         .await
         .unwrap();

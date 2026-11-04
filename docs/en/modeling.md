@@ -10,7 +10,7 @@ This guide describes the current local source tree. The published installer may 
 
 `make_torus` builds a solid OCCT torus at the origin around the Z axis. The major radius measures the distance to the centre of the tube section. The minor radius measures the tube radius. Both use millimetres. The major radius is capped at 10,000 mm. The minor radius and the difference between the two radii must exceed the OCCT tolerance. These constraints preserve an open hole and exclude degenerate and self-intersecting shapes.
 
-In the desktop app, open a project with a saved CAD IR v2 model. Choose Add → Torus, enter both radii, and select Build. The fields accept bare values in millimetres and values with units such as `1 cm` or `0.5 in`. The torus is added as a separate body at the model origin.
+In the desktop app, open an empty project or a project with a saved CAD IR v2 model. Choose Add → Torus, enter both radii, and select Build. The fields accept bare values in millimetres and values with units such as `1 cm` or `0.5 in`. The torus is added as a separate body at the model origin.
 
 `AddFeature` and `AddBody` run as one transaction. The document stores `majorRadius` and `minorRadius` on the `torus` operation. Rust validates the radii and delegates construction to the worker. A successful build saves one revision. A validation or worker error preserves the previous model and history. `forma_torus_test` compares volume, area and extents with analytical values, checks BREP validity after a STEP round-trip, and verifies rejection of invalid radii.
 

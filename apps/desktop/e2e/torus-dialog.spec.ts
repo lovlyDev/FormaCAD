@@ -9,10 +9,11 @@ for (const locale of ["ru", "en"] as const) {
       await page.addInitScript((value) => localStorage.setItem("forma.locale", value), locale);
       await page.goto("/");
       const requests: unknown[] = [];
+      const expectedRevision = theme === "light" ? null : "baseline";
       await page.exposeFunction("recordTorusCommand", (command: string, args: unknown) => {
         requests.push({ command, args });
       });
-      await page.evaluate(async (theme) => {
+      await page.evaluate(async ({ theme, expectedRevision }) => {
         const React = await import("/node_modules/.vite/deps/react.js");
         const ReactDOM = await import("/node_modules/.vite/deps/react-dom_client.js");
         const { TorusDialog } = await import("/src/features/add-menu/torus/TorusDialog.tsx");
@@ -20,7 +21,7 @@ for (const locale of ["ru", "en"] as const) {
         const { applyTheme } = await import("/src/lib/theme.ts");
         const { newProject } = await import("/src/stores/workspace.ts");
         const project = newProject("Torus fixture", "blank", "mm", "codex");
-        project.currentRevision = "baseline";
+        project.currentRevision = expectedRevision;
         const tauri = window as unknown as {
           __TAURI_INTERNALS__: { invoke: (command: string, args: unknown) => Promise<unknown> };
           recordTorusCommand: (command: string, args: unknown) => Promise<void>;
@@ -37,10 +38,10 @@ for (const locale of ["ru", "en"] as const) {
           close: () => root.unmount(),
           disabled: false,
           onApply: (major: number, minor: number) => {
-            void captureTorus(project, "baseline", major, minor).invoke();
+            void captureTorus(project, expectedRevision, major, minor).invoke();
           },
         }));
-      }, theme);
+      }, { theme, expectedRevision });
       const dialog = page.getByRole("dialog", { name: labels.title });
       const build = dialog.getByRole("button", { name: labels.build, exact: true });
       await dialog.getByLabel(labels.tube).fill("10");
@@ -56,7 +57,7 @@ for (const locale of ["ru", "en"] as const) {
       expect(requests[0]).toMatchObject({
         command: "apply_ir_commands",
         args: {
-          expectedRevision: "baseline",
+          expectedRevision,
           commands: [
             { command: "add_feature", feature: {
               operation: {

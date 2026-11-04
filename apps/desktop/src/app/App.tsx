@@ -154,7 +154,7 @@ export default function App() {
   const [modal, setModal] = useState<
     "new" | "settings" | "export" | "palette" | "parameters" | "torus" | null
   >(null);
-  const [torusTarget, setTorusTarget] = useState<{ id: string; revision: string } | null>(null);
+  const [torusTarget, setTorusTarget] = useState<{ id: string; revision: string | null } | null>(null);
   const torusTargetCurrent = !!torusTarget && project?.id === torusTarget.id
     && project.currentRevision === torusTarget.revision;
   const stateKey = `forma.ui.project.${projectId ?? "home"}`;
@@ -918,7 +918,7 @@ export default function App() {
               export: () => setModal("export"),
               parameters: () => setModal("parameters"),
               addTorus: () => {
-                if (!project?.currentRevision) return;
+                if (!project) return;
                 setTorusTarget({ id: project.id, revision: project.currentRevision });
                 setModal("torus");
               },
@@ -938,7 +938,8 @@ export default function App() {
             },
             !!project,
             editingBlocked,
-            native && !!project?.currentRevision && !!revision?.program && !!readTypedCadDocument(revision.program),
+            native && !!project && (project.currentRevision === null
+              || (!!revision?.program && !!readTypedCadDocument(revision.program))),
           )}
         />
         {project && (
