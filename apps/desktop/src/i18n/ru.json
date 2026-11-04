@@ -1,4 +1,5 @@
 {
+  "Adjust the last datum in the same Undo step.": "Измените последний опорный элемент в том же шаге отмены.",
   "DATUM_INVALID": "Ядро CAD не смогло построить опорный элемент.",
   "Datum plane": "Опорная плоскость",
   "Datum axis": "Опорная ось",

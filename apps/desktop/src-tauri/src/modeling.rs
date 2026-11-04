@@ -3,6 +3,7 @@ use crate::{
     models::Project,
 };
 use tauri::{Emitter, State};
+pub mod amend_datum;
 pub mod amend_torus;
 pub mod amend_transform;
 pub mod apply;

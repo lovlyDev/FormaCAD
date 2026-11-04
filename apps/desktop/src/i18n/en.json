@@ -1,4 +1,5 @@
 {
+  "Adjust the last datum in the same Undo step.": "Adjust the last datum in the same Undo step.",
   "DATUM_INVALID": "The CAD engine could not construct the datum.",
   "Datum plane": "Datum plane",
   "Datum axis": "Datum axis",

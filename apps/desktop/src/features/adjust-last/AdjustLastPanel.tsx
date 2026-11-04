@@ -9,6 +9,9 @@ import type { Axis } from "../transform/frames";
 import { fieldsFromSession, type AdjustFields } from "./adjustFields";
 import { amendLast } from "./amendLast";
 import { AdjustTorus } from "../add-menu/torus/AdjustTorus";
+import { AdjustDatum } from "../add-menu/datum/AdjustDatum";
+import { readTypedCadDocument } from "../../lib/typedCadDocument";
+import { readDatumOperation } from "../add-menu/datum/datumModel";
 import type { ConfirmEdit } from "../viewer/interaction/useViewportInteraction";
 import "./adjustLast.css";
 
@@ -193,6 +196,13 @@ export function AdjustLastPanel({
     </section>
   );
   if (!valid && project?.currentRevision) {
+    const program = project.revisions.find((revision) => revision.id === project.currentRevision)?.program;
+    const feature = program && readTypedCadDocument(program)?.features.at(-1);
+    if (feature && readDatumOperation(feature.operation)) {
+      return <AdjustDatum key={`${project.id}:${project.currentRevision}`}
+        projectId={project.id} revisionId={project.currentRevision}
+        close={close} onAdopt={onAdopt} confirmEdit={confirmEdit} fallback={panel} />;
+    }
     return <AdjustTorus key={`${project.id}:${project.currentRevision}`}
       projectId={project.id} revisionId={project.currentRevision}
       close={close} onAdopt={onAdopt} confirmEdit={confirmEdit} fallback={panel} />;

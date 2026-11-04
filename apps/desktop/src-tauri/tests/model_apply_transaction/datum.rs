@@ -5,6 +5,82 @@ use forma_core::{
 };
 use serde_json::json;
 
+#[tokio::test]
+async fn first_datum_amendment_keeps_one_undo_step() {
+    use forma_core::{
+        cad_ir::Operation,
+        modeling::amend_datum,
+        project_history::{self, Direction},
+    };
+    let root = tempfile::tempdir().unwrap();
+    let (state, empty) = empty_fixture(root.path()).await;
+    let command = add_datums([1., 2., 3.]).pop().unwrap();
+    let request = prepare(
+        &state,
+        empty.id.clone(),
+        vec![command],
+        "Datum".into(),
+        None,
+    )
+    .await
+    .unwrap();
+    let first = apply_with_executable(&state, request, executable())
+        .await
+        .unwrap()
+        .project;
+    let mut replacement = amend_datum::status(&state, &empty.id)
+        .await
+        .unwrap()
+        .unwrap();
+    let old = snapshot(&state, &empty.id).await;
+    replacement.operation = Operation::DatumAxis {
+        origin_mm: [0.; 3],
+        direction: [0., 0., 1.],
+        length_mm: 10.,
+    };
+    assert!(amend_datum::prepare(&state, empty.id.clone(), replacement)
+        .await
+        .is_err());
+    assert_eq!(snapshot(&state, &empty.id).await, old);
+    let mut replacement = amend_datum::status(&state, &empty.id)
+        .await
+        .unwrap()
+        .unwrap();
+    replacement.operation = Operation::DatumPoint {
+        origin_mm: [1., 2., 3.],
+    };
+    let request = amend_datum::prepare(&state, empty.id.clone(), replacement)
+        .await
+        .unwrap();
+    let adjusted = apply_with_executable(&state, request, executable())
+        .await
+        .unwrap()
+        .project;
+    assert!(adjusted.revisions.starts_with(&first.revisions));
+    assert!(adjusted.files.is_empty());
+    let latest = amend_datum::status(&state, &empty.id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        latest.operation,
+        Operation::DatumPoint {
+            origin_mm: [1., 2., 3.]
+        }
+    );
+    let undone = project_history::apply_history(
+        &state,
+        &empty.id,
+        adjusted.current_revision.as_deref(),
+        Direction::Undo,
+        None,
+    )
+    .await
+    .unwrap();
+    assert!(undone.current_revision.is_none());
+    clean(&state).await;
+}
+
 fn add_datums(direction: [f64; 3]) -> Vec<Command> {
     serde_json::from_value(json!([
         {"command": "add_feature", "feature": {"id": "datum-plane", "name": "Plane",

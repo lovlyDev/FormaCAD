@@ -40,15 +40,21 @@ function VectorFields({ name, values, onChange, disabled }: {
   );
 }
 
-export function DatumDialog({ kind, close, disabled, onApply }: {
+export function DatumDialog({ kind, close, disabled, onApply, initial, error }: {
   kind: DatumKind;
   close: () => void;
   disabled: boolean;
   onApply: (operation: DatumOperation) => void;
+  initial?: DatumOperation;
+  error?: string;
 }) {
-  const [origin, setOrigin] = useState(["0", "0", "0"]);
-  const [direction, setDirection] = useState(["0", "0", "1"]);
-  const [span, setSpan] = useState("25");
+  const [origin, setOrigin] = useState(initial?.originMm.map(String) ?? ["0", "0", "0"]);
+  const [direction, setDirection] = useState(
+    (initial?.type === "datumPlane" ? initial.normal : initial?.type === "datumAxis" ? initial.direction : [0, 0, 1]).map(String),
+  );
+  const [span, setSpan] = useState(String(
+    initial?.type === "datumPlane" ? initial.sideMm : initial?.type === "datumAxis" ? initial.lengthMm : 25,
+  ));
   const originMm = origin.map(millimetres);
   const vector = direction.map(vectorComponent);
   const operation = readDatumOperation(kind === "datumPlane"
@@ -58,7 +64,7 @@ export function DatumDialog({ kind, close, disabled, onApply }: {
       : { type: kind, originMm });
   return (
     <Modal open onClose={close} title={t(datumLabels[kind])} className="datum-dialog"
-      description={t("Add construction geometry in model coordinates.")}>
+      description={initial ? t("Adjust the last datum in the same Undo step.") : t("Add construction geometry in model coordinates.")}>
       <form onSubmit={(event) => {
         event.preventDefault();
         if (operation && !disabled) onApply(operation);
@@ -73,9 +79,10 @@ export function DatumDialog({ kind, close, disabled, onApply }: {
           </label>
         </>}
         {!operation && <p role="status">{t("Check the datum coordinates, direction and size.")}</p>}
+        {error && <p role="alert">{error}</p>}
         <div className="modal-actions">
           <Button type="button" onClick={close}>{t("Cancel")}</Button>
-          <Button type="submit" className="primary" disabled={disabled || !operation}>{t("Построить")}</Button>
+          <Button type="submit" className="primary" disabled={disabled || !operation}>{initial ? t("Apply") : t("Построить")}</Button>
         </div>
       </form>
     </Modal>
