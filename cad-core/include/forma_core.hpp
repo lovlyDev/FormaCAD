@@ -90,6 +90,7 @@ std::unique_ptr<Shape> topology_occurrence(const Shape&, const std::string&) noe
 std::unique_ptr<Shape> fillet_referenced_edge(const Shape&, const std::string&, const std::string&, const std::string&, double) noexcept;
 std::unique_ptr<Shape> make_cylinder(double radius_mm, double height_mm) noexcept;
 std::unique_ptr<Shape> make_sphere(double radius_mm) noexcept;
+std::unique_ptr<Shape> make_torus(double major_radius_mm, double minor_radius_mm) noexcept;
 std::unique_ptr<Shape> make_cone(double bottom_radius_mm, double top_radius_mm, double height_mm) noexcept;
 std::unique_ptr<Shape> make_polygon_prism(const double* outline_xy, std::size_t coordinate_count, int plane,
                                           double origin_x_mm, double origin_y_mm,

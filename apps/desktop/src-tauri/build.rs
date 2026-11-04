@@ -34,6 +34,7 @@ fn main() {
             .file("../../../cad-core/src/profile_revolve.cpp")
             .file("../../../cad-core/src/section.cpp")
             .file("../../../cad-core/src/sphere.cpp")
+            .file("../../../cad-core/src/torus.cpp")
             .file("../../../cad-core/src/cone.cpp")
             .file("../../../cad-core/src/fillet.cpp")
             .file("../../../cad-core/src/chamfer.cpp")
