@@ -23,6 +23,7 @@ use std::{
 };
 
 mod read;
+mod source;
 pub use read::RepositoryRead;
 
 enum Backend<'a> {

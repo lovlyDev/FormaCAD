@@ -72,6 +72,9 @@ impl FolderProject {
     pub async fn recheck(&self, original: &ReadView) -> Result<()> {
         self.session.recheck(&original.snapshot).await
     }
+    pub(crate) async fn recheck_source(&self, original: &ReadView) -> Result<()> {
+        self.session.recheck_source(&original.snapshot).await
+    }
     pub async fn read_asset(&self, original: &ReadView, file: &ProjectFile) -> Result<Vec<u8>> {
         self.session.read_asset(&original.snapshot, file).await
     }

@@ -11,6 +11,28 @@ and the V2 reader remain separate.
 
 ## Reading
 
+### Metadata refresh through the original source
+
+`RepositoryRead::recheck_source` validates its original reader family, opening
+and physical location without asserting that the saved project is unchanged.
+It is not a substitute for `recheck` or geometry input validation.
+`recapture_metadata` obtains a separate current metadata view through the same
+retained repository, with original-source checks before and after. It does not
+look up a path/window key again, mutate the old view or revive a closed opening.
+Ordinary asset/history/IPC reads still require the full saved-state check.
+
+This supports geometry consumers that explicitly compare their original revision,
+document/source/import/preview seals before accepting unrelated metadata saves.
+Those consumers are not connected to this refresh method yet. A new metadata
+view does not inherit a LegacyManaged archive capture; history requires explicit
+capture/read according to its backend contract. Request close revokes its whole
+derived-reader family, while independently captured window requests remain live.
+
+Three actual SQL/filesystem regressions cover LegacyManaged, V2 and FCP1 metadata
+publication, old-view staleness, source/epoch retention and close/reopen refusal.
+They also check pure read state and metadata/archive separation. New exact-head
+Rust tests are pending; fixture presence is not a successful test result.
+
 ### Exact saved STEP properties
 
 The existing `inspect_model` now accepts the same optional source/expected-commit
@@ -40,9 +62,12 @@ Managed/V2 retain their project-ID groups. Distinct folder openings with equal
 project IDs have different groups; commit retains the group, reopen changes it.
 The global one-worker semaphore and individual task UUID/cancel API are unchanged.
 
-New assertions check group separation/stability and actual registered inspection
-group during the real worker; exact-revision ordinary/native verification is
-pending. Workspace task filtering, remaining geometry consumers and folder UI
+Group separation/stability and actual registered inspection group during the
+real worker passed on `d242babdb83b75c49cdcbfcfd4e18b80776c07d3`:
+[comparison](https://github.com/lovlyDev/FormaCAD/actions/runs/41813913525) and
+[native](https://github.com/lovlyDev/FormaCAD/actions/runs/41813913691).
+This checkpoint predates the metadata-refresh addition above; it does not verify
+that subsequent code. Workspace task filtering, remaining geometry consumers and folder UI
 are still incomplete. This inspection route does not complete stage 4.
 
 ### Window-bound attachments

@@ -4,6 +4,17 @@ use crate::{core::Result, models::ProjectFile};
 use std::sync::Arc;
 
 impl FolderSession {
+    pub(in crate::project_repository::sqlite_folder) async fn recheck_source(
+        &self,
+        snapshot: &FolderSnapshot,
+    ) -> Result<()> {
+        self.owns(snapshot)?;
+        let mut database = self.database.lock().await;
+        self.owns(snapshot)?;
+        database.recheck().await?;
+        self.owns(snapshot)
+    }
+
     async fn capture_locked(&self, database: &mut ReadOnlyDatabase) -> Result<format::Snapshot> {
         self.capture_locked_scoped(database, format::ReadScope::Complete)
             .await

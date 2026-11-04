@@ -4,10 +4,10 @@ use crate::{
     core::Result,
     models::{Project, ProjectFile},
 };
-use std::borrow::Cow;
+use std::{borrow::Cow, sync::Arc};
 
 pub struct RepositoryRead<'a> {
-    repository: ProjectRepository<'a>,
+    repository: Arc<ProjectRepository<'a>>,
     snapshot: RepositorySnapshot,
 }
 
@@ -15,7 +15,7 @@ impl<'a> RepositoryRead<'a> {
     pub async fn capture(repository: ProjectRepository<'a>) -> Result<Self> {
         let snapshot = repository.capture().await?;
         Ok(Self {
-            repository,
+            repository: Arc::new(repository),
             snapshot,
         })
     }
@@ -23,7 +23,7 @@ impl<'a> RepositoryRead<'a> {
     pub async fn capture_with_history(repository: ProjectRepository<'a>) -> Result<Self> {
         let snapshot = repository.capture_with_history().await?;
         Ok(Self {
-            repository,
+            repository: Arc::new(repository),
             snapshot,
         })
     }
@@ -50,6 +50,24 @@ impl<'a> RepositoryRead<'a> {
 
     pub async fn recheck(&self) -> Result<()> {
         self.repository.recheck(&self.snapshot).await
+    }
+
+    /// Source identity only. Callers must still validate saved/domain state.
+    pub async fn recheck_source(&self) -> Result<()> {
+        self.repository.recheck_source(&self.snapshot).await
+    }
+
+    /// A new metadata view through this ORIGINAL opening, not a path/key lookup.
+    /// The old view remains unchanged/stale. Geometry callers must compare their
+    /// original revision/input seals before accepting the refreshed metadata.
+    pub async fn recapture_metadata(&self) -> Result<Self> {
+        self.recheck_source().await?;
+        let snapshot = self.repository.capture().await?;
+        self.recheck_source().await?;
+        Ok(Self {
+            repository: Arc::clone(&self.repository),
+            snapshot,
+        })
     }
 
     pub async fn read_asset(&self, file: &ProjectFile) -> Result<Vec<u8>> {
@@ -87,8 +105,11 @@ impl RepositoryRead<'static> {
         };
         repository.recheck(&snapshot).await?;
         Ok(Self {
-            repository,
+            repository: Arc::new(repository),
             snapshot,
         })
     }
 }
+
+#[cfg(test)]
+mod refresh_tests;
