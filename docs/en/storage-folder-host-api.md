@@ -27,7 +27,11 @@ identical project IDs and filenames but different bytes, checks pure SQL bytes,
 refuses a foreign commit/missing name/path traversal, then rejects an old commit
 after an actual publication and rejects a closed source. These are attachment
 byte tests; geometry acceptance is covered by the real worker tests below.
-The new attachment revision still requires exact-head CI verification.
+On `1c15f96ba607d2745c26889c889696b27a15ee42`,
+[Storage comparison](https://github.com/lovlyDev/FormaCAD/actions/runs/41807057154)
+passed: 98 folder tests, two window/asset tests, both strict Clippy modes and both
+measurement steps. This does not validate the still-unapplied attachment IPC patch
+or a desktop geometry flow.
 
 ### Window IPC
 
