@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 mod affine_transform;
 pub mod assets;
+mod datum;
 pub mod topology_refs;
 mod torus;
 pub use topology_refs::{TopologyKind, TopologyReference};
@@ -138,6 +139,19 @@ pub enum Operation {
     Torus {
         major_radius: Dimension,
         minor_radius: Dimension,
+    },
+    DatumPlane {
+        origin_mm: [f64; 3],
+        normal: [f64; 3],
+        side_mm: f64,
+    },
+    DatumAxis {
+        origin_mm: [f64; 3],
+        direction: [f64; 3],
+        length_mm: f64,
+    },
+    DatumPoint {
+        origin_mm: [f64; 3],
     },
     Cone {
         bottom_radius: Dimension,

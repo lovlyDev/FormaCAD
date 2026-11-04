@@ -1,5 +1,6 @@
 import { t } from "../../i18n";
 import type { MenuGroup } from "./MainMenu";
+import { datumLabels, type DatumKind } from "../add-menu/datum/datumModel";
 interface Actions {
   duplicate: () => void;
   create: () => void;
@@ -7,6 +8,7 @@ interface Actions {
   export: () => void;
   parameters: () => void;
   addTorus: () => void;
+  addDatum: (kind: DatumKind) => void;
   palette: () => void;
   settings: (page?: string) => void;
   workspaces: () => void;
@@ -15,7 +17,7 @@ export function applicationMenus(
   actions: Actions,
   projectOpen: boolean,
   blocked: boolean,
-  torusAvailable = false,
+  canAddGeometry = false,
 ): MenuGroup[] {
   return [
     {
@@ -93,8 +95,14 @@ export function applicationMenus(
           id: "torus",
           label: t("Torus"),
           run: actions.addTorus,
-          disabled: blocked || !torusAvailable,
+          disabled: blocked || !canAddGeometry,
         },
+        ...(Object.keys(datumLabels) as DatumKind[]).map((kind) => ({
+          id: kind,
+          label: t(datumLabels[kind]),
+          run: () => actions.addDatum(kind),
+          disabled: blocked || !canAddGeometry,
+        })),
         {
           id: "feature",
           label: t("Edit model parameters"),

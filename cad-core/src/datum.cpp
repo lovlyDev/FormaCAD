@@ -84,3 +84,16 @@ TopoDS_Shape point(const Coordinates& origin_mm) noexcept {
 }
 
 } // namespace forma::datum
+
+namespace forma {
+
+bool validate_datum(int kind, const double* data, std::size_t count) noexcept {
+  if (!data || kind < 0 || kind > 2 || count != (kind == 2 ? 3u : 7u)) return false;
+  const datum::Coordinates origin{data[0], data[1], data[2]};
+  if (kind == 2) return !datum::point(origin).IsNull();
+  const datum::Coordinates direction{data[3], data[4], data[5]};
+  if (kind == 0) return !datum::plane(origin, direction, data[6]).IsNull();
+  return !datum::axis(origin, direction, data[6]).IsNull();
+}
+
+} // namespace forma

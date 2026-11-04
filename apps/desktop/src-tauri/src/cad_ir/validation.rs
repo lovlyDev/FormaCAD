@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FeatureKind {
+    Datum,
     Sketch,
     ProfileSketch,
     Solid,
@@ -130,6 +131,12 @@ impl Document {
                     let minor = resolve_dimension(minor_radius, &parameters, id)?;
                     torus::validate_radii(major, minor, id)?;
                     FeatureKind::Solid
+                }
+                Operation::DatumPlane { .. }
+                | Operation::DatumAxis { .. }
+                | Operation::DatumPoint { .. } => {
+                    feature.operation.validate_datum(id)?;
+                    FeatureKind::Datum
                 }
                 Operation::Cone {
                     bottom_radius,

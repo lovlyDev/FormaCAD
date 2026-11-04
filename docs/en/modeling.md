@@ -22,7 +22,9 @@ A CAD IR v2 document contains `schemaVersion: 2`, `revisionId`, and `parameters`
 
 The `forma::datum` module builds OCCT construction geometry in model coordinates. A plane is a square face with a centre and normal, an axis is a segment with a midpoint and direction, and a point is a vertex. The kernel checks coordinates, direction and size. Construction elements have their own topology and require no positive volume.
 
-`forma_datum_test` rejects a zero normal, a zero span and an infinite coordinate. After an independent STEP round-trip it checks BREP validity, plane area and direction, axis length and midpoint, and point position. Document storage, anchors on existing geometry and the user interface are pending.
+In the Add menu, choose Datum plane, Datum axis or Datum point. Enter the coordinates in the model coordinate system. For a plane, also enter a normal and side length. For an axis, enter a direction and length. CAD IR stores `datumPlane`, `datumAxis` or `datumPoint` separately from bodies. The worker checks the geometry before the revision is saved. A project with only datums produces no body files. Datums appear alongside the model and leave solid mass and body STEP export unchanged.
+
+`forma_datum_test` rejects a zero normal, a zero span and an infinite coordinate. After an independent STEP round-trip it checks BREP validity, plane area and direction, axis length and midpoint, and point position. Datum placement currently uses absolute coordinates. Semantic anchors on existing geometry and F9 are pending.
 
 Current schema operations:
 

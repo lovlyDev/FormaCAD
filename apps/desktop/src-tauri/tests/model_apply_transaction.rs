@@ -2,6 +2,8 @@
 //! Actual host apply/commit route, real worker and isolated storage; no UI runtime.
 #[path = "model_apply_transaction/amend.rs"]
 mod amend;
+#[path = "model_apply_transaction/datum.rs"]
+mod datum;
 #[path = "model_apply_transaction/fixture.rs"]
 mod fixture;
 #[path = "model_apply_transaction/geometry.rs"]

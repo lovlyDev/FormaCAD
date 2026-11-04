@@ -93,6 +93,11 @@ pub fn build_body_with_assets(
         }
         let get = |id: &str| feature_value(&features, id);
         let value = match &feature.operation {
+            Operation::DatumPlane { .. }
+            | Operation::DatumAxis { .. }
+            | Operation::DatumPoint { .. } => {
+                return Err(ir_error("INVALID_BODY", &feature.id));
+            }
             Operation::ImportStep { asset_id, sha256 } => {
                 let directory = asset_directory
                     .ok_or_else(|| ir_error("ASSET_MISSING", "STEP asset resolver is required"))?;

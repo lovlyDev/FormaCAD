@@ -46,17 +46,22 @@ pub(super) async fn commit(
     } else {
         None
     };
-    let step_name = format!("model-{job}.step");
-    let preview_name = format!("preview-{job}.glb");
-    for (name, bytes) in [(&step_name, &model.step), (&preview_name, &model.preview)] {
-        project.files.push(ProjectFile {
-            name: name.clone(),
-            size: bytes.len() as u64,
-            kind: "model".into(),
-            data: Some(crate::artifacts::data_url(name, bytes)),
-            sha256: None,
-        });
-    }
+    let (source, preview) = if let Some((step, preview)) = model.geometry {
+        let step_name = format!("model-{job}.step");
+        let preview_name = format!("preview-{job}.glb");
+        for (name, bytes) in [(&step_name, &step), (&preview_name, &preview)] {
+            project.files.push(ProjectFile {
+                name: name.clone(),
+                size: bytes.len() as u64,
+                kind: "model".into(),
+                data: Some(crate::artifacts::data_url(name, bytes)),
+                sha256: None,
+            });
+        }
+        (Some(step_name), Some(preview_name))
+    } else {
+        (None, None)
+    };
     let now = chrono::Utc::now().to_rfc3339();
     project.revisions.push(Revision {
         program: Some(program),
@@ -65,8 +70,8 @@ pub(super) async fn commit(
         parent: project.current_revision.clone(),
         created_at: now.clone(),
         prompt,
-        source: Some(step_name),
-        preview: Some(preview_name),
+        source,
+        preview,
         parameters: crate::models::Parameters {
             kind: "blank".into(),
             width: 120.0,

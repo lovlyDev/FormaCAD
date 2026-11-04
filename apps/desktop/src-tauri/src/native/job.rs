@@ -36,6 +36,7 @@ pub fn execute(
     cwd: &Path,
 ) -> Result<JobResult, NativeError> {
     super::assets::verify_inputs(document, cwd)?;
+    super::datum::validate(document)?;
     let bodies: Vec<_> = document
         .bodies
         .iter()

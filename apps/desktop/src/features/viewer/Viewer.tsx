@@ -54,6 +54,7 @@ import {
 import { ModalTransform } from "../transform/viewport/ModalTransform";
 import { TransformHud } from "../transform/viewport/TransformHud";
 import { AdjustLastPanel } from "../adjust-last/AdjustLastPanel";
+import { DatumOverlay } from "../add-menu/datum/DatumOverlay";
 import {
   RegionSelectController,
   RegionSelectOverlay,
@@ -506,6 +507,7 @@ export default function Viewer({
           </>
         )}
         {grid && <AdaptiveGrid object={object} light={light} />}
+        {!comparison && interactive && <DatumOverlay object={object} light={light} />}
         <SectionScene
           object={object}
           plane={section.plane}

@@ -108,6 +108,8 @@ import {
 } from "./dialogs/ActionReviewDialog";
 import { ExportDialog } from "./dialogs/ExportDialog";
 import { TorusDialog } from "../features/add-menu/torus/TorusDialog";
+import { DatumDialog } from "../features/add-menu/datum/DatumDialog";
+import { captureDatum, type DatumKind } from "../features/add-menu/datum/datumModel";
 import { captureTorus } from "../features/add-menu/torus/torusCommands";
 import { NewProjectDialog } from "./dialogs/NewProjectDialog";
 import { ParametersDialog } from "./dialogs/ParametersDialog";
@@ -152,9 +154,12 @@ export default function App() {
     staleTime: 60000,
   });
   const [modal, setModal] = useState<
-    "new" | "settings" | "export" | "palette" | "parameters" | "torus" | null
+    "new" | "settings" | "export" | "palette" | "parameters" | "torus" | "datum" | null
   >(null);
   const [torusTarget, setTorusTarget] = useState<{ id: string; revision: string | null } | null>(null);
+  const [datumTarget, setDatumTarget] = useState<{ id: string; revision: string | null; kind: DatumKind } | null>(null);
+  const datumTargetCurrent = !!datumTarget && project?.id === datumTarget.id
+    && project.currentRevision === datumTarget.revision;
   const torusTargetCurrent = !!torusTarget && project?.id === torusTarget.id
     && project.currentRevision === torusTarget.revision;
   const stateKey = `forma.ui.project.${projectId ?? "home"}`;
@@ -922,6 +927,11 @@ export default function App() {
                 setTorusTarget({ id: project.id, revision: project.currentRevision });
                 setModal("torus");
               },
+              addDatum: (kind) => {
+                if (!project) return;
+                setDatumTarget({ id: project.id, revision: project.currentRevision, kind });
+                setModal("datum");
+              },
               palette: () => setModal("palette"),
               settings: (page) => {
                 if (page) persist("forma.ui.settingsPage", JSON.stringify(page));
@@ -1528,6 +1538,24 @@ export default function App() {
             );
           }}
         />
+      )}
+      {modal === "datum" && project && datumTarget && (
+        <DatumDialog key={datumTarget.kind} kind={datumTarget.kind}
+          close={() => setModal(null)} disabled={editingBlocked || !datumTargetCurrent}
+          onApply={(datum) => {
+            if (!datumTargetCurrent) return;
+            const operation = captureDatum(project, datum);
+            setModal(null);
+            void ask(operation.captured.prompt, t("Add construction geometry in model coordinates."), project.name,
+              async () => {
+                setBusy(true, t("Построение геометрии"));
+                try {
+                  await applyModel(operation.captured, { invoke: operation.invoke });
+                } finally {
+                  setBusy(false);
+                }
+              }, "modify_project", project.id);
+          }} />
       )}
       {!revision || revision.source || revision.program ? (
         <ProgramDialog

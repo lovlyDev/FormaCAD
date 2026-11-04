@@ -11,8 +11,7 @@ use std::{
 };
 
 pub(super) struct GeneratedModel {
-    pub step: Vec<u8>,
-    pub preview: Vec<u8>,
+    pub geometry: Option<(Vec<u8>, Vec<u8>)>,
     pub program_base: Option<String>,
 }
 
@@ -70,6 +69,20 @@ pub(super) async fn build(
     #[cfg(feature = "native-worker-client")]
     let document = native_document(program, prepared)?;
     #[cfg(feature = "native-worker-client")]
+    if let Some(document) = document
+        .as_ref()
+        .filter(|document| document.is_datum_only())
+    {
+        if review.is_some() {
+            return Err(AppError::Invalid("AI review plan is invalid.".into()));
+        }
+        crate::native::worker::validate_datums(document, cwd, cancel, executable).await?;
+        return Ok(GeneratedModel {
+            geometry: None,
+            program_base: None,
+        });
+    }
+    #[cfg(feature = "native-worker-client")]
     if let Some(document) = &document {
         crate::native::assets::stage_project_assets(state, original, document, cwd)?;
     }
@@ -117,8 +130,7 @@ pub(super) async fn build(
     let preview = bounded_output(cwd, "preview.glb", "Converted preview exceeds 40 MB")?;
     let step = bounded_output(cwd, "model.step", "Model STEP exceeds 40 MB")?;
     Ok(GeneratedModel {
-        step,
-        preview,
+        geometry: Some((step, preview)),
         program_base: if used_base { source.cloned() } else { None },
     })
 }

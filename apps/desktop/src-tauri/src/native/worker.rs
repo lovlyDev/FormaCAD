@@ -110,7 +110,7 @@ async fn build_document(
         "bodyId": body_id
     })
     .to_string();
-    run_request(&input, &request_id, cwd, cancel, executable).await?;
+    run_request(&input, &request_id, cwd, cancel, executable, true).await?;
     Ok(true)
 }
 
@@ -131,7 +131,26 @@ pub async fn import_step_with_executable(
         "operation": "import_step"
     })
     .to_string();
-    run_request(&input, &request_id, cwd, cancel, executable).await
+    run_request(&input, &request_id, cwd, cancel, executable, true).await
+}
+
+pub(crate) async fn validate_datums(
+    document: &Document,
+    cwd: &Path,
+    cancel: Arc<AtomicBool>,
+    executable: Option<&Path>,
+) -> Result<()> {
+    let worker = match executable {
+        Some(path) => path.to_path_buf(),
+        None => worker_executable()?,
+    };
+    let request_id = uuid::Uuid::new_v4().to_string();
+    let input = serde_json::json!({
+        "protocolVersion": 1, "requestId": request_id,
+        "operation": "validate_datums", "document": document
+    })
+    .to_string();
+    run_request(&input, &request_id, cwd, cancel, &worker, false).await
 }
 
 pub(crate) fn worker_executable() -> Result<std::path::PathBuf> {
@@ -148,6 +167,7 @@ async fn run_request(
     cwd: &Path,
     cancel: Arc<AtomicBool>,
     executable: &Path,
+    expect_geometry: bool,
 ) -> Result<()> {
     processes::run(
         &CommandSpec {
@@ -174,6 +194,18 @@ async fn run_request(
         return Err(AppError::Invalid(
             serde_json::json!({"code":response.code,"message":response.detail}).to_string(),
         ));
+    }
+    if !expect_geometry {
+        if response.step_sha256.is_some()
+            || response.preview_sha256.is_some()
+            || cwd.join("model.step").exists()
+            || cwd.join("preview.glb").exists()
+        {
+            return Err(AppError::Invalid(
+                "CAD worker returned unexpected geometry".into(),
+            ));
+        }
+        return Ok(());
     }
     verify_file(
         &crate::security::guarded(cwd, Path::new("model.step"))?,

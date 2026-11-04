@@ -46,6 +46,9 @@ impl Operation {
             | Self::Circle { .. }
             | Self::Sphere { .. }
             | Self::Torus { .. }
+            | Self::DatumPlane { .. }
+            | Self::DatumAxis { .. }
+            | Self::DatumPoint { .. }
             | Self::Cone { .. } => vec![],
         }
     }

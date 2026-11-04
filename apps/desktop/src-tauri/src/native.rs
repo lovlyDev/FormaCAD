@@ -13,6 +13,8 @@ pub mod assets;
 #[cfg(feature = "native-occt")]
 mod chamfer;
 #[cfg(feature = "native-occt")]
+pub(crate) mod datum;
+#[cfg(feature = "native-occt")]
 mod document;
 pub mod face_section;
 #[cfg(feature = "native-occt")]
