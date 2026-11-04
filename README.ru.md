@@ -61,6 +61,10 @@ npm run build
 
 Проверка обновлений обращается к GitHub. AI-запросы передаются выбранному CLI-провайдеру при разрешённом действии. Сервер Forma не получает данные проектов. Подробнее: [безопасность](SECURITY.ru.md).
 
+## Лицензия
+
+FormaCAD — свободная программа под лицензией [GNU GPL v3 или более поздней](LICENSE). Сторонние компоненты сохраняют свои лицензии. Политика подписи кода и роли: [лицензия и подпись кода](docs/ru/code-signing.md).
+
 ## Ссылки
 
 [Репозиторий](https://github.com/lovlyDev/FormaCAD) · [Задачи](https://github.com/lovlyDev/FormaCAD/issues) · [Опубликованные релизы](https://github.com/lovlyDev/FormaCAD/releases) · [Сборки](https://github.com/lovlyDev/FormaCAD/actions) · [Все заметки об изменениях](docs/ru/changelog.md)

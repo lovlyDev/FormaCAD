@@ -57,6 +57,10 @@ Projects, settings and backups stay in the application data directory. Updates p
 
 Update checks contact GitHub. AI requests go to the selected CLI provider when the relevant action is permitted. Project data is not sent to a Forma backend. See [security](SECURITY.md).
 
+## License
+
+FormaCAD is free software under the [GNU GPL v3 or later](LICENSE). Third-party components keep their own licenses. Code signing policy and roles: [license and code signing](docs/en/code-signing.md).
+
 ## Links
 
 [Repository](https://github.com/lovlyDev/FormaCAD) · [Issues](https://github.com/lovlyDev/FormaCAD/issues) · [Published releases](https://github.com/lovlyDev/FormaCAD/releases) · [Actions](https://github.com/lovlyDev/FormaCAD/actions) · [All change notes](docs/en/changelog.md)
