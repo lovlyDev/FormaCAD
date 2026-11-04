@@ -37,6 +37,8 @@ pub mod step_import;
 #[cfg(feature = "native-occt")]
 mod topology_refs;
 #[cfg(feature = "native-occt")]
+mod torus;
+#[cfg(feature = "native-occt")]
 mod transforms;
 pub mod worker;
 #[cfg(feature = "native-occt")]

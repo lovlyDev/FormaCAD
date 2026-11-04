@@ -74,6 +74,7 @@ export function solidFeature(feature: TypedCadFeature): boolean {
   return [
     "importStep",
     "sphere",
+    "torus",
     "cone",
     "extrude",
     "revolve",

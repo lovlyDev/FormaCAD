@@ -1,4 +1,11 @@
 {
+  "Torus": "Torus",
+  "Add torus": "Add torus",
+  "Major radius": "Major radius",
+  "Tube radius": "Tube radius",
+  "Torus radii: {{major}} / {{minor}} mm": "Torus radii: {{major}} / {{minor}} mm",
+  "Create a solid ring around the Z axis at the model origin.": "Create a solid ring around the Z axis at the model origin.",
+  "Enter two positive radii. The major radius must exceed the tube radius.": "Enter two positive radii. The major radius must exceed the tube radius.",
   "Feature history": "Feature history",
   "Suppressed": "Suppressed",
   "Suppress": "Suppress",

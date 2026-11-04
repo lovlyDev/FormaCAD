@@ -132,6 +132,7 @@ pub(crate) mod ffi {
             owner: &CxxString,
         ) -> UniquePtr<Shape>;
         fn make_sphere(radius_mm: f64) -> UniquePtr<Shape>;
+        fn make_torus(major_radius_mm: f64, minor_radius_mm: f64) -> UniquePtr<Shape>;
         fn make_cone(bottom_radius_mm: f64, top_radius_mm: f64, height_mm: f64)
             -> UniquePtr<Shape>;
         unsafe fn make_polygon_prism(

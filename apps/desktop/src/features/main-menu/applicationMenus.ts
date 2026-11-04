@@ -6,6 +6,7 @@ interface Actions {
   import: () => void;
   export: () => void;
   parameters: () => void;
+  addTorus: () => void;
   palette: () => void;
   settings: (page?: string) => void;
   workspaces: () => void;
@@ -14,6 +15,7 @@ export function applicationMenus(
   actions: Actions,
   projectOpen: boolean,
   blocked: boolean,
+  torusAvailable = false,
 ): MenuGroup[] {
   return [
     {
@@ -87,6 +89,12 @@ export function applicationMenus(
       id: "add",
       label: "Add",
       actions: [
+        {
+          id: "torus",
+          label: t("Torus"),
+          run: actions.addTorus,
+          disabled: blocked || !torusAvailable,
+        },
         {
           id: "feature",
           label: t("Edit model parameters"),

@@ -60,6 +60,7 @@ impl Document {
                 },
                 Operation::ImportStep { .. }
                 | Operation::Sphere { .. }
+                | Operation::Torus { .. }
                 | Operation::Cone { .. }
                 | Operation::Hole { .. }
                 | Operation::Fillet { .. }

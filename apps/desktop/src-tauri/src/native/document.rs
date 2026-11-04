@@ -131,6 +131,13 @@ pub fn build_body_with_assets(
             Operation::Sphere { radius } => {
                 FeatureValue::Solid(Solid::sphere(dimension(radius, &parameters)?)?)
             }
+            Operation::Torus {
+                major_radius,
+                minor_radius,
+            } => FeatureValue::Solid(Solid::torus(
+                dimension(major_radius, &parameters)?,
+                dimension(minor_radius, &parameters)?,
+            )?),
             Operation::Cone {
                 bottom_radius,
                 top_radius,

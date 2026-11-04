@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 mod affine_transform;
 pub mod assets;
 pub mod topology_refs;
+mod torus;
 pub use topology_refs::{TopologyKind, TopologyReference};
 
 pub const SCHEMA_VERSION: u32 = 2;
@@ -133,6 +134,10 @@ pub enum Operation {
     },
     Sphere {
         radius: Dimension,
+    },
+    Torus {
+        major_radius: Dimension,
+        minor_radius: Dimension,
     },
     Cone {
         bottom_radius: Dimension,

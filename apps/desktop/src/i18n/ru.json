@@ -1,4 +1,11 @@
 {
+  "Torus": "Тор",
+  "Add torus": "Добавить тор",
+  "Major radius": "Большой радиус",
+  "Tube radius": "Радиус трубки",
+  "Torus radii: {{major}} / {{minor}} mm": "Радиусы тора: {{major}} / {{minor}} мм",
+  "Create a solid ring around the Z axis at the model origin.": "Создайте твёрдое кольцо вокруг оси Z в начале координат модели.",
+  "Enter two positive radii. The major radius must exceed the tube radius.": "Введите два положительных радиуса. Большой радиус должен превышать радиус трубки.",
   "Feature history": "История операций",
   "Suppressed": "Подавлена",
   "Suppress": "Подавить",

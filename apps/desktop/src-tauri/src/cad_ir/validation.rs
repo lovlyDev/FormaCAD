@@ -122,6 +122,15 @@ impl Document {
                     check_dimension(radius, &parameters, false, id)?;
                     FeatureKind::Solid
                 }
+                Operation::Torus {
+                    major_radius,
+                    minor_radius,
+                } => {
+                    let major = resolve_dimension(major_radius, &parameters, id)?;
+                    let minor = resolve_dimension(minor_radius, &parameters, id)?;
+                    torus::validate_radii(major, minor, id)?;
+                    FeatureKind::Solid
+                }
                 Operation::Cone {
                     bottom_radius,
                     top_radius,

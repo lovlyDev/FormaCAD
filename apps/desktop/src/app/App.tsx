@@ -107,6 +107,8 @@ import {
   type PendingAction,
 } from "./dialogs/ActionReviewDialog";
 import { ExportDialog } from "./dialogs/ExportDialog";
+import { TorusDialog } from "../features/add-menu/torus/TorusDialog";
+import { captureTorus } from "../features/add-menu/torus/torusCommands";
 import { NewProjectDialog } from "./dialogs/NewProjectDialog";
 import { ParametersDialog } from "./dialogs/ParametersDialog";
 import { ProgramDialog } from "./dialogs/ProgramDialog";
@@ -116,7 +118,7 @@ const stamp = () => new Date().toISOString();
 const legacyMotionPrompt = (text: string) =>
   text.startsWith("Добавь анимацию движения к текущей сборке.");
 export default function App() {
-  useLocale();
+  const locale = useLocale();
   const nav = useNavigate();
   const { projectId } = useParams();
   const queryClient = useQueryClient();
@@ -150,8 +152,11 @@ export default function App() {
     staleTime: 60000,
   });
   const [modal, setModal] = useState<
-    "new" | "settings" | "export" | "palette" | "parameters" | null
+    "new" | "settings" | "export" | "palette" | "parameters" | "torus" | null
   >(null);
+  const [torusTarget, setTorusTarget] = useState<{ id: string; revision: string } | null>(null);
+  const torusTargetCurrent = !!torusTarget && project?.id === torusTarget.id
+    && project.currentRevision === torusTarget.revision;
   const stateKey = `forma.ui.project.${projectId ?? "home"}`;
   const [search, setSearch] = usePersistentState("forma.ui.search", "");
   const [renameTarget, setRenameTarget] = useState<Project | null>(null);
@@ -912,6 +917,11 @@ export default function App() {
               import: () => fileInput.current?.click(),
               export: () => setModal("export"),
               parameters: () => setModal("parameters"),
+              addTorus: () => {
+                if (!project?.currentRevision) return;
+                setTorusTarget({ id: project.id, revision: project.currentRevision });
+                setModal("torus");
+              },
               palette: () => setModal("palette"),
               settings: (page) => {
                 if (page) persist("forma.ui.settingsPage", JSON.stringify(page));
@@ -928,6 +938,7 @@ export default function App() {
             },
             !!project,
             editingBlocked,
+            native && !!project?.currentRevision && !!revision?.program && !!readTypedCadDocument(revision.program),
           )}
         />
         {project && (
@@ -1487,6 +1498,36 @@ export default function App() {
           if (project && !busy) await update({ ...project, agent });
         }}
       />
+      {modal === "torus" && project && (
+        <TorusDialog
+          key={project.id}
+          close={() => setModal(null)}
+          disabled={editingBlocked || !torusTargetCurrent}
+          onApply={(major, minor) => {
+            if (!torusTargetCurrent) return;
+            const operation = captureTorus(project, torusTarget.revision, major, minor);
+            setModal(null);
+            void ask(
+              t("Add torus"),
+              t("Create a solid ring around the Z axis at the model origin."),
+              t("Torus radii: {{major}} / {{minor}} mm", {
+                major: major.toLocaleString(locale, { maximumSignificantDigits: 15 }),
+                minor: minor.toLocaleString(locale, { maximumSignificantDigits: 15 }),
+              }),
+              async () => {
+                setBusy(true, t("Построение геометрии"));
+                try {
+                  await applyModel(operation.captured, { invoke: operation.invoke });
+                } finally {
+                  setBusy(false);
+                }
+              },
+              "modify_project",
+              project.id,
+            );
+          }}
+        />
+      )}
       {!revision || revision.source || revision.program ? (
         <ProgramDialog
           open={modal === "parameters"}

@@ -45,6 +45,7 @@ impl Operation {
             | Self::Rectangle { .. }
             | Self::Circle { .. }
             | Self::Sphere { .. }
+            | Self::Torus { .. }
             | Self::Cone { .. } => vec![],
         }
     }

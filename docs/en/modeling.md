@@ -6,11 +6,13 @@ This guide describes the current local source tree. The published installer may 
 
 ## Model construction
 
-### Torus in the geometry kernel (M3)
+### Torus (M3)
 
 `make_torus` builds a solid OCCT torus at the origin around the Z axis. The major radius measures the distance to the centre of the tube section. The minor radius measures the tube radius. Both use millimetres. The major radius is capped at 10,000 mm. The minor radius and the difference between the two radii must exceed the OCCT tolerance. These constraints preserve an open hole and exclude degenerate and self-intersecting shapes.
 
-This stage exposes the operation in the C++ kernel. Project commands and the Add menu are pending. `forma_torus_test` compares volume, area and extents with analytical values, checks BREP validity after a STEP round-trip, and verifies rejection of invalid radii.
+In the desktop app, open a project with a saved CAD IR v2 model. Choose Add → Torus, enter both radii, and select Build. The fields accept bare values in millimetres and values with units such as `1 cm` or `0.5 in`. The torus is added as a separate body at the model origin.
+
+`AddFeature` and `AddBody` run as one transaction. The document stores `majorRadius` and `minorRadius` on the `torus` operation. Rust validates the radii and delegates construction to the worker. A successful build saves one revision. A validation or worker error preserves the previous model and history. `forma_torus_test` compares volume, area and extents with analytical values, checks BREP validity after a STEP round-trip, and verifies rejection of invalid radii.
 
 A CAD IR v2 document contains `schemaVersion: 2`, `revisionId`, and `parameters`, `features`, and `bodies` arrays. Element IDs remain stable across edits. A parameter has a name and a canonical millimeter value. A feature dimension is either a literal value or a reference to a parameter, so changing one parameter rebuilds dependent features. A body names its final feature with `sourceFeatureId`. Multiple bodies can be independent or participate in Boolean operations. See the [types](../../apps/desktop/src-tauri/src/cad_ir/mod.rs) and [validation rules](../../apps/desktop/src-tauri/src/cad_ir/validation.rs).
 
@@ -19,7 +21,7 @@ Current schema operations:
 | Group | Operations | Result |
 | --- | --- | --- |
 | 2D basis | `sketch2d`, `rectangle`, `circle` | A profile for extrusion; the interactive sketch currently supports one polygon loop. |
-| Solids | `sphere`, `cone`, `extrude` | A solid; extrusion refers to an earlier profile. |
+| Solids | `sphere`, `cone`, `torus`, `extrude` | A solid; extrusion refers to an earlier profile. |
 | Processing | `hole`, `fillet`, `filletEdge`, `chamfer`, `translate` | A derived result from an existing body feature. |
 | Geometry combination | `boolean` with `union`, `cut`, `intersect` | Union, subtraction, or intersection of two results. |
 
