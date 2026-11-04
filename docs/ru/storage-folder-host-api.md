@@ -133,7 +133,7 @@ identity и сохраняет переносимую историю.
 и backup не становятся целью записи. Даже отказ назначения сохраняет backup
 provenance в `MigrationReport`; новое открытие по тому же пути не наследует proof
 старого opening. Два новых API-теста проверяют точность manifest, сохранение
-project/history и отказ после close/reopen. Их текущий результат ещё не получен.
+project/history и отказ после close/reopen; доказательства для точной ревизии ниже.
 
 `Publication::Committed` содержит saved project и UUID, но не новую capability.
 `RejectedBefore` сохраняет отказ до commit. `Indeterminate` сохраняет известный
@@ -153,7 +153,7 @@ history/copy/write при повреждённом archive и сохранени
 `api::worker_tests::real_worker_host_api_roundtrip`: настоящая коробка 40×20×10,
 no-op без grant, отказ изменению без grant, close и открытие отдельным процессом
 с проверкой объёма 8000 мм³ и размеров через worker. Workflow явно требует один
-выполненный PASS; тест ещё не подтверждён на текущей ревизии.
+выполненный PASS; проверенная ревизия указана ниже.
 При `native-worker-client` API также предоставляет `SelectedStepFile`,
 непрозрачный `StepRead`, одноразовый `StepDestinationApproval` и
 `transfer_to_folder` с тем же `ModelRuntime`. Это прямой доступ к существующему
@@ -162,6 +162,40 @@ no-op без grant, отказ изменению без grant, close и отк�
 UI host должен планировать их отдельно от своего потока интерфейса. Новая
 синтетическая регрессия проверяет чужое открытие и файл, появившийся в назначении
 после разрешения. Настоящий STEP roundtrip теперь вызывает этот публичный API.
-Проверка native-client ревизии всё ещё обязательна.
+Результат проверки native-client для точной ревизии указан ниже.
 Production UI/index, реальные USB/NAS и fixture 1.1 ещё
 не приняты. Версии и релиз этот API не меняет.
+
+### Проверенная контрольная точка backend
+
+На `c147bf9ca2b9e6811ed945feaa203845c6827227` успешно завершились три workflow:
+[Quality](https://github.com/lovlyDev/FormaCAD/actions/runs/41744522132),
+[Storage comparison](https://github.com/lovlyDev/FormaCAD/actions/runs/41744514043)
+и [Storage native consumers](https://github.com/lovlyDev/FormaCAD/actions/runs/41744513890).
+В скачанных логах native job `126302133894` и comparison job `126294056666`
+зафиксированы выполненные проверки, а не только регистрация тестов.
+
+| Проверка | Наблюдаемый результат |
+| --- | --- |
+| Folder packet без native client | 98 passed, 0 failed, 6 ignored |
+| Строгий Clippy | Успех без native client и с native-worker-client |
+| Измерения FCP1 scoped reads и представлений хранилища | По одному выполненному PASS |
+| Native library packet | 529 passed, 0 failed, 18 ignored |
+| Worker smoke packet | 11 passed, 0 failed |
+| Семь host integration suites | 41 passed, 0 failed |
+| Independent folder CAD roundtrip | Один явно выполненный PASS |
+| Public folder host API roundtrip | Один явно выполненный PASS |
+| Selected STEP transfer roundtrip | Один явно выполненный PASS |
+
+Independent roundtrip строит настоящие модели шириной 40, затем 80, проверяет
+геометрию, выполняет undo до 40, закрывает источник, проверяет сохранённую модель
+в новом процессе с nonce, открывает её вновь и выполняет redo до 80. Публичный
+API и перенос выбранного STEP также используют настоящий собранный worker и
+проверку сохранённой геометрии в отдельном процессе. Явные ignored-тесты запущены
+отдельно; числа ignored обычного пакета не означают выполнение всех пропусков.
+
+Это доказательство backend-маршрутов в Linux CI на указанном SHA. Оно не
+подтверждает Windows desktop picker, подключённый UI/IPC, физические USB/NAS или
+настоящий fixture миграции 1.1. [Патч окна](../integration/storage-folder-window.md)
+на этой контрольной точке оставался неприменённым артефактом для согласования.
+Этап 4 остаётся открытым; эти backend-результаты не завершают всю программу.

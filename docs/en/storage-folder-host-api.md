@@ -134,7 +134,7 @@ existing checked converter with a separate empty FCP1 destination; the source
 and backup are never write targets. Destination refusal still returns backup
 provenance in `MigrationReport`. Reopening the same path cannot inherit an older
 opening's proof. Two new API tests check exact manifest bytes, project/history
-preservation and close/reopen refusal; current results are not yet established.
+preservation and close/reopen refusal; see the exact-revision evidence below.
 
 `Publication::Committed` exposes saved project and UUID, not a new capability.
 `RejectedBefore` retains pre-commit refusal. `Indeterminate` retains the known
@@ -154,7 +154,7 @@ The public `apply_model` has an explicit ignored
 `api::worker_tests::real_worker_host_api_roundtrip`: a real 40×20×10 box,
 grant-free no-op, refusal of an unapproved edit, close and independent-process
 reopen with worker verification of 8000 mm³ and bounds. The workflow requires one
-executed PASS; current-revision success is not yet established.
+executed PASS; the verified revision is recorded below.
 With `native-worker-client`, the API also exposes `SelectedStepFile`, opaque
 `StepRead`, single-use `StepDestinationApproval` and `transfer_to_folder` using
 the same `ModelRuntime`. This delegates to existing [STEP transfer](storage-step-transfer.md)
@@ -162,6 +162,40 @@ without old app SQL or recovered parametric history. Hash/read and approval are
 blocking file operations; a UI host must schedule them away from its UI thread.
 A new synthetic regression covers foreign opening and destination data added
 after approval. The real STEP roundtrip now calls this public API. Exact-head
-native-client verification remains required.
+native-client verification is recorded below.
 Production UI/index, actual USB/NAS and a genuine 1.1
 fixture remain incomplete gates. This API does not change versions or release.
+
+### Verified backend checkpoint
+
+On `c147bf9ca2b9e6811ed945feaa203845c6827227`, all three workflows completed
+successfully: [Quality](https://github.com/lovlyDev/FormaCAD/actions/runs/41744522132),
+[Storage comparison](https://github.com/lovlyDev/FormaCAD/actions/runs/41744514043)
+and [Storage native consumers](https://github.com/lovlyDev/FormaCAD/actions/runs/41744513890).
+Downloaded native job `126302133894` and comparison job `126294056666` logs
+contain the executed test results, rather than only test registration.
+
+| Gate | Observed result |
+| --- | --- |
+| Non-native folder packet | 98 passed, 0 failed, 6 ignored |
+| Strict Clippy | Passed without native client and with native-worker-client |
+| FCP1 scoped reads and storage representation measurements | One executed PASS each |
+| Native library packet | 529 passed, 0 failed, 18 ignored |
+| Worker smoke packet | 11 passed, 0 failed |
+| Seven host integration suites | 41 passed, 0 failed |
+| Independent folder CAD roundtrip | One explicit executed PASS |
+| Public folder host API roundtrip | One explicit executed PASS |
+| Selected STEP transfer roundtrip | One explicit executed PASS |
+
+The independent roundtrip creates real width-40 then width-80 models, checks
+geometry, undoes to width 40, closes, probes the saved model in a fresh process
+with a nonce, reopens and redoes to width 80. The public API and selected STEP
+routes also use the actual built worker, with fresh-process saved geometry
+checks. The explicit ignored tests are invoked separately; the ordinary packet's
+ignored counts are not claims that every ignored test was executed.
+
+This proves the Linux CI backend paths on that SHA. It does not prove a Windows
+desktop picker, integrated UI/IPC, physical USB/NAS behavior, or a genuine 1.1
+migration fixture. The [window integration patch](../integration/storage-folder-window.en.md)
+was only an unapplied review artifact at this checkpoint. Stage 4 remains open;
+the complete seven-stage program is not accepted by these backend results.
