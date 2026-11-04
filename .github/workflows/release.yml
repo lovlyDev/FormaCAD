@@ -189,3 +189,38 @@ jobs:
           gh release create "$RELEASE_TAG" --verify-tag --draft --title "Forma $VERSION" --notes-file .release-notes.md
           gh release upload "$RELEASE_TAG" .release-artifacts/*
           gh release edit "$RELEASE_TAG" --draft=false --latest
+
+  package-managers:
+    # Stable releases only: winget (Microsoft catalog) and the lovlyDev/homebrew-formacad tap.
+    # Each step skips with a warning when its token is missing, so a release never fails on a catalog.
+    needs: publish
+    if: ${{ !contains(github.ref_name, '-beta.') }}
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Submit winget update
+        shell: pwsh
+        env:
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if (-not $env:WINGET_TOKEN) { Write-Output '::warning::Add WINGET_TOKEN (classic PAT, public_repo) to submit FormaCAD to winget'; exit 0 }
+          $version = $env:RELEASE_TAG.TrimStart('v')
+          $url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:RELEASE_TAG/windows-x86_64-Forma_${version}_x64-setup.exe"
+          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+          .\wingetcreate.exe update lovlyDev.FormaCAD --version $version --urls $url --submit --token $env:WINGET_TOKEN
+      - name: Update Homebrew tap
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if [[ -z "$GH_TOKEN" ]]; then echo '::warning::Add HOMEBREW_TAP_TOKEN (contents: write on lovlyDev/homebrew-formacad) to update the tap'; exit 0; fi
+          VERSION="${RELEASE_TAG#v}"
+          gh release download "$RELEASE_TAG" -R "$GITHUB_REPOSITORY" -p SHA256SUMS -O SHA256SUMS
+          node scripts/homebrew-cask.mjs "$VERSION" SHA256SUMS formacad.rb
+          TAP=lovlyDev/homebrew-formacad
+          SHA=$(gh api "repos/$TAP/contents/Casks/formacad.rb" -q .sha)
+          gh api -X PUT "repos/$TAP/contents/Casks/formacad.rb" -f message="formacad $VERSION" -f sha="$SHA" -f content="$(base64 -w0 formacad.rb)" -q .commit.sha
