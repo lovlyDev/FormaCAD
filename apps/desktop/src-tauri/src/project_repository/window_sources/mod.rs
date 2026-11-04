@@ -3,6 +3,7 @@ use crate::{
     core::{AppError, Result},
     models::Project,
 };
+mod assets;
 pub mod ipc;
 
 #[cfg(any(
@@ -67,11 +68,7 @@ impl WindowSources {
             )
         ))]
         {
-            let source = self.existing(label)?.lookup(key)?;
-            let view = source.capture_metadata().await?;
-            if view.project().id != id || view.commit_id() != expected {
-                return Err(changed());
-            }
+            let (source, view) = self.capture_expected(label, key, id, expected).await?;
             let project = view.project().clone();
             source.recheck(&view).await?;
             Ok(project)

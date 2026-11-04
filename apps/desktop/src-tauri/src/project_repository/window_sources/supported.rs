@@ -1,11 +1,25 @@
 use super::{changed, WindowSources};
 use crate::{
     core::{AppError, Result},
-    project_repository::sqlite_folder::api::FolderSources,
+    project_repository::sqlite_folder::api::{FolderProject, FolderSources, ReadView},
 };
 use std::sync::Arc;
 
 impl WindowSources {
+    pub(super) async fn capture_expected(
+        &self,
+        label: &str,
+        key: &str,
+        id: &str,
+        expected: &str,
+    ) -> Result<(Arc<FolderProject>, ReadView)> {
+        let source = self.existing(label)?.lookup(key)?;
+        let view = source.capture_metadata().await?;
+        if view.project().id != id || view.commit_id() != expected {
+            return Err(changed());
+        }
+        Ok((source, view))
+    }
     pub(super) fn for_window(&self, label: &str) -> Result<Arc<FolderSources>> {
         let mut scopes = self.scopes.lock().map_err(|_| changed())?;
         if let Some(scope) = scopes.get(label) {

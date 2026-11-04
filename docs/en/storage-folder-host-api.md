@@ -11,6 +11,24 @@ and the V2 reader remain separate.
 
 ## Reading
 
+### Window-bound attachments
+
+Rust hosts can call `WindowSources::read_asset(windowLabel, sourceId, projectId,
+expectedCommitId, name)`. It shares the expected-source capture used for metadata
+reads, selects the file descriptor from that captured project and reads through
+the same `FolderProject`. Callers provide no path, size or checksum authority.
+The existing bounded CAS reader verifies the saved descriptor and bytes; the
+original view is rechecked after data-URL encoding as well. There is no managed
+blob fallback or app-index dependency. Unsupported platforms refuse the route.
+
+This is currently a host API; the shared `read_project_file` IPC has not been
+changed to accept a folder key. The real-folder regression uses two sources with
+identical project IDs and filenames but different bytes, checks pure SQL bytes,
+refuses a foreign commit/missing name/path traversal, then rejects an old commit
+after an actual publication and rejects a closed source. These are attachment
+byte tests; geometry acceptance is covered by the real worker tests below.
+The new attachment revision still requires exact-head CI verification.
+
 ### Window IPC
 
 The approved `WindowSources` host state is managed independently of `AppState`.
