@@ -21,4 +21,5 @@ mod session;
     )
 ))]
 pub mod sqlite_folder;
+pub mod window_sources;
 pub use legacy::{capture_history_state, recheck_history_state, HistoryStateSnapshot};

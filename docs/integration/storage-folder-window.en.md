@@ -2,8 +2,9 @@
 
 [Русский](storage-folder-window.md) · [Host API](../en/storage-folder-host-api.md)
 
-Status: prepared, **not applied**; shared IPC scope needs owner agreement under
-spec §5. Base: `61e9b0006b02eb239966f59a02a86065a9e0c619`.
+Status: **applied after lovlyDev explicitly answered “РАЗРЕШАЮ”** on 4 November
+2026, approving all eight paths. Compilation/runtime validation of the applied
+code is pending. Patch base: `61e9b0006b02eb239966f59a02a86065a9e0c619`.
 Owner: wenlixxq; acceptance: lovlyDev; Issue #31 / PR #35.
 
 ## Contract
@@ -51,7 +52,7 @@ native, protocol, permissions, SQL schema, or version changes.
 
 Exact diff: [storage-folder-window.patch](storage-folder-window.patch).
 `git apply --check` and rustfmt of staged Rust files passed. The patch is not
-applied or compiled; test presence is not PASS evidence. After approval, run
+compiled yet; test presence is not PASS evidence. After application, run
 strict Clippy, the new regression, existing folder packet and exact-head Quality.
 The native picker and Destroyed hook need real desktop verification. UI,
 model/geometry routing, recent index and later stages remain incomplete.

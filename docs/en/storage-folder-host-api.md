@@ -4,11 +4,36 @@
 
 `project_repository::sqlite_folder::api` exposes the backend to ordinary Windows
 and Linux x86_64/aarch64 Rust builds. This revision still requires compilation
-and runtime verification. It is a trusted host API; UI/IPC and app index are not
-connected. Selecting the folder never imports it into AppData. LegacyManaged
+and runtime verification. It is a trusted host API; window selection/reading IPC
+is connected below, while product UI and app index remain incomplete.
+Selecting the folder never imports it into AppData. LegacyManaged
 and the V2 reader remain separate.
 
 ## Reading
+
+### Window IPC
+
+The approved `WindowSources` host state is managed independently of `AppState`.
+`open_project_folder` opens the native folder picker for the invoking Tauri
+window, then returns `{sourceId, commitId, project}` or `null` for cancellation.
+Its scope is acquired before awaiting the picker; a late result after window
+destruction cannot create a new opening. Native paths are not IPC arguments.
+
+The existing `read_project_snapshot` accepts `{id}` for managed projects or
+`{id, sourceId, expectedCommitId}` for this folder. Both additional fields are
+required together. It refuses a foreign window/key, wrong project or commit,
+and rechecks the original view after copying the response. There is no fallback
+from a bad source key to a managed row. `close_project_source({sourceId})`
+revokes the selected opening; window destruction and host Drop revoke every
+associated source. Reusing a window label creates a fresh scope.
+
+No visible folder button, geometry/model-write IPC or recent index is provided
+by this integration. Before adding that UI, translate `PROJECT_SOURCE_LIMIT`
+and `PROJECT_FOLDER_UNSUPPORTED` at its RU/EN display boundary and pass source
+identity through every associated operation. Technical details remain separate.
+Unsupported platforms refuse folder opening rather than using managed storage.
+The new real-folder window regression and strict compilation still need results
+on the applied revision; the earlier verified checkpoint below predates this IPC.
 
 The host explicitly selects a path and calls `FolderProject::open` for an opaque
 `ReadView`. `capture_metadata` checks Project, cursor and declared commit seals
