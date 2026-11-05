@@ -341,6 +341,12 @@ pub enum DimensionField {
     deny_unknown_fields
 )]
 pub enum Command {
+    DuplicateBody {
+        body_id: String,
+        new_body_id: String,
+        name: String,
+        offset_mm: [f64; 3],
+    },
     TransformBody {
         body_id: String,
         feature_id: String,

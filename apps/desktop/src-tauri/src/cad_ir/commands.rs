@@ -1,6 +1,7 @@
 mod bindings;
 #[cfg(test)]
 mod bindings_tests;
+mod duplicate_body;
 mod sketch;
 mod topology_refs;
 mod transform_body;
@@ -32,6 +33,7 @@ pub fn apply_commands(
     let mut staged = current.clone();
     for command in commands {
         match command {
+            Command::DuplicateBody { .. } => duplicate_body::apply(&mut staged, command)?,
             Command::TransformBody { .. } => transform_body::apply(&mut staged, command)?,
             Command::SetTopologyReference { .. } => topology_refs::apply(&mut staged, command)?,
             Command::AddParameter { parameter } => staged.parameters.push(parameter.clone()),

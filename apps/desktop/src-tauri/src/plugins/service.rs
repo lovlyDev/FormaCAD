@@ -790,6 +790,7 @@ fn check_prefix(id: &str, commands: &[Command], prefix: &str) -> Result<()> {
             Command::AddFeature { feature } => Some(&feature.id),
             Command::AddBody { body } => Some(&body.id),
             Command::AddParameter { parameter } => Some(&parameter.id),
+            Command::DuplicateBody { new_body_id, .. } => Some(new_body_id),
             _ => None,
         };
         if let Some(new_id) = new_id {

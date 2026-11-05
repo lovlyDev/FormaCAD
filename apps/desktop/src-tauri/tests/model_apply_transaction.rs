@@ -6,6 +6,8 @@ mod amend;
 mod chamfer_edge;
 #[path = "model_apply_transaction/datum.rs"]
 mod datum;
+#[path = "model_apply_transaction/duplicate_body.rs"]
+mod duplicate_body;
 #[path = "model_apply_transaction/extrude_face.rs"]
 mod extrude_face;
 #[path = "model_apply_transaction/fixture.rs"]
