@@ -18,12 +18,10 @@ impl WindowSources {
             )
         ))]
         {
-            let source = self.existing(label)?.lookup(key)?;
-            let view = source.capture_metadata().await?;
-            if view.project().id != id || view.commit_id() != expected {
-                return Err(super::changed());
-            }
-            RepositoryRead::from_folder_view(source, view).await
+            self.capture_operation(label, key, id, expected)
+                .await?
+                .into_read()
+                .await
         }
         #[cfg(not(any(
             windows,

@@ -50,7 +50,8 @@ jobs:
         run: |
           set -o pipefail
           cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib project_repository::window_sources:: -- --nocapture 2>&1 | tee storage-evidence/window-source-tests.log
-          grep -F 'test result: ok. 2 passed; 0 failed;' storage-evidence/window-source-tests.log
+          grep -F 'test result: ok. 6 passed; 0 failed;' storage-evidence/window-source-tests.log
+          grep -E 'test project_repository::window_sources::operation::tests::window_read_only_copy_does_not_acquire_source_writer_authority \.\.\. ok' storage-evidence/window-source-tests.log
           grep -E 'test project_repository::window_sources::assets::tests::assets_bind_original_source_commit_and_descriptor_without_app_index \.\.\. ok' storage-evidence/window-source-tests.log
       - name: Test refresh through the original backend source
         run: |

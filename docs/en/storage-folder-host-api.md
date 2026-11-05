@@ -380,3 +380,35 @@ separate invocation returned exactly three PASS; the full library packet passed
 540 tests (18 ignored). See the [preview contract](../integration/storage-preview-source.en.md).
 Workspace source state, invalidation and visible folder controls remain unwired;
 this backend integration does not complete stage 4.
+
+## Window operation with its original view
+
+`WindowSources.capture_operation(window, sourceId, projectId, expectedCommit)`
+returns a Rust-only `FolderOperation` keeping the original `Arc<FolderProject>`
+and its `ReadView` together. The window's own registry validates the selector;
+another source with equal project IDs cannot replace it. After significant awaits,
+the host rechecks the original object; window/source close revokes it. `into_read`
+adopts that capture into the common RepositoryRead. Existing window readers use
+this route without additional history archive reads.
+
+Capture grants neither a writer lease nor user permission. Only a trusted host
+**after its explicit permission decision for the operation** calls `approve_write`;
+a renderer selector or boolean cannot substitute for that decision. The object is
+not serialized or persisted and exposes no independently replaceable source/view.
+`commit`, `apply_model` and `apply_history` pass the original view and opaque
+WriteApproval to the existing transactional backend. CAD retains the common
+executor; `None` permits only its existing no-op route. A raw renderer Project is
+not a valid host-prepared candidate. The existing publisher still acquires the
+writer OS-lock before writing.
+
+`save_copy` uses the original view without approving source writes and creates an
+independent identity in a separately host-selected destination. No new IPC or
+visible button is added. Permission UI and writer IPC adoption still need shared
+integration and agreement.
+
+Four `window_sources::operation::tests` cases exercise actual SQL/CAS: approval
+cannot transfer between equal-ID folders; close/reused window labels revoke the
+old object; delayed approval refuses a newer committed state; read-only copying
+works while another writer owns the source OS-lock, preserving its SQLite bytes.
+Metadata changes here are not CAD geometry evidence. The new suite is verified
+in current-commit CI; test presence and rustfmt alone are not PASS.

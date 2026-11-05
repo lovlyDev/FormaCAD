@@ -6,6 +6,14 @@ use crate::{
 mod assets;
 mod capture;
 pub mod ipc;
+#[cfg(any(
+    windows,
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    )
+))]
+pub mod operation;
 
 #[cfg(any(
     windows,
