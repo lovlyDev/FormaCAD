@@ -4,15 +4,16 @@ export interface CapturedApply {
   readonly base: Readonly<ApplyIdentity>;
   readonly program: string;
   readonly prompt: string;
+  readonly sourceOpeningId?:string;
 }
 export type Adoption = "orphaned" | "conflict" | "unchanged" | "alreadyAdopted" | "committed";
 
-export function captureApply(base: ApplyIdentity, program: string, prompt: string): CapturedApply {
-  return Object.freeze({ base: Object.freeze({ id: base.id, currentRevision: base.currentRevision }), program, prompt });
+export function captureApply(base: ApplyIdentity, program: string, prompt: string,sourceOpeningId?:string): CapturedApply {
+  return Object.freeze({ base: Object.freeze({ id: base.id, currentRevision: base.currentRevision }), program, prompt,...(sourceOpeningId?{sourceOpeningId}:{}) });
 }
 
-export function assertApplyBase(current: ApplyIdentity | null, captured: CapturedApply): void {
-  if (!current || current.id !== captured.base.id || current.currentRevision !== captured.base.currentRevision)
+export function assertApplyBase(current: ApplyIdentity | null, captured: CapturedApply,currentOpeningId?:string): void {
+  if (!current || current.id !== captured.base.id || current.currentRevision !== captured.base.currentRevision || (captured.sourceOpeningId!==undefined&&captured.sourceOpeningId!==currentOpeningId))
     throw new Error("MODEL_APPLY_BASE_CHANGED");
 }
 
@@ -29,6 +30,7 @@ export function applyAdoption(current: ApplyIdentity | null, captured: CapturedA
 
 export interface ApplyRoute<P extends ApplyIdentity> {
   getCurrent(): P | null;
+  getSourceOpeningId?():string|undefined;
   invoke(request: CapturedApply): Promise<P>;
   adopt(result: P, disposition: "unchanged" | "alreadyAdopted" | "committed"): void;
   reconcileTarget(result: P, disposition: "orphaned" | "conflict"): Promise<void>;
@@ -40,9 +42,9 @@ export interface ApplyRoute<P extends ApplyIdentity> {
 
 /** Call inside approved callback, not when merely opening the confirmation dialog. */
 export async function executeCapturedApply<P extends ApplyIdentity>(captured: CapturedApply, route: ApplyRoute<P>): Promise<{ result: P; disposition: Adoption; adoptionFailure?: unknown; metadataFailure?: unknown; refreshFailure?: unknown }> {
-  assertApplyBase(route.getCurrent(), captured);
+  assertApplyBase(route.getCurrent(), captured,route.getSourceOpeningId?.());
   const result = await route.invoke(captured);
-  const disposition = applyAdoption(route.getCurrent(), captured, result);
+  const disposition:Adoption=captured.sourceOpeningId!==undefined&&captured.sourceOpeningId!==route.getSourceOpeningId?.()?"orphaned":applyAdoption(route.getCurrent(), captured, result);
   // Adopt durable geometry before any optional conversation save. No-op/alreadyAdopted adoption preserves selection.
   let adoptionFailure: unknown, metadataFailure: unknown, refreshFailure: unknown;
   try {

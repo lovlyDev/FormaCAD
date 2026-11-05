@@ -1480,5 +1480,6 @@
   "This project could not be verified. Its saved files were not changed.": "Не удалось проверить проект. Его сохранённые файлы не изменены.",
   "This project exceeds the catalog response budget. Its saved files were not changed.": "Проект превышает лимит ответа каталога. Его сохранённые файлы не изменены.",
   "The project changed while opening. Retry opening it.": "Проект изменился во время открытия. Повторите открытие.",
-  "Opening the selected project. The current model is kept until reading succeeds.": "Открывается выбранный проект. Текущая модель сохраняется до успешного завершения чтения."
+  "Opening the selected project. The current model is kept until reading succeeds.": "Открывается выбранный проект. Текущая модель сохраняется до успешного завершения чтения.",
+  "PROJECT_SOURCE_WRITE_NOT_AUTHORIZED": "Этот источник не открыт для редактирования."
 }

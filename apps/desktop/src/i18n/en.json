@@ -1480,5 +1480,6 @@
   "This project could not be verified. Its saved files were not changed.": "This project could not be verified. Its saved files were not changed.",
   "This project exceeds the catalog response budget. Its saved files were not changed.": "This project exceeds the catalog response budget. Its saved files were not changed.",
   "The project changed while opening. Retry opening it.": "The project changed while opening. Retry opening it.",
-  "Opening the selected project. The current model is kept until reading succeeds.": "Opening the selected project. The current model is kept until reading succeeds."
+  "Opening the selected project. The current model is kept until reading succeeds.": "Opening the selected project. The current model is kept until reading succeeds.",
+  "PROJECT_SOURCE_WRITE_NOT_AUTHORIZED": "This source has not been opened for editing."
 }

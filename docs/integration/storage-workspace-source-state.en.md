@@ -2,7 +2,8 @@
 
 [Русский](storage-workspace-source-state.md) · [Host API](../en/storage-folder-host-api.md)
 
-Status: **prepared, unapplied**. Base `9604647389fa234fc87d57cd5a95b714a3b56d34`.
+Status: **approved by lovlyDev and applied**. Working-branch rerun passed 334 tests /112 files, production build, i18n1483 and docs194; current-commit CI is checked separately.
+Exact patch base `9604647389fa234fc87d57cd5a95b714a3b56d34`.
 Issue #31 / PR #35; implementation wenlixxq, agreement and acceptance lovlyDev.
 Diff: [storage-workspace-source-state.patch](storage-workspace-source-state.patch).
 
@@ -83,7 +84,8 @@ files, production build, check:i18n (1483 EN/RU messages) and check:docs (190 ba
 documents). This includes 40 new state/renderer tests: same-ID switch/reopen,
 metadata refresh, late save/event/CAD adoption, scoped geometry, refusal after
 decoder await, object disposal, isolated preferences and read-only access. Exact
-patch applicability passed. Shared working sources remain unchanged.
+patch applicability passed. Following explicit approval for all 31 files, the
+patch is applied; actual-head results are recorded in Issue #31.
 
 Frontend tests use renderer fixtures/mocks and do not replace actual CAD evidence.
 The native preview base `4b96158` passed all three CI workflows. After application,
@@ -95,3 +97,4 @@ does not implement folder writer/permissions UI. Read-only binding is not stage 
 final outcome; visible folder flow awaits completion of its read/write route.
 The separate manual-section patch remains unapproved and is not included here.
 Specification §5 requires agreement before shared store/App/frontend/i18n edits.
+

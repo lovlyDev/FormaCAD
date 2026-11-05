@@ -379,8 +379,37 @@ Frontend preview/cancel API принимают необязательный Fold
 во время worker/cleanup await и две папки с одинаковыми IDs и раздельной отменой.
 Отдельный запуск дал ровно три PASS; общий library-пакет — 540 PASS / 18 ignored.
 Подробности — [контракт preview](../integration/storage-preview-source.md).
-Workspace source state, его invalidation и видимые folder controls ещё не подключены;
-эта backend-интеграция не завершает этап 4.
+Workspace теперь хранит source binding открытия и использует его для invalidation
+сцены и основных callbacks. Видимые folder controls и полный маршрут записи ещё
+не подключены; эта интеграция не завершает этап 4.
+
+## Привязка renderer к открытию источника
+
+Workspace публикует Project вместе с process-local `ProjectSourceBinding`.
+Явное managed/folder открытие создаёт новое семейство запросов; metadata refresh
+сохраняет его. UUID renderer служит только для отказа позднему callback и не
+заменяет проверку host source/window/commit или writer permission. Binding и
+source tokens не сохраняются в preferences или проекте.
+
+При смене источника сбрасывается topology/body selection, прежняя геометрия сразу
+скрывается, поздние объекты освобождаются. CommittedScene учитывает opening ID
+дополнительно к revision/asset seals. Папочный modelLoader читает host-вложение
+даже при inline-кандидате и проверяет тот же source/commit после декодирования.
+Готовая геометрия сохраняется при metadata-only обновлении; pending IO получает
+новую commit-ссылку. Загрузка не подставляет managed проект с тем же ID.
+
+Managed save, navigation, revision events и основные CAD callbacks проверяют
+исходное открытие; старый ответ не заменяет folder-view. Folder read reference
+не вызывает managed persistence и не получает managed writer access. Статус доступа
+также учитывает открытие, чтобы старый write-mode не отображался во время повторного
+acquire того же ID. Ошибка PROJECT_SOURCE_WRITE_NOT_AUTHORIZED переведена RU/EN.
+
+Project-scoped folder-черновики корневого окна остаются в RAM; managed preferences
+для них не читаются и не пишутся. Их семейство включает открытие и ключ preference,
+поэтому переход к другому ключу ревизии отклоняет старый setter. Это основа renderer,
+а не уже доступный folder writer UI. Подключение editor/AI preview и остальных
+measurement/history/import/export consumers идёт отдельными согласованными патчами.
+Точный состав и проверки: [контракт состояния workspace](../integration/storage-workspace-source-state.md).
 
 ## Оконная операция с исходным снимком
 

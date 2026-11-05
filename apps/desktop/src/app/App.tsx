@@ -49,7 +49,9 @@ import {
   usePlugins,
 } from "../features/plugins/usePluginCommands";
 import { ProjectAccessNotice } from "../features/project-access/ProjectAccessNotice";
-import { useProjectAccess } from "../features/project-access/useProjectAccess";
+import {useWorkspaceSourceAccess} from "../features/project-sources/useWorkspaceSourceAccess";
+import {managedActionSource} from "../features/project-sources/sourceAction";
+import {useSourcePreference} from "../features/project-sources/useSourcePreference";
 import { ProjectFilesPanel } from "../features/project-files/ProjectFilesPanel";
 import { ModelHistoryControls } from "../features/project-history/ModelHistoryControls";
 import { RevisionList } from "../features/project-history/RevisionList";
@@ -125,6 +127,7 @@ export default function App() {
   useRevisionEvents();
   const {
     project,
+    sourceBinding,
     setProject,
     update,
     revise,
@@ -137,7 +140,7 @@ export default function App() {
     selectedEdge,
     setSelected,
   } = useWorkspace();
-  const projectAccess = useProjectAccess(project?.id, setError);
+  const projectAccess = useWorkspaceSourceAccess(project?.id, sourceBinding, setError);
   const openingProject = !!projectId && !!project && projectId !== project.id;
   const editingBlocked = busy || !projectAccess.writable || openingProject;
   const { catalog, projects, unavailable } = useProjectCatalog();
@@ -161,11 +164,11 @@ export default function App() {
   const [renameName, setRenameName] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [deleteName, setDeleteName] = useState("");
-  const [prompt, setPrompt] = usePersistentState(`${stateKey}.prompt`, "");
+  const [prompt, setPrompt] = useSourcePreference(`${stateKey}.prompt`, "",sourceBinding);
   const [pending, setPending] = useState<PendingAction | null>(null);
-  const [attachments, setAttachments] = usePersistentState<ProjectFile[]>(
+  const [attachments, setAttachments] = useSourcePreference<ProjectFile[]>(
     `${stateKey}.attachments`,
-    [],
+    [],sourceBinding,
   );
   const [notice, setNotice] = useState("");
   const plugins = usePlugins(modal === "palette");
@@ -179,16 +182,16 @@ export default function App() {
   const [exportInfo, setExportInfo] = useState<
     Project["exports"][number] | null
   >(null);
-  const [lockedBodies, setLockedBodies] = usePersistentState<string[]>(
+  const [lockedBodies, setLockedBodies] = useSourcePreference<string[]>(
     `${stateKey}.lockedBodies`,
-    [],
+    [],sourceBinding,
   );
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(
     null,
   );
-  const [compare, setCompare] = usePersistentState<string | null>(
+  const [compare, setCompare] = useSourcePreference<string | null>(
     `${stateKey}.compare`,
-    null,
+    null,sourceBinding,
   );
   const fileInput = useRef<HTMLInputElement>(null);
   const chatInput = useRef<HTMLTextAreaElement>(null);
@@ -196,7 +199,7 @@ export default function App() {
   const revision = project?.revisions.find(
     (r) => r.id === project.currentRevision,
   );
-  const committedScene = useCommittedScene(project, revision);
+  const committedScene = useCommittedScene(project, revision,sourceBinding);
   const loadingModel = committedScene.loading;
   const emptyScene = useMemo(() => new THREE.Group(), []);
   const generatedFiles = new Set(
@@ -376,13 +379,15 @@ export default function App() {
         fileInput.current?.click();
       } else if (e.code === "KeyS") {
         e.preventDefault();
-        if (project && !openingProject)
-          saveProject(project)
+        if (project && !openingProject&&!editingBlocked){
+          const action=managedActionSource(project.id,sourceBinding);if(!action.isCurrent())return;
+          update(project)
             .then(() => {
+              if(!action.isCurrent())return;
               refresh();
               setNotice(t("Project saved"));
             })
-            .catch((e) => setError(errorText(e)));
+            .catch((e) => {if(action.isCurrent())setError(errorText(e));});}
       } else if (e.code === "KeyE" && e.shiftKey) {
         e.preventDefault();
         setModal("export");
@@ -552,11 +557,14 @@ export default function App() {
     if (!project || editingBlocked || !request.trim()) return;
     const text = request.trim();
     const p = project;
+    const sourceAction=managedActionSource(p.id,sourceBinding);
     let agentPreview: { description: string; detail: string };
     try {
+      sourceAction.assertCurrent();
       agentPreview = await agentPermissionPreview(p, text);
+      sourceAction.assertCurrent();
     } catch (cause) {
-      if (useWorkspace.getState().project?.id === p.id)
+      if (sourceAction.isCurrent())
         setError(errorText(cause));
       return;
     }
@@ -565,6 +573,7 @@ export default function App() {
       agentPreview.description,
       agentPreview.detail,
       async () => {
+        sourceAction.assertCurrent();
         setPrompt("");
         liveRef.current = [];
         setLiveEvents([]);
@@ -583,6 +592,7 @@ export default function App() {
               },
             ],
           });
+          sourceAction.assertCurrent();
           const result = await plan(
             p,
             text,
@@ -593,6 +603,7 @@ export default function App() {
                 ? selectedFace
                 : null,
           );
+          sourceAction.assertCurrent();
           setAttachments([]);
           const latest = useWorkspace.getState().project;
           if (!latest || candidateSourceStatus(latest, p) === "projectChanged")
@@ -619,6 +630,7 @@ export default function App() {
               },
             ],
           });
+          sourceAction.assertCurrent();
           liveRef.current = [];
           setLiveEvents([]);
           setChatBusy(false);
@@ -629,6 +641,7 @@ export default function App() {
             result.message,
             result.program,
             async () => {
+              sourceAction.assertCurrent();
               setBusy(true, t("Построение и проверка геометрии"));
               try {
                 const current = useWorkspace.getState().project;
@@ -641,13 +654,13 @@ export default function App() {
                   throw new Error(
                     t("Модель изменилась во время ответа. Повторите запрос."),
                   );
-                await applyModel(captureApply(p, result.program!, text), {
+                await applyModel(captureApply(p, result.program!, text,sourceAction.openingId), {
                   reviewPlan: result.reviewPlan,
                   assistantMessage: result.message,
                 });
               } catch (error) {
                 const current = useWorkspace.getState().project;
-                if (current?.id === p.id)
+                if (sourceAction.isCurrent()&&current?.id === p.id)
                   await update({
                     ...current,
                     messages: [
@@ -676,7 +689,7 @@ export default function App() {
           );
         } catch (e) {
           const latest = useWorkspace.getState().project;
-          if (latest?.id === p.id)
+          if (sourceAction.isCurrent()&&latest?.id === p.id)
             await update({
               ...latest,
               messages: [
@@ -1445,7 +1458,7 @@ export default function App() {
             const captured = captureApply(
               base,
               program,
-              t("Изменён исходный код модели"),
+              t("Изменён исходный код модели"),useWorkspace.getState().sourceBinding?.openingId,
             );
             setModal(null);
             void ask(
@@ -1453,7 +1466,7 @@ export default function App() {
               t("Проверить геометрию и сохранить ревизию."),
               program,
               async () => {
-                assertApplyBase(useWorkspace.getState().project, captured);
+                assertApplyBase(useWorkspace.getState().project, captured,useWorkspace.getState().sourceBinding?.openingId);
                 setBusy(true, t("Построение геометрии"));
                 try {
                   await applyModel(captured);

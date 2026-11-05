@@ -2,7 +2,8 @@
 
 [English](storage-workspace-source-state.en.md) · [Host API](../ru/storage-folder-host-api.md)
 
-Статус: **подготовлен, не применён**. Основа `9604647389fa234fc87d57cd5a95b714a3b56d34`.
+Статус: **согласован lovlyDev и применён**. В рабочей ветке повторно прошли 334 теста / 112 файлов, production build, i18n 1483 и docs 194; CI текущего коммита проверяется отдельно.
+Основа точного патча `9604647389fa234fc87d57cd5a95b714a3b56d34`.
 Issue #31 / PR #35; исполнитель wenlixxq, согласование и приёмка lovlyDev.
 Diff: [storage-workspace-source-state.patch](storage-workspace-source-state.patch).
 
@@ -83,7 +84,8 @@ protocol, native permissions, SQL, версии и backend IPC-контракт�
 основы). В их числе 40 новых тестов состояния/рендерера: same-ID switch/reopen,
 metadata refresh, late save/event/CAD adoption, source-scoped geometry, отказ после
 decoder await, очистка объекта, отдельные preferences и read-only access. Проверена
-применимость точного патча к рабочей ветке. Общие working sources не изменены.
+применимость точного патча к рабочей ветке. После явного разрешения всех 31 файлов
+патч применён; результаты actual-head проверок фиксируются в Issue #31.
 
 Эти frontend-тесты используют renderer fixtures/mocks и не подменяют настоящие CAD
 проверки. Native preview-основа `4b96158` прошла все три CI. После применения патча
@@ -95,3 +97,4 @@ folder writer/permissions UI. Read-only folder binding — не конечный
 этапа 4: до завершения read/write маршрута источник не включается в видимый flow.
 Отдельный manual-section патч остаётся несогласованным и сюда не включён.
 §5 ТЗ требует согласования этих shared store/App/frontend/i18n файлов до применения.
+

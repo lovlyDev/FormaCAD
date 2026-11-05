@@ -1,3 +1,4 @@
+import {isSourceCurrent} from "../project-sources/sourceBinding";
 import { readProjectSnapshot } from "../project-catalog/api";
 import { invalidateProjectCatalog } from "../project-catalog/cache";
 import { useEffect } from "react";
@@ -18,12 +19,14 @@ export function useRevisionEvents() {
       if (typeof id !== "string" || !/^[A-Za-z0-9_-]{1,80}$/.test(id)) return;
       const epoch = (generations.get(id) ?? 0) + 1; generations.set(id, epoch);
       const before = useWorkspace.getState().project;
+      const beforeSource=useWorkspace.getState().sourceBinding;
+      if(before?.id===id&&beforeSource?.kind==="folder"){invalidateProjectCatalog(query);return;}
       const cachedBefore = query.getQueryData<Project[]>(["projects"])?.find(project => project.id === id);
       void readProjectSnapshot(id).then(latest => {
         if (!alive || generations.get(id) !== epoch) return;
         const current = useWorkspace.getState().project;
         // A newer invoke result or project switch during this fetch wins.
-        if (current !== before || query.getQueryData<Project[]>(["projects"])?.find(project => project.id === id) !== cachedBefore) {
+        if (current !== before || (beforeSource?!isSourceCurrent(useWorkspace.getState().sourceBinding,beforeSource):!!useWorkspace.getState().sourceBinding) || query.getQueryData<Project[]>(["projects"])?.find(project => project.id === id) !== cachedBefore) {
           invalidateProjectCatalog(query); return;
         }
         query.setQueryData<Project[]>(["projects"], cached => {

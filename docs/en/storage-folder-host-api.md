@@ -378,8 +378,37 @@ executed all three preview regressions: genuine imported STEP, late close during
 worker/cleanup await and equal-ID folders with independent cancellation. Their
 separate invocation returned exactly three PASS; the full library packet passed
 540 tests (18 ignored). See the [preview contract](../integration/storage-preview-source.en.md).
-Workspace source state, invalidation and visible folder controls remain unwired;
-this backend integration does not complete stage 4.
+Workspace now retains an opening source binding and uses it for scene and primary
+callback invalidation. Visible folder controls and the complete writer route remain
+unwired; this integration does not complete stage 4.
+
+## Renderer opening binding
+
+Workspace publishes Project alongside a process-local `ProjectSourceBinding`.
+Explicit managed/folder activation starts a new request family; metadata refresh
+preserves it. The renderer UUID only rejects late callbacks; it never replaces host
+source/window/commit validation or writer permission. Binding and source tokens are
+not persisted in preferences or project data.
+
+Source switches reset topology/body selection, immediately hide retired geometry
+and dispose late objects. CommittedScene includes opening identity alongside its
+revision/asset seals. Folder modelLoader reads host bytes even with an inline
+candidate and rechecks the same source/commit after decoding. Ready geometry survives
+metadata-only refresh; pending IO receives the updated commit reference. Loading
+never substitutes an equal-ID managed project.
+
+Managed save, navigation, revision events and primary CAD callbacks check their
+original opening; an old reply cannot replace a folder view. Folder read references
+cannot invoke managed persistence or acquire managed writer access. Access status
+also includes the opening, preventing a cached write mode during same-ID reacquire.
+PROJECT_SOURCE_WRITE_NOT_AUTHORIZED is translated in both RU/EN catalogs.
+
+Root-window project-scoped folder drafts stay in RAM, without managed preference
+reads/writes. Their family includes opening and preference key, so moving to another
+revision key rejects an old setter. This is renderer infrastructure, not an available
+folder writer UI. Editor/AI preview and remaining measurement/history/import/export
+consumers use separate agreed patches. See the [workspace state contract](../integration/storage-workspace-source-state.en.md)
+for exact scope and verification.
 
 ## Window operation with its original view
 
