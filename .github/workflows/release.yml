@@ -139,6 +139,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -156,6 +158,11 @@ jobs:
           # Beta tags (vX.Y.Z-beta.N) go only to the private beta repository, never to the public latest.json.
           if [[ "$RELEASE_TAG" == *-beta.* ]]; then export RELEASE_REPOSITORY=lovlyDev/FormaCAD-beta; fi
           node scripts/release-artifacts.mjs merge
+      # Signed build provenance (Sigstore) for every public release file; verify with `gh attestation verify`.
+      - uses: actions/attest-build-provenance@v2
+        if: ${{ !contains(github.ref_name, '-beta.') }}
+        with:
+          subject-path: .release-artifacts/*
       - name: Publish beta to the private repository
         if: contains(github.ref_name, '-beta.')
         env:

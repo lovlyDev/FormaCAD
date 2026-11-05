@@ -49,7 +49,7 @@ Tauri заменяет в упакованном app ровно метку `__TA
 
 Для автоматического маршрута ответственный создаёт новый тег `vX.Y.Z` на окончательном проверенном SHA после PR и ревью и отправляет только согласованный тег. Отправка тега запускает публикацию. Дождитесь фактического успеха Quality, всех четырёх платформенных сборок и финального job; проверьте опубликованные файлы, контрольные суммы и metadata. Само наличие тега или начавшийся workflow не подтверждает готовность релиза.
 
-[Release](../../.github/workflows/release.yml) запускает [Quality](../../.github/workflows/ci.yml), затем собирает нативные CAD-пакеты для Windows x64, Linux x64, macOS ARM64 и Intel. Windows использует [свою сборку OCCT](../../scripts/build-occt-windows.ps1), macOS и Linux — [зафиксированную статическую сборку](../../scripts/build-native-unix.sh). Перед упаковкой worker проходит [проверку геометрии и контрольных сумм](../../scripts/check-native-unix.py). Создаются подписи обновлений, пакеты с уникальными именами, общий latest.json и SHA256SUMS. Релиз остаётся черновиком до загрузки всех файлов. Выпущенные версии не перезаписываются; перед повтором неудачного тега нужно разобраться с оставшимся черновиком.
+[Release](../../.github/workflows/release.yml) запускает [Quality](../../.github/workflows/ci.yml), затем собирает нативные CAD-пакеты для Windows x64, Linux x64, macOS ARM64 и Intel. Windows использует [свою сборку OCCT](../../scripts/build-occt-windows.ps1), macOS и Linux — [зафиксированную статическую сборку](../../scripts/build-native-unix.sh). Перед упаковкой worker проходит [проверку геометрии и контрольных сумм](../../scripts/check-native-unix.py). Создаются подписи обновлений, пакеты с уникальными именами, общий latest.json и SHA256SUMS. Перед загрузкой каждый файл получает [аттестацию происхождения](#проверка-происхождения-файла) GitHub. Релиз остаётся черновиком до загрузки всех файлов. Выпущенные версии не перезаписываются; перед повтором неудачного тега нужно разобраться с оставшимся черновиком.
 
 Quality автоматически проверяет pull request в `main` и push в `main`; эти проверки не публикуют пакеты. Quality также запускается вручную в Actions и вызывается релизным workflow. Автоматические сборка установщиков и публикация остаются привязанными к тегам: новый тег `vX.Y.Z` запускает Release, номер проверяется на совпадение с приложением. Ручной Quality может включать нативную матрицу; `nativeCadMatrix` выбирает объекты `{ "os", "target" }`. Обновление или удаление существующего тега не публикует релиз. Отдельно разрешённый ручной выпуск проверенного Windows-пакета описан ниже.
 
@@ -87,3 +87,15 @@ Windows собирается и без коммерческого сертифи
 
 ## Ориентиры
 Я использовал [матрицу релизов GitButler](https://github.com/gitbutlerapp/gitbutler/blob/master/.github/workflows/publish.yaml) как ориентир разделения пакетов и [CI OneCAD](https://github.com/andrejvysny/OneCAD/blob/master/.github/workflows/ci.yml) для нативных проверок. [Tauri Action](https://github.com/tauri-apps/tauri-action) описывает стандартные метаданные обновлений. В Forma манифесты объединяет один финальный job, чтобы избежать одновременной записи latest.json.
+
+## Проверка происхождения файла
+
+Начиная с выпусков после 1.6.1, workflow Release подписывает каждый файл релиза аттестацией происхождения ([GitHub Artifact Attestations](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds), формат SLSA, подпись Sigstore). Аттестация связывает SHA-256 файла с репозиторием `lovlyDev/FormaCAD`, тегом, коммитом и запуском workflow, в котором файл собран. Она не заменяет подпись кода Windows и подпись обновлений, а дополняет их.
+
+Проверка скачанного файла (нужен [GitHub CLI](https://cli.github.com/) и вход `gh auth login`):
+
+```bash
+gh attestation verify windows-x86_64-Forma_<версия>_x64-setup.exe -R lovlyDev/FormaCAD
+```
+
+Успешный результат перечисляет репозиторий, workflow `.github/workflows/release.yml` и тег. Ошибка значит, что файл изменён или собран не в этом репозитории: не запускайте его и скачайте заново со страницы релиза. Все аттестации видны на вкладке [Attestations](https://github.com/lovlyDev/FormaCAD/attestations). Для ранних версий аттестаций нет; их проверяйте по SHA256SUMS.
