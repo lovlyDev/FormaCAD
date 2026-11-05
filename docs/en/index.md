@@ -30,6 +30,7 @@ These guides describe the consolidated 1.2.6 candidate and its limits. Final pac
 - [FormaCAD account](account.md): optional browser sign-in, rights and offline mode.
 - [Releases and updates](releases.md): publication state and update installation.
 - [License and code signing](code-signing.md): GPL-3.0, installer signing policy, roles and privacy.
+- [Installing with winget](package-managers.md): the Windows install command, the token and automatic catalog updates.
 
 ## For developers
 
