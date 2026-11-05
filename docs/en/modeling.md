@@ -36,7 +36,11 @@ In face selection mode (`2`), select a planar box face or cylinder cap with a se
 
 CAD IR stores the semantic face and signed distance in `extrudeFace`. Rust passes them to OCCT's `BRepFeat_MakePrism`. One command batch adds the feature and sets the body source. An unavailable face, an empty result or the wrong volume change leaves the previous revision intact. The resulting solid has no v1 semantic catalog for downstream face or edge picks. Kernel tests cover both signs, invalid inputs, dimensions, volume and STEP round-trip.
 
-The Command API also supports `chamferReferencedEdge` for a single semantically referenced box edge. The feature stores the source body feature, edge reference and positive equal setback. A missing edge or unbuildable size rolls back the command batch. The viewport tool for fillets and chamfers is in progress.
+### Selected-edge fillet and chamfer (M3)
+
+Press `3` to switch to edge selection, select a supported box edge and press `Ctrl+B`. Choose Fillet or Chamfer. Drag the size slider or enter a precise positive radius or setback in millimetres. The separate 3D preview rebuilds with OCCT without saving a revision. Choose Build and confirm the project edit to commit. Escape closes the dialog and discards the draft.
+
+CAD IR stores the source body feature, semantic edge reference and positive radius or equal setback in `filletReferencedEdge` or `chamferReferencedEdge`. The host adds the feature and updates the body in one transaction. A missing edge or unbuildable size rolls back the command batch. This workflow accepts one box edge per operation. The resulting solid has no v1 semantic catalog for further edge picks. Tests cover volume, BREP, STEP round-trip, rejected inputs and rollback.
 
 Current schema operations:
 

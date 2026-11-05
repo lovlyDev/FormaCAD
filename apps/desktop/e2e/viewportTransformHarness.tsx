@@ -1,3 +1,5 @@
+import type { Mesh } from "three";
+
 /** Actual App with an IPC boundary that emulates the host Command API and rebuilds every revision with the real worker. */
 type Built = {
   files: Record<string, { data: string; size: number; sha256: string }>;
@@ -8,6 +10,7 @@ declare global {
   interface Window {
     __m2Build: (document: unknown, revisionId: string) => Promise<Built>;
     __m3Measure?: (revisionId: string, bodyId: string, query: unknown) => Promise<object>;
+    __m3Preview?: (program: string) => Promise<number[]>;
     __m2Snap: (
       revisionId: string,
       bodyId: string,
@@ -159,6 +162,8 @@ export async function mountViewportTransformHarness(
       const report = await window.__m3Measure(args.expectedRevision, args.bodyId, args.query);
       return { projectId: project.id, ...report };
     }
+    if (command === "preview_model" && window.__m3Preview) return window.__m3Preview(args.program);
+    if (command === "cancel_model_preview") return;
     if (command === "snap_model_reference") {
       if (args.expectedRevision !== project.currentRevision)
         throw JSON.stringify({ code: "SNAP_STALE", message: "stale" });
@@ -298,6 +303,21 @@ export async function mountViewportTransformHarness(
       project: () => useWorkspace.getState().project,
       selection: () => useWorkspace.getState().selectedBodies,
       face: () => useWorkspace.getState().selectedFace,
+      edge: () => useWorkspace.getState().selectedEdge,
+      edgeScreen: async (role: string) => {
+        const { cadEdges } = await import("../src/features/viewer/edgeSelection");
+        const state = live();
+        const body = state?.scene.getObjectByName("body") as Mesh | undefined;
+        const edge = body && cadEdges(body)?.find((item) => item.topologyRef?.role === role);
+        if (!state || !body || !edge || edge.points.length < 2) return null;
+        body.updateWorldMatrix(true, false);
+        const point = new THREE.Vector3(...edge.points[0])
+          .lerp(new THREE.Vector3(...edge.points.at(-1)!), 0.5)
+          .applyMatrix4(body.matrixWorld).project(state.camera);
+        const rect = state.gl.domElement.getBoundingClientRect();
+        return { x: rect.left + (point.x + 1) * rect.width / 2,
+          y: rect.top + (1 - point.y) * rect.height / 2 };
+      },
       topFaceScreen: () => {
         const state = live();
         const body = state?.scene.getObjectByName("body");

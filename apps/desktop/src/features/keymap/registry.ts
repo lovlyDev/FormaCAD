@@ -28,6 +28,7 @@ export const defaultBindings: readonly KeyBinding[] = [
   binding("transform.rotate", "KeyR"),
   binding("transform.scale", "KeyS"),
   binding("model.extrudeFace", "KeyE"),
+  binding("model.edgeBlend", "KeyB", { primary: true }),
   binding("transform.adjustLast", "F9"),
   binding("selection.all", "KeyA"),
   binding("selection.none", "KeyA", { alt: true }),
