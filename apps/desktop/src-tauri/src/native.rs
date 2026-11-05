@@ -16,6 +16,8 @@ mod chamfer;
 pub(crate) mod datum;
 #[cfg(feature = "native-occt")]
 mod document;
+#[cfg(feature = "native-occt")]
+mod extrude_face;
 pub mod face_section;
 #[cfg(feature = "native-occt")]
 mod fillet;

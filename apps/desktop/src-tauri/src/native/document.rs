@@ -214,6 +214,16 @@ pub fn build_body_with_assets(
                 )?),
                 _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
             },
+            Operation::ExtrudeFace {
+                body_feature_id,
+                reference,
+                distance,
+            } => match get(body_feature_id)? {
+                FeatureValue::Solid(source) => FeatureValue::Solid(
+                    source.extrude_face(reference, dimension(distance, &parameters)?)?,
+                ),
+                _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
+            },
             Operation::Fillet {
                 body_feature_id,
                 radius,

@@ -1,4 +1,6 @@
 {
+  "EXTRUDE_FACE_FAILED": "The selected face could not be extruded by that distance.",
+  "EXTRUDE_FACE_NOT_PLANAR": "Select a planar face to extrude.",
   "DATUM_ANCHOR_UNRESOLVED": "The datum reference could not be resolved. Check the source face, edge or plane.",
   "Datum reference": "Datum reference",
   "Model coordinates": "Model coordinates",

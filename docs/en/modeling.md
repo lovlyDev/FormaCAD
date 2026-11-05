@@ -30,6 +30,10 @@ To anchor a datum, select a planar face or straight edge and choose it under Dat
 
 CAD IR stores the reference and its parameters in a `datumOnReference` operation. The worker resolves the semantic reference on each build and records the computed placement in preview metadata. Curved faces, circular edges and unsupported references are rejected. A failed anchor preserves the current revision. `forma_datum_test` checks measurements and BREP after a separate STEP round-trip. `forma_datum_anchor_test` checks exact positions and rejects stale references.
 
+### Face extrusion in the kernel (M3)
+
+`extrudeFace` extends a planar face along its normal. Positive distance adds material. Negative distance removes it. Rust passes the semantic reference to OCCT, which constructs a `BRepFeat_MakePrism`. The operation fails if the face is unavailable, the result is empty, or volume changes in the wrong direction. The command batch saves one transaction. Kernel tests cover both signs, invalid inputs, measurements and STEP round-trip. The viewport tool is still in progress.
+
 Current schema operations:
 
 | Group | Operations | Result |

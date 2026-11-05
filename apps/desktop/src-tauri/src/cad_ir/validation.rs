@@ -288,6 +288,30 @@ impl Document {
                     }
                     FeatureKind::Solid
                 }
+                Operation::ExtrudeFace {
+                    body_feature_id,
+                    reference: topology,
+                    distance,
+                } => {
+                    reference(body_feature_id, FeatureKind::Solid)?;
+                    let distance = resolve_dimension(distance, &parameters, id)?;
+                    if !topology.is_valid()
+                        || topology.kind != TopologyKind::Face
+                        || !distance.is_finite()
+                        || distance.abs() <= 1e-7
+                        || distance.abs() > MAX_DIMENSION_MM
+                    {
+                        return Err(ValidationError::new(
+                            ErrorCode::InvalidValue,
+                            Some(id.to_owned()),
+                        ));
+                    }
+                    reference(&topology.owner_feature_id, FeatureKind::Solid)?;
+                    for occurrence in &topology.occurrence_path {
+                        reference(occurrence, FeatureKind::Solid)?;
+                    }
+                    FeatureKind::Solid
+                }
                 Operation::Translate {
                     body_feature_id,
                     offset_mm,

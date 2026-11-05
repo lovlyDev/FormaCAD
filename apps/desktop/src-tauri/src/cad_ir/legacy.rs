@@ -61,6 +61,7 @@ impl Document {
                 Operation::ImportStep { .. }
                 | Operation::Sphere { .. }
                 | Operation::Torus { .. }
+                | Operation::ExtrudeFace { .. }
                 | Operation::DatumPlane { .. }
                 | Operation::DatumAxis { .. }
                 | Operation::DatumPoint { .. }

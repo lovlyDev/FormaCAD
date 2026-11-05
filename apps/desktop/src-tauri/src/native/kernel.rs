@@ -135,6 +135,13 @@ pub(crate) mod ffi {
         ) -> UniquePtr<Shape>;
         fn make_sphere(radius_mm: f64) -> UniquePtr<Shape>;
         fn make_torus(major_radius_mm: f64, minor_radius_mm: f64) -> UniquePtr<Shape>;
+        fn extrude_face(
+            source: &Shape,
+            owner: &CxxString,
+            role: &CxxString,
+            occurrence: &CxxString,
+            distance_mm: f64,
+        ) -> UniquePtr<Shape>;
         unsafe fn validate_datum(kind: i32, data: *const f64, count: usize) -> bool;
         unsafe fn datum_anchor(
             solid: &Shape,

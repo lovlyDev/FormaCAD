@@ -14,6 +14,18 @@ impl Operation {
                 }
             },
             Self::Extrude { sketch_id, .. } | Self::Revolve { sketch_id, .. } => vec![sketch_id],
+            Self::ExtrudeFace {
+                body_feature_id,
+                reference,
+                ..
+            } => {
+                let mut result = vec![
+                    body_feature_id.as_str(),
+                    reference.owner_feature_id.as_str(),
+                ];
+                result.extend(reference.occurrence_path.iter().map(String::as_str));
+                result
+            }
             Self::Hole {
                 body_feature_id, ..
             }
@@ -65,6 +77,9 @@ impl Operation {
     /// Generators and multi-input booleans cannot be suppressed safely.
     pub fn suppression_source(&self) -> Option<&str> {
         match self {
+            Self::ExtrudeFace {
+                body_feature_id, ..
+            } => Some(body_feature_id),
             Self::Hole {
                 body_feature_id, ..
             }

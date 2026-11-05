@@ -86,6 +86,7 @@ pub fn apply_commands(
                     (Operation::Cone { top_radius, .. }, DimensionField::TopRadius) => top_radius,
                     (Operation::Cone { height, .. }, DimensionField::Height) => height,
                     (Operation::Extrude { distance, .. }, DimensionField::Distance) => distance,
+                    (Operation::ExtrudeFace { distance, .. }, DimensionField::Distance) => distance,
                     (Operation::Hole { radius, .. }, DimensionField::Radius) => radius,
                     (Operation::Hole { depth, .. }, DimensionField::HoleDepth) => depth,
                     (Operation::Fillet { radius, .. }, DimensionField::Radius) => radius,

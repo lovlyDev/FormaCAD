@@ -167,6 +167,11 @@ pub enum Operation {
         sketch_id: String,
         distance: Dimension,
     },
+    ExtrudeFace {
+        body_feature_id: String,
+        reference: TopologyReference,
+        distance: Dimension,
+    },
     Revolve {
         sketch_id: String,
         axis_origin_mm: [f64; 3],

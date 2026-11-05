@@ -37,6 +37,7 @@ fn main() {
             .file("../../../cad-core/src/torus.cpp")
             .file("../../../cad-core/src/datum.cpp")
             .file("../../../cad-core/src/datum_anchor.cpp")
+            .file("../../../cad-core/src/extrude_face.cpp")
             .file("../../../cad-core/src/cone.cpp")
             .file("../../../cad-core/src/fillet.cpp")
             .file("../../../cad-core/src/chamfer.cpp")
