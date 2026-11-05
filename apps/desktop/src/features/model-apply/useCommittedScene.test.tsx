@@ -26,6 +26,7 @@ it("does not request a missing solid preview for a datum-only revision", () => {
   const view = render(<Host />);
   expect(view.getByTestId("scene")).toHaveTextContent("false / false");
   expect(mock.load).not.toHaveBeenCalled();
+  view.unmount();
 });
 it.each(["xray", "ghost"] as const)("retires %s scene after borrowed appearance and clipping cleanups, exactly once", async mode => {
   const group = new THREE.Group(), original = new THREE.MeshStandardMaterial(), geometry = new THREE.BoxGeometry();
