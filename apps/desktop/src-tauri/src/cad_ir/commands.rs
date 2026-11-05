@@ -94,7 +94,11 @@ pub fn apply_commands(
                     (Operation::FilletReferencedEdge { radius, .. }, DimensionField::Radius) => {
                         radius
                     }
-                    (Operation::Chamfer { distance, .. }, DimensionField::Distance) => distance,
+                    (Operation::Chamfer { distance, .. }, DimensionField::Distance)
+                    | (
+                        Operation::ChamferReferencedEdge { distance, .. },
+                        DimensionField::Distance,
+                    ) => distance,
                     _ => {
                         return Err(ValidationError::new(
                             ErrorCode::UnsupportedField,

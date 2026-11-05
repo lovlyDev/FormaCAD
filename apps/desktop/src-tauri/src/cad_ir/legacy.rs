@@ -72,6 +72,7 @@ impl Document {
                 | Operation::FilletEdge { .. }
                 | Operation::FilletReferencedEdge { .. }
                 | Operation::Chamfer { .. }
+                | Operation::ChamferReferencedEdge { .. }
                 | Operation::Rotate { .. }
                 | Operation::Transform { .. }
                 | Operation::Mirror { .. }

@@ -127,6 +127,13 @@ pub(crate) mod ffi {
             path: &CxxString,
             radius_mm: f64,
         ) -> UniquePtr<Shape>;
+        fn chamfer_referenced_edge(
+            source: &Shape,
+            owner: &CxxString,
+            role: &CxxString,
+            path: &CxxString,
+            distance_mm: f64,
+        ) -> UniquePtr<Shape>;
         fn make_cylinder(radius_mm: f64, height_mm: f64) -> UniquePtr<Shape>;
         fn make_referenced_cylinder(
             radius_mm: f64,

@@ -43,6 +43,7 @@ export function featureDependencies(feature: TypedCadFeature): string[] {
     case "filletEdge":
     case "filletReferencedEdge":
     case "chamfer":
+    case "chamferReferencedEdge":
     case "translate":
     case "transform":
     case "rotate":
@@ -65,6 +66,7 @@ export function canSuppressFeature(feature: TypedCadFeature): boolean {
     "filletEdge",
     "filletReferencedEdge",
     "chamfer",
+    "chamferReferencedEdge",
     "translate",
     "transform",
     "rotate",
@@ -86,6 +88,7 @@ export function solidFeature(feature: TypedCadFeature): boolean {
     "filletEdge",
     "filletReferencedEdge",
     "chamfer",
+    "chamferReferencedEdge",
     "translate",
     "transform",
     "rotate",

@@ -270,6 +270,11 @@ impl Document {
                     body_feature_id,
                     reference: topology,
                     radius,
+                }
+                | Operation::ChamferReferencedEdge {
+                    body_feature_id,
+                    reference: topology,
+                    distance: radius,
                 } => {
                     reference(body_feature_id, FeatureKind::Solid)?;
                     check_dimension(radius, &parameters, false, id)?;

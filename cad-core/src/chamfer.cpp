@@ -1,4 +1,5 @@
 #include "internal/shape_impl.hpp"
+#include "internal/topology_resolver.hpp"
 
 #include <BRepFilletAPI_MakeChamfer.hxx>
 #include <NCollection_IndexedMap.hxx>
@@ -11,6 +12,28 @@
 #include <cmath>
 
 namespace forma {
+
+std::unique_ptr<Shape> chamfer_referenced_edge(const Shape& source, const std::string& owner,
+    const std::string& role, const std::string& path, double distance_mm) noexcept {
+  if (!source.ok()) return failure("INVALID_SOURCE", "Chamfer input is invalid");
+  if (!std::isfinite(distance_mm) || distance_mm <= 0.0 || distance_mm > 10000.0)
+    return failure("INVALID_DIMENSION", "Chamfer distance must be positive and finite");
+  try {
+    const auto edge = resolve_topology(source.impl_->shape, source.impl_->topology,
+      TopAbs_EDGE, owner, role, path);
+    if (!edge.valid()) return failure(edge.code.c_str(), edge.detail.c_str());
+    BRepFilletAPI_MakeChamfer operation(source.impl_->shape);
+    operation.Add(distance_mm, TopoDS::Edge(edge.entity));
+    operation.Build();
+    if (!operation.IsDone())
+      return failure("CHAMFER_FAILED", "Distance cannot be applied to the selected edge");
+    return checked(operation.Shape());
+  } catch (const Standard_Failure& error) {
+    return failure("CHAMFER_FAILED", error.GetMessageString());
+  } catch (...) {
+    return failure("NATIVE_ERROR", "Chamfer operation failed");
+  }
+}
 
 std::unique_ptr<Shape> chamfer_all_edges(const Shape& source, double distance_mm) noexcept {
   if (!source.ok()) return failure("INVALID_SOURCE", "Chamfer input is invalid");

@@ -18,6 +18,11 @@ impl Operation {
                 body_feature_id,
                 reference,
                 ..
+            }
+            | Self::ChamferReferencedEdge {
+                body_feature_id,
+                reference,
+                ..
             } => {
                 let mut result = vec![
                     body_feature_id.as_str(),
@@ -78,6 +83,9 @@ impl Operation {
     pub fn suppression_source(&self) -> Option<&str> {
         match self {
             Self::ExtrudeFace {
+                body_feature_id, ..
+            }
+            | Self::ChamferReferencedEdge {
                 body_feature_id, ..
             } => Some(body_feature_id),
             Self::Hole {

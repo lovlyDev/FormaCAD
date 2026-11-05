@@ -262,6 +262,16 @@ pub fn build_body_with_assets(
                 ),
                 _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
             },
+            Operation::ChamferReferencedEdge {
+                body_feature_id,
+                reference,
+                distance,
+            } => match get(body_feature_id)? {
+                FeatureValue::Solid(source) => FeatureValue::Solid(
+                    source.chamfer_referenced_edge(reference, dimension(distance, &parameters)?)?,
+                ),
+                _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
+            },
             Operation::Translate {
                 body_feature_id,
                 offset_mm,

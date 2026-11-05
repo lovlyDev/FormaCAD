@@ -203,6 +203,11 @@ pub enum Operation {
         body_feature_id: String,
         distance: Dimension,
     },
+    ChamferReferencedEdge {
+        body_feature_id: String,
+        reference: TopologyReference,
+        distance: Dimension,
+    },
     Translate {
         body_feature_id: String,
         offset_mm: [f64; 3],

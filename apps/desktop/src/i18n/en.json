@@ -1,5 +1,6 @@
 {
   "EXTRUDE_FACE_FAILED": "The selected face could not be extruded by that distance.",
+  "CHAMFER_FAILED": "The chamfer could not be built at that distance.",
   "EXTRUDE_FACE_NOT_PLANAR": "Select a planar face to extrude.",
   "Extrude face": "Extrude face",
   "Extrusion distance (mm)": "Extrusion distance (mm)",
