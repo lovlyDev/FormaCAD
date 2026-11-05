@@ -49,7 +49,7 @@ Human authorization for the current publication and the assigned owner must be e
 
 For the automatic route, the owner creates a new `vX.Y.Z` tag on the final verified SHA after the PR and review, then pushes only the agreed tag. Pushing the tag starts publication. Wait for actual success of Quality, all four platform builds and the final job; verify the published files, checksums and metadata. A tag or a started workflow does not establish release readiness.
 
-[Release](../../.github/workflows/release.yml) runs [Quality](../../.github/workflows/ci.yml), then builds native CAD packages for Windows x64, Linux x64, macOS ARM64 and Intel. Windows uses [its OCCT build](../../scripts/build-occt-windows.ps1); macOS and Linux use [a pinned static OCCT build](../../scripts/build-native-unix.sh). Each worker must pass a geometry and checksum [smoke check](../../scripts/check-native-unix.py) before packaging. Packages are signed for the updater, collected without filename collisions, and combined into latest.json and SHA256SUMS. The release stays a draft until every asset is uploaded. Existing releases are never overwritten; resolve an incomplete draft before rerunning its tag.
+[Release](../../.github/workflows/release.yml) runs [Quality](../../.github/workflows/ci.yml), then builds native CAD packages for Windows x64, Linux x64, macOS ARM64 and Intel. Windows uses [its OCCT build](../../scripts/build-occt-windows.ps1); macOS and Linux use [a pinned static OCCT build](../../scripts/build-native-unix.sh). Each worker must pass a geometry and checksum [smoke check](../../scripts/check-native-unix.py) before packaging. Packages are signed for the updater, collected without filename collisions, and combined into latest.json and SHA256SUMS. Every file then receives a GitHub [provenance attestation](#verifying-file-provenance) before upload. The release stays a draft until every asset is uploaded. Existing releases are never overwritten; resolve an incomplete draft before rerunning its tag.
 
 Quality checks run automatically for pull requests targeting `main` and pushes to `main`; they do not publish packages. Quality also supports manual Actions runs and calls from the release workflow. Installer packaging and automatic publication remain tag-triggered: only a newly created `vX.Y.Z` tag starts the Release workflow, whose version must match the application. Manual Quality runs can include the native matrix; `nativeCadMatrix` selects `{ "os", "target" }` entries. Updating or deleting an existing tag does not publish a release. Separately authorized manual publication of a verified Windows package is described below.
 
@@ -87,3 +87,15 @@ Windows installers can be built without a commercial signing certificate; SmartS
 
 ## References
 I used [GitButler’s release matrix](https://github.com/gitbutlerapp/gitbutler/blob/master/.github/workflows/publish.yaml) as a reference for separate platform artifacts, and [OneCAD CI](https://github.com/andrejvysny/OneCAD/blob/master/.github/workflows/ci.yml) for native-platform checks. [Tauri Action](https://github.com/tauri-apps/tauri-action) documents the standard updater metadata. Forma merges manifests in one final job to avoid concurrent writes to latest.json.
+
+## Verifying file provenance
+
+For releases after 1.6.1, the Release workflow signs every release file with a provenance attestation ([GitHub Artifact Attestations](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds), SLSA format, Sigstore signature). It binds the file's SHA-256 to the `lovlyDev/FormaCAD` repository, tag, commit and the workflow run that built it. It complements, not replaces, Windows code signing and updater signatures.
+
+Verify a downloaded file (requires [GitHub CLI](https://cli.github.com/) signed in with `gh auth login`):
+
+```bash
+gh attestation verify windows-x86_64-Forma_<version>_x64-setup.exe -R lovlyDev/FormaCAD
+```
+
+A successful result lists the repository, the `.github/workflows/release.yml` workflow and the tag. A failure means the file was modified or built elsewhere: do not run it and download it again from the release page. All attestations are listed under [Attestations](https://github.com/lovlyDev/FormaCAD/attestations). Earlier versions have no attestations; check them against SHA256SUMS.
