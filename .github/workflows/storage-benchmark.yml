@@ -2,6 +2,7 @@ name: Storage comparison
 on:
   push:
     branches: [codex/storage-week]
+    paths-ignore: [docs/integration/**]
   workflow_dispatch:
 concurrency:
   group: storage-comparison-${{ github.ref }}

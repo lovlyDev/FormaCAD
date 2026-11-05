@@ -373,9 +373,10 @@ to another opening. Browser folder requests reuse translated PROJECT_FOLDER_UNSU
 Worker inputs live only in app-level `.transient/previews`; Workspace removes them
 on completion.
 
-This patch followed the IPC base's successful native gate. Its own preview native
-regressions still await CI: genuine imported STEP, late close during worker/cleanup
-await and equal-ID folders with independent cancellation. The workflow requires
-three explicitly executed PASS. See the [preview contract](../integration/storage-preview-source.en.md).
+At `4b96158`, [native CI](https://github.com/lovlyDev/FormaCAD/actions/runs/42050145085)
+executed all three preview regressions: genuine imported STEP, late close during
+worker/cleanup await and equal-ID folders with independent cancellation. Their
+separate invocation returned exactly three PASS; the full library packet passed
+540 tests (18 ignored). See the [preview contract](../integration/storage-preview-source.en.md).
 Workspace source state, invalidation and visible folder controls remain unwired;
 this backend integration does not complete stage 4.

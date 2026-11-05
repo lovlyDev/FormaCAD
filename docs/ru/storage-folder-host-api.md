@@ -374,9 +374,10 @@ Frontend preview/cancel API принимают необязательный Fold
 ошибку PROJECT_FOLDER_UNSUPPORTED. Входы worker находятся только в app-level
 `.transient/previews`; при завершении Workspace удаляет их.
 
-Патч применён после native-проверок IPC-основы, но собственные native-регрессии
-preview ещё ожидают CI: настоящий импортированный STEP, позднее закрытие во время
-worker/cleanup await и две папки с одинаковыми IDs и раздельной отменой. Workflow
-требует три явно выполненных PASS. Подробности — [контракт preview](../integration/storage-preview-source.md).
+На `4b96158` [native CI](https://github.com/lovlyDev/FormaCAD/actions/runs/42050145085)
+выполнил все три preview-регрессии: настоящий импортированный STEP, позднее закрытие
+во время worker/cleanup await и две папки с одинаковыми IDs и раздельной отменой.
+Отдельный запуск дал ровно три PASS; общий library-пакет — 540 PASS / 18 ignored.
+Подробности — [контракт preview](../integration/storage-preview-source.md).
 Workspace source state, его invalidation и видимые folder controls ещё не подключены;
 эта backend-интеграция не завершает этап 4.

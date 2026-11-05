@@ -45,9 +45,13 @@ The existing translated PROJECT_FOLDER_UNSUPPORTED error is reused.
 
 Applicability, staged rustfmt and full TypeScript checking with the staged preview
 API virtually overlaid passed. After application, 294 frontend tests across 104
-files and the production build passed. Applied Rust formatting passed. Rust compilation and new
-native tests **remain pending**. The owned workflow separately executes all three
-and requires exactly 3 PASS, preventing an empty filter from appearing successful.
+files and the production build passed. At `4b9615843b6cf72eeaecf62f28fc76f48d904ad5`,
+[both strict Clippy modes/comparison](https://github.com/lovlyDev/FormaCAD/actions/runs/42050145205)
+and [native CI](https://github.com/lovlyDev/FormaCAD/actions/runs/42050145085) passed.
+Downloaded job `127323748900` explicitly names all three preview tests as PASS;
+their separate invocation returned exactly 3 PASS. Full packet: 540 library PASS
+(18 ignored), 11 smoke PASS, 41 host PASS, two measurement PASS and three roundtrip PASS.
+The owned workflow requires three executed preview tests, preventing empty-filter success.
 Three tests create a genuine 40×20×10 FCP1 STEP and corrupt its managed twin sharing the
 same ID. They assert volume 8000, bounds, program SHA, GLB, task group, rejection
 after worker close and after close during the cleanup mutex await, SQL/app purity
@@ -56,9 +60,14 @@ The added regression in the same approved new test file opens
 two independent folders sharing project IDs, queues both real preview requests,
 cancels only the first and checks the second result's geometry. This addition
 changes neither the production diff nor the seven agreed paths. After application,
-both strict Clippy modes, existing managed/native tests, three explicitly executed
-new tests and frontend tests/build are required.
+all three preview scenarios executed in that native CI. This does not replace
+future workspace/source-state and GUI checks.
+[Quality at that SHA](https://github.com/lovlyDev/FormaCAD/actions/runs/42050157179)
+also completed successfully.
 
 Workspace source state and folder controls remain unwired; stage 4 is incomplete.
 No native/Cargo/C++/protocol/permissions/SQL/version changes.
 Specification §5 requires agreement for shared preview/frontend files before application.
+
+See [CI and review artifacts](storage-ci-review-artifacts.en.md) for branch-owned
+storage workflow triggers on review-only changes.

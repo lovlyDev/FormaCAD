@@ -2,6 +2,7 @@ name: Storage native consumers
 on:
   push:
     branches: [codex/storage-week]
+    paths-ignore: [docs/integration/**]
   workflow_dispatch:
 concurrency:
   group: storage-native-consumers-${{ github.event.pull_request.number || github.ref }}
