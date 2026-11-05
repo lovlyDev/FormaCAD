@@ -9,6 +9,7 @@ interface Actions {
   parameters: () => void;
   addTorus: () => void;
   addDatum: (kind: DatumKind) => void;
+  shell?: () => void;
   palette: () => void;
   settings: (page?: string) => void;
   workspaces: () => void;
@@ -121,6 +122,12 @@ export function applicationMenus(
       id: "tools",
       label: "Tools",
       actions: [
+        {
+          id: "shell",
+          label: t("Shell"),
+          disabled: !actions.shell,
+          run: () => actions.shell?.(),
+        },
         {
           id: "plugins",
           label: t("Plugins"),

@@ -115,6 +115,8 @@ import type { FaceSelection } from "../features/viewer/faceSelection";
 import type { EdgeSelection } from "../features/viewer/edgeSelection";
 import { EdgeBlendDialog } from "../features/edge-blend/EdgeBlendDialog";
 import { edgeBlendTarget } from "../features/edge-blend/edgeBlendCommand";
+import { ShellDialog } from "../features/shell/ShellDialog";
+import { captureShell, shellFaces } from "../features/shell/shellCommand";
 import { datumSources } from "../features/add-menu/datum/datumSources";
 import { captureDatum, type DatumKind } from "../features/add-menu/datum/datumModel";
 import { captureTorus } from "../features/add-menu/torus/torusCommands";
@@ -161,12 +163,13 @@ export default function App() {
     staleTime: 60000,
   });
   const [modal, setModal] = useState<
-    "new" | "settings" | "export" | "palette" | "parameters" | "torus" | "datum" | "faceExtrusion" | "edgeBlend" | null
+    "new" | "settings" | "export" | "palette" | "parameters" | "torus" | "datum" | "faceExtrusion" | "edgeBlend" | "shell" | null
   >(null);
   const [torusTarget, setTorusTarget] = useState<{ id: string; revision: string | null } | null>(null);
   const [datumTarget, setDatumTarget] = useState<{ id: string; revision: string | null; kind: DatumKind; sources: DatumSourceOption[] } | null>(null);
   const [faceExtrusion, setFaceExtrusion] = useState<{ projectId: string; selection: FaceSelection; initialMm?: number } | null>(null);
   const [edgeBlend, setEdgeBlend] = useState<{ projectId: string; selection: EdgeSelection } | null>(null);
+  const [shellSelection, setShellSelection] = useState<{ projectId: string; selection: FaceSelection } | null>(null);
   const datumTargetCurrent = !!datumTarget && project?.id === datumTarget.id
     && project.currentRevision === datumTarget.revision;
   const torusTargetCurrent = !!torusTarget && project?.id === torusTarget.id
@@ -260,6 +263,9 @@ export default function App() {
         })
       : null;
   const selectedBody = selected ? object.getObjectByName(selected) : undefined;
+  const availableShellFaces = project && !compare && committedScene.interactive
+    ? shellFaces(project, shellSelection?.selection ?? selectedFace, object)
+    : [];
   const selectedBodyLabel = selectedBody ? bodyLabel(selectedBody) : selected;
   const selectedLabel =
     selectedEdge && selectedEdge.revisionId === project?.currentRevision
@@ -943,6 +949,13 @@ export default function App() {
                   sources: datumSources(project, selectedFace, selectedEdge) });
                 setModal("datum");
               },
+              shell: !editingBlocked && !pending && !modal && project && selectedFace &&
+                availableShellFaces.length > 1
+                ? () => {
+                    setShellSelection({ projectId: project.id, selection: selectedFace });
+                    setModal("shell");
+                  }
+                : undefined,
               palette: () => setModal("palette"),
               settings: (page) => {
                 if (page) persist("forma.ui.settingsPage", JSON.stringify(page));
@@ -1602,6 +1615,27 @@ export default function App() {
                 setBusy(false);
               }
             }, "modify_project", project.id);
+          }} />
+      )}
+      {modal === "shell" && shellSelection && project?.id === shellSelection.projectId &&
+        shellSelection.selection.topologyRef && (
+        <ShellDialog primary={shellSelection.selection.topologyRef} faces={availableShellFaces}
+          close={() => { setShellSelection(null); setModal(null); }}
+          disabled={editingBlocked || availableShellFaces.length < 2}
+          onApply={(openings, offset) => {
+            const operation = captureShell(project, shellSelection.selection, openings, offset);
+            if (!operation) return;
+            setShellSelection(null);
+            setModal(null);
+            void ask(operation.captured.prompt, t("Choose which faces to remove and how thick to make the walls."),
+              project.name, async () => {
+                setBusy(true, t("Построение геометрии"));
+                try {
+                  await applyModel(operation.captured, { invoke: operation.invoke });
+                } finally {
+                  setBusy(false);
+                }
+              }, "modify_project", project.id);
           }} />
       )}
       {modal === "datum" && project && datumTarget && (
