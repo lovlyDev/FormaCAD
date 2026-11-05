@@ -149,6 +149,13 @@ pub(crate) mod ffi {
             occurrence: &CxxString,
             distance_mm: f64,
         ) -> UniquePtr<Shape>;
+        fn shell(
+            source: &Shape,
+            owner: &CxxString,
+            roles: &CxxString,
+            occurrence: &CxxString,
+            offset_mm: f64,
+        ) -> UniquePtr<Shape>;
         unsafe fn validate_datum(kind: i32, data: *const f64, count: usize) -> bool;
         unsafe fn datum_anchor(
             solid: &Shape,

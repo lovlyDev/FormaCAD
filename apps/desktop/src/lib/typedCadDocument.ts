@@ -39,6 +39,7 @@ export function featureDependencies(feature: TypedCadFeature): string[] {
       return typeof op.sketchId === "string" ? [op.sketchId] : [];
     case "hole":
     case "extrudeFace":
+    case "shell":
     case "fillet":
     case "filletEdge":
     case "filletReferencedEdge":
@@ -62,6 +63,7 @@ export function canSuppressFeature(feature: TypedCadFeature): boolean {
   return [
     "hole",
     "extrudeFace",
+    "shell",
     "fillet",
     "filletEdge",
     "filletReferencedEdge",
@@ -82,6 +84,7 @@ export function solidFeature(feature: TypedCadFeature): boolean {
     "cone",
     "extrude",
     "extrudeFace",
+    "shell",
     "revolve",
     "hole",
     "fillet",

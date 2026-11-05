@@ -42,6 +42,10 @@ Press `3` to switch to edge selection, select a supported box edge and press `Ct
 
 CAD IR stores the source body feature, semantic edge reference and positive radius or equal setback in `filletReferencedEdge` or `chamferReferencedEdge`. The host adds the feature and updates the body in one transaction. A missing edge or unbuildable size rolls back the command batch. This workflow accepts one box edge per operation. The resulting solid has no v1 semantic catalog for further edge picks. Tests cover volume, BREP, STEP round-trip, rejected inputs and rollback.
 
+### Shell command (M3)
+
+The `shell` operation stores a solid source, a signed wall offset and unique semantic face references for the openings. All opening faces must refer to the same occurrence. A negative offset builds inward. A positive offset builds outward. OCCT uses `BRepOffsetAPI_MakeThickSolid` to build the walls. The host commits only a valid result in one transaction. The viewport controls are in progress.
+
 Current schema operations:
 
 | Group | Operations | Result |

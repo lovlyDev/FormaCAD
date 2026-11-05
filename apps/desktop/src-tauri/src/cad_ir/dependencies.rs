@@ -58,6 +58,18 @@ impl Operation {
             | Self::Mirror {
                 body_feature_id, ..
             } => vec![body_feature_id],
+            Self::Shell {
+                body_feature_id,
+                openings,
+                ..
+            } => {
+                let mut result = vec![body_feature_id.as_str()];
+                if let Some(first) = openings.first() {
+                    result.push(first.owner_feature_id.as_str());
+                    result.extend(first.occurrence_path.iter().map(String::as_str));
+                }
+                result
+            }
             Self::Boolean {
                 left_feature_id,
                 right_feature_id,
@@ -86,6 +98,9 @@ impl Operation {
                 body_feature_id, ..
             }
             | Self::ChamferReferencedEdge {
+                body_feature_id, ..
+            }
+            | Self::Shell {
                 body_feature_id, ..
             } => Some(body_feature_id),
             Self::Hole {

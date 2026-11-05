@@ -317,6 +317,30 @@ impl Document {
                     }
                     FeatureKind::Solid
                 }
+                Operation::Shell {
+                    body_feature_id,
+                    openings,
+                    offset,
+                } => {
+                    reference(body_feature_id, FeatureKind::Solid)?;
+                    let offset = resolve_dimension(offset, &parameters, id)?;
+                    if !super::shell::valid_openings(openings)
+                        || !offset.is_finite()
+                        || offset.abs() <= 1e-7
+                        || offset.abs() > MAX_DIMENSION_MM
+                    {
+                        return Err(ValidationError::new(
+                            ErrorCode::InvalidValue,
+                            Some(id.to_owned()),
+                        ));
+                    }
+                    let topology = &openings[0];
+                    reference(&topology.owner_feature_id, FeatureKind::Solid)?;
+                    for occurrence in &topology.occurrence_path {
+                        reference(occurrence, FeatureKind::Solid)?;
+                    }
+                    FeatureKind::Solid
+                }
                 Operation::Translate {
                     body_feature_id,
                     offset_mm,

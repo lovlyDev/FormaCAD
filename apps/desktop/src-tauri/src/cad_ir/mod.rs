@@ -5,6 +5,7 @@ mod affine_transform;
 pub mod assets;
 mod datum;
 pub mod datum_anchor;
+pub(crate) mod shell;
 pub mod topology_refs;
 mod torus;
 pub use topology_refs::{TopologyKind, TopologyReference};
@@ -171,6 +172,11 @@ pub enum Operation {
         body_feature_id: String,
         reference: TopologyReference,
         distance: Dimension,
+    },
+    Shell {
+        body_feature_id: String,
+        openings: Vec<TopologyReference>,
+        offset: Dimension,
     },
     Revolve {
         sketch_id: String,

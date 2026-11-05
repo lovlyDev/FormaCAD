@@ -63,6 +63,7 @@ private:
   friend std::unique_ptr<Shape> fillet_all_edges(const Shape&, double) noexcept;
   friend std::unique_ptr<Shape> fillet_edge(const Shape&, const std::string&, double) noexcept;
   friend std::unique_ptr<Shape> chamfer_all_edges(const Shape&, double) noexcept;
+  friend std::unique_ptr<Shape> shell(const Shape&, const std::string&, const std::string&, const std::string&, double) noexcept;
   friend std::unique_ptr<Shape> chamfer_referenced_edge(const Shape&, const std::string&, const std::string&, const std::string&, double) noexcept;
   friend std::unique_ptr<Shape> translate(const Shape&, double, double, double) noexcept;
   friend std::unique_ptr<Shape> transform_affine(const Shape&, const double*, std::size_t) noexcept;
@@ -113,6 +114,8 @@ std::unique_ptr<Shape> make_profile_revolve(const double* coordinates, std::size
     double axis_x, double axis_y, double axis_z, double angle_deg) noexcept;
 std::unique_ptr<Shape> fillet_edge(const Shape& source, const std::string& edge_key, double radius_mm) noexcept;
 std::unique_ptr<Shape> chamfer_all_edges(const Shape& source, double distance_mm) noexcept;
+std::unique_ptr<Shape> shell(const Shape& source, const std::string& owner, const std::string& roles,
+                             const std::string& occurrence, double offset_mm) noexcept;
 std::unique_ptr<Shape> chamfer_referenced_edge(const Shape& source, const std::string& owner,
     const std::string& role, const std::string& path, double distance_mm) noexcept;
 std::unique_ptr<Shape> translate(const Shape& source, double x_mm, double y_mm, double z_mm) noexcept;

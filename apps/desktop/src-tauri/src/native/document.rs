@@ -224,6 +224,16 @@ pub fn build_body_with_assets(
                 ),
                 _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
             },
+            Operation::Shell {
+                body_feature_id,
+                openings,
+                offset,
+            } => match get(body_feature_id)? {
+                FeatureValue::Solid(source) => {
+                    FeatureValue::Solid(source.shell(openings, dimension(offset, &parameters)?)?)
+                }
+                _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
+            },
             Operation::Fillet {
                 body_feature_id,
                 radius,

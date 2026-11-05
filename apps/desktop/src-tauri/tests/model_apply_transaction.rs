@@ -16,5 +16,7 @@ mod geometry;
 mod inputs;
 #[path = "model_apply_transaction/lifecycle.rs"]
 mod lifecycle;
+#[path = "model_apply_transaction/shell.rs"]
+mod shell;
 #[path = "model_apply_transaction/torus.rs"]
 mod torus;

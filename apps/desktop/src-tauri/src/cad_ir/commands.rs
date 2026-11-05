@@ -76,6 +76,7 @@ pub fn apply_commands(
                         ValidationError::new(ErrorCode::MissingTarget, Some(feature_id.clone()))
                     })?;
                 let dimension = match (&mut feature.operation, field) {
+                    (Operation::Shell { offset, .. }, DimensionField::Distance) => offset,
                     (Operation::Rectangle { width, .. }, DimensionField::Width) => width,
                     (Operation::Rectangle { depth, .. }, DimensionField::Depth) => depth,
                     (Operation::Circle { radius }, DimensionField::Radius) => radius,

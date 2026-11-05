@@ -27,7 +27,7 @@ else()
 endif()
 
 set(FORMA_OCCT_LIBRARIES
-  TKDESTEP TKXSBase TKDE TKMesh TKFeat TKPrim TKBO TKFillet TKShHealing TKBool TKTopAlgo TKGeomAlgo
+  TKDESTEP TKXSBase TKDE TKMesh TKFeat TKOffset TKPrim TKBO TKFillet TKShHealing TKBool TKTopAlgo TKGeomAlgo
   TKBRep TKGeomBase TKG3d TKG2d TKMath TKernel)
 
 add_library(forma_cad_core STATIC
@@ -54,6 +54,7 @@ add_library(forma_cad_core STATIC
   src/datum.cpp
   src/datum_anchor.cpp
   src/extrude_face.cpp
+  src/shell.cpp
   src/cone.cpp
   src/fillet.cpp
   src/chamfer.cpp
@@ -70,6 +71,13 @@ target_link_libraries(forma_cad_core PUBLIC ${FORMA_OCCT_LIBRARIES})
 
 include(CTest)
 if(BUILD_TESTING)
+  add_executable(forma_shell_test tests/shell_test.cpp)
+  target_link_libraries(forma_shell_test PRIVATE forma_cad_core)
+  add_test(NAME forma_shell_test COMMAND forma_shell_test)
+  if(WIN32)
+    set_tests_properties(forma_shell_test PROPERTIES
+      ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OpenCASCADE_BINARY_DIR}")
+  endif()
   add_executable(forma_extrude_face_test tests/extrude_face_test.cpp)
   target_include_directories(forma_extrude_face_test PRIVATE ${OpenCASCADE_INCLUDE_DIR})
   target_link_libraries(forma_extrude_face_test PRIVATE forma_cad_core)
