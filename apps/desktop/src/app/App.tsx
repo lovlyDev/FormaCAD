@@ -119,6 +119,8 @@ import { ShellDialog } from "../features/shell/ShellDialog";
 import { captureShell, shellFaces } from "../features/shell/shellCommand";
 import { PatternDialog } from "../features/pattern/PatternDialog";
 import { capturePattern, patternTarget } from "../features/pattern/patternCommand";
+import { DuplicateBodyDialog } from "../features/duplicate-body/DuplicateBodyDialog";
+import { captureDuplicateBody, duplicateBodyTarget } from "../features/duplicate-body/duplicateBodyCommand";
 import { datumSources } from "../features/add-menu/datum/datumSources";
 import { captureDatum, type DatumKind } from "../features/add-menu/datum/datumModel";
 import { captureTorus } from "../features/add-menu/torus/torusCommands";
@@ -165,7 +167,7 @@ export default function App() {
     staleTime: 60000,
   });
   const [modal, setModal] = useState<
-    "new" | "settings" | "export" | "palette" | "parameters" | "torus" | "datum" | "faceExtrusion" | "edgeBlend" | "shell" | "pattern" | null
+    "new" | "settings" | "export" | "palette" | "parameters" | "torus" | "datum" | "faceExtrusion" | "edgeBlend" | "shell" | "pattern" | "duplicateBody" | null
   >(null);
   const [torusTarget, setTorusTarget] = useState<{ id: string; revision: string | null } | null>(null);
   const [datumTarget, setDatumTarget] = useState<{ id: string; revision: string | null; kind: DatumKind; sources: DatumSourceOption[] } | null>(null);
@@ -173,6 +175,7 @@ export default function App() {
   const [edgeBlend, setEdgeBlend] = useState<{ projectId: string; selection: EdgeSelection } | null>(null);
   const [shellSelection, setShellSelection] = useState<{ projectId: string; selection: FaceSelection } | null>(null);
   const [patternSelection, setPatternSelection] = useState<{ projectId: string; revision: string | null; bodyId: string } | null>(null);
+  const [duplicateSelection, setDuplicateSelection] = useState<{ projectId: string; revision: string | null; bodyId: string; spacingMm: number } | null>(null);
   const datumTargetCurrent = !!datumTarget && project?.id === datumTarget.id
     && project.currentRevision === datumTarget.revision;
   const torusTargetCurrent = !!torusTarget && project?.id === torusTarget.id
@@ -272,6 +275,19 @@ export default function App() {
   const patternInput = project && patternSelection?.projectId === project.id &&
     patternSelection.revision === project.currentRevision
     ? patternTarget(project, patternSelection.bodyId) : null;
+  const duplicateInput = project && duplicateSelection?.projectId === project.id &&
+    duplicateSelection.revision === project.currentRevision
+    ? duplicateBodyTarget(project, duplicateSelection.bodyId) : undefined;
+  const openDuplicateBody = !editingBlocked && !pending && !modal && !compare && project && selected &&
+    committedScene.interactive && selectedBody?.visible && !selectedBody.userData.formaSelectionLocked &&
+    duplicateBodyTarget(project, selected)
+    ? () => {
+        const width = new THREE.Box3().setFromObject(selectedBody).getSize(new THREE.Vector3()).x;
+        const spacingMm = Math.max(1, Math.min(10000, Math.ceil(width * 1.1)));
+        setDuplicateSelection({ projectId: project.id, revision: project.currentRevision, bodyId: selected, spacingMm });
+        setModal("duplicateBody");
+      }
+    : undefined;
   const selectedBodyLabel = selectedBody ? bodyLabel(selectedBody) : selected;
   const selectedLabel =
     selectedEdge && selectedEdge.revisionId === project?.currentRevision
@@ -970,6 +986,7 @@ export default function App() {
                     setModal("pattern");
                   }
                 : undefined,
+              duplicateBody: openDuplicateBody,
               palette: () => setModal("palette"),
               settings: (page) => {
                 if (page) persist("forma.ui.settingsPage", JSON.stringify(page));
@@ -1144,6 +1161,7 @@ export default function App() {
                   onRetry={committedScene.retry}
                   onScreenshot={(data) => void captureScreenshot(data)}
                   onVisibility={visibility.onVisibility}
+                  onDuplicateBody={openDuplicateBody}
                   onExtrudeFace={!editingBlocked && !pending && !modal && !compare &&
                     committedScene.interactive && selectedFace?.sceneToken === object.uuid &&
                     faceExtrusionTarget(project, selectedFace)
@@ -1664,6 +1682,28 @@ export default function App() {
             setModal(null);
             void ask(operation.captured.prompt, t("Repeat a body or its active hole at regular intervals."),
               project.name, async () => {
+                setBusy(true, t("Построение геометрии"));
+                try {
+                  await applyModel(operation.captured, { invoke: operation.invoke });
+                } finally {
+                  setBusy(false);
+                }
+              }, "modify_project", project.id);
+          }} />
+      )}
+      {modal === "duplicateBody" && duplicateSelection && project?.id === duplicateSelection.projectId && (
+        <DuplicateBodyDialog sourceName={duplicateInput?.name ?? ""} spacingMm={duplicateSelection.spacingMm}
+          close={() => { setDuplicateSelection(null); setModal(null); }}
+          disabled={editingBlocked || !duplicateInput}
+          onApply={(name, offset) => {
+            if (!duplicateInput) return;
+            const operation = captureDuplicateBody(project, duplicateSelection.bodyId, name, offset);
+            if (!operation) return;
+            setDuplicateSelection(null);
+            setModal(null);
+            void ask(operation.captured.prompt,
+              t("Make an independent copy of this body's modeling history and parameters."),
+              name, async () => {
                 setBusy(true, t("Построение геометрии"));
                 try {
                   await applyModel(operation.captured, { invoke: operation.invoke });

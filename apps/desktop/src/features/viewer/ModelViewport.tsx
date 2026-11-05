@@ -53,6 +53,7 @@ export function ModelViewport({
   confirmEdit,
   onExtrudeFace,
   onBlendEdge,
+  onDuplicateBody,
 }: {
   projectId: string;
   object: THREE.Group;
@@ -71,6 +72,7 @@ export function ModelViewport({
   confirmEdit?: ConfirmEdit;
   onExtrudeFace?: (distanceMm?: number) => void;
   onBlendEdge?: () => void;
+  onDuplicateBody?: () => void;
 }) {
   return (
     <section className="center-panel">
@@ -106,6 +108,7 @@ export function ModelViewport({
               confirmEdit={confirmEdit}
               onExtrudeFace={onExtrudeFace}
               onBlendEdge={onBlendEdge}
+              onDuplicateBody={onDuplicateBody}
             />
           </Suspense>
         </ViewerBoundary>

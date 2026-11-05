@@ -85,6 +85,22 @@ export async function mountViewportTransformHarness(
         document.features.push(command.feature);
         continue;
       }
+      if (command.command === "duplicate_body") {
+        // The browser harness only needs the rectangle/extrude fixture.
+        const body = document.bodies.find((item: any) => item.id === command.bodyId);
+        const pad = document.features.find((item: any) => item.id === body.sourceFeatureId);
+        const profile = document.features.find((item: any) => item.id === pad.operation.sketchId);
+        const prefix = command.newBodyId;
+        document.features.push(
+          { ...profile, id: `${prefix}_f0` },
+          { ...pad, id: `${prefix}_f1`, operation: { ...pad.operation, sketchId: `${prefix}_f0` } },
+          { id: `${prefix}_placement`, name: command.name, operation: {
+            type: "translate", bodyFeatureId: `${prefix}_f1`, offsetMm: command.offsetMm,
+          } },
+        );
+        document.bodies.push({ id: prefix, name: command.name, sourceFeatureId: `${prefix}_placement` });
+        continue;
+      }
       const body = document.bodies.find(
         (item: any) => item.id === command.bodyId,
       );
@@ -337,8 +353,8 @@ export async function mountViewportTransformHarness(
           .toArray()
           .map((value: number) => Math.round(value * 1000) / 1000) ?? null,
       /** World-space render bounds of the body; render X equals CAD X. */
-      bounds: () => {
-        const body = live()?.scene.getObjectByName("body");
+      bounds: (bodyId = "body") => {
+        const body = live()?.scene.getObjectByName(bodyId);
         if (!body) return null;
         const box = new THREE.Box3().setFromObject(body);
         return [...box.min.toArray(), ...box.max.toArray()];

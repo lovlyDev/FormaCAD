@@ -54,6 +54,12 @@ Select a body in the 3D view and choose **Tools → Pattern**. For a linear patt
 
 `patternLinear` repeats a body along one step vector or on a grid with two independent vectors. `patternCircular` repeats a body around a model-space axis with a signed angular step. The count includes the source and is limited to 128 instances. Body copies stay as independent solids in a compound. When the current source is an active hole feature, the same commands can repeat its cutter and cut the stock once. A hole pattern that removes no additional material fails without saving the edit.
 
+### Duplicate body (M3)
+
+Select a body and press `Shift+D` or choose **Tools → Duplicate body**. Enter the name and offset in model coordinates. The initial X offset uses the selected body's width. Confirm the edit to save the new body and its history together.
+
+`duplicate_body` copies the required features and bound parameters, gives them new identifiers, and rebinds semantic topology references to the copy. STEP assets stay shared by their immutable content hashes. Editing a copied parameter affects only the copy. Existing feature and body IDs stay the same. The transaction rejects ID collisions. Host tests verify volumes and extents after exporting and reopening the committed STEP.
+
 Current schema operations:
 
 | Group | Operations | Result |

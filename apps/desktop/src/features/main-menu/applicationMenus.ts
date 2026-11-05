@@ -11,6 +11,7 @@ interface Actions {
   addDatum: (kind: DatumKind) => void;
   shell?: () => void;
   pattern?: () => void;
+  duplicateBody?: () => void;
   palette: () => void;
   settings: (page?: string) => void;
   workspaces: () => void;
@@ -134,6 +135,13 @@ export function applicationMenus(
           label: t("Pattern"),
           disabled: !actions.pattern,
           run: () => actions.pattern?.(),
+        },
+        {
+          id: "duplicateBody",
+          label: t("Duplicate body"),
+          shortcut: "Shift D",
+          disabled: !actions.duplicateBody,
+          run: () => actions.duplicateBody?.(),
         },
         {
           id: "plugins",

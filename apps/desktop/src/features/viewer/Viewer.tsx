@@ -84,6 +84,7 @@ export default function Viewer({
   confirmEdit,
   onExtrudeFace,
   onBlendEdge,
+  onDuplicateBody,
 }: {
   object: THREE.Group;
   onScreenshot: (data: string) => void;
@@ -93,6 +94,7 @@ export default function Viewer({
   confirmEdit?: ConfirmEdit;
   onExtrudeFace?: (distanceMm?: number) => void;
   onBlendEdge?: () => void;
+  onDuplicateBody?: () => void;
 }) {
   const projectId = useWorkspace((s) => s.project?.id ?? "empty");
   const viewKey = `forma.ui.project.${projectId}.view.${comparison ? "comparison" : "main"}`;
@@ -212,6 +214,7 @@ export default function Viewer({
     confirmEdit,
     onExtrudeFace,
     onBlendEdge,
+    onDuplicateBody,
   });
   const mouse = navigationPresets[navigation.mousePreset];
   return (
