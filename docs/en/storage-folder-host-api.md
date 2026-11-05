@@ -441,3 +441,26 @@ old object; delayed approval refuses a newer committed state; read-only copying
 works while another writer owns the source OS-lock, preserving its SQLite bytes.
 Metadata changes here are not CAD geometry evidence. The new suite is verified
 in current-commit CI; test presence and rustfmt alone are not PASS.
+
+## Editor preview and AI-review
+
+After agreement for eight frontend files, `useModelPreview` receives the original
+opening binding. ProgramDialog passes it to preview/cancel and keeps folder drafts
+in RAM through source preferences. Opening changes immediately hide/dispose retired
+previews; cancellation targets only the original source/task group. Late replies
+and errors cannot appear in a new equal-ID opening. Explicit missing or mismatched
+bindings never become managed IPC calls. Metadata commits restart strict editor
+preview; text edits in the same source retain serialized scheduling and debounce.
+
+AI-review captures its binding before confirmation awaits. Candidate preview and a
+separate saved GLB copy read from that source; the workspace scene is never reparented
+into review. Opening or commit changes block acceptance, including metadata-only
+commits: recapture cannot grant fresh authority to an old review. A new review is
+required. Baseline caching also includes opening/commit and disposes late objects.
+The agreed patch and separate commit regression fix are described in the
+[frontend preview contract](../integration/storage-preview-renderer-source.en.md).
+
+All three foundation CI runs passed at `6bd7924` before application; applied frontend
+results are checked separately in Issue #31. This scope adds no visible folder
+controls, writer UI or app installation. Other native consumers and the full user
+read/write route still require completion of stage 4.

@@ -2,11 +2,19 @@
 
 [Русский](storage-preview-renderer-source.md) · [State foundation](storage-workspace-source-state.en.md) · [Host API](../en/storage-folder-host-api.md)
 
-Status: **prepared, unapplied; separate approval not yet requested**.
+Status: **approved by lovlyDev and applied after all three foundation CI runs passed at `6bd7924`**.
+Working-branch checks passed 348 tests /115 files, production build, lint, i18n1483 and docs194. The new commit's CI is checked separately.
 Issue #31 / PR #35, implementation wenlixxq, acceptance lovlyDev.
 The exact [patch](storage-preview-renderer-source.patch) applies **after**
 `storage-workspace-source-state.patch`, including its preference-key correction.
 Backend preview approval does not authorize this dependent frontend scope.
+
+Within the same eight approved files, a [strict AI-review commit fix](storage-preview-review-commit.patch)
+updates `CandidateReview.tsx` and the listed `candidateSource.test.tsx`. A new regression
+first reproduced the bug: an old ready candidate remained acceptable after a metadata
+commit. Original review commit validation now blocks acceptance and baseline; a new
+review is required even if geometry is unchanged. The original eight-file agreement
+diff remains separate from this correction.
 
 ## Behavior
 
@@ -31,6 +39,10 @@ use that source. Opening another folder with identical project/revision IDs bloc
 acceptance. Baseline loading hides retired scenes and disposes late objects; the
 previously prepared modelLoader performs host reads and post-decode source checks.
 
+Strict AI-review also invalidates when the commit changes within its original opening,
+including metadata-only changes. It never recaptures a fresh view to legalize an old
+candidate. Ordinary editor preview receives the new commit and rebuilds.
+
 ## All 8 paths
 
 Relative to `apps/desktop/src/`:
@@ -47,7 +59,7 @@ Relative to `apps/desktop/src/`:
 ## Checks and limits
 
 Complete isolated snapshot with both patches: **347 tests / 115 files PASS**,
-production build PASS, i18n 1483 PASS. This patch adds 13 tests; existing preview
+production build PASS, i18n 1483 PASS. The original patch adds 13 tests and the commit fix adds one regression; existing preview
 scheduling and AI-review tests remain. The foundation separately passed 334 tests /
 112 files and its build. Dependent patch applicability passed against that isolated
 foundation. These are renderer fixtures/mocks, not worker geometry or installed-app
@@ -58,3 +70,5 @@ folder button. Remaining measurement/history/import/export consumers, folder wri
 and permission UI are not connected. These patches do not complete stage 4 or prove
 an available end-user folder flow. Specification §5 requires agreement before shared
 frontend/App edits.
+
+Applied working-branch browser check:6 PASS,3 SKIPPED. The skips require the locally built Windows CAD worker fixture; they are not installed-app or geometry acceptance.

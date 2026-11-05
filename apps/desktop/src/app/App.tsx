@@ -411,6 +411,7 @@ export default function App() {
     review?: CandidateReviewData,
     cancelled?: () => void,
   ) {
+    const capturedReview=review?{...review,sourceBinding:review.sourceBinding===undefined?useWorkspace.getState().sourceBinding:review.sourceBinding}:undefined;
     try {
       if (!review && !needsConfirmation(await confirmationSettings(), action)) {
         await run();
@@ -427,7 +428,7 @@ export default function App() {
         detail,
         run,
         id,
-        review,
+        review:capturedReview,
         targetProjectId,
         cancelled,
       });
