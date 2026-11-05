@@ -464,3 +464,33 @@ All three foundation CI runs passed at `6bd7924` before application; applied fro
 results are checked separately in Issue #31. This scope adds no visible folder
 controls, writer UI or app installation. Other native consumers and the full user
 read/write route still require completion of stage 4.
+
+## Inspector, selected-body and pair measurements
+
+App passes the original opening binding into SelectionModelProperties. Inspection
+uses FolderSourceRef in existing inspect_model; its query cache includes opening,
+source/task group/commit alongside project/revision. Cached or late properties from
+an equal-ID previous opening cannot replace the current view. An explicit missing
+or mismatched binding disables exact querying, retaining the mesh estimate without
+managed fallback. Metadata commit changes restart strict inspection.
+
+Selected-body and topology-pair measurements receive the binding with their original
+geometry context. Identity includes opening/source/task group, revision/body/query,
+saved program and primary STEP SHA/size; pairs also include scene token and captured
+authored references. Native APIs use the capture's own source; an explicit foreign
+source/commit/group override is refused. Opening changes invalidate reports, pair
+slots and retired capture/clear callbacks.
+
+Same-opening metadata-only refresh preserves compatible reports and selections.
+The running request retains its original capture; sessions refresh only the next
+request's commit reference. This never recaptures a different source: the backend
+independently checks the original RepositoryRead, authored bindings and actual STEP
+assets. Unlike strict AI-preview review, compatible measurements need not reset
+their result merely because a name or messages changed.
+
+Folder disclosure preferences for these panels remain in RAM, without managed
+preference IO or persisted process-local tokens. Direct legacy callers may omit
+binding; production UI supplies it explicitly. See the [renderer measurement contract](../integration/storage-measurement-renderer-source.en.md)
+for exact 16-file scope and checks. Face/manual sections, snap, history/import/export
+and writer/permission UI remain subsequent integrations; visible folder controls
+are not added yet.

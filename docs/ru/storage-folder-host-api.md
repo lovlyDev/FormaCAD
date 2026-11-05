@@ -466,3 +466,33 @@ review. Baseline cache также разделён по открытию и comm
 frontend-кода проверяются отдельно в Issue #31. Новых folder controls, writer UI
 или установки приложения этот объём не добавляет. Другие native-потребители и
 полный read/write пользовательский маршрут ещё требуют завершения этапа 4.
+
+## Инспектор, измерение выбранного тела и пары
+
+App передаёт binding исходного открытия в SelectionModelProperties. Инспектор
+использует FolderSourceRef в существующем inspect_model; его query cache учитывает
+opening/source/task group/commit дополнительно к project/revision. Cache и поздний
+ответ предыдущего открытия с одинаковыми IDs не подставляются в новое. Явно чужой
+или отсутствующий binding отключает exact query, сохраняя mesh estimate без
+managed fallback. Смена metadata-commit перезапускает строгую inspection-проверку.
+
+Измерения выбранного тела и двух topology references получают binding вместе с
+исходным геометрическим контекстом. Identity включает opening/source/task group,
+revision/body/query, исходный program и SHA/size основного STEP; для пары — также
+scene token и захваченные authored references. Нативные API используют ссылку самого
+capture; другой source/commit/group нельзя подставить явным override. После смены
+открытия отчёт, выбор пары и устаревшие callbacks capture/clear не принимаются.
+
+Metadata-only refresh того же открытия сохраняет геометрически совместимый report
+и выбор. Capture работающего запроса остаётся прежним; session обновляет только
+контекст следующего запроса до свежей commit-ссылки. Это не recapture другого
+источника: backend независимо проверяет исходный RepositoryRead, authored bindings
+и реальные STEP assets. В отличие от строгого preview AI-review, совместимые
+измерения не требуют сбрасывать результат только из-за имени или сообщений.
+
+Folder-состояния раскрытия этих панелей живут в RAM через source preferences,
+не читают и не пишут managed preferences и не сохраняют process-local tokens.
+Прямые legacy callers могут опустить binding; production UI передаёт его явно.
+Состав 16 файлов и проверки — в [контракте измерений renderer](../integration/storage-measurement-renderer-source.md).
+Face/manual sections, snap, history/import/export и writer/permission UI остаются
+следующими интеграциями; видимые folder controls пока не добавлены.

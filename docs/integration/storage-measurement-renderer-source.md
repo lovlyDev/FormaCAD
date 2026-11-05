@@ -2,7 +2,8 @@
 
 [English](storage-measurement-renderer-source.en.md) · [Host API](../ru/storage-folder-host-api.md) · [Предыдущий preview-патч](storage-preview-renderer-source.md)
 
-Статус: **подготовлен, не применён; требуется отдельное согласование**.
+Статус: **все 16 файлов согласованы lovlyDev и применены**.
+В рабочей ветке прошли 363 теста / 118 файлов, build, lint, i18n 1483 и docs 196. Полный браузерный набор:51 PASS,41 SKIPPED. CI нового коммита проверяется отдельно.
 Issue #31 / PR #35, исполнитель wenlixxq, приёмка lovlyDev.
 Основа `ecf40d55669701ec482fa3fc60a77a1f805df327` содержит применённый preview
 и исправление строгого commit AI-review. Точный [патч](storage-measurement-renderer-source.patch)
@@ -67,4 +68,4 @@ callbacks. Это fixtures/mocks, не новый замер CAD или installe
 
 Папочные face-section, manual section, snap, history/import/export, writer/permission
 UI и видимые folder controls этим патчем не подключаются. Этап 4 не завершён.
-До согласования по §5 ТЗ общие исходники патча остаются неприменёнными.
+Согласование по §5 ТЗ получено до применения всех 16 файлов. Пропуски browser-набора не считаются native/installed acceptance.

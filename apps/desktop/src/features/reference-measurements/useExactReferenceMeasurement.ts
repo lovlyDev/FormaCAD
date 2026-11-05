@@ -5,7 +5,7 @@ import { measureReference } from "./measurementApi";
 
 export function useExactReferenceMeasurement(context:MeasurementContext) {
   const [session]=useState(()=>new MeasurementSession());
-  const captured=useMemo(()=>captureMeasurement(context),[context.project,context.bodyId,context.query,context.selectionToken,context.interactive]);
+  const captured=useMemo(()=>captureMeasurement(context),[context.project,context.bodyId,context.query,context.selectionToken,context.interactive,context.sourceBinding]);
   const snapshot=useSyncExternalStore(session.subscribe,session.snapshot,session.snapshot);
   useEffect(()=>{session.setContext(captured);},[captured,session]);
   const mounted=useRef(false);

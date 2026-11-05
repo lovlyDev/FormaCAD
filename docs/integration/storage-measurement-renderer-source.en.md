@@ -2,7 +2,8 @@
 
 [Русский](storage-measurement-renderer-source.md) · [Host API](../en/storage-folder-host-api.md) · [Previous preview patch](storage-preview-renderer-source.en.md)
 
-Status: **prepared, unapplied; separate agreement required**.
+Status: **all 16 files approved by lovlyDev and applied**.
+Working-branch checks passed 363 tests /118 files, build, lint, i18n1483 and docs196. Full browser packet:51 PASS,41 SKIPPED. The new commit's CI is checked separately.
 Issue #31 / PR #35, implementation wenlixxq, acceptance lovlyDev.
 Base `ecf40d55669701ec482fa3fc60a77a1f805df327` includes applied preview and the
 strict AI-review commit fix. The exact [patch](storage-measurement-renderer-source.patch)
@@ -67,4 +68,4 @@ are fixtures/mocks, not new CAD measurements or installed acceptance.
 
 This does not connect folder face/manual sections, snap, history/import/export,
 writer/permission UI or visible folder controls. Stage 4 remains incomplete.
-Specification §5 requires agreement before applying the shared source patch.
+Specification §5 agreement was obtained before applying all16 files. Browser skips are not native/installed acceptance.

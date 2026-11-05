@@ -1118,6 +1118,7 @@ export default function App() {
                   onEdit={() => setModal("parameters")}
                 >
                   <SelectionModelProperties
+                    sourceBinding={sourceBinding}
                     selectedBodyId={selected}
                     sceneToken={committedScene.selectionScene.token}
                     interactive={committedScene.interactive && !compare}
