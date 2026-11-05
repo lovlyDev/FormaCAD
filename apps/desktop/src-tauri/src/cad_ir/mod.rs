@@ -5,6 +5,7 @@ mod affine_transform;
 pub mod assets;
 mod datum;
 pub mod datum_anchor;
+pub mod pattern;
 pub(crate) mod shell;
 pub mod topology_refs;
 mod torus;
@@ -177,6 +178,16 @@ pub enum Operation {
         body_feature_id: String,
         openings: Vec<TopologyReference>,
         offset: Dimension,
+    },
+    PatternLinear {
+        body_feature_id: String,
+        repeat_hole: bool,
+        layout: pattern::LinearPattern,
+    },
+    PatternCircular {
+        body_feature_id: String,
+        repeat_hole: bool,
+        layout: pattern::CircularPattern,
     },
     Revolve {
         sketch_id: String,

@@ -74,6 +74,8 @@ impl Document {
                 | Operation::Chamfer { .. }
                 | Operation::ChamferReferencedEdge { .. }
                 | Operation::Shell { .. }
+                | Operation::PatternLinear { .. }
+                | Operation::PatternCircular { .. }
                 | Operation::Rotate { .. }
                 | Operation::Transform { .. }
                 | Operation::Mirror { .. }

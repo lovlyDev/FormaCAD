@@ -40,6 +40,8 @@ export function featureDependencies(feature: TypedCadFeature): string[] {
     case "hole":
     case "extrudeFace":
     case "shell":
+    case "patternLinear":
+    case "patternCircular":
     case "fillet":
     case "filletEdge":
     case "filletReferencedEdge":
@@ -64,6 +66,8 @@ export function canSuppressFeature(feature: TypedCadFeature): boolean {
     "hole",
     "extrudeFace",
     "shell",
+    "patternLinear",
+    "patternCircular",
     "fillet",
     "filletEdge",
     "filletReferencedEdge",
@@ -85,6 +89,8 @@ export function solidFeature(feature: TypedCadFeature): boolean {
     "extrude",
     "extrudeFace",
     "shell",
+    "patternLinear",
+    "patternCircular",
     "revolve",
     "hole",
     "fillet",

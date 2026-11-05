@@ -234,6 +234,17 @@ pub fn build_body_with_assets(
                 }
                 _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
             },
+            Operation::PatternLinear { .. } | Operation::PatternCircular { .. } => {
+                FeatureValue::Solid(super::pattern::build_pattern(
+                    &feature.operation,
+                    document,
+                    |id| match get(id)? {
+                        FeatureValue::Solid(source) => Ok(source),
+                        _ => Err(ir_error("REFERENCE_TYPE_MISMATCH", id)),
+                    },
+                    |value| dimension(value, &parameters),
+                )?)
+            }
             Operation::Fillet {
                 body_feature_id,
                 radius,

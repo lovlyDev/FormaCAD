@@ -156,6 +156,30 @@ pub(crate) mod ffi {
             occurrence: &CxxString,
             offset_mm: f64,
         ) -> UniquePtr<Shape>;
+        #[allow(clippy::too_many_arguments)]
+        fn pattern_linear(
+            source: &Shape,
+            count_u: i32,
+            ux: f64,
+            uy: f64,
+            uz: f64,
+            count_v: i32,
+            vx: f64,
+            vy: f64,
+            vz: f64,
+        ) -> UniquePtr<Shape>;
+        #[allow(clippy::too_many_arguments)]
+        fn pattern_circular(
+            source: &Shape,
+            count: i32,
+            ox: f64,
+            oy: f64,
+            oz: f64,
+            dx: f64,
+            dy: f64,
+            dz: f64,
+            step_deg: f64,
+        ) -> UniquePtr<Shape>;
         unsafe fn validate_datum(kind: i32, data: *const f64, count: usize) -> bool;
         unsafe fn datum_anchor(
             solid: &Shape,

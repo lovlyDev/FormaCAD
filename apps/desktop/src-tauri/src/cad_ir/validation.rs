@@ -36,6 +36,7 @@ impl Document {
             parameters.insert(parameter.id.as_str(), parameter.value_mm);
         }
         let mut features = HashMap::new();
+        let mut hole_sources = HashSet::new();
         let mut sketch_points_total = 0usize;
         let mut sketch_constraints_total = 0usize;
         for feature in &self.features {
@@ -66,6 +67,16 @@ impl Document {
                         Some(id.to_owned()),
                     )),
                 }
+            };
+            let pattern_target = |target: &str, repeat_hole: bool| {
+                reference(target, FeatureKind::Solid)?;
+                if repeat_hole && !hole_sources.contains(target) {
+                    return Err(ValidationError::new(
+                        ErrorCode::InvalidValue,
+                        Some(id.to_owned()),
+                    ));
+                }
+                Ok(())
             };
             let kind = match &feature.operation {
                 Operation::ImportStep { asset_id, sha256 } => {
@@ -341,6 +352,24 @@ impl Document {
                     }
                     FeatureKind::Solid
                 }
+                Operation::PatternLinear {
+                    body_feature_id,
+                    repeat_hole,
+                    layout,
+                } => {
+                    pattern_target(body_feature_id, *repeat_hole)?;
+                    layout.validate(id)?;
+                    FeatureKind::Solid
+                }
+                Operation::PatternCircular {
+                    body_feature_id,
+                    repeat_hole,
+                    layout,
+                } => {
+                    pattern_target(body_feature_id, *repeat_hole)?;
+                    layout.validate(id)?;
+                    FeatureKind::Solid
+                }
                 Operation::Translate {
                     body_feature_id,
                     offset_mm,
@@ -406,6 +435,9 @@ impl Document {
                     FeatureKind::Solid
                 }
             };
+            if !feature.suppressed && matches!(feature.operation, Operation::Hole { .. }) {
+                hole_sources.insert(id);
+            }
             features.insert(id, kind);
         }
         for body in &self.bodies {

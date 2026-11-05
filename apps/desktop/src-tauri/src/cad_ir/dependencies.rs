@@ -46,6 +46,12 @@ impl Operation {
             | Self::Chamfer {
                 body_feature_id, ..
             }
+            | Self::PatternLinear {
+                body_feature_id, ..
+            }
+            | Self::PatternCircular {
+                body_feature_id, ..
+            }
             | Self::Translate {
                 body_feature_id, ..
             }
@@ -101,6 +107,12 @@ impl Operation {
                 body_feature_id, ..
             }
             | Self::Shell {
+                body_feature_id, ..
+            }
+            | Self::PatternLinear {
+                body_feature_id, ..
+            }
+            | Self::PatternCircular {
                 body_feature_id, ..
             } => Some(body_feature_id),
             Self::Hole {

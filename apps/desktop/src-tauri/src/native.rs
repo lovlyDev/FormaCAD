@@ -30,6 +30,8 @@ pub mod inspection;
 #[cfg(feature = "native-occt")]
 pub mod job;
 pub mod pair_measurements;
+#[cfg(feature = "native-occt")]
+mod pattern;
 pub mod reference_measurements;
 #[cfg(feature = "native-occt")]
 mod revolution;
