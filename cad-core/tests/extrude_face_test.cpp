@@ -54,6 +54,10 @@ int main() {
     require(!forma::extrude_face(*box, "pad", "box-face:zmax", "", -5.)->ok(),
       "Reject removing the whole solid");
     const auto cylinder = forma::make_referenced_cylinder(5, 10, "cylinder");
+    const auto extended = forma::extrude_face(*cylinder, "cylinder", "cylinder-face:top", "", 2.);
+    require(extended->ok(), extended->error_message().c_str());
+    near(extended->extent_z_mm(), 12., "A cylinder cap can be extended");
+    near(extended->volume_mm3(), 300. * std::acos(-1.), "Cap extrusion adds a cylindrical segment");
     require(!forma::extrude_face(*cylinder, "cylinder", "cylinder-face:side", "", 1.)->ok(),
       "Reject nonplanar face");
   });

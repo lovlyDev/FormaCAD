@@ -7,6 +7,7 @@ type Built = {
 declare global {
   interface Window {
     __m2Build: (document: unknown, revisionId: string) => Promise<Built>;
+    __m3Measure?: (revisionId: string, bodyId: string, query: unknown) => Promise<object>;
     __m2Snap: (
       revisionId: string,
       bodyId: string,
@@ -77,6 +78,10 @@ export async function mountViewportTransformHarness(
     JSON.parse(project.revisions.find((item: any) => item.id === id).program);
   const applyTransforms = (document: any, commands: any[]) => {
     for (const command of commands) {
+      if (command.command === "add_feature") {
+        document.features.push(command.feature);
+        continue;
+      }
       const body = document.bodies.find(
         (item: any) => item.id === command.bodyId,
       );
@@ -85,6 +90,10 @@ export async function mountViewportTransformHarness(
           code: "MISSING_TARGET",
           message: command.bodyId,
         });
+      if (command.command === "set_body_source") {
+        body.sourceFeatureId = command.sourceFeatureId;
+        continue;
+      }
       document.features.push({
         id: command.featureId,
         name: command.name,
@@ -145,6 +154,10 @@ export async function mountViewportTransformHarness(
         generation: ++generation,
       });
       return project;
+    }
+    if (command === "measure_model_reference" && window.__m3Measure) {
+      const report = await window.__m3Measure(args.expectedRevision, args.bodyId, args.query);
+      return { projectId: project.id, ...report };
     }
     if (command === "snap_model_reference") {
       if (args.expectedRevision !== project.currentRevision)
@@ -284,6 +297,19 @@ export async function mountViewportTransformHarness(
       theme: applyTheme,
       project: () => useWorkspace.getState().project,
       selection: () => useWorkspace.getState().selectedBodies,
+      face: () => useWorkspace.getState().selectedFace,
+      topFaceScreen: () => {
+        const state = live();
+        const body = state?.scene.getObjectByName("body");
+        if (!state || !body) return null;
+        const box = new THREE.Box3().setFromObject(body);
+        const point = box.getCenter(new THREE.Vector3());
+        point.y = box.max.y;
+        point.project(state.camera);
+        const rect = state.gl.domElement.getBoundingClientRect();
+        return { x: rect.left + (point.x + 1) * rect.width / 2,
+          y: rect.top + (1 - point.y) * rect.height / 2 };
+      },
       visible: () => live()?.scene.getObjectByName("body")?.visible ?? null,
       viewDirection: () =>
         live()

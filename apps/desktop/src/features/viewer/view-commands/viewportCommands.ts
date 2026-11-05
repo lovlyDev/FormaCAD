@@ -34,6 +34,7 @@ export interface ViewportCommandContext {
   hasCadFaces: boolean;
   hasCadEdges: boolean;
   onVisibility?: (action: VisibilityAction) => void;
+  onExtrudeFace?: () => void;
 }
 
 function selectBodies(object: THREE.Group, action: SelectionAction) {
@@ -126,6 +127,7 @@ export function viewportCommands(
     "transform.move": begin("move"),
     "transform.rotate": begin("rotate"),
     "transform.scale": begin("scale"),
+    "model.extrudeFace": context.onExtrudeFace,
     "transform.adjustLast": () =>
       useTransformViewport.getState().setAdjustOpen(true),
     "transform.pivotPie": pie(pivotPie),

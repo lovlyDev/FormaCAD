@@ -109,6 +109,9 @@ import {
 import { ExportDialog } from "./dialogs/ExportDialog";
 import { TorusDialog } from "../features/add-menu/torus/TorusDialog";
 import { DatumDialog, type DatumSourceOption } from "../features/add-menu/datum/DatumDialog";
+import { FaceExtrusionDialog } from "../features/face-extrusion/FaceExtrusionDialog";
+import { captureFaceExtrusion, faceExtrusionTarget } from "../features/face-extrusion/faceExtrusionCommand";
+import type { FaceSelection } from "../features/viewer/faceSelection";
 import { datumSources } from "../features/add-menu/datum/datumSources";
 import { captureDatum, type DatumKind } from "../features/add-menu/datum/datumModel";
 import { captureTorus } from "../features/add-menu/torus/torusCommands";
@@ -155,10 +158,11 @@ export default function App() {
     staleTime: 60000,
   });
   const [modal, setModal] = useState<
-    "new" | "settings" | "export" | "palette" | "parameters" | "torus" | "datum" | null
+    "new" | "settings" | "export" | "palette" | "parameters" | "torus" | "datum" | "faceExtrusion" | null
   >(null);
   const [torusTarget, setTorusTarget] = useState<{ id: string; revision: string | null } | null>(null);
   const [datumTarget, setDatumTarget] = useState<{ id: string; revision: string | null; kind: DatumKind; sources: DatumSourceOption[] } | null>(null);
+  const [faceExtrusion, setFaceExtrusion] = useState<{ projectId: string; selection: FaceSelection; initialMm?: number } | null>(null);
   const datumTargetCurrent = !!datumTarget && project?.id === datumTarget.id
     && project.currentRevision === datumTarget.revision;
   const torusTargetCurrent = !!torusTarget && project?.id === torusTarget.id
@@ -1109,6 +1113,14 @@ export default function App() {
                   onRetry={committedScene.retry}
                   onScreenshot={(data) => void captureScreenshot(data)}
                   onVisibility={visibility.onVisibility}
+                  onExtrudeFace={!editingBlocked && !pending && !modal && !compare &&
+                    committedScene.interactive && selectedFace?.sceneToken === object.uuid &&
+                    faceExtrusionTarget(project, selectedFace)
+                    ? (initialMm) => {
+                        setFaceExtrusion({ projectId: project.id, selection: selectedFace, initialMm });
+                        setModal("faceExtrusion");
+                      }
+                    : undefined}
                   confirmEdit={(title, description, detail, run) =>
                     new Promise<boolean>((resolve) => {
                       void ask(
@@ -1541,6 +1553,27 @@ export default function App() {
             );
           }}
         />
+      )}
+      {modal === "faceExtrusion" && faceExtrusion && project?.id === faceExtrusion.projectId && (
+        <FaceExtrusionDialog close={() => { setFaceExtrusion(null); setModal(null); }}
+          initialMm={faceExtrusion.initialMm}
+          disabled={editingBlocked || !faceExtrusionTarget(project, faceExtrusion.selection)}
+          onApply={(distance) => {
+            const operation = captureFaceExtrusion(project, faceExtrusion.selection, distance);
+            if (!operation) return;
+            setFaceExtrusion(null);
+            setModal(null);
+            void ask(operation.captured.prompt,
+              t("Use a positive distance to add material or a negative distance to cut it."),
+              project.name, async () => {
+                setBusy(true, t("Построение геометрии"));
+                try {
+                  await applyModel(operation.captured, { invoke: operation.invoke });
+                } finally {
+                  setBusy(false);
+                }
+              }, "modify_project", project.id);
+          }} />
       )}
       {modal === "datum" && project && datumTarget && (
         <DatumDialog key={datumTarget.kind} kind={datumTarget.kind} sources={datumTarget.sources}

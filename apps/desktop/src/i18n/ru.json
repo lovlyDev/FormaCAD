@@ -1,6 +1,11 @@
 {
   "EXTRUDE_FACE_FAILED": "Не удалось вытянуть выбранную грань на это расстояние.",
   "EXTRUDE_FACE_NOT_PLANAR": "Выберите плоскую грань для вытягивания.",
+  "Extrude face": "Вытянуть грань",
+  "Extrusion distance (mm)": "Расстояние вытягивания (мм)",
+  "Drag to extrude face": "Потяните, чтобы вытянуть грань",
+  "{{distance}} mm": "{{distance}} мм",
+  "Use a positive distance to add material or a negative distance to cut it.": "Положительное расстояние добавляет материал, отрицательное вырезает его.",
   "DATUM_ANCHOR_UNRESOLVED": "Не удалось разрешить ссылку опорного элемента. Проверьте исходную грань, ребро или плоскость.",
   "Datum reference": "Привязка опорного элемента",
   "Model coordinates": "Координаты модели",

@@ -46,6 +46,7 @@ import { Capture } from "./Capture";
 import { PluginToolbarMenu } from "../plugins/PluginToolbarMenu";
 import type { RenderMode } from "./renderMode";
 import { faceTriangleCounts } from "./faceSelection";
+import { FaceExtrusionHandle } from "../face-extrusion/FaceExtrusionHandle";
 import { cadEdges } from "./edgeSelection";
 import {
   useViewportInteraction,
@@ -81,6 +82,7 @@ export default function Viewer({
   interactive = true,
   onVisibility,
   confirmEdit,
+  onExtrudeFace,
 }: {
   object: THREE.Group;
   onScreenshot: (data: string) => void;
@@ -88,6 +90,7 @@ export default function Viewer({
   interactive?: boolean;
   onVisibility?: (action: VisibilityAction) => void;
   confirmEdit?: ConfirmEdit;
+  onExtrudeFace?: (distanceMm?: number) => void;
 }) {
   const projectId = useWorkspace((s) => s.project?.id ?? "empty");
   const viewKey = `forma.ui.project.${projectId}.view.${comparison ? "comparison" : "main"}`;
@@ -141,7 +144,8 @@ export default function Viewer({
   const selected = useWorkspace((s) => s.selected);
   const selectedFace = useWorkspace((s) => s.selectedFace);
   const selectedEdge = useWorkspace((s) => s.selectedEdge);
-  const revisionId = useWorkspace((s) => s.project?.currentRevision ?? null);
+  const project = useWorkspace((s) => s.project);
+  const revisionId = project?.currentRevision ?? null;
   const hasCadFaces = useMemo(() => {
     if (!object.userData.formaNativeCadPreview) return false;
     let available = false;
@@ -204,6 +208,7 @@ export default function Viewer({
     hasCadEdges: hasCadEdges && !comparison,
     onVisibility,
     confirmEdit,
+    onExtrudeFace,
   });
   const mouse = navigationPresets[navigation.mousePreset];
   return (
@@ -515,6 +520,11 @@ export default function Viewer({
           report={section.report}
           light={light}
         />
+        {editable && !measure && project && selectedFace && onExtrudeFace &&
+          selectedFace.sceneToken === object.uuid && (
+          <FaceExtrusionHandle key={`${object.uuid}:${selectedFace.bodyId}:${selectedFace.faceOrdinal}`}
+            project={project} selection={selectedFace} object={object} open={onExtrudeFace} />
+        )}
         <OrbitControls
           ref={controlsRef as never}
           makeDefault
