@@ -10,6 +10,7 @@ interface Actions {
   addTorus: () => void;
   addDatum: (kind: DatumKind) => void;
   shell?: () => void;
+  pattern?: () => void;
   palette: () => void;
   settings: (page?: string) => void;
   workspaces: () => void;
@@ -127,6 +128,12 @@ export function applicationMenus(
           label: t("Shell"),
           disabled: !actions.shell,
           run: () => actions.shell?.(),
+        },
+        {
+          id: "pattern",
+          label: t("Pattern"),
+          disabled: !actions.pattern,
+          run: () => actions.pattern?.(),
         },
         {
           id: "plugins",

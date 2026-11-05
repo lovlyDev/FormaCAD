@@ -48,7 +48,9 @@ In face selection mode (`2`), select a face with a semantic reference and choose
 
 The `shell` operation stores a solid source, a signed wall offset and unique semantic face references for the openings. OCCT builds the walls with `BRepOffsetAPI_MakeThickSolid`. A stale reference, invalid result or inward wall that leaves no cavity rolls back the transaction. Tests cover inward and outward walls, multiple openings, dimensions, volume, BREP and STEP round-trip.
 
-### Pattern commands (M3)
+### Linear and circular patterns (M3)
+
+Select a body in the 3D view and choose **Tools → Pattern**. For a linear pattern, choose the first CAD axis and signed spacing, then optionally add rows along a different axis. For a circular pattern, choose the CAD axis, set its origin in model coordinates and enter a signed angular step. **Repeat the hole only** is available when the body's active feature is a hole. Build and confirm the project edit to save the pattern as one operation.
 
 `patternLinear` repeats a body along one step vector or on a grid with two independent vectors. `patternCircular` repeats a body around a model-space axis with a signed angular step. The count includes the source and is limited to 128 instances. Body copies stay as independent solids in a compound. When the current source is an active hole feature, the same commands can repeat its cutter and cut the stock once. A hole pattern that removes no additional material fails without saving the edit.
 
