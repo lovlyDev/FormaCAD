@@ -190,7 +190,7 @@ new file mode 100644
 +export function useSourcePreference<T>(key: string, fallback: T, binding: ProjectSourceBinding | null) {
 +  const folder = binding?.kind === "folder";
 +  const [persistent, savePersistent] = usePersistentState(key, fallback, !folder);
-+  const family = binding?.openingId ?? key;
++  const family = JSON.stringify([binding?.openingId, key]);
 +  const latest = useRef(family); latest.current = family;
 +  const [memory, setMemory] = useState({ family, value: fallback });
 +  const value = folder ? memory.family === family ? memory.value : fallback : persistent;
@@ -1367,7 +1367,7 @@ diff --git a/apps/desktop/src/features/project-sources/sourcePreference.test.tsx
 new file mode 100644
 --- /dev/null
 +++ b/apps/desktop/src/features/project-sources/sourcePreference.test.tsx
-@@ -0,0 +1,29 @@
+@@ -0,0 +1,41 @@
 +import { act,renderHook } from "@testing-library/react";
 +import { afterEach,expect,it } from "vitest";
 +import { folderSource,managedSource,refreshFolderSource } from "./sourceBinding";
@@ -1396,6 +1396,18 @@ new file mode 100644
 +  const view=renderHook(({binding})=>useSourcePreference("forma.ui.project.shared.prompt","",binding),{initialProps:{binding:first}});
 +  const stale=view.result.current[1];view.rerender({binding:second});act(()=>view.result.current[1]("new draft"));act(()=>stale("stale"));
 +  expect(view.result.current[0]).toBe("new draft");view.unmount();
++});
++
++it("resets a folder draft when its revision key changes within the same opening",()=>{
++ const binding=folderSource("shared",ref());const view=renderHook(({key})=>useSourcePreference(key,"saved source",binding),{initialProps:{key:"revision-a"}});
++ act(()=>view.result.current[1]("draft a"));const stale=view.result.current[1];view.rerender({key:"revision-b"});
++ expect(view.result.current[0]).toBe("saved source");act(()=>view.result.current[1]("draft b"));act(()=>stale("late a"));
++ expect(view.result.current[0]).toBe("draft b");expect(localStorage.getItem("revision-a")).toBeNull();expect(localStorage.getItem("revision-b")).toBeNull();view.unmount();
++});
++it("ignores a managed setter from a retired preference key",()=>{
++ const binding=managedSource("shared");const view=renderHook(({key})=>useSourcePreference(key,"",binding),{initialProps:{key:"revision-a"}});
++ const stale=view.result.current[1];view.rerender({key:"revision-b"});act(()=>view.result.current[1]("new draft"));act(()=>stale("late a"));
++ expect(view.result.current[0]).toBe("new draft");expect(localStorage.getItem("revision-a")).toBeNull();view.unmount();
 +});
 diff --git a/apps/desktop/src/features/project-sources/managedRequests.test.tsx b/apps/desktop/src/features/project-sources/managedRequests.test.tsx
 new file mode 100644

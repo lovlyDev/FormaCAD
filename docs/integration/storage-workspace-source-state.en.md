@@ -34,7 +34,7 @@ acquisition for the reopened equal-ID project completes. Folder read references
 never acquire managed editing. Both catalogs
 gain PROJECT_SOURCE_WRITE_NOT_AUTHORIZED. Folder project drafts remain in memory;
 disabled persistence neither reads nor writes managed preferences or source/epoch
-tokens. Old setters cannot change a newer opening's draft. Managed APIs remain.
+tokens. Old setters cannot change a newer opening or revision key's draft. Managed APIs remain.
 
 ## All 31 paths
 
@@ -78,9 +78,9 @@ native permissions, SQL, version or backend IPC contract changes.
 
 ## Checks and unfinished scope
 
-An isolated full base snapshot with these 31 files passed 332 tests across 112
+An isolated full base snapshot with these 31 files passed 334 tests across 112
 files, production build, check:i18n (1483 EN/RU messages) and check:docs (190 base
-documents). This includes 38 new state/renderer tests: same-ID switch/reopen,
+documents). This includes 40 new state/renderer tests: same-ID switch/reopen,
 metadata refresh, late save/event/CAD adoption, scoped geometry, refusal after
 decoder await, object disposal, isolated preferences and read-only access. Exact
 patch applicability passed. Shared working sources remain unchanged.

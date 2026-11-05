@@ -34,7 +34,7 @@ renderer opening guard. Поздняя ошибка освобождения man
 Для отказа записи добавляется PROJECT_SOURCE_WRITE_NOT_AUTHORIZED в оба i18n.
 Project-scoped черновики folder остаются в памяти; disabled persistence не читает
 и не пишет managed preferences и не сохраняет source/epoch tokens. Старые setters
-не меняют черновик нового открытия. Низкоуровневые managed интерфейсы сохраняются.
+не меняют черновик нового открытия или нового ключа ревизии. Низкоуровневые managed интерфейсы сохраняются.
 
 ## Все 31 путей
 
@@ -78,9 +78,9 @@ protocol, native permissions, SQL, версии и backend IPC-контракт�
 
 ## Проверки и незавершённый объём
 
-В изолированном полном снимке основы с этими 31 файлами прошли 332 тестов / 112
+В изолированном полном снимке основы с этими 31 файлами прошли 334 тестов / 112
 файлов, production build, check:i18n (1483 EN/RU сообщения) и check:docs (190 документов
-основы). В их числе 38 новых тестов состояния/рендерера: same-ID switch/reopen,
+основы). В их числе 40 новых тестов состояния/рендерера: same-ID switch/reopen,
 metadata refresh, late save/event/CAD adoption, source-scoped geometry, отказ после
 decoder await, очистка объекта, отдельные preferences и read-only access. Проверена
 применимость точного патча к рабочей ветке. Общие working sources не изменены.
