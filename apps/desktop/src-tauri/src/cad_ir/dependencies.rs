@@ -5,6 +5,14 @@ use std::collections::HashSet;
 impl Operation {
     pub fn dependencies(&self) -> Vec<&str> {
         match self {
+            Self::DatumOnReference { anchor, .. } => match &anchor.source {
+                super::datum_anchor::DatumSource::Plane { feature_id } => vec![feature_id],
+                super::datum_anchor::DatumSource::Topology { reference, .. } => {
+                    let mut result = vec![reference.owner_feature_id.as_str()];
+                    result.extend(reference.occurrence_path.iter().map(String::as_str));
+                    result
+                }
+            },
             Self::Extrude { sketch_id, .. } | Self::Revolve { sketch_id, .. } => vec![sketch_id],
             Self::Hole {
                 body_feature_id, ..

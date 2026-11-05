@@ -52,6 +52,7 @@ add_library(forma_cad_core STATIC
   src/sphere.cpp
   src/torus.cpp
   src/datum.cpp
+  src/datum_anchor.cpp
   src/cone.cpp
   src/fillet.cpp
   src/chamfer.cpp
@@ -68,6 +69,13 @@ target_link_libraries(forma_cad_core PUBLIC ${FORMA_OCCT_LIBRARIES})
 
 include(CTest)
 if(BUILD_TESTING)
+  add_executable(forma_datum_anchor_test tests/datum_anchor_test.cpp)
+  target_link_libraries(forma_datum_anchor_test PRIVATE forma_cad_core)
+  add_test(NAME forma_datum_anchor_test COMMAND forma_datum_anchor_test)
+  if(WIN32)
+    set_tests_properties(forma_datum_anchor_test PROPERTIES
+      ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OpenCASCADE_BINARY_DIR}")
+  endif()
   add_executable(forma_datum_test tests/datum_test.cpp)
   target_include_directories(forma_datum_test PRIVATE ${OpenCASCADE_INCLUDE_DIR})
   target_link_libraries(forma_datum_test PRIVATE forma_cad_core)

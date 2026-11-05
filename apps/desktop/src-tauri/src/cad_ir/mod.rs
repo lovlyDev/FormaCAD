@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 mod affine_transform;
 pub mod assets;
 mod datum;
+pub mod datum_anchor;
 pub mod topology_refs;
 mod torus;
 pub use topology_refs::{TopologyKind, TopologyReference};
@@ -152,6 +153,10 @@ pub enum Operation {
     },
     DatumPoint {
         origin_mm: [f64; 3],
+    },
+    DatumOnReference {
+        geometry: datum_anchor::DatumGeometry,
+        anchor: datum_anchor::DatumAnchor,
     },
     Cone {
         bottom_radius: Dimension,

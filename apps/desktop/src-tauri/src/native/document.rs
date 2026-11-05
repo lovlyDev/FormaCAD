@@ -95,7 +95,8 @@ pub fn build_body_with_assets(
         let value = match &feature.operation {
             Operation::DatumPlane { .. }
             | Operation::DatumAxis { .. }
-            | Operation::DatumPoint { .. } => {
+            | Operation::DatumPoint { .. }
+            | Operation::DatumOnReference { .. } => {
                 return Err(ir_error("INVALID_BODY", &feature.id));
             }
             Operation::ImportStep { asset_id, sha256 } => {

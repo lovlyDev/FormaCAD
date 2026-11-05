@@ -1,4 +1,11 @@
 {
+  "DATUM_ANCHOR_UNRESOLVED": "The datum reference could not be resolved. Check the source face, edge or plane.",
+  "Datum reference": "Datum reference",
+  "Model coordinates": "Model coordinates",
+  "Datum offset (mm)": "Datum offset (mm)",
+  "Datum angle (degrees)": "Datum angle (degrees)",
+  "Selected planar face": "Selected planar face",
+  "Selected straight edge": "Selected straight edge",
   "Adjust the last datum in the same Undo step.": "Adjust the last datum in the same Undo step.",
   "DATUM_INVALID": "The CAD engine could not construct the datum.",
   "Datum plane": "Datum plane",

@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { DoubleSide, Quaternion, Vector3, type Object3D } from "three";
 import { useWorkspace } from "../../../stores/workspace";
 import { cadPointToRender, cadWorldFrame } from "../../transform/viewport/renderBasis";
-import { projectDatums } from "./datumModel";
+import { projectDatums } from "./datumPlacement";
 
 const localNormal = new Vector3(0, 0, 1);
 const noPick = () => {};
@@ -12,7 +12,8 @@ export function DatumOverlay({ object, light }: { object: Object3D; light: boole
   const program = useWorkspace((state) => state.project?.revisions.find(
     (revision) => revision.id === state.project?.currentRevision,
   )?.program);
-  const datums = useMemo(() => projectDatums(program), [program]);
+  const nativeFrames = object.userData.formaNativeCadPreview ? object.userData.formaDatums : undefined;
+  const datums = useMemo(() => projectDatums(program, nativeFrames), [program, nativeFrames]);
   if (datums.length === 0) return null;
   const frame = cadWorldFrame(object.userData.formaNativeCadPreview ? object : null);
   const scale = new Vector3().setFromMatrixScale(frame);

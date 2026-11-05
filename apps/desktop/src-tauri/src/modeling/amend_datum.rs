@@ -25,7 +25,7 @@ fn stale() -> AppError {
 fn definition(project: &Project, capture: &AmendCapture) -> Option<Document> {
     let current = read_document(project, &capture.expected_revision)?;
     let (last, prefix) = current.features.split_last()?;
-    if last.suppressed || last.operation.datum_packet().is_none() {
+    if last.suppressed || !last.operation.is_datum() {
         return None;
     }
     if let Some(revision) = &capture.base_revision {
@@ -77,6 +77,23 @@ pub async fn prepare(
     if std::mem::discriminant(&feature.operation) != std::mem::discriminant(&replacement.operation)
     {
         return Err(stale());
+    }
+    if let (
+        Operation::DatumOnReference {
+            geometry: current,
+            anchor: base,
+        },
+        Operation::DatumOnReference {
+            geometry: next,
+            anchor: edited,
+        },
+    ) = (&feature.operation, &replacement.operation)
+    {
+        if std::mem::discriminant(current) != std::mem::discriminant(next)
+            || base.source != edited.source
+        {
+            return Err(stale());
+        }
     }
     if feature.operation == replacement.operation {
         return Err(AppError::Invalid("NO_CHANGE".into()));

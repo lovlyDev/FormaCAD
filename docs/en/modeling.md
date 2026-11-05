@@ -26,7 +26,9 @@ In the Add menu, choose Datum plane, Datum axis or Datum point. Enter the coordi
 
 Press F9 in the viewport immediately after creating a datum to adjust its parameters within the same Undo step. The previous revision is retained. A change to history makes the adjustment request stale.
 
-`forma_datum_test` rejects a zero normal, a zero span and an infinite coordinate. After an independent STEP round-trip it checks BREP validity, plane area and direction, axis length and midpoint, and point position. Datum placement currently uses absolute coordinates. Semantic anchors on existing geometry are pending.
+To anchor a datum, select a planar face or straight edge and choose it under Datum reference. Earlier datum planes appear in the same list. Offset follows the original normal or tangent from the face centroid, edge midpoint or plane origin. Angle tilts the normal or direction toward a local tangent. F9 changes the offset, angle and size while retaining the source.
+
+CAD IR stores the reference and its parameters in a `datumOnReference` operation. The worker resolves the semantic reference on each build and records the computed placement in preview metadata. Curved faces, circular edges and unsupported references are rejected. A failed anchor preserves the current revision. `forma_datum_test` checks measurements and BREP after a separate STEP round-trip. `forma_datum_anchor_test` checks exact positions and rejects stale references.
 
 Current schema operations:
 

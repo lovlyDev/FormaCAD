@@ -5,13 +5,13 @@ const amended = "eaf64d34-0401-4acd-a827-6b6b646797ee";
 for (const locale of ["ru", "en"] as const) {
   for (const theme of ["dark", "light"] as const) {
     test(`adjust latest datum coordinates (${locale}, ${theme})`, async ({ page }, info) => {
+      page.on("pageerror", (error) => console.error(error));
       await page.addInitScript((value) => localStorage.setItem("forma.locale", value), locale);
       await page.goto("/");
       await expect(page.getByRole("menubar")).toBeVisible();
       const requests: unknown[] = [];
       await page.exposeFunction("recordDatumReplacement", (args: unknown) => { requests.push(args); });
       await page.evaluate(async ({ theme, revision, amended }) => {
-        const { useTransformViewport } = await import("/src/features/transform/viewport/transformStore.ts");
         const { applyTheme } = await import("/src/lib/theme.ts");
         const { newProject, useWorkspace } = await import("/src/stores/workspace.ts");
         const project = newProject("Datum fixture", "blank", "mm", "codex");
@@ -41,8 +41,12 @@ for (const locale of ["ru", "en"] as const) {
           },
         };
         applyTheme(theme);
-        useTransformViewport.getState().setAdjustOpen(true);
       }, { theme, revision, amended });
+      await expect(page.locator(".viewer-area canvas").first()).toBeVisible();
+      await page.evaluate(async () => {
+        const { useTransformViewport } = await import("/src/features/transform/viewport/transformStore.ts");
+        useTransformViewport.getState().setAdjustOpen(true);
+      });
       const title = locale === "ru" ? "Опорная точка" : "Datum point";
       const dialog = page.getByRole("dialog", { name: title });
       const major = dialog.getByLabel(locale === "ru" ? "Начало опорного элемента (мм) · X" : "Datum origin (mm) · X");

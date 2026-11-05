@@ -25,7 +25,7 @@ for (const locale of ["ru", "en"] as const) {
         const runtime = window as unknown as {
           __TAURI_INTERNALS__: { invoke: (command: string, args: unknown) => Promise<unknown> };
           recordDatum: (command: string, args: unknown) => Promise<void>;
-          showDatum: (kind: string) => void;
+          showDatum: (kind: string, anchored?: boolean) => void;
         };
         runtime.__TAURI_INTERNALS__ = {
           invoke: async (command, args) => {
@@ -35,8 +35,9 @@ for (const locale of ["ru", "en"] as const) {
         };
         applyTheme(theme);
         const root = ReactDOM.default.createRoot(document.body.appendChild(document.createElement("div")));
-        runtime.showDatum = (kind) => root.render(React.default.createElement(DatumDialog, {
+        runtime.showDatum = (kind, anchored) => root.render(React.default.createElement(DatumDialog, {
           key: kind, kind, disabled: false, close: () => root.render(null),
+          sources: anchored ? [{ label: "Fixture plane", source: { type: "plane", featureId: "base-plane" } }] : [],
           onApply: async (operation: Parameters<typeof captureDatum>[1]) => {
             await captureDatum(project, operation).invoke();
             root.render(null);
@@ -65,6 +66,22 @@ for (const locale of ["ru", "en"] as const) {
           ] },
         });
       }
+      await page.evaluate(() => (window as unknown as {
+        showDatum: (kind: string, anchored: boolean) => void;
+      }).showDatum("datumPoint", true));
+      const dialog = page.getByRole("dialog", { name: labels.titles[2] });
+      await dialog.getByRole("combobox").click();
+      await page.getByRole("option", { name: "Fixture plane", exact: true }).click();
+      await dialog.getByLabel(locale === "ru" ? "Смещение опорного элемента (мм)" : "Datum offset (mm)").fill("-2,5");
+      await dialog.getByRole("button", { name: labels.build, exact: true }).click();
+      await expect(dialog).toHaveCount(0);
+      expect(requests[3]).toMatchObject({
+        command: "apply_ir_commands",
+        args: { commands: [{ command: "add_feature", feature: { operation: {
+          type: "datumOnReference", geometry: { type: "point" },
+          anchor: { source: { type: "plane", featureId: "base-plane" }, offsetMm: -2.5, angleDeg: 0 },
+        } } }] },
+      });
     });
   }
 }

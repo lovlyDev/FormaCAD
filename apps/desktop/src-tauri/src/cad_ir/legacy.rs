@@ -64,6 +64,7 @@ impl Document {
                 | Operation::DatumPlane { .. }
                 | Operation::DatumAxis { .. }
                 | Operation::DatumPoint { .. }
+                | Operation::DatumOnReference { .. }
                 | Operation::Cone { .. }
                 | Operation::Hole { .. }
                 | Operation::Fillet { .. }

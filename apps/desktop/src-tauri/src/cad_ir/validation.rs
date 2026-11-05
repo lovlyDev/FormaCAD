@@ -4,6 +4,7 @@ use std::collections::{HashMap, HashSet};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FeatureKind {
     Datum,
+    DatumPlane,
     Sketch,
     ProfileSketch,
     Solid,
@@ -136,7 +137,39 @@ impl Document {
                 | Operation::DatumAxis { .. }
                 | Operation::DatumPoint { .. } => {
                     feature.operation.validate_datum(id)?;
-                    FeatureKind::Datum
+                    if matches!(feature.operation, Operation::DatumPlane { .. }) {
+                        FeatureKind::DatumPlane
+                    } else {
+                        FeatureKind::Datum
+                    }
+                }
+                Operation::DatumOnReference { geometry, anchor } => {
+                    use super::datum_anchor::{DatumGeometry, DatumSource};
+                    if !anchor.valid() || !geometry.valid() {
+                        return Err(ValidationError::new(
+                            ErrorCode::InvalidValue,
+                            Some(id.to_owned()),
+                        ));
+                    }
+                    match &anchor.source {
+                        DatumSource::Plane { feature_id } => {
+                            reference(feature_id, FeatureKind::DatumPlane)?
+                        }
+                        DatumSource::Topology {
+                            reference: topology,
+                            ..
+                        } => {
+                            reference(&topology.owner_feature_id, FeatureKind::Solid)?;
+                            for occurrence in &topology.occurrence_path {
+                                reference(occurrence, FeatureKind::Solid)?;
+                            }
+                        }
+                    }
+                    if matches!(geometry, DatumGeometry::Plane { .. }) {
+                        FeatureKind::DatumPlane
+                    } else {
+                        FeatureKind::Datum
+                    }
                 }
                 Operation::Cone {
                     bottom_radius,
@@ -330,6 +363,18 @@ impl Document {
                     ErrorCode::InvalidBody,
                     Some(body.id.clone()),
                 ));
+            }
+        }
+        for feature in &self.features {
+            if let Operation::DatumOnReference { anchor, .. } = &feature.operation {
+                if let super::datum_anchor::DatumSource::Topology { body_id, .. } = &anchor.source {
+                    if !self.bodies.iter().any(|body| &body.id == body_id) {
+                        return Err(ValidationError::new(
+                            ErrorCode::BrokenReference,
+                            Some(feature.id.clone()),
+                        ));
+                    }
+                }
             }
         }
         Ok(())

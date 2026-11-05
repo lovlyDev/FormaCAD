@@ -87,6 +87,7 @@ export async function loadModel(
     const gltf = await new GLTFLoader().parseAsync(bytes, "");
     group = new THREE.Group();
     group.add(gltf.scene);
+    group.userData.formaDatums = gltf.scene.userData.formaDatums;
     // glTF uses meters. The CAD workspace and all internal dimensions use millimeters.
     group.scale.setScalar(1000);
   } else if (ext === "3mf") {

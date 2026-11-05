@@ -10,7 +10,7 @@ impl super::Document {
             && self
                 .features
                 .iter()
-                .all(|feature| feature.operation.datum_packet().is_some())
+                .all(|feature| feature.operation.is_datum())
     }
 }
 
@@ -21,6 +21,9 @@ fn bounded(values: &[f64], limit: f64) -> bool {
 }
 
 impl Operation {
+    pub(crate) fn is_datum(&self) -> bool {
+        self.datum_packet().is_some() || matches!(self, Self::DatumOnReference { .. })
+    }
     pub(crate) fn datum_packet(&self) -> Option<(i32, [f64; 7], usize)> {
         let (kind, origin, direction, span, len) = match self {
             Self::DatumPlane {

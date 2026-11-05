@@ -9,6 +9,24 @@ import { useBodyAppearance } from "../viewer/appearance/useBodyAppearance";
 import { setSectionPlane } from "../viewer/sections/sectionClipping";
 const mock = vi.hoisted(() => ({ load: vi.fn() }));
 vi.mock("../../lib/files", () => ({ loadModel: mock.load }));
+it("does not request a missing solid preview for a datum-only revision", () => {
+  const project = newProject("Datums", "blank", "mm", "codex");
+  const revision = { id: "base", parent: null, createdAt: project.createdAt, prompt: "datum", parameters: defaults,
+    program: JSON.stringify({ schemaVersion: 2, revisionId: "base", parameters: [], bodies: [], features: [
+      { id: "point", name: "Point", operation: { type: "datumPoint", originMm: [1, 2, 3] } },
+    ] }),
+  };
+  project.currentRevision = revision.id;
+  project.revisions = [revision];
+  mock.load.mockClear();
+  function Host() {
+    const scene = useCommittedScene(project, revision);
+    return <div data-testid="scene">{String(scene.hasFile)} / {String(scene.failed)}</div>;
+  }
+  const view = render(<Host />);
+  expect(view.getByTestId("scene")).toHaveTextContent("false / false");
+  expect(mock.load).not.toHaveBeenCalled();
+});
 it.each(["xray", "ghost"] as const)("retires %s scene after borrowed appearance and clipping cleanups, exactly once", async mode => {
   const group = new THREE.Group(), original = new THREE.MeshStandardMaterial(), geometry = new THREE.BoxGeometry();
   const mesh = new THREE.Mesh(geometry, original); group.add(mesh);

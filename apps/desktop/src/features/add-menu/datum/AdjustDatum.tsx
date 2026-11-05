@@ -6,7 +6,7 @@ import { useWorkspace } from "../../../stores/workspace";
 import type { Project } from "../../../types";
 import type { ConfirmEdit } from "../../viewer/interaction/useViewportInteraction";
 import { DatumDialog } from "./DatumDialog";
-import { datumLabels, readDatumOperation, type DatumOperation } from "./datumModel";
+import { datumKind, datumLabels, readDatumOperation, type DatumOperation } from "./datumModel";
 
 const statusSchema = z.strictObject({
   expectedRevision: z.string().uuid(),
@@ -64,11 +64,11 @@ export function AdjustDatum({ projectId, revisionId, close, onAdopt, confirmEdit
     };
     if (confirmEdit) {
       await confirmEdit(t("Adjust last operation"), t("Adjust the last datum in the same Undo step."),
-        t(datumLabels[operation.type]), run);
+        t(datumLabels[datumKind(operation)]), run);
     } else {
       await run();
     }
   };
-  return <DatumDialog kind={definition.operation.type} initial={definition.operation}
+  return <DatumDialog kind={datumKind(definition.operation)} initial={definition.operation}
     close={close} disabled={busy} error={error} onApply={apply} />;
 }

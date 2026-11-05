@@ -6,6 +6,85 @@ use forma_core::{
 use serde_json::json;
 
 #[tokio::test]
+async fn datum_anchors_resolve_face_edge_and_plane_in_worker_preview() {
+    let root = tempfile::tempdir().unwrap();
+    let (state, baseline) = fixture(root.path()).await;
+    let before = snapshot(&state, &baseline.id).await;
+    let commands = |role: &str| {
+        serde_json::from_value::<Vec<Command>>(json!([
+        {"command": "add_feature", "feature": {"id": "plane", "name": "Plane",
+            "operation": {"type": "datumOnReference", "geometry": {"type": "plane", "sideMm": 12},
+                "anchor": {"source": {"type": "topology", "bodyId": "body", "reference":
+                    {"schemaVersion":1,"kind":"face","ownerFeatureId":"pad","role":role,"occurrencePath":[]}},
+                "offsetMm": 2, "angleDeg": 0}}}},
+        {"command": "add_feature", "feature": {"id": "axis", "name": "Axis",
+            "operation": {"type": "datumOnReference", "geometry": {"type": "axis", "lengthMm": 16},
+                "anchor": {"source": {"type": "topology", "bodyId": "body", "reference":
+                    {"schemaVersion":1,"kind":"edge","ownerFeatureId":"pad","role":"box-edge:x:ymin:zmax","occurrencePath":[]}},
+                "offsetMm": 0, "angleDeg": 0}}}},
+        {"command": "add_feature", "feature": {"id": "point", "name": "Point",
+            "operation": {"type": "datumOnReference", "geometry": {"type": "point"},
+                "anchor": {"source": {"type": "plane", "featureId": "plane"}, "offsetMm": 3, "angleDeg": 0}}}}
+    ])).unwrap()
+    };
+    let request = |role| {
+        prepare(
+            &state,
+            baseline.id.clone(),
+            commands(role),
+            "Datums".into(),
+            baseline.current_revision.clone().unwrap(),
+        )
+    };
+    let broken = request("cylinder-face:side").await.unwrap();
+    let error = apply_with_executable(&state, broken, executable())
+        .await
+        .unwrap_err();
+    assert!(
+        error.to_string().contains("DATUM_ANCHOR_UNRESOLVED"),
+        "{error}"
+    );
+    assert_eq!(snapshot(&state, &baseline.id).await, before);
+    let valid = request("box-face:zmax").await.unwrap();
+    let outcome = apply_with_executable(&state, valid, executable())
+        .await
+        .unwrap();
+    let preview = outcome
+        .project
+        .revisions
+        .last()
+        .unwrap()
+        .preview
+        .as_deref()
+        .unwrap();
+    let file = outcome
+        .project
+        .files
+        .iter()
+        .find(|file| file.name == preview)
+        .unwrap();
+    let bytes = forma_core::artifacts::read(&state, &baseline.id, file).unwrap();
+    let length = u32::from_le_bytes(bytes[12..16].try_into().unwrap()) as usize;
+    let gltf: serde_json::Value = serde_json::from_slice(&bytes[20..20 + length]).unwrap();
+    let datums = &gltf["scenes"][0]["extras"]["formaDatums"];
+    for (id, expected) in [
+        ("plane", [0., 0., 12.]),
+        ("axis", [0., -10., 10.]),
+        ("point", [0., 0., 15.]),
+    ] {
+        let actual: [f64; 3] = serde_json::from_value(datums[id]["originMm"].clone()).unwrap();
+        assert!(
+            actual
+                .iter()
+                .zip(expected)
+                .all(|(a, b)| (a - b).abs() < 1e-7),
+            "{id}: {actual:?}"
+        );
+    }
+    clean(&state).await;
+}
+
+#[tokio::test]
 async fn first_datum_amendment_keeps_one_undo_step() {
     use forma_core::{
         cad_ir::Operation,

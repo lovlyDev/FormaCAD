@@ -108,7 +108,8 @@ import {
 } from "./dialogs/ActionReviewDialog";
 import { ExportDialog } from "./dialogs/ExportDialog";
 import { TorusDialog } from "../features/add-menu/torus/TorusDialog";
-import { DatumDialog } from "../features/add-menu/datum/DatumDialog";
+import { DatumDialog, type DatumSourceOption } from "../features/add-menu/datum/DatumDialog";
+import { datumSources } from "../features/add-menu/datum/datumSources";
 import { captureDatum, type DatumKind } from "../features/add-menu/datum/datumModel";
 import { captureTorus } from "../features/add-menu/torus/torusCommands";
 import { NewProjectDialog } from "./dialogs/NewProjectDialog";
@@ -157,7 +158,7 @@ export default function App() {
     "new" | "settings" | "export" | "palette" | "parameters" | "torus" | "datum" | null
   >(null);
   const [torusTarget, setTorusTarget] = useState<{ id: string; revision: string | null } | null>(null);
-  const [datumTarget, setDatumTarget] = useState<{ id: string; revision: string | null; kind: DatumKind } | null>(null);
+  const [datumTarget, setDatumTarget] = useState<{ id: string; revision: string | null; kind: DatumKind; sources: DatumSourceOption[] } | null>(null);
   const datumTargetCurrent = !!datumTarget && project?.id === datumTarget.id
     && project.currentRevision === datumTarget.revision;
   const torusTargetCurrent = !!torusTarget && project?.id === torusTarget.id
@@ -221,12 +222,13 @@ export default function App() {
       (message) => message.role !== "user" || !legacyMotionPrompt(message.text),
     ) ?? [];
   const geometryKey = JSON.stringify(parameters);
+  const needsEmptyFallback = committedScene.hasFile || !!revision?.program;
   const model = useMemo(
     () =>
-      committedScene.hasFile
+      needsEmptyFallback
         ? new THREE.Group()
         : buildModel(JSON.parse(geometryKey) as Parameters),
-    [geometryKey, committedScene.hasFile],
+    [geometryKey, needsEmptyFallback],
   );
   const object =
     committedScene.object ?? (committedScene.hasFile ? emptyScene : model);
@@ -929,7 +931,8 @@ export default function App() {
               },
               addDatum: (kind) => {
                 if (!project) return;
-                setDatumTarget({ id: project.id, revision: project.currentRevision, kind });
+                setDatumTarget({ id: project.id, revision: project.currentRevision, kind,
+                  sources: datumSources(project, selectedFace, selectedEdge) });
                 setModal("datum");
               },
               palette: () => setModal("palette"),
@@ -1540,7 +1543,7 @@ export default function App() {
         />
       )}
       {modal === "datum" && project && datumTarget && (
-        <DatumDialog key={datumTarget.kind} kind={datumTarget.kind}
+        <DatumDialog key={datumTarget.kind} kind={datumTarget.kind} sources={datumTarget.sources}
           close={() => setModal(null)} disabled={editingBlocked || !datumTargetCurrent}
           onApply={(datum) => {
             if (!datumTargetCurrent) return;

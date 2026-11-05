@@ -1,4 +1,11 @@
 {
+  "DATUM_ANCHOR_UNRESOLVED": "Не удалось разрешить ссылку опорного элемента. Проверьте исходную грань, ребро или плоскость.",
+  "Datum reference": "Привязка опорного элемента",
+  "Model coordinates": "Координаты модели",
+  "Datum offset (mm)": "Смещение опорного элемента (мм)",
+  "Datum angle (degrees)": "Угол опорного элемента (градусы)",
+  "Selected planar face": "Выбранная плоская грань",
+  "Selected straight edge": "Выбранное прямое ребро",
   "Adjust the last datum in the same Undo step.": "Измените последний опорный элемент в том же шаге отмены.",
   "DATUM_INVALID": "Ядро CAD не смогло построить опорный элемент.",
   "Datum plane": "Опорная плоскость",

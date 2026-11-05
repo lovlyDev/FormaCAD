@@ -6,6 +6,7 @@ pub(crate) mod ffi {
     unsafe extern "C++" {
         include!("cad-core/include/forma_core.hpp");
         include!("cad-core/include/forma_datum.hpp");
+        include!("cad-core/include/forma_datum_anchor.hpp");
         include!("cad-core/include/forma_measurement.hpp");
         include!("cad-core/include/forma_pair_measurement.hpp");
 
@@ -135,6 +136,15 @@ pub(crate) mod ffi {
         fn make_sphere(radius_mm: f64) -> UniquePtr<Shape>;
         fn make_torus(major_radius_mm: f64, minor_radius_mm: f64) -> UniquePtr<Shape>;
         unsafe fn validate_datum(kind: i32, data: *const f64, count: usize) -> bool;
+        unsafe fn datum_anchor(
+            solid: &Shape,
+            kind: i32,
+            owner: &CxxString,
+            role: &CxxString,
+            occurrence: &CxxString,
+            frame: *mut f64,
+            count: usize,
+        ) -> bool;
         fn make_cone(bottom_radius_mm: f64, top_radius_mm: f64, height_mm: f64)
             -> UniquePtr<Shape>;
         unsafe fn make_polygon_prism(
