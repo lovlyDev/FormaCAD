@@ -349,5 +349,34 @@ workspace ещё должны передавать его и инвалидир�
 смене источника; видимой завершённой функции папок это пока не создаёт.
 Без native client запрос папки получает переведённый PROJECT_FOLDER_UNSUPPORTED.
 Основа reader/staging прошла [native CI на 64bde10](https://github.com/lovlyDev/FormaCAD/actions/runs/41908269630):
-оба новых STEP/FCP1 теста выполнены; последующее IPC-подключение требует собственных
-проверок. Детали: [контракт IPC](../integration/storage-measurement-source-ipc.md).
+оба новых STEP/FCP1 теста выполнены. IPC на `5cb38ef` также прошёл
+[native-проверки](https://github.com/lovlyDev/FormaCAD/actions/runs/42042470156);
+GUI-маршрут остаётся отдельным условием. Детали: [контракт IPC](../integration/storage-measurement-source-ipc.md).
+
+## Preview исходной папки
+
+`preview_model` и `cancel_model_preview` принимают ту же необязательную пару
+`sourceId`/`expectedCommitId`. Host проверяет реальное окно, проект и commit.
+Запросы без пары сохраняют managed-маршрут; неполная или устаревшая пара получает
+отказ. Источник, program hash и проверенный GLB остаются связанными одним запросом.
+Preview не публикует ревизии, не расходует grants и не записывает модель/историю.
+
+Один общий host держит исходный RepositoryRead, проверяет импортированные STEP
+через backend, использует существующий native stager/worker и перепроверяет
+снимок после worker и после последнего await очистки task map. Изменение metadata,
+геометрии, close/reopen или подмена источника инвалидируют результат. Для FCP1
+task/cancel group — UUID открытия; папки с одинаковым project ID разделены.
+Общий CAD semaphore и индивидуальные cancellation tokens сохраняются.
+
+Frontend preview/cancel API принимают необязательный FolderSourceRef. Для отмены
+нужна действительная ссылка на текущий commit; устаревшая ссылка не переключается
+на другое открытие. Без native среды запрос папки получает существующую переведённую
+ошибку PROJECT_FOLDER_UNSUPPORTED. Входы worker находятся только в app-level
+`.transient/previews`; при завершении Workspace удаляет их.
+
+Патч применён после native-проверок IPC-основы, но собственные native-регрессии
+preview ещё ожидают CI: настоящий импортированный STEP, позднее закрытие во время
+worker/cleanup await и две папки с одинаковыми IDs и раздельной отменой. Workflow
+требует три явно выполненных PASS. Подробности — [контракт preview](../integration/storage-preview-source.md).
+Workspace source state, его invalidation и видимые folder controls ещё не подключены;
+эта backend-интеграция не завершает этап 4.

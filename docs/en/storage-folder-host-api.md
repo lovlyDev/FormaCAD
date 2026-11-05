@@ -348,5 +348,34 @@ still pass it and invalidate selection/request state when switching sources; thi
 does not expose a completed folder feature. Without a native client, folder requests
 return the translated PROJECT_FOLDER_UNSUPPORTED error. Reader/staging passed
 [native CI at 64bde10](https://github.com/lovlyDev/FormaCAD/actions/runs/41908269630),
-including both executed STEP/FCP1 regressions. Subsequent IPC wiring requires its
-own checks. See the [IPC contract](../integration/storage-measurement-source-ipc.en.md).
+including both executed STEP/FCP1 regressions. IPC at `5cb38ef` also passed
+[native checks](https://github.com/lovlyDev/FormaCAD/actions/runs/42042470156);
+the GUI route remains a separate gate. See the [IPC contract](../integration/storage-measurement-source-ipc.en.md).
+
+## Original-folder preview
+
+`preview_model` and `cancel_model_preview` accept the same optional
+`sourceId`/`expectedCommitId` pair. The host verifies actual window, project and
+commit. Requests without the pair retain managed behavior; incomplete or stale
+pairs fail. Source, program hash and verified GLB remain bound to one request.
+Previews publish no revisions, consume no grants and write no model/history.
+
+One common host retains the original RepositoryRead, verifies imported STEP through
+the backend, uses the existing native stager/worker and rechecks after the worker
+and after the final task-map cleanup await. Metadata/geometry changes, close/reopen
+or source replacement invalidate results. FCP1 task/cancel groups use opening UUIDs;
+equal project IDs remain separate. The global CAD semaphore and individual
+cancellation tokens remain.
+
+Frontend preview/cancel APIs accept an optional FolderSourceRef. Cancellation
+requires a valid reference to the current commit; stale references cannot rebind
+to another opening. Browser folder requests reuse translated PROJECT_FOLDER_UNSUPPORTED.
+Worker inputs live only in app-level `.transient/previews`; Workspace removes them
+on completion.
+
+This patch followed the IPC base's successful native gate. Its own preview native
+regressions still await CI: genuine imported STEP, late close during worker/cleanup
+await and equal-ID folders with independent cancellation. The workflow requires
+three explicitly executed PASS. See the [preview contract](../integration/storage-preview-source.en.md).
+Workspace source state, invalidation and visible folder controls remain unwired;
+this backend integration does not complete stage 4.

@@ -42,8 +42,14 @@ four virtually overlaid staged API files passed without modifying working source
 After application, all 294 frontend tests across 104 files and the production build
 passed. A snap mock compatibility issue was fixed within the approved snap API:
 isTauri is checked only for folder calls, avoiding the shared lib/api import.
-These are not runtime evidence or a complete user flow. Both strict compilation
-variants and native tests for the applied IPC remain required. Narrow too_many_arguments allowances
+At `5cb38ef`, [Quality](https://github.com/lovlyDev/FormaCAD/actions/runs/42042479753)
+and [native CI](https://github.com/lovlyDev/FormaCAD/actions/runs/42042470156) passed:
+537 library PASS (18 ignored), 11 smoke PASS, 41 host PASS, separately executed
+2 measurement tests and three roundtrips PASS. Both strict Clippy modes and packet
+tests passed in [comparison at `3d8c767`](https://github.com/lovlyDev/FormaCAD/actions/runs/42044572105),
+whose executable source matches `5cb38ef`; only preview artifacts/docs differ.
+This proves compilation and backend/native behavior, not a complete GUI flow.
+Narrow too_many_arguments allowances
 apply only to four Tauri commands retaining compatible flat request fields.
 
 Workspace must still pass the original FolderSourceRef and invalidate requests

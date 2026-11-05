@@ -56,6 +56,16 @@ jobs:
           test -x "$FORMA_MEASUREMENT_TEST_WORKER"
           cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target x86_64-unknown-linux-gnu --features native-occt --lib model_measurement::build::folder_tests:: -- --nocapture 2>&1 | tee storage-native-evidence/folder-measurements.log
           grep -F 'test result: ok. 2 passed; 0 failed;' storage-native-evidence/folder-measurements.log
+      - name: Execute original-source folder previews with the real worker
+        env:
+          FORMA_OCCT_ROOT: ${{ github.workspace }}/.local/occt-install-unix-x86_64-unknown-linux-gnu
+          FORMA_MEASUREMENT_TEST_WORKER: ${{ github.workspace }}/apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/forma-cad-worker
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          set -o pipefail
+          test -x "$FORMA_MEASUREMENT_TEST_WORKER"
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target x86_64-unknown-linux-gnu --features native-occt --lib model_preview::host::folder_tests:: -- --nocapture 2>&1 | tee storage-native-evidence/folder-previews.log
+          grep -F 'test result: ok. 3 passed; 0 failed;' storage-native-evidence/folder-previews.log
       - name: Execute independent folder CAD roundtrip with the real worker
         env:
           FORMA_OCCT_ROOT: ${{ github.workspace }}/.local/occt-install-unix-x86_64-unknown-linux-gnu

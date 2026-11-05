@@ -42,8 +42,14 @@ document SHA остаются. Browser-запрос папки отвергае�
 После применения прошли все 294 frontend-теста в 104 файлах и production build.
 Обнаруженная совместимость snap mock исправлена в том же разрешённом snap API:
 isTauri проверяется только для folder-вызова, общий lib/api больше не импортируется.
-Это ещё не runtime PASS и не завершённый пользовательский сценарий. Нужны строгая
-компиляция обоих вариантов и native-тесты применённого IPC. Узкий too_many_arguments allow
+Для `5cb38ef` прошли [Quality](https://github.com/lovlyDev/FormaCAD/actions/runs/42042479753)
+и [native CI](https://github.com/lovlyDev/FormaCAD/actions/runs/42042470156): 537 library
+PASS / 18 ignored, 11 smoke PASS, 41 host PASS, отдельные 2 measurement и три
+roundtrip PASS. Оба строгих Clippy и packet-тесты прошли в
+[comparison `3d8c767`](https://github.com/lovlyDev/FormaCAD/actions/runs/42044572105),
+где исполняемый код совпадает с `5cb38ef`; разница — только preview-артефакт/документация.
+Это подтверждает компиляцию и backend/native-маршрут, но не завершённый GUI-сценарий.
+Узкий too_many_arguments allow
 относится только к четырём Tauri-командам с совместимыми плоскими аргументами.
 
 Workspace ещё должен передавать исходный FolderSourceRef и инвалидировать

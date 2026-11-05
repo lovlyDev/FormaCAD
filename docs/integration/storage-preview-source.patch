@@ -454,7 +454,7 @@ diff --git a/apps/desktop/src-tauri/src/model_preview/host/folder_tests.rs b/app
 new file mode 100644
 --- /dev/null
 +++ b/apps/desktop/src-tauri/src/model_preview/host/folder_tests.rs
-@@ -0,0 +1,218 @@
+@@ -0,0 +1,352 @@
 +use super::*;
 +use crate::project_repository::sqlite_folder::api::{FolderProject, Publication};
 +use std::{future::Future, path::Path, task::Poll};
@@ -531,6 +531,17 @@ new file mode 100644
 +        .zip([40., 20., 10.])
 +    {
 +        assert!((actual.as_f64().unwrap() - expected).abs() < 1e-6);
++    }
++}
++async fn clean(state: &AppState) {
++    fixture::clean(state).await;
++    let previews = state.root.join(".transient/previews");
++    if previews.exists() {
++        assert_eq!(
++            std::fs::read_dir(previews).unwrap().count(),
++            0,
++            "Preview transient inputs must be removed"
++        );
 +    }
 +}
 +
@@ -621,7 +632,7 @@ new file mode 100644
 +        std::fs::read(root.path().join("project.sqlite")).unwrap(),
 +        database
 +    );
-+    fixture::clean(&state).await;
++    clean(&state).await;
 +}
 +
 +#[tokio::test]
@@ -671,5 +682,128 @@ new file mode 100644
 +        std::fs::read(root.path().join("project.sqlite")).unwrap(),
 +        database
 +    );
-+    fixture::clean(&state).await;
++    clean(&state).await;
++}
++
++#[tokio::test]
++async fn equal_project_ids_keep_independent_preview_queue_and_cancel_groups() {
++    let app = tempfile::tempdir().unwrap();
++    let first_root = tempfile::tempdir().unwrap();
++    let second_root = tempfile::tempdir().unwrap();
++    let (state, project) = fixture::fixture(app.path()).await;
++    let (first_source, program) = independent(&state, &project, first_root.path()).await;
++    let first_read = RepositoryRead::from_folder_view(
++        Arc::clone(&first_source),
++        first_source.capture_metadata().await.unwrap(),
++    )
++    .await
++    .unwrap();
++    // Copy from the verified first folder: its managed twin is already corrupt.
++    let mut pending = Vec::new();
++    for file in &first_read.project().files {
++        pending.push((
++            file.sha256.clone().unwrap(),
++            first_read.read_asset(file).await.unwrap(),
++        ));
++    }
++    assert!(matches!(
++        FolderProject::create(
++            second_root.path(),
++            first_read.project().clone(),
++            pending,
++            None
++        )
++        .await
++        .unwrap(),
++        Publication::Committed(_)
++    ));
++    let second_source = Arc::new(FolderProject::open(second_root.path()).await.unwrap());
++    let second_read = RepositoryRead::from_folder_view(
++        Arc::clone(&second_source),
++        second_source.capture_metadata().await.unwrap(),
++    )
++    .await
++    .unwrap();
++    assert_eq!(first_read.project().id, second_read.project().id);
++    let first_scope = first_read.task_scope_id().to_owned();
++    let second_scope = second_read.task_scope_id().to_owned();
++    assert_ne!(first_scope, second_scope);
++    let before = fixture::snapshot(&state, &project.id).await;
++    let first_sql = std::fs::read(first_root.path().join("project.sqlite")).unwrap();
++    let second_sql = std::fs::read(second_root.path().join("project.sqlite")).unwrap();
++    let held = state
++        .cad_tasks
++        .acquire(&project.id, "hold", fixture::token())
++        .await
++        .unwrap();
++    let launch = |read: RepositoryRead<'static>| {
++        let job_state = Arc::clone(&state);
++        let request = program.clone();
++        let expected = project.current_revision.clone();
++        tokio::spawn(async move {
++            run_bound(&job_state, read, &request, expected, |read, cancel| {
++                let state = &job_state;
++                let program = &request;
++                async move {
++                    super::super::build::build_with_read(
++                        state,
++                        &read,
++                        program,
++                        cancel,
++                        fixture::executable(),
++                    )
++                    .await
++                }
++            })
++            .await
++        })
++    };
++    let first = launch(first_read);
++    let second = launch(second_read);
++    tokio::time::timeout(std::time::Duration::from_secs(15), async {
++        loop {
++            let tasks = state.cad_tasks.status().unwrap();
++            if [&first_scope, &second_scope].into_iter().all(|scope| {
++                tasks.iter().any(|task| {
++                    task.project_id == *scope
++                        && task.kind == "model_preview"
++                        && task.state == "queued"
++                })
++            }) {
++                break;
++            }
++            assert!(
++                !first.is_finished() && !second.is_finished(),
++                "Both same-ID source requests must enter independent queues"
++            );
++            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
++        }
++    })
++    .await
++    .unwrap();
++    {
++        let tasks = state.tasks.lock().await;
++        let first_cancel = tasks.get(&format!("preview:{first_scope}")).unwrap();
++        let second_cancel = tasks.get(&format!("preview:{second_scope}")).unwrap();
++        assert!(!Arc::ptr_eq(first_cancel, second_cancel));
++        first_cancel.store(true, Ordering::Relaxed);
++        assert!(!second_cancel.load(Ordering::Relaxed));
++    }
++    drop(held);
++    let error = first.await.unwrap().unwrap_err();
++    assert!(
++        error.to_string().to_ascii_lowercase().contains("cancel"),
++        "{error}"
++    );
++    checked(&second.await.unwrap().unwrap(), &program);
++    assert_eq!(fixture::snapshot(&state, &project.id).await, before);
++    assert_eq!(
++        std::fs::read(first_root.path().join("project.sqlite")).unwrap(),
++        first_sql
++    );
++    assert_eq!(
++        std::fs::read(second_root.path().join("project.sqlite")).unwrap(),
++        second_sql
++    );
++    clean(&state).await;
 +}

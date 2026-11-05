@@ -2,7 +2,8 @@
 
 [Русский](storage-preview-source.md) · [Host API](../en/storage-folder-host-api.md)
 
-Status: **prepared, unapplied**. Base `5cb38ef`, Issue #31 / PR #35.
+Status: **applied after lovlyDev approved all seven files** on 5 November 2026.
+IPC base `5cb38ef` passed native verification; Issue #31 / PR #35.
 Implementation: wenlixxq; agreement and acceptance: lovlyDev.
 Diff: [storage-preview-source.patch](storage-preview-source.patch).
 
@@ -43,12 +44,20 @@ The existing translated PROJECT_FOLDER_UNSUPPORTED error is reused.
 ## Checks and limits
 
 Applicability, staged rustfmt and full TypeScript checking with the staged preview
-API virtually overlaid passed. Compilation and new native tests **remain pending**.
-Tests create a genuine 40×20×10 FCP1 STEP and corrupt its managed twin sharing the
+API virtually overlaid passed. After application, 294 frontend tests across 104
+files and the production build passed. Applied Rust formatting passed. Rust compilation and new
+native tests **remain pending**. The owned workflow separately executes all three
+and requires exactly 3 PASS, preventing an empty filter from appearing successful.
+Three tests create a genuine 40×20×10 FCP1 STEP and corrupt its managed twin sharing the
 same ID. They assert volume 8000, bounds, program SHA, GLB, task group, rejection
 after worker close and after close during the cleanup mutex await, SQL/app purity
-and task release. After application, both strict Clippy modes, existing managed
-and native tests, two explicitly executed new tests and frontend tests/build are required.
+task release and no remaining transient inputs in `.transient/previews`.
+The added regression in the same approved new test file opens
+two independent folders sharing project IDs, queues both real preview requests,
+cancels only the first and checks the second result's geometry. This addition
+changes neither the production diff nor the seven agreed paths. After application,
+both strict Clippy modes, existing managed/native tests, three explicitly executed
+new tests and frontend tests/build are required.
 
 Workspace source state and folder controls remain unwired; stage 4 is incomplete.
 No native/Cargo/C++/protocol/permissions/SQL/version changes.

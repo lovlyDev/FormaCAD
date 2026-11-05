@@ -2,7 +2,8 @@
 
 [English](storage-preview-source.en.md) · [Host API](../ru/storage-folder-host-api.md)
 
-Статус: **подготовлен, не применён**. Основа `5cb38ef`, Issue #31 / PR #35.
+Статус: **применён после разрешения lovlyDev на все семь файлов** 5 ноября 2026.
+IPC-основа `5cb38ef` прошла native-проверки; Issue #31 / PR #35.
 Исполнитель — wenlixxq, согласование и приёмка — lovlyDev.
 Diff: [storage-preview-source.patch](storage-preview-source.patch).
 
@@ -43,12 +44,20 @@ FolderSourceRef в preview/cancel, сохранение packet/hash/GLB пров
 ## Проверки и границы
 
 Применимость, staged rustfmt и полный TypeScript с виртуальной подстановкой
-preview API прошли. Патч не скомпилирован; новые native-тесты **ещё не выполнены**.
-Они создают настоящий FCP1 STEP 40×20×10 и повреждённый managed-двойник с тем же ID;
+preview API прошли. После применения прошли 294 frontend-теста / 104 файла и
+production build. Форматирование применённого Rust прошло. Rust-часть не скомпилирована;
+новые native-тесты **ещё не выполнены**. Собственный workflow отдельно запускает
+все три и требует ровно 3 PASS, исключая ложный успех от пустого фильтра.
+Три теста создают настоящий FCP1 STEP 40×20×10 и повреждённый managed-двойник с тем же ID;
 проверяют volume 8000, bounds, program SHA, GLB, task group, отказ после worker close
-и после close во время cleanup mutex await, SQL/app purity и освобождение задач.
+и после close во время cleanup mutex await, SQL/app purity, освобождение задач
+и отсутствие оставшихся временных входов в `.transient/previews`.
+Дополнительная регрессия в том же разрешённом новом тестовом файле открывает две
+независимые папки с одинаковыми project IDs, ставит обе настоящие preview-задачи
+в очередь, отменяет только первую и проверяет геометрию второго результата.
+Production diff и семь согласованных путей при добавлении этой проверки не менялись.
 После применения нужны оба строгих Clippy, существующие managed/native тесты,
-два явно выполненных новых теста и frontend tests/build.
+три явно выполненных новых теста и frontend tests/build.
 
 Патч не подключает workspace source state или кнопку папки и не завершает этап 4.
 Нет изменений native/Cargo/C++/protocol/permissions/SQL/версий.
