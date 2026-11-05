@@ -23,16 +23,51 @@ pub struct ConfirmedMeasurement {
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn measure_model_reference(
     project_id: String,
     expected_revision: String,
     body_id: String,
     query: MeasurementQuery,
+    source_id: Option<String>,
+    expected_commit_id: Option<String>,
+    window: tauri::WebviewWindow,
+    sources: tauri::State<'_, crate::project_repository::window_sources::WindowSources>,
     state: tauri::State<'_, AppState>,
 ) -> Result<ConfirmedMeasurement> {
+    if source_id.is_some() != expected_commit_id.is_some() {
+        return Err(crate::core::AppError::Invalid(
+            "PROJECT_SNAPSHOT_CHANGED".into(),
+        ));
+    }
     #[cfg(feature = "native-worker-client")]
     {
+        let source = match (source_id, expected_commit_id) {
+            (Some(key), Some(commit)) => Some(
+                sources
+                    .capture_read(window.label(), &key, &project_id, &commit)
+                    .await?,
+            ),
+            (None, None) => None,
+            _ => {
+                return Err(crate::core::AppError::Invalid(
+                    "PROJECT_SNAPSHOT_CHANGED".into(),
+                ))
+            }
+        };
         let executable = crate::native::worker::worker_executable()?;
+        if let Some(read) = source {
+            return build::measure_source_with_executable(
+                &state,
+                read,
+                &expected_revision,
+                &body_id,
+                &query,
+                std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+                &executable,
+            )
+            .await;
+        }
         build::measure_with_executable(
             &state,
             &project_id,
@@ -46,7 +81,21 @@ pub async fn measure_model_reference(
     }
     #[cfg(not(feature = "native-worker-client"))]
     {
-        let _ = (project_id, expected_revision, body_id, query, state);
+        let _ = (
+            project_id,
+            expected_revision,
+            body_id,
+            query,
+            state,
+            window,
+            sources,
+            expected_commit_id,
+        );
+        if source_id.is_some() {
+            return Err(crate::core::AppError::Invalid(
+                "PROJECT_FOLDER_UNSUPPORTED".into(),
+            ));
+        }
         Err(failure(
             "MEASUREMENT_UNAVAILABLE",
             "Exact reference measurements require the native build",

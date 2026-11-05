@@ -2,7 +2,8 @@
 
 [English](storage-measurement-source-ipc.en.md) · [Патч основы](storage-measurement-source-core.md)
 
-Статус: **подготовлен, не применён**. Основа `64bde10e5fe5174e783d79e5d6f20ac0b3a32323`.
+Статус: **применён после разрешения lovlyDev на все 8 файлов** 5 ноября 2026.
+Основа `64bde10e5fe5174e783d79e5d6f20ac0b3a32323` прошла native-проверки.
 Issue #31 / PR #35; wenlixxq — исполнитель, lovlyDev — согласование и приёмка.
 Точный diff: [storage-measurement-source-ipc.patch](storage-measurement-source-ipc.patch).
 
@@ -38,9 +39,11 @@ document SHA остаются. Browser-запрос папки отвергае�
 
 Применимость и staged rustfmt проверены. Полная проверка TypeScript frontend с
 виртуальной подстановкой четырёх staged API-файлов прошла без изменения исходников.
-Это ещё не runtime PASS и не завершённый
-пользовательский сценарий. После применения нужны строгая компиляция обоих
-вариантов, native-тесты и frontend tests/build. Узкий too_many_arguments allow
+После применения прошли все 294 frontend-теста в 104 файлах и production build.
+Обнаруженная совместимость snap mock исправлена в том же разрешённом snap API:
+isTauri проверяется только для folder-вызова, общий lib/api больше не импортируется.
+Это ещё не runtime PASS и не завершённый пользовательский сценарий. Нужны строгая
+компиляция обоих вариантов и native-тесты применённого IPC. Узкий too_many_arguments allow
 относится только к четырём Tauri-командам с совместимыми плоскими аргументами.
 
 Workspace ещё должен передавать исходный FolderSourceRef и инвалидировать

@@ -45,10 +45,14 @@ the fixture module only gains pub(super) visibility.
 
 ## Validation and limits
 
-Patch applicability and applied Rust formatting passed. Compilation and new runtime
-tests are pending CI. Strict Clippy and native tests, including existing managed
-regressions, are required. The owned native workflow separately executes both new
-folder tests and requires exactly 2 PASS. The base passed
+At `64bde10e5fe5174e783d79e5d6f20ac0b3a32323`, both strict Clippy variants,
+[comparison](https://github.com/lovlyDev/FormaCAD/actions/runs/41908269657),
+[Quality](https://github.com/lovlyDev/FormaCAD/actions/runs/41908279869) and
+[native CI](https://github.com/lovlyDev/FormaCAD/actions/runs/41908269630) passed.
+Downloaded job `126848656887` explicitly reports both new folder tests as `ok`;
+their separate invocation returned exactly 2 PASS. Full packet: 537 library PASS
+(18 ignored), 11 smoke PASS, 41 host consumer PASS and three separate roundtrip PASS.
+This validates the original reader/staging, not later IPC or UI changes. The base passed
 [Quality](https://github.com/lovlyDev/FormaCAD/actions/runs/41817194409),
 [comparison](https://github.com/lovlyDev/FormaCAD/actions/runs/41817187435) and
 [native](https://github.com/lovlyDev/FormaCAD/actions/runs/41817187467).

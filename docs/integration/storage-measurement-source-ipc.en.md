@@ -2,7 +2,8 @@
 
 [Русский](storage-measurement-source-ipc.md) · [Core patch](storage-measurement-source-core.en.md)
 
-Status: **prepared, unapplied**. Base `64bde10e5fe5174e783d79e5d6f20ac0b3a32323`.
+Status: **applied after lovlyDev approved all 8 files** on 5 November 2026.
+Base `64bde10e5fe5174e783d79e5d6f20ac0b3a32323` passed native verification.
 Issue #31 / PR #35; implementation: wenlixxq; agreement and acceptance: lovlyDev.
 Exact diff: [storage-measurement-source-ipc.patch](storage-measurement-source-ipc.patch).
 
@@ -38,9 +39,11 @@ PROJECT_FOLDER_UNSUPPORTED error is reused. There are no new user-facing strings
 
 Applicability and staged rustfmt passed. Full frontend TypeScript checking with
 four virtually overlaid staged API files passed without modifying working sources.
-These are not runtime evidence or a
-complete user flow. After application, both strict compilation variants, native
-tests and frontend tests/build are required. Narrow too_many_arguments allowances
+After application, all 294 frontend tests across 104 files and the production build
+passed. A snap mock compatibility issue was fixed within the approved snap API:
+isTauri is checked only for folder calls, avoiding the shared lib/api import.
+These are not runtime evidence or a complete user flow. Both strict compilation
+variants and native tests for the applied IPC remain required. Narrow too_many_arguments allowances
 apply only to four Tauri commands retaining compatible flat request fields.
 
 Workspace must still pass the original FolderSourceRef and invalidate requests

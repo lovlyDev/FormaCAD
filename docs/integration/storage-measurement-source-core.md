@@ -47,10 +47,14 @@ entrypoints в этот патч не входят.
 
 ## Проверки и границы
 
-Проверены применимость к основе и форматирование применённого Rust. Патч ещё не
-скомпилирован и новые runtime-тесты ещё не выполнены. Нужны строгий Clippy и
-native CI, включая существующие managed-регрессии. Собственный native workflow
-отдельно запускает два новых folder-теста и требует ровно 2 PASS.
+На `64bde10e5fe5174e783d79e5d6f20ac0b3a32323` прошли оба строгих Clippy и
+[comparison](https://github.com/lovlyDev/FormaCAD/actions/runs/41908269657),
+[Quality](https://github.com/lovlyDev/FormaCAD/actions/runs/41908279869) и
+[native CI](https://github.com/lovlyDev/FormaCAD/actions/runs/41908269630).
+В скачанном логе job `126848656887` оба новых folder-теста явно имеют `ok`,
+отдельный запуск дал ровно 2 PASS. Полный пакет: 537 library PASS / 18 ignored,
+11 smoke PASS, 41 host consumer PASS и три отдельных roundtrip PASS.
+Это проверка исходного reader/staging, не доказательство последующего IPC или UI.
 У основы все три CI успешны: [Quality](https://github.com/lovlyDev/FormaCAD/actions/runs/41817194409),
 [comparison](https://github.com/lovlyDev/FormaCAD/actions/runs/41817187435),
 [native](https://github.com/lovlyDev/FormaCAD/actions/runs/41817187467).

@@ -326,3 +326,27 @@ desktop picker, integrated UI/IPC, physical USB/NAS behavior, or a genuine 1.1
 migration fixture. The [window integration patch](../integration/storage-folder-window.en.md)
 was only an unapplied review artifact at this checkpoint. Stage 4 remains open;
 the complete seven-stage program is not accepted by these backend results.
+
+## Original-folder measurements over existing commands
+
+`measure_model_reference`, `measure_model_pair`, `section_model_reference` and
+`snap_model_reference` accept optional `sourceId` and `expectedCommitId`. Obtain
+the reference only from folder selection in the current window. Both fields absent
+preserves managed behavior; incomplete pairs fail. The host checks original window,
+project and commit, then passes the original RepositoryRead into CAD. Source errors
+cannot fall back to a managed project sharing the ID. taskScopeId groups tasks and
+is not accepted as authority for choosing a source.
+
+Queued name/message changes remain compatible only after recapturing through that
+same reader and comparing original geometry bindings. Close/reopen, folder
+replacement or geometry changes invalidate late results. STEP reads verify backend
+membership, size and hash before moving bytes into the existing native stager.
+Measurements do not save models, history or SourceRef.
+
+Low-level frontend APIs accept an optional FolderSourceRef. Workspace controls must
+still pass it and invalidate selection/request state when switching sources; this
+does not expose a completed folder feature. Without a native client, folder requests
+return the translated PROJECT_FOLDER_UNSUPPORTED error. Reader/staging passed
+[native CI at 64bde10](https://github.com/lovlyDev/FormaCAD/actions/runs/41908269630),
+including both executed STEP/FCP1 regressions. Subsequent IPC wiring requires its
+own checks. See the [IPC contract](../integration/storage-measurement-source-ipc.en.md).
