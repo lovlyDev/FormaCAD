@@ -90,7 +90,12 @@ export function RevisionComparison({ project, fromRevisionId, toRevisionId }: {
           <> · {t("Renamed")}</> :
           <> · {change.after ? t("Added") : t("Removed")}</>}
       </p>)}
-      {!diff.parameters.length && !diff.features.length && !diff.bodies.length && <p>{t("No structural CAD changes")}</p>}
+      {diff.groups?.map((change) => <p key={`group-${change.id}`}>
+        <strong>{change.after?.value.name ?? change.before?.value.name ?? change.id}</strong>
+        <> · {t("Body group")} · {change.before && change.after ? t("Modified") :
+          change.after ? t("Added") : t("Removed")}</>
+      </p>)}
+      {!diff.parameters.length && !diff.features.length && !diff.bodies.length && !diff.groups?.length && <p>{t("No structural CAD changes")}</p>}
     </div> : structural.isFetching ? <p>{t("Comparing saved revisions…")}</p> :
       <p>{t("Structure unavailable for legacy revisions")}</p>}
   </section>;

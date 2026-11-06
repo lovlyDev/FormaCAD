@@ -9,6 +9,7 @@ const feature = z.looseObject({
   suppressed: z.boolean().optional(),
 });
 const body = z.looseObject({ id, name: z.string(), sourceFeatureId: id });
+const bodyGroup = z.strictObject({ id, name: z.string(), bodyIds: z.array(id) });
 const documentSchema = z.looseObject({
   schemaVersion: z.literal(2),
   revisionId: id,
@@ -17,6 +18,7 @@ const documentSchema = z.looseObject({
   ),
   features: z.array(feature),
   bodies: z.array(body),
+  groups: z.array(bodyGroup).optional(),
 });
 
 export type TypedCadDocument = z.infer<typeof documentSchema>;

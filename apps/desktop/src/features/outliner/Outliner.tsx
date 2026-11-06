@@ -16,6 +16,8 @@ import {
   featureDependencies,
 } from "../../lib/typedCadDocument";
 import type { Project } from "../../types";
+import { BodyGroups } from "../body-groups/BodyGroups";
+import type { GroupCommand } from "../body-groups/bodyGroupCommands";
 import "./outliner.css";
 export function Outliner({
   project,
@@ -30,6 +32,7 @@ export function Outliner({
   onVisibility,
   onLock,
   onEdit,
+  onGroupCommand,
 }: {
   project: Project;
   bodies: THREE.Object3D[];
@@ -43,6 +46,7 @@ export function Outliner({
   onVisibility: (key: string) => void;
   onLock: (key: string) => void;
   onEdit: () => void;
+  onGroupCommand?: (command: GroupCommand) => void;
 }) {
   const [query, setQuery] = useState("");
   const document = useMemo(() => readTypedCadDocument(source), [source]);
@@ -60,6 +64,11 @@ export function Outliner({
           onChange={(event) => setQuery(event.target.value)}
         />
       </label>
+      {document && (onGroupCommand || document.groups?.length) ? (
+        <BodyGroups groups={document.groups ?? []} onCommand={onGroupCommand}
+          selectable={bodies.filter((body) => body.visible &&
+            !hidden.includes(body.name) && !locked.includes(body.name)).map((body) => body.name)} />
+      ) : null}
       <div role="tree" aria-label={t("Model tree")}>
         <div
           role="treeitem"

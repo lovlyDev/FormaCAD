@@ -116,6 +116,17 @@ export async function mountViewportTransformHarness(
         }
         continue;
       }
+      if (command.command === "group_create") {
+        (document.groups ??= []).push(command.group);
+        continue;
+      }
+      if (command.command === "group_add" || command.command === "group_remove") {
+        const group = document.groups.find((item: any) => item.id === command.groupId);
+        if (command.command === "group_add") group.bodyIds = [...new Set([...group.bodyIds, ...command.bodyIds])];
+        else if (command.bodyIds) group.bodyIds = group.bodyIds.filter((id: string) => !command.bodyIds.includes(id));
+        else document.groups = document.groups.filter((item: any) => item !== group);
+        continue;
+      }
       const body = document.bodies.find(
         (item: any) => item.id === command.bodyId,
       );

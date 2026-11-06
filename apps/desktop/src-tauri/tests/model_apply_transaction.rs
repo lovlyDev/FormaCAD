@@ -14,6 +14,8 @@ mod extrude_face;
 mod fixture;
 #[path = "model_apply_transaction/geometry.rs"]
 mod geometry;
+#[path = "model_apply_transaction/groups.rs"]
+mod groups;
 #[path = "model_apply_transaction/inputs.rs"]
 mod inputs;
 #[path = "model_apply_transaction/lifecycle.rs"]

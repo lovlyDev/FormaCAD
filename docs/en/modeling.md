@@ -66,6 +66,12 @@ Select a compound body and press `P` or choose **Tools → Separate solids**. Co
 
 `separate_solids` creates an `extractSolid` feature for each output. The worker checks the original count on every rebuild. A count mismatch fails the transaction. For changes that reorder the source solids, recreate the separation to keep the intended parts.
 
+### Body groups (M3)
+
+Use **Body groups** in the model tree to create a named group from the selection. The group button selects its visible and unlocked members. Use the adjacent controls to add selected bodies, remove members, or delete the group. Deleting the group keeps its bodies.
+
+CAD IR stores groups as optional lists of body IDs in the saved revision. `group_create`, `group_add` and `group_remove` update membership through the Command API and participate in Undo. A body can belong to multiple groups. Older documents open with no groups. The STEP geometry retains the same solids and dimensions.
+
 Current schema operations:
 
 | Group | Operations | Result |

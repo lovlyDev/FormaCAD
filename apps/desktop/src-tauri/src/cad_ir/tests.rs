@@ -42,6 +42,7 @@ fn suppression_is_atomic_and_limited_to_single_input_modifiers() {
 #[test]
 fn cone_tip_can_be_zero_but_equal_or_negative_radii_are_rejected() {
     let mut document = Document {
+        groups: Vec::new(),
         schema_version: SCHEMA_VERSION,
         revision_id: "revision_cone".into(),
         parameters: vec![Parameter {
@@ -82,6 +83,7 @@ fn cone_tip_can_be_zero_but_equal_or_negative_radii_are_rejected() {
 
 fn plate() -> Document {
     Document {
+        groups: Vec::new(),
         schema_version: SCHEMA_VERSION,
         revision_id: "revision_1".into(),
         parameters: vec![Parameter {
@@ -348,6 +350,7 @@ fn rejects_unknown_fields_and_nonfinite_values() {
 #[test]
 fn creates_parameter_feature_and_body_in_one_batch() {
     let current = Document {
+        groups: Vec::new(),
         schema_version: SCHEMA_VERSION,
         revision_id: "revision_1".into(),
         parameters: vec![],

@@ -464,6 +464,11 @@ impl Document {
                 ));
             }
         }
+        for group in &self.groups {
+            check_identity(&mut ids, &group.id)?;
+            check_name(&group.name, &group.id)?;
+        }
+        super::groups::validate(&self.groups, &self.bodies)?;
         for feature in &self.features {
             if let Operation::DatumOnReference { anchor, .. } = &feature.operation {
                 if let super::datum_anchor::DatumSource::Topology { body_id, .. } = &anchor.source {

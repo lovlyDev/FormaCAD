@@ -160,6 +160,7 @@ fn rejects_outline_touching_a_nonadjacent_edge() {
 fn sketch_commands_are_atomic_and_keep_parameter_bindings() {
     let (points, lines, constraints) = rectangle();
     let current = Document {
+        groups: Vec::new(),
         schema_version: SCHEMA_VERSION,
         revision_id: "current".into(),
         parameters: vec![Parameter {

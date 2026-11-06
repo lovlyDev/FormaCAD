@@ -5,7 +5,9 @@ mod affine_transform;
 pub mod assets;
 mod datum;
 pub mod datum_anchor;
+mod groups;
 pub mod pattern;
+pub use groups::BodyGroup;
 pub(crate) mod shell;
 pub mod topology_refs;
 mod torus;
@@ -67,6 +69,8 @@ pub struct Document {
     pub parameters: Vec<Parameter>,
     pub features: Vec<Feature>,
     pub bodies: Vec<Body>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub groups: Vec<BodyGroup>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -353,6 +357,18 @@ pub enum DimensionField {
     deny_unknown_fields
 )]
 pub enum Command {
+    GroupCreate {
+        group: BodyGroup,
+    },
+    GroupAdd {
+        group_id: String,
+        body_ids: Vec<String>,
+    },
+    GroupRemove {
+        group_id: String,
+        #[serde(default)]
+        body_ids: Option<Vec<String>>,
+    },
     SeparateSolids {
         body_id: String,
         new_bodies: Vec<SeparateBody>,

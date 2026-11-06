@@ -34,6 +34,9 @@ pub fn apply_commands(
     let mut staged = current.clone();
     for command in commands {
         match command {
+            Command::GroupCreate { .. }
+            | Command::GroupAdd { .. }
+            | Command::GroupRemove { .. } => super::groups::apply(&mut staged, command)?,
             Command::DuplicateBody { .. } => duplicate_body::apply(&mut staged, command)?,
             Command::SeparateSolids { .. } => separate_solids::apply(&mut staged, command)?,
             Command::TransformBody { .. } => transform_body::apply(&mut staged, command)?,
@@ -161,6 +164,7 @@ pub fn apply_commands(
     if staged.features == current.features
         && staged.parameters == current.parameters
         && staged.bodies == current.bodies
+        && staged.groups == current.groups
     {
         return Err(ValidationError::new(ErrorCode::NoChange, None));
     }

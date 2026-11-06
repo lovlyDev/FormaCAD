@@ -386,6 +386,7 @@ mod tests {
     fn fillet_feature_rebuilds_from_its_parameter() {
         use crate::cad_ir::{Body, Feature, Parameter, SCHEMA_VERSION};
         let mut document = Document {
+            groups: Vec::new(),
             schema_version: SCHEMA_VERSION,
             revision_id: "rounded_1".into(),
             parameters: vec![Parameter {
@@ -448,6 +449,7 @@ mod tests {
     #[test]
     fn parameter_edit_rebuilds_native_geometry() {
         let mut document = Document {
+            groups: Vec::new(),
             schema_version: 2,
             revision_id: "revision_1".into(),
             parameters: vec![Parameter {

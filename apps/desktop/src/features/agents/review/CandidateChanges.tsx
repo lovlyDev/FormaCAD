@@ -11,7 +11,7 @@ import { candidateDiff, cadValuesEqual } from "./candidateDiff";
 export function CandidateChanges({ base, source }: { base: Project; source: string }) {
   const diff = useMemo(() => candidateDiff(base, source), [base, source]);
   const [details, setDetails] = useState(false), [code, setCode] = useState(false), [parameters, setParameters] = useState(true);
-  const total = diff ? diff.parameters.length + diff.features.length + diff.bodies.length : 0;
+  const total = diff ? diff.parameters.length + diff.features.length + diff.bodies.length + (diff.groups?.length ?? 0) : 0;
   return <section className="typed-feature-tree candidate-changes" aria-label={t("CAD change summary")}>
     <h3><Layers size={16} />{t("CAD change summary")}</h3>
     <p className="candidate-muted">{t("Changes are compared by stable CAD IDs. Geometry is shown separately.")}</p>
@@ -41,6 +41,10 @@ export function CandidateChanges({ base, source }: { base: Project; source: stri
       {diff.bodies.map(change => <div className="candidate-change candidate-body-change" key={`body-${change.id}`}>
         <div className="typed-feature-row"><span className="typed-feature-icon"><Box size={17} /></span><strong className="typed-feature-name">{change.after?.value.name ?? change.before?.value.name}</strong></div><code>{change.id}</code>
         <span>{!change.before || !change.after ? change.after ? t("Added") : t("Removed") : t("Modified")}</span>
+      </div>)}
+      {diff.groups?.map(change => <div className="candidate-change" key={`group-${change.id}`}>
+        <strong>{change.after?.value.name ?? change.before?.value.name}</strong>
+        <span>{t("Body group")} · {change.before && change.after ? t("Modified") : change.after ? t("Added") : t("Removed")}</span>
       </div>)}
       {!total && <p>{t("No structural CAD changes")}</p>}
       {!!total && <EditorDisclosure icon={Layers} title={t("Detailed CAD changes")} hint={t("Advanced")} open={details} onOpenChange={setDetails}>

@@ -38,6 +38,7 @@ pub async fn prepare(
             current
         }
         None => Document {
+            groups: Vec::new(),
             schema_version: SCHEMA_VERSION,
             revision_id: uuid::Uuid::new_v4().to_string(),
             parameters: Vec::new(),

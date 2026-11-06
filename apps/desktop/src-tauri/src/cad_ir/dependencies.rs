@@ -196,6 +196,7 @@ mod tests {
             },
         };
         let document = Document {
+            groups: Vec::new(),
             schema_version: SCHEMA_VERSION,
             revision_id: "revision".into(),
             parameters: vec![],

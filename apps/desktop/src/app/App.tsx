@@ -122,6 +122,7 @@ import { capturePattern, patternTarget } from "../features/pattern/patternComman
 import { DuplicateBodyDialog } from "../features/duplicate-body/DuplicateBodyDialog";
 import { captureDuplicateBody, duplicateBodyTarget } from "../features/duplicate-body/duplicateBodyCommand";
 import { captureSeparateSolids } from "../features/separate-solids/separateSolidsCommand";
+import { captureBodyGroupCommand } from "../features/body-groups/bodyGroupCommands";
 import { datumSources } from "../features/add-menu/datum/datumSources";
 import { captureDatum, type DatumKind } from "../features/add-menu/datum/datumModel";
 import { captureTorus } from "../features/add-menu/torus/torusCommands";
@@ -1240,6 +1241,20 @@ export default function App() {
                     )
                   }
                   onEdit={() => setModal("parameters")}
+                  onGroupCommand={!editingBlocked && !pending && !modal && !compare && committedScene.interactive
+                    ? (command) => {
+                        const operation = captureBodyGroupCommand(project, command);
+                        void ask(operation.captured.prompt, t("Save the new body group membership."),
+                          project.name, async () => {
+                            setBusy(true, t("Построение геометрии"));
+                            try {
+                              await applyModel(operation.captured, { invoke: operation.invoke });
+                            } finally {
+                              setBusy(false);
+                            }
+                          }, "modify_project", project.id);
+                      }
+                    : undefined}
                 />
               ),
               files: (

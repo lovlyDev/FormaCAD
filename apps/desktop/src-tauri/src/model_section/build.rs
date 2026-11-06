@@ -37,6 +37,7 @@ pub async fn section_with_executable(
     capture::recheck(state, &captured).await?;
     let workspace = Workspace::create(&state.root, project_id)?;
     let document = Document {
+        groups: Vec::new(),
         schema_version: 2,
         revision_id: expected_revision.into(),
         parameters: vec![],

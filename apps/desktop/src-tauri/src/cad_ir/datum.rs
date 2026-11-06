@@ -82,6 +82,7 @@ mod tests {
     #[test]
     fn datum_commands_reject_invalid_axes_and_cannot_create_solid_bodies() {
         let base = Document {
+            groups: Vec::new(),
             schema_version: SCHEMA_VERSION,
             revision_id: "base".into(),
             parameters: vec![],
