@@ -626,10 +626,11 @@ export default function App() {
       p.id,
     );
   }
-  async function importFiles(files: FileList | null) {
+  async function importFiles(files: FileList | null, expectedProjectId?: string) {
     if (!files?.length) return;
     try {
       const importedFiles = await Promise.all(Array.from(files).map(readFile));
+      if (expectedProjectId && useWorkspace.getState().project?.id !== expectedProjectId) return;
       if (!project) {
         setAttachments(importedFiles);
         setModal("new");
@@ -643,7 +644,7 @@ export default function App() {
           .join("\n"),
         async () => {
           const p = useWorkspace.getState().project;
-          if (!p) return;
+          if (!p || (expectedProjectId && p.id !== expectedProjectId)) return;
           const imported = await prepareProjectImport(p, importedFiles);
           await update(imported.project);
           if (!imported.hasMesh) {
@@ -664,15 +665,19 @@ export default function App() {
     }
   }
   async function captureScreenshot(data: string) {
-    const blob = await (await fetch(data)).blob();
-    const transfer = new DataTransfer();
-    transfer.items.add(
-      new File([blob], `viewport-${crypto.randomUUID()}.png`, {
-        type: "image/png",
-      }),
-    );
-    await importFiles(transfer.files);
-    chatInput.current?.focus();
+    const id = project?.id;
+    if (!id) return;
+    try {
+      const blob = await (await fetch(data)).blob();
+      const transfer = new DataTransfer();
+      transfer.items.add(
+        new File([blob], `viewport-${crypto.randomUUID()}.png`, { type: "image/png" }),
+      );
+      await importFiles(transfer.files, id);
+      if (useWorkspace.getState().project?.id === id) chatInput.current?.focus();
+    } catch (cause) {
+      if (useWorkspace.getState().project?.id === id) setError(errorText(cause));
+    }
   }
   async function send(request = prompt) {
     if (!project || editingBlocked || !request.trim()) return;

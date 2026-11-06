@@ -43,6 +43,8 @@ import { measurement, type MeasureKind } from "../../lib/measurement";
 import { Model } from "./Model";
 import { CameraControl, type OrbitHandle } from "./CameraControl";
 import { Capture } from "./Capture";
+import { ViewportCaptureDialog } from "./capture/ViewportCaptureDialog";
+import type { ViewportPngOptions } from "./capture/viewportPng";
 import { PluginToolbarMenu } from "../plugins/PluginToolbarMenu";
 import type { RenderMode } from "./renderMode";
 import { faceTriangleCounts } from "./faceSelection";
@@ -144,7 +146,8 @@ export default function Viewer({
       setPoints((prev) => prev.map((item) => (item.id === point.id ? point : item))),
     [],
   );
-  const [capture, setCapture] = useState<(() => string) | null>(null);
+  const [capture, setCapture] = useState<((options: ViewportPngOptions) => string) | null>(null);
+  const [captureOpen, setCaptureOpen] = useState(false);
   const controlsRef = useRef<OrbitHandle | null>(null);
   const appliedPreset = useRef(preset);
   const selected = useWorkspace((s) => s.selected);
@@ -174,7 +177,7 @@ export default function Viewer({
     return available;
   }, [object]);
   const handleCapture = useCallback(
-    (fn: () => string) => setCapture(() => fn),
+    (fn: ((options: ViewportPngOptions) => string) | null) => setCapture(() => fn),
     [],
   );
   const [fitBox, setFitBox] = useState<THREE.Box3 | null>(null);
@@ -361,10 +364,9 @@ export default function Viewer({
             <Maximize size={16} />
           </IconButton>
           <IconButton
-            label={t("Attach viewport to chat")}
-            onClick={() => {
-              if (capture) onScreenshot(capture());
-            }}
+            label={t("Viewport snapshot")}
+            disabled={!capture}
+            onClick={() => setCaptureOpen(true)}
           >
             <Camera size={17} />
           </IconButton>
@@ -444,7 +446,7 @@ export default function Viewer({
         }
         shadows
         dpr={[1, 1.75]}
-        gl={{ antialias: true, preserveDrawingBuffer: true }}
+        gl={{ alpha: true, antialias: true, preserveDrawingBuffer: true }}
         onPointerMissed={(event) => {
           if (editable && !event.shiftKey)
             useWorkspace.getState().setSelected(null);
@@ -578,6 +580,10 @@ export default function Viewer({
         />
         <Capture onReady={handleCapture} controlsRef={controlsRef} />
       </Canvas>
+      {captureOpen && capture && (
+        <ViewportCaptureDialog close={() => setCaptureOpen(false)}
+          capture={(options) => onScreenshot(capture(options))} />
+      )}
       {!object.children.length && (
         <div className="empty-scene">
           <Box size={40} />
