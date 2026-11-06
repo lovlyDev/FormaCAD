@@ -42,6 +42,12 @@ Press `3` to switch to edge selection. Click an edge, then Shift-click to add or
 
 CAD IR stores the source body feature, first semantic edge reference, optional additional references and the common radius or setback in `filletReferencedEdge` or `chamferReferencedEdge`. Existing single-edge revisions still load. The worker resolves every edge against the original BREP and builds the contours together. The host updates the body in one transaction and rolls back the command batch on invalid input. The tool accepts up to 64 resolved edges, including box edges and circular cylinder rims. The result has no v1 semantic catalogue for subsequent edge blends. Tests check cylinder volume, BREP validity, STEP round-trip, rejected inputs and rollback.
 
+### Exact topology selection
+
+Pick a face and press `L` to select its owning body. Pick a face or edge and press `Shift+G` to select similar elements on the same body. Alt-click an edge to select its tangent chain. The corresponding controls appear in the 3D toolbar after a pick. The original pick stays active for tools that accept one element.
+
+The native worker reconstructs the committed BREP. Similarity compares geometry type, area or length and available analytic radii. The dimensional tolerance is the larger of 0.01% and 0.000001 in the relevant units. A tangent chain follows a shared vertex with one continuation within 0.001 radians. The result applies to the same visible committed scene. Selection creates no revision. The worker caps a body at 20,000 candidates and a result at 1,024 items.
+
 ### Shell (M3)
 
 In face selection mode (`2`), select a face with a semantic reference and choose **Tools → Shell**. The selected face is checked as the first opening. Check any additional openings on the same body and leave at least one face in place. Enter a positive wall thickness. Walls go inward by default. Enable **Build walls outward** to grow the outside dimensions. Choose Build and confirm the edit.

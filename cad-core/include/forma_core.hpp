@@ -2,7 +2,9 @@
 
 #include <memory>
 #include <cstddef>
+#include <cstdint>
 #include <string>
+#include <vector>
 #include "forma_section.hpp"
 #include "forma_section.hpp"
 #include "forma_measurement.hpp"
@@ -54,6 +56,7 @@ private:
   friend std::unique_ptr<Shape> topology_occurrence(const Shape&, const std::string&) noexcept;
   friend std::unique_ptr<Shape> fillet_referenced_edge(const Shape&, const std::string&, const std::string&, const std::string&, double) noexcept;
   friend std::unique_ptr<Shape> blend_referenced_edges(const Shape&, const std::string&, const std::string&, const std::string&, const std::string&, double, bool) noexcept;
+  friend std::unique_ptr<std::vector<std::uint32_t>> smart_select(const Shape&, int, std::uint32_t) noexcept;
   friend std::unique_ptr<MeasurementResult> measure_reference(const Shape&, int, const std::string&, const std::string&, const std::string&) noexcept;
   friend std::unique_ptr<PairMeasurementResult> measure_reference_pair(const Shape&, int,
     int, const std::string&, const std::string&, const std::string&,
@@ -100,6 +103,7 @@ std::unique_ptr<Shape> make_referenced_cylinder(double, double, const std::strin
 std::unique_ptr<Shape> topology_occurrence(const Shape&, const std::string&) noexcept;
 std::unique_ptr<Shape> fillet_referenced_edge(const Shape&, const std::string&, const std::string&, const std::string&, double) noexcept;
 std::unique_ptr<Shape> blend_referenced_edges(const Shape&, const std::string&, const std::string&, const std::string&, const std::string&, double, bool) noexcept;
+std::unique_ptr<std::vector<std::uint32_t>> smart_select(const Shape&, int, std::uint32_t) noexcept;
 std::unique_ptr<Shape> make_cylinder(double radius_mm, double height_mm) noexcept;
 std::unique_ptr<Shape> make_sphere(double radius_mm) noexcept;
 std::unique_ptr<Shape> make_torus(double major_radius_mm, double minor_radius_mm) noexcept;

@@ -37,6 +37,8 @@ export const defaultBindings: readonly KeyBinding[] = [
   binding("selection.invert", "KeyI", { primary: true }),
   binding("selection.box", "KeyB"),
   binding("selection.circle", "KeyC"),
+  binding("selection.linked", "KeyL"),
+  binding("selection.similar", "KeyG", { shift: true }),
   ...["body", "face", "edge", "vertex"].map((kind, index) =>
     binding(`selection.${kind}`, `Digit${index + 1}`),
   ),

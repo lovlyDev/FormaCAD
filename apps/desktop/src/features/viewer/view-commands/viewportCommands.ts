@@ -38,6 +38,8 @@ export interface ViewportCommandContext {
   onBlendEdge?: () => void;
   onDuplicateBody?: () => void;
   onSeparateSolids?: () => void;
+  onSelectLinked?: () => void;
+  onSelectSimilar?: () => void;
 }
 
 function selectBodies(object: THREE.Group, action: SelectionAction) {
@@ -143,6 +145,8 @@ export function viewportCommands(
     "selection.invert": () => selectBodies(context.object, "invert"),
     "selection.box": () => useRegionSelect.getState().setMode("box"),
     "selection.circle": () => useRegionSelect.getState().setMode("circle"),
+    "selection.linked": context.onSelectLinked,
+    "selection.similar": context.onSelectSimilar,
     "selection.body": () => context.setSelectionMode("body"),
     "selection.face": context.hasCadFaces
       ? () => context.setSelectionMode("face")

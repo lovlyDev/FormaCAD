@@ -61,6 +61,7 @@ add_library(forma_cad_core STATIC
   src/fillet.cpp
   src/chamfer.cpp
   src/edge_blend.cpp
+  src/smart_selection.cpp
   src/transforms.cpp
   src/rotation.cpp
   src/mirror.cpp
@@ -79,6 +80,13 @@ if(BUILD_TESTING)
   add_test(NAME forma_pattern_test COMMAND forma_pattern_test)
   if(WIN32)
     set_tests_properties(forma_pattern_test PROPERTIES
+      ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OpenCASCADE_BINARY_DIR}")
+  endif()
+  add_executable(forma_smart_selection_test tests/smart_selection_test.cpp)
+  target_link_libraries(forma_smart_selection_test PRIVATE forma_cad_core)
+  add_test(NAME forma_smart_selection_test COMMAND forma_smart_selection_test)
+  if(WIN32)
+    set_tests_properties(forma_smart_selection_test PROPERTIES
       ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OpenCASCADE_BINARY_DIR}")
   endif()
   add_executable(forma_shell_test tests/shell_test.cpp)

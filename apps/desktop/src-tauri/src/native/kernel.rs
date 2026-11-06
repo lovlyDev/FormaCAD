@@ -120,6 +120,7 @@ pub(crate) mod ffi {
             owner: &CxxString,
         ) -> UniquePtr<Shape>;
         fn topology_occurrence(source: &Shape, id: &CxxString) -> UniquePtr<Shape>;
+        fn smart_select(source: &Shape, kind: i32, seed: u32) -> UniquePtr<CxxVector<u32>>;
         fn blend_referenced_edges(
             source: &Shape,
             owner: &CxxString,

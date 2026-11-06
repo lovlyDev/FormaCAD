@@ -1,4 +1,6 @@
 import { AdaptiveGrid } from "./grid/AdaptiveGrid";
+import { SmartSelectionTools } from "../selection/smart-select/SmartSelectionTools";
+import { useSmartSelection } from "../selection/smart-select/useSmartSelection";
 import { defaultPalettes, useThemeFile, validPalette } from "../theme-editor/themePreferences";
 import "./viewportResponsive.css";
 import { useSectionView } from "./sections/useSectionView";
@@ -194,6 +196,7 @@ export default function Viewer({
     [setPreset],
   );
   const editable = interactive && !comparison;
+  const smartSelection = useSmartSelection(object, editable && !measure, setSelectionMode);
   const { transformRef, onConfirm, adopt } = useViewportInteraction({
     enabled: !comparison,
     emulateNumpad: navigation.emulateNumpad,
@@ -225,6 +228,8 @@ export default function Viewer({
     onBlendEdge,
     onDuplicateBody,
     onSeparateSolids,
+    onSelectLinked: smartSelection.canLink ? smartSelection.linked : undefined,
+    onSelectSimilar: smartSelection.canSelect ? smartSelection.similar : undefined,
   });
   const mouse = navigationPresets[navigation.mousePreset];
   return (
@@ -253,6 +258,7 @@ export default function Viewer({
         />
       )}
       <div className="viewport-toolbars">
+        <SmartSelectionTools tools={smartSelection} />
         <div className="view-toolbar">
           <IconButton
             label={t("Select body")}
@@ -478,6 +484,7 @@ export default function Viewer({
             selected={selected}
             selectedFace={selectedFace}
             selectedEdge={selectedEdge}
+            onTangentChain={smartSelection.chain}
             selectionMode={selectionMode}
             revisionId={comparison ? null : revisionId}
             onPoint={(p) => {
