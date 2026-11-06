@@ -122,6 +122,16 @@ impl WindowSources {
         source: ApprovalSource<'_>,
         intent: WriteIntent,
     ) -> Result<String> {
+        self.request_prepared_write(source, |_| Ok(intent)).await
+    }
+
+    /// Prepare and validate the typed host command against this exact original
+    /// project. The callback must be pure; no second source lookup/capture is needed.
+    pub async fn request_prepared_write(
+        &self,
+        source: ApprovalSource<'_>,
+        prepare: impl FnOnce(&crate::models::Project) -> Result<WriteIntent> + Send,
+    ) -> Result<String> {
         let operation = self
             .capture_operation(
                 source.window,
@@ -131,6 +141,7 @@ impl WindowSources {
             )
             .await?;
         operation.recheck().await?;
+        let intent = prepare(operation.project())?;
         let request = Arc::new(Request {
             window: source.window.into(),
             source_id: source.source_id.into(),

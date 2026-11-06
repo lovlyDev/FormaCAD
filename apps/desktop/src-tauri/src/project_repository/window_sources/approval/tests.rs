@@ -13,6 +13,48 @@ struct Fixture {
     key: String,
     commit: String,
 }
+
+#[tokio::test]
+async fn preparation_uses_original_project_once_and_failed_validation_mints_no_request() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let f = Fixture::new().await;
+    let before = f.bytes();
+    let calls = AtomicUsize::new(0);
+    let prepare = |project: &Project| {
+        calls.fetch_add(1, Ordering::Relaxed);
+        assert_eq!(project.id, f.id);
+        assert_eq!(project.name, "Original");
+        Ok(WriteIntent::History(Direction::Undo))
+    };
+    assert!(f
+        .windows
+        .request_prepared_write(
+            ApprovalSource {
+                commit_id: "wrong",
+                ..f.source()
+            },
+            prepare
+        )
+        .await
+        .is_err());
+    assert_eq!(calls.load(Ordering::Relaxed), 0);
+    let id = f
+        .windows
+        .request_prepared_write(f.source(), prepare)
+        .await
+        .unwrap();
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+    assert!(f
+        .windows
+        .request_prepared_write(f.source(), |_| Err(AppError::Invalid(
+            "invalid test command".into()
+        )))
+        .await
+        .is_err());
+    assert_eq!(f.windows.approvals.0.lock().unwrap().len(), 1);
+    f.windows.resolve_write(&id, "window", false).await.unwrap();
+    assert_eq!(before, f.bytes());
+}
 impl Fixture {
     async fn new() -> Self {
         let root = tempfile::tempdir().unwrap();

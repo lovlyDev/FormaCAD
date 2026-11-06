@@ -524,12 +524,22 @@ publisher still checks history and obtains the actual OS writer lease. Requestin
 or deciding alone does not write project data.
 
 The global registry mutex never spans an await. A per-request mutex serializes
-resolution and consumption. Eight regressions use genuine FCP1/SQLite folders for
+resolution and consumption. Nine regressions use genuine FCP1/SQLite folders for
 original command retention, read-only decisions, foreign selectors, denial/expiry/
 replay, close/reopen, changed commits, concurrent consumers, independent requests
 and registry capacity. CI runs these alongside existing window-source tests.
 Until CI succeeds the new Rust checks are not claimed as locally executed: this
 machine lacks a complete Windows SDK.
+
+`request_prepared_write` passes the original Project to pure host command preparation
+after validating the selected identity. Existing permission/command IPC can therefore
+reuse common validators without capturing the source a second time. Preparation
+failure creates no pending request. A wrong commit does not even invoke preparation.
+
+The owned Storage comparison/native workflows preserve a running job on the next
+push and queue the next run (`cancel-in-progress: false`). Checks are not reduced;
+an unexecuted intermediate SHA is never claimed as verified. The shared Quality
+workflow is unchanged. Results always belong to the exact run SHA.
 
 A separate explicit native CI test executes retained CAD commands for 40→80 mm,
 then Undo/Redo through the same one-use route and inspects actual STEP files with

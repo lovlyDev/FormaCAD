@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 concurrency:
   group: storage-comparison-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 permissions:
   contents: read
 jobs:
@@ -50,7 +50,8 @@ jobs:
         run: |
           set -o pipefail
           cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib project_repository::window_sources:: -- --nocapture 2>&1 | tee storage-evidence/window-source-tests.log
-          grep -F 'test result: ok. 14 passed; 0 failed;' storage-evidence/window-source-tests.log
+          grep -F 'test result: ok. 15 passed; 0 failed;' storage-evidence/window-source-tests.log
+          grep -E 'test project_repository::window_sources::approval::tests::preparation_uses_original_project_once_and_failed_validation_mints_no_request \.\.\. ok' storage-evidence/window-source-tests.log
           grep -E 'test project_repository::window_sources::approval::tests::request_is_read_only_and_retains_exact_typed_intent_until_one_use \.\.\. ok' storage-evidence/window-source-tests.log
           grep -E 'test project_repository::window_sources::approval::tests::concurrent_consumers_receive_only_one_original_command \.\.\. ok' storage-evidence/window-source-tests.log
           grep -E 'test project_repository::window_sources::approval::tests::per_request_wait_does_not_hold_global_registry_or_other_decisions \.\.\. ok' storage-evidence/window-source-tests.log
