@@ -2,6 +2,7 @@
 pub mod ipc;
 mod locking;
 mod manifest;
+pub mod reader;
 mod recovery;
 pub use recovery::{reconcile, record_pending};
 #[cfg(test)]

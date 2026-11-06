@@ -1,15 +1,18 @@
-//! Revalidate original project imported STEP bytes, rather than worker copies.
+//! Revalidate imported STEP through the original repository source.
 use crate::{
     cad_ir::Document,
-    core::{AppError, AppState, Result},
-    models::Project,
+    core::{AppError, Result},
 };
-pub(super) fn verify(state: &AppState, project: &Project, document: &Document) -> Result<()> {
+pub(super) async fn verify_read(
+    read: &crate::project_repository::backend::RepositoryRead<'_>,
+    document: &Document,
+) -> Result<()> {
     let mut total = 0usize;
     for (_, hash) in
         crate::cad_ir::assets::references(document).map_err(crate::cad_ir::app_error)?
     {
-        let file = project
+        let file = read
+            .project()
             .files
             .iter()
             .find(|file| {
@@ -22,7 +25,7 @@ pub(super) fn verify(state: &AppState, project: &Project, document: &Document) -
                         })
             })
             .ok_or_else(|| AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into()))?;
-        let bytes = crate::artifacts::read(state, &project.id, file)?;
+        let bytes = read.read_asset(file).await?;
         total = total
             .checked_add(bytes.len())
             .ok_or_else(|| AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into()))?;
@@ -34,5 +37,29 @@ pub(super) fn verify(state: &AppState, project: &Project, document: &Document) -
             return Err(AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into()));
         }
     }
-    Ok(())
+    read.recheck().await
+}
+
+pub(super) async fn stage_read(
+    read: &crate::project_repository::backend::RepositoryRead<'_>,
+    document: &Document,
+    cwd: &std::path::Path,
+) -> Result<()> {
+    crate::model_measurement::staging::stage_assets(read, document, cwd)
+        .await
+        .map_err(|error| {
+            let code = match &error {
+                AppError::Invalid(text) => serde_json::from_str::<serde_json::Value>(text)
+                    .ok()
+                    .and_then(|v| v.get("code").and_then(|v| v.as_str()).map(str::to_owned)),
+                _ => None,
+            };
+            match code.as_deref() {
+                Some("MEASUREMENT_STALE") => AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into()),
+                Some("MEASUREMENT_RECOVERY_REQUIRED") => {
+                    AppError::Invalid("PROJECT_SNAPSHOT_RECOVERY_REQUIRED".into())
+                }
+                _ => error,
+            }
+        })
 }

@@ -129,7 +129,7 @@ export function viewportCommands(
     "transform.adjustLast": () =>
       useTransformViewport.getState().setAdjustOpen(true),
     "transform.pivotPie": pie(pivotPie),
-    "snap.pie": pie(snapPie),
+    "snap.pie": pie(()=>snapPie(context.object)),
     "selection.all": () => selectBodies(context.object, "all"),
     "selection.none": () => selectBodies(context.object, "none"),
     "selection.invert": () => selectBodies(context.object, "invert"),

@@ -1,8 +1,9 @@
-import { lazy, Suspense, useState, useMemo } from "react";
+import { lazy, Suspense, useState, useMemo, useRef } from "react";
 import { Check, X, Box, Maximize, LoaderCircle, RotateCw, AlertCircle, Layers, Sparkles } from "lucide-react";
 import { Button } from "../../../components/ui";
 import { t, number, useLocale } from "../../../i18n";
 import { useWorkspace } from "../../../stores/workspace";
+import {isSourceCurrent,type ProjectSourceBinding} from "../../project-sources/sourceBinding";
 import type { Project } from "../../../types";
 import { readTypedCadDocument } from "../../../lib/typedCadDocument";
 import { candidateSourceStatus } from "../candidateSource";
@@ -16,15 +17,19 @@ import "../../model-preview/ModelPreviewPanel.css";
 import "./CandidateReview.css";
 
 const PreviewCanvas = lazy(() => import("../../model-preview/PreviewCanvas").then(module => ({ default: module.PreviewCanvas })));
-export type CandidateReviewData = { base: Project; source: string; reviewPlan?: ReviewPlan | null };
+export type CandidateReviewData = { base: Project; source: string; reviewPlan?: ReviewPlan | null; sourceBinding?: ProjectSourceBinding | null };
 
 export function CandidateReview({ review, onDecision }: { review: CandidateReviewData; onDecision: (allow: boolean) => void }) {
   useLocale();
   const current = useWorkspace(state => state.project);
-  const validBase = !!current && candidateSourceStatus(current, review.base) === "valid";
+  const currentBinding=useWorkspace(state=>state.sourceBinding);
+  const legacyBinding=useRef(currentBinding);
+  const capturedBinding=review.sourceBinding===undefined?legacyBinding.current:review.sourceBinding;
+  const sameCommit=capturedBinding?.kind!=="folder"||(currentBinding?.kind==="folder"&&currentBinding.source.commitId===capturedBinding.source.commitId);
+  const validBase = sameCommit && !!current && !!capturedBinding && isSourceCurrent(currentBinding,capturedBinding) && candidateSourceStatus(current, review.base) === "valid";
   const [refresh, setRefresh] = useState(0), [fit, setFit] = useState(0), [view, setView] = useState<"candidate" | "current">("candidate");
-  const preview = useModelPreview(review.base.id, review.source, review.base.currentRevision, validBase, refresh);
-  const baseline = useSavedBaseline(review.base);
+  const preview = useModelPreview(review.base.id, review.source, review.base.currentRevision, validBase, refresh, capturedBinding);
+  const baseline = useSavedBaseline(review.base,validBase?capturedBinding:null);
   const geometryReady = validBase && preview.available && !preview.pending && !preview.waiting && !!preview.preview && !preview.error;
   const object = view === "candidate" ? preview.preview?.object : baseline.object;
   const finding = preview.error ? previewError(preview.error) : null;

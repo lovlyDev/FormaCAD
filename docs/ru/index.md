@@ -83,5 +83,12 @@
 - [Общее ТЗ и критерии 2.0](../architecture-2.0.md).
 - [Viewport и модальные трансформации (M2)](viewport-transforms.md): G/R/S, F9, выделение, видимость, виды, круговые меню и привязки.
 - [Промпт AI для работы по очереди](collaboration-ai-prompt.md).
+- [Программа хранения: аудит и ограничения](storage-program.md).
+- [Сравнение форматов хранения](storage-formats.md).
+- [Решение о формате папки](storage-format-decision.md).
+- [Контракт чтения репозитория](storage-contract.md).
+- [Чистый backend-каталог проектов](storage-catalog.md).
+- [Перенос выбранного STEP в новую папку](storage-step-transfer.md).
+- [Rust host API самостоятельной папки](storage-folder-host-api.md).
 - [Области и редакторы](workspace-areas.md): вкладки проектов и пространств, split/join, сохранение viewport, контекстные свойства и навигация.
 - [Подготовка переноса приёмов Blender](blender-parity.md): исследование, локальные доказательства, проверки и ограничения; [тематические заметки](../parity/blender/README.md) и [аудит готовности 2.0](../parity/blender/readiness.md).

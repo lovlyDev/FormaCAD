@@ -39,18 +39,20 @@ export function readState<T>(key: string, fallback: T): T {
   catch { return fallback; }
 }
 
-export function usePersistentState<T>(key: string, fallback: T) {
+export function usePersistentState<T>(key: string, fallback: T,enabled=true) {
   const subscribe = useCallback((listener: () => void) => {
+    if(!enabled)return()=>{};
     listeners.add(listener);
     return () => { listeners.delete(listener); };
-  }, []);
-  const raw = useSyncExternalStore(subscribe, () => localStorage.getItem(key), () => null);
+  }, [enabled]);
+  const raw = useSyncExternalStore(subscribe, () => enabled?localStorage.getItem(key):null, () => null);
   const value: T = useMemo(() => {
     try { return raw === null ? fallback : JSON.parse(raw); } catch { return fallback; }
   }, [raw, fallback]);
   const set = useCallback((next: SetStateAction<T>) => {
+    if(!enabled)return;
     const current = readState(key, fallback);
     persist(key, JSON.stringify(typeof next === "function" ? (next as (v: T) => T)(current) : next));
-  }, [key, fallback]);
+  }, [key, fallback,enabled]);
   return [value, set] as const;
 }

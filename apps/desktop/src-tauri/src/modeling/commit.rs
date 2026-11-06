@@ -1,15 +1,8 @@
-use super::build::GeneratedModel;
+use super::prepared_change::PreparedModelChange;
 use crate::{
-    core::{AppError, AppState, Result},
-    models::{Project, ProjectFile, Revision},
+    core::{AppState, Result},
+    models::Project,
 };
-use std::sync::atomic::{AtomicBool, Ordering};
-pub(super) struct CommitMetadata {
-    pub job: String,
-    pub program: String,
-    pub prompt: String,
-    pub amend: Option<crate::project_history::AmendCapture>,
-}
 
 pub(super) fn program_for_revision(
     program: &str,
@@ -26,71 +19,32 @@ pub(super) fn program_for_revision(
     Ok(program.trim().to_string())
 }
 
-/// Called only under the host write lock after expected-head validation.
-pub(super) async fn commit(
-    state: &AppState,
-    mut project: Project,
-    model: GeneratedModel,
-    metadata: CommitMetadata,
-    cancel: &AtomicBool,
-) -> Result<Project> {
-    let CommitMetadata {
-        job,
-        program,
-        prompt,
-        amend,
-    } = metadata;
-    let before = amend.as_ref().map(|_| project.clone());
-    let history = if amend.is_some() {
-        Some(crate::project_history::load_state(&state.pool, &project).await?)
-    } else {
-        None
-    };
-    let step_name = format!("model-{job}.step");
-    let preview_name = format!("preview-{job}.glb");
-    for (name, bytes) in [(&step_name, &model.step), (&preview_name, &model.preview)] {
-        project.files.push(ProjectFile {
-            name: name.clone(),
-            size: bytes.len() as u64,
-            kind: "model".into(),
-            data: Some(crate::artifacts::data_url(name, bytes)),
-            sha256: None,
-        });
-    }
-    let now = chrono::Utc::now().to_rfc3339();
-    project.revisions.push(Revision {
-        program: Some(program),
-        program_base: model.program_base,
-        id: job.clone(),
-        parent: project.current_revision.clone(),
-        created_at: now.clone(),
-        prompt,
-        source: Some(step_name),
-        preview: Some(preview_name),
-        parameters: crate::models::Parameters {
-            kind: "blank".into(),
-            width: 120.0,
-            depth: 65.0,
-            height: 60.0,
-            thickness: 5.0,
-            hole_diameter: 8.0,
-            holes: 4,
-        },
-    });
-    project.current_revision = Some(job);
-    project.updated_at = now;
-    let pending = crate::artifacts::normalize(&mut project)?;
-    if cancel.load(Ordering::Relaxed) {
-        return Err(AppError::Invalid("CAD_TASK_CANCELLED".into()));
-    }
-    if let (Some(capture), Some(before), Some(history)) = (amend, before, history) {
-        let intent = crate::project_history::prepare_amend(&before, &project, &history, &capture)?;
-        crate::projects::persist_with_history(state, project, pending, None, intent).await
-    } else {
-        crate::projects::persist(state, project, pending, None).await
-    }
+pub(super) struct AmendContext<'a> {
+    pub before: &'a Project,
+    pub history: &'a crate::project_history::HistoryState,
+    pub capture: &'a crate::project_history::AmendCapture,
 }
 
+/// Persist only a candidate assembled by the common orchestrator under its host locks.
+pub(super) async fn persist_prepared(
+    state: &AppState,
+    prepared: PreparedModelChange,
+    amend: Option<AmendContext<'_>>,
+) -> Result<Project> {
+    let (project, pending) = prepared.into_parts();
+    match amend {
+        Some(amend) => {
+            let intent = crate::project_history::prepare_amend(
+                amend.before,
+                &project,
+                amend.history,
+                amend.capture,
+            )?;
+            crate::projects::persist_with_history(state, project, pending, None, intent).await
+        }
+        None => crate::projects::persist(state, project, pending, None).await,
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

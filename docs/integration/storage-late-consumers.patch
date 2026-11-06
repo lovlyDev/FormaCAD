@@ -1,0 +1,555 @@
+diff --git a/apps/desktop/src-tauri/src/model_preview/host.rs b/apps/desktop/src-tauri/src/model_preview/host.rs
+index a1fd55e..fd7ae15 100644
+--- a/apps/desktop/src-tauri/src/model_preview/host.rs
++++ b/apps/desktop/src-tauri/src/model_preview/host.rs
+@@ -2,7 +2,7 @@
+ use crate::{
+     core::{AppError, AppState, Result},
+     models::Project,
+-    project_repository::legacy,
++    project_repository::legacy::{self, CommittedSnapshot},
+ };
+ use std::{
+     future::Future,
+@@ -70,10 +70,30 @@ where
+         Ok(packet)
+     }
+     .await;
+-    let mut tasks = state.tasks.lock().await;
+-    tasks.remove(id);
+-    tasks.remove(&marker);
+-    result
++    complete(state, id, &marker, &snapshot, &cancel, result).await
++}
++
++// Completion is shared by the production request and deterministic tests of
++// its last cleanup await. Release the task-map mutex before source/SQL work.
++async fn complete(
++    state: &AppState,
++    id: &str,
++    marker: &str,
++    snapshot: &CommittedSnapshot,
++    cancel: &AtomicBool,
++    result: Result<Vec<u8>>,
++) -> Result<Vec<u8>> {
++    {
++        let mut tasks = state.tasks.lock().await;
++        tasks.remove(id);
++        tasks.remove(marker);
++    }
++    let packet = result?;
++    legacy::recheck(state, snapshot).await?;
++    if cancel.load(Ordering::Relaxed) {
++        return Err(AppError::Invalid("Model preview cancelled".into()));
++    }
++    Ok(packet)
+ }
+
+ #[cfg(test)]
+diff --git a/apps/desktop/src-tauri/src/model_preview/host/tests.rs b/apps/desktop/src-tauri/src/model_preview/host/tests.rs
+index 1eee1e0..b3f33e8 100644
+--- a/apps/desktop/src-tauri/src/model_preview/host/tests.rs
++++ b/apps/desktop/src-tauri/src/model_preview/host/tests.rs
+@@ -121,3 +121,135 @@ async fn cancelled_or_failed_runner_always_cleans_task_markers() {
+     .is_err());
+     assert!(state.tasks.lock().await.is_empty());
+ }
++
++#[tokio::test]
++async fn close_and_reopen_after_verified_worker_rejects_late_preview_packet() {
++    let root = tempfile::tempdir().unwrap();
++    let state = fixture::state(root.path()).await;
++    let project = fixture::project(&state, 4).await;
++    let source = state.root.join(&project.id);
++    std::fs::create_dir(&source).unwrap();
++    std::fs::write(source.join("sentinel.txt"), b"unchanged preview source").unwrap();
++    let program = program();
++    let before = fixture::logical(&state, &project.id).await;
++    let files = fixture::files(&source);
++    let called = AtomicBool::new(false);
++    let result = run(
++        &state,
++        &project.id,
++        &program,
++        project.current_revision.clone(),
++        |saved, cancel| {
++            let state = &state;
++            let program = &program;
++            let called = &called;
++            async move {
++                let packet = super::super::build::build_with_project(
++                    state,
++                    &saved,
++                    program,
++                    cancel,
++                    &worker(),
++                )
++                .await?;
++                let n = u32::from_le_bytes(packet[..4].try_into().unwrap()) as usize;
++                assert_eq!(&packet[4 + n..8 + n], b"glTF");
++                called.store(true, Ordering::Relaxed);
++                state.project_access.release(&saved.id).unwrap();
++                state
++                    .project_access
++                    .acquire(&state.root, &saved.id)
++                    .unwrap();
++                Ok(packet)
++            }
++        },
++    )
++    .await;
++    assert!(
++        called.load(Ordering::Relaxed),
++        "The actual preview worker must finish before reopen"
++    );
++    assert!(
++        matches!(result, Err(AppError::Invalid(ref code)) if code == "PROJECT_SNAPSHOT_CHANGED")
++    );
++    assert!(state.tasks.lock().await.is_empty());
++    assert!(state.cad_tasks.status().unwrap().is_empty());
++    assert_eq!(fixture::logical(&state, &project.id).await, before);
++    assert_eq!(fixture::files(&source), files);
++    let fresh = run(
++        &state,
++        &project.id,
++        &program,
++        project.current_revision.clone(),
++        |saved, cancel| {
++            let state = &state;
++            let program = &program;
++            async move {
++                super::super::build::build_with_project(state, &saved, program, cancel, &worker())
++                    .await
++            }
++        },
++    )
++    .await
++    .unwrap();
++    let n = u32::from_le_bytes(fresh[..4].try_into().unwrap()) as usize;
++    assert_eq!(&fresh[4 + n..8 + n], b"glTF");
++    assert!(state.tasks.lock().await.is_empty());
++    assert_eq!(fixture::logical(&state, &project.id).await, before);
++    assert_eq!(fixture::files(&source), files);
++    state.project_access.release(&project.id).unwrap();
++}
++
++#[tokio::test]
++async fn close_and_reopen_while_final_preview_cleanup_waits_rejects_verified_packet() {
++    use std::{future::Future, task::Poll};
++    let root = tempfile::tempdir().unwrap();
++    let state = fixture::state(root.path()).await;
++    let project = fixture::project(&state, 4).await;
++    let source = state.root.join(&project.id);
++    std::fs::create_dir(&source).unwrap();
++    std::fs::write(source.join("sentinel.txt"), b"unchanged preview source").unwrap();
++    let snapshot = legacy::capture_project(&state, &project.id).await.unwrap();
++    let cancel = Arc::new(AtomicBool::new(false));
++    let packet = super::super::build::build_with_project(
++        &state,
++        &snapshot.project,
++        &program(),
++        cancel.clone(),
++        &worker(),
++    )
++    .await
++    .unwrap();
++    let n = u32::from_le_bytes(packet[..4].try_into().unwrap()) as usize;
++    assert_eq!(&packet[4 + n..8 + n], b"glTF");
++    legacy::recheck(&state, &snapshot).await.unwrap();
++    let before = fixture::logical(&state, &project.id).await;
++    let files = fixture::files(&source);
++    let marker = format!("preview:{}", project.id);
++    // This is the production completion function, reached after a genuine
++    // checked worker packet. Hold the actual cleanup mutex; no timer or global
++    // phase setter is involved. The map entries are ordinary request markers.
++    let mut held = state.tasks.lock().await;
++    held.insert(project.id.clone(), cancel.clone());
++    held.insert(marker.clone(), cancel.clone());
++    let completing = complete(&state, &project.id, &marker, &snapshot, &cancel, Ok(packet));
++    tokio::pin!(completing);
++    std::future::poll_fn(|context| {
++        assert!(completing.as_mut().poll(context).is_pending());
++        Poll::Ready(())
++    })
++    .await;
++    state.project_access.release(&project.id).unwrap();
++    state
++        .project_access
++        .acquire(&state.root, &project.id)
++        .unwrap();
++    drop(held);
++    let error = completing.await.err().unwrap();
++    assert_eq!(error.to_string(), "PROJECT_SNAPSHOT_CHANGED");
++    assert!(state.tasks.lock().await.is_empty());
++    assert!(state.cad_tasks.status().unwrap().is_empty());
++    assert_eq!(fixture::logical(&state, &project.id).await, before);
++    assert_eq!(fixture::files(&source), files);
++    state.project_access.release(&project.id).unwrap();
++}
+diff --git a/apps/desktop/src-tauri/src/model_inspection/read/tests.rs b/apps/desktop/src-tauri/src/model_inspection/read/tests.rs
+index b4d81cf..475267f 100644
+--- a/apps/desktop/src-tauri/src/model_inspection/read/tests.rs
++++ b/apps/desktop/src-tauri/src/model_inspection/read/tests.rs
+@@ -159,3 +159,62 @@ async fn cancellation_after_genuine_worker_completion_rejects_properties_and_kee
+     assert_eq!(fixture::logical(&state, &project.id).await, before);
+     assert_eq!(fixture::files(root.path()), files);
+ }
++
++#[tokio::test]
++async fn close_and_reopen_after_verified_worker_rejects_late_step_properties() {
++    let root = tempfile::tempdir().unwrap();
++    let state = fixture::state(root.path()).await;
++    let project = saved_step(&state).await;
++    let source = state.root.join(&project.id);
++    std::fs::create_dir(&source).unwrap();
++    std::fs::write(source.join("sentinel.txt"), b"unchanged measurement source").unwrap();
++    let before = fixture::logical(&state, &project.id).await;
++    let files = fixture::files(&source);
++    let called = AtomicBool::new(false);
++    let result = run(
++        &state,
++        &project.id,
++        project.current_revision.as_deref().unwrap(),
++        |cwd, cancel| {
++            let state = &state;
++            let id = &project.id;
++            let called = &called;
++            async move {
++                let properties =
++                    crate::native::inspection::inspect_with_executable(&cwd, cancel, &worker())
++                        .await?;
++                assert!((properties.volume_mm3 - 8000.).abs() < 1e-6);
++                called.store(true, Ordering::Relaxed);
++                state.project_access.release(id).unwrap();
++                state.project_access.acquire(&state.root, id).unwrap();
++                Ok(properties)
++            }
++        },
++    )
++    .await;
++    assert!(
++        called.load(Ordering::Relaxed),
++        "The actual inspection worker must finish before reopen"
++    );
++    assert!(
++        matches!(result, Err(AppError::Invalid(ref code)) if code == "PROJECT_SNAPSHOT_CHANGED")
++    );
++    assert_eq!(fixture::logical(&state, &project.id).await, before);
++    assert_eq!(fixture::files(&source), files);
++    assert!(state.cad_tasks.status().unwrap().is_empty());
++    let fresh = run(
++        &state,
++        &project.id,
++        project.current_revision.as_deref().unwrap(),
++        |cwd, cancel| async move {
++            crate::native::inspection::inspect_with_executable(&cwd, cancel, &worker()).await
++        },
++    )
++    .await
++    .unwrap()
++    .unwrap();
++    assert!((fresh.volume_mm3 - 8000.).abs() < 1e-6);
++    assert_eq!(fixture::logical(&state, &project.id).await, before);
++    assert_eq!(fixture::files(&source), files);
++    state.project_access.release(&project.id).unwrap();
++}
+diff --git a/apps/desktop/src-tauri/src/model_section/capture.rs b/apps/desktop/src-tauri/src/model_section/capture.rs
+index a322736..abb72e4 100644
+--- a/apps/desktop/src-tauri/src/model_section/capture.rs
++++ b/apps/desktop/src-tauri/src/model_section/capture.rs
+@@ -103,5 +103,10 @@ pub(super) async fn recheck(state: &AppState, captured: &CapturedSection) -> Res
+             "CAD section source differs from its committed seal",
+         ));
+     }
++    // Asset IO can outlive the earlier observation. Revalidate the ORIGINAL
++    // opening and saved state after those sealed bytes were checked as well.
++    legacy::recheck(state, &captured.snapshot)
++        .await
++        .map_err(snapshot_error)?;
+     Ok(())
+ }
+diff --git a/apps/desktop/src-tauri/src/model_section/build.rs b/apps/desktop/src-tauri/src/model_section/build.rs
+index bae5c1b..797f673 100644
+--- a/apps/desktop/src-tauri/src/model_section/build.rs
++++ b/apps/desktop/src-tauri/src/model_section/build.rs
+@@ -20,6 +20,34 @@ pub async fn section_with_executable(
+     plane: &SectionPlane,
+     cancel: Arc<AtomicBool>,
+     executable: &Path,
++) -> Result<SectionReport> {
++    section_inner(
++        state,
++        project_id,
++        expected_revision,
++        plane,
++        cancel,
++        executable,
++        PhaseHook::default(),
++    )
++    .await
++}
++
++#[derive(Default)]
++struct PhaseHook<'a> {
++    #[cfg(test)]
++    after_worker: Option<&'a (dyn Fn() + Send + Sync)>,
++    _lifetime: std::marker::PhantomData<&'a ()>,
++}
++
++async fn section_inner(
++    state: &AppState,
++    project_id: &str,
++    expected_revision: &str,
++    plane: &SectionPlane,
++    cancel: Arc<AtomicBool>,
++    executable: &Path,
++    hook: PhaseHook<'_>,
+ ) -> Result<SectionReport> {
+     plane.normalized().map_err(|e| {
+         AppError::Invalid(serde_json::json!({"code":e.code,"message":e.detail}).to_string())
+@@ -73,6 +101,12 @@ pub async fn section_with_executable(
+     if cancel.load(Ordering::Relaxed) {
+         return Err(super::failure("SECTION_CANCELLED", "CAD section cancelled"));
+     }
++    #[cfg(test)]
++    if let Some(after_worker) = hook.after_worker {
++        after_worker();
++    }
++    #[cfg(not(test))]
++    let _ = hook;
+     capture::recheck(state, &captured).await?;
+     if cancel.load(Ordering::Relaxed) {
+         return Err(super::failure("SECTION_CANCELLED", "CAD section cancelled"));
+@@ -82,3 +116,7 @@ pub async fn section_with_executable(
+ fn stale() -> AppError {
+     AppError::Invalid(serde_json::json!({"code":"SECTION_STALE","message":"Project revision changed; recompute the section"}).to_string())
+ }
++
++#[cfg(test)]
++#[path = "build_tests.rs"]
++mod tests;
+diff --git a/apps/desktop/src-tauri/src/model_section/build_tests.rs b/apps/desktop/src-tauri/src/model_section/build_tests.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/model_section/build_tests.rs
+@@ -0,0 +1,80 @@
++use super::*;
++#[allow(dead_code)]
++mod fixture {
++    use crate as forma_core;
++    include!(concat!(
++        env!("CARGO_MANIFEST_DIR"),
++        "/tests/reference_measurements_host/fixture.rs"
++    ));
++}
++
++fn plane() -> SectionPlane {
++    SectionPlane {
++        origin_mm: [0., 0., 5.],
++        normal: [0., 0., 1.],
++        deflection_mm: 0.01,
++    }
++}
++
++#[tokio::test]
++async fn close_and_reopen_after_verified_worker_rejects_late_manual_section() {
++    let root = tempfile::tempdir().unwrap();
++    let (state, baseline) = fixture::fixture(root.path()).await;
++    let before = fixture::snapshot(&state, &baseline.id).await;
++    let called = AtomicBool::new(false);
++    let reopen_after_worker = || {
++        called.store(true, Ordering::Relaxed);
++        state.project_access.release(&baseline.id).unwrap();
++        state
++            .project_access
++            .acquire(&state.root, &baseline.id)
++            .unwrap();
++    };
++    let error = section_inner(
++        &state,
++        &baseline.id,
++        baseline.current_revision.as_deref().unwrap(),
++        &plane(),
++        fixture::token(),
++        fixture::executable(),
++        PhaseHook {
++            after_worker: Some(&reopen_after_worker),
++            ..Default::default()
++        },
++    )
++    .await
++    .unwrap_err();
++    assert!(
++        called.load(Ordering::Relaxed),
++        "The actual section worker must finish before reopen"
++    );
++    assert!(error.to_string().contains("SECTION_STALE"), "{error}");
++    assert_eq!(fixture::snapshot(&state, &baseline.id).await, before);
++    fixture::clean(&state).await;
++    assert_eq!(
++        std::fs::read_dir(state.root.join(".transient/sections"))
++            .unwrap()
++            .count(),
++        0
++    );
++    let fresh = section_with_executable(
++        &state,
++        &baseline.id,
++        baseline.current_revision.as_deref().unwrap(),
++        &plane(),
++        fixture::token(),
++        fixture::executable(),
++    )
++    .await
++    .unwrap();
++    assert!((fresh.geometry.total_length_mm - 120.).abs() < 1e-6);
++    let saved = baseline
++        .files
++        .iter()
++        .find(|file| baseline.revisions.last().unwrap().source.as_ref() == Some(&file.name))
++        .unwrap();
++    assert_eq!(Some(&fresh.source_sha256), saved.sha256.as_ref());
++    assert_eq!(fixture::snapshot(&state, &baseline.id).await, before);
++    fixture::clean(&state).await;
++    state.project_access.release(&baseline.id).unwrap();
++}
+diff --git a/apps/desktop/src-tauri/src/model_pair_measurement/build_tests.rs b/apps/desktop/src-tauri/src/model_pair_measurement/build_tests.rs
+index 19c3833..918b691 100644
+--- a/apps/desktop/src-tauri/src/model_pair_measurement/build_tests.rs
++++ b/apps/desktop/src-tauri/src/model_pair_measurement/build_tests.rs
+@@ -148,3 +148,65 @@ async fn input_corruption_after_real_worker_is_rejected_by_final_host_check() {
+ fn pair_query() -> PairMeasurementQuery {
+     serde_json::from_value(serde_json::json!({"kind":"minimumDistance","first":{"schemaVersion":1,"kind":"face","ownerFeatureId":"pad","role":"box-face:xmin","occurrencePath":[]},"second":{"schemaVersion":1,"kind":"face","ownerFeatureId":"pad","role":"box-face:xmax","occurrencePath":[]}})).unwrap()
+ }
++
++#[tokio::test]
++async fn close_and_reopen_after_verified_worker_rejects_late_pair_measurement() {
++    let root = tempfile::tempdir().unwrap();
++    let (state, baseline) = fixture::fixture(root.path()).await;
++    let before = fixture::snapshot(&state, &baseline.id).await;
++    let called = AtomicBool::new(false);
++    let reopen_after_worker = || {
++        called.store(true, Ordering::Relaxed);
++        state.project_access.release(&baseline.id).unwrap();
++        state
++            .project_access
++            .acquire(&state.root, &baseline.id)
++            .unwrap();
++    };
++    let error = measure_inner(
++        &state,
++        &baseline.id,
++        baseline.current_revision.as_deref().unwrap(),
++        "body",
++        &pair_query(),
++        fixture::token(),
++        fixture::executable(),
++        PhaseHook {
++            after_worker: Some(&reopen_after_worker),
++            ..Default::default()
++        },
++    )
++    .await
++    .unwrap_err();
++    assert!(
++        called.load(Ordering::Relaxed),
++        "The actual pair_measurement worker must finish before reopen"
++    );
++    assert!(error.to_string().contains("MEASUREMENT_STALE"), "{error}");
++    assert_eq!(fixture::snapshot(&state, &baseline.id).await, before);
++    fixture::clean(&state).await;
++    assert_eq!(
++        std::fs::read_dir(state.root.join(".transient/pair-measurements"))
++            .unwrap()
++            .count(),
++        0
++    );
++    let fresh = measure_with_executable(
++        &state,
++        &baseline.id,
++        baseline.current_revision.as_deref().unwrap(),
++        "body",
++        &pair_query(),
++        fixture::token(),
++        fixture::executable(),
++    )
++    .await
++    .unwrap();
++    assert_eq!(
++        Some(&fresh.report.revision_id),
++        baseline.current_revision.as_ref()
++    );
++    assert_eq!(fixture::snapshot(&state, &baseline.id).await, before);
++    fixture::clean(&state).await;
++    state.project_access.release(&baseline.id).unwrap();
++}
+diff --git a/apps/desktop/src-tauri/src/model_face_section/build_tests.rs b/apps/desktop/src-tauri/src/model_face_section/build_tests.rs
+index d0989be..77913d5 100644
+--- a/apps/desktop/src-tauri/src/model_face_section/build_tests.rs
++++ b/apps/desktop/src-tauri/src/model_face_section/build_tests.rs
+@@ -148,3 +148,65 @@ async fn input_corruption_after_real_worker_is_rejected_by_final_host_check() {
+ fn query() -> FaceSectionQuery {
+     serde_json::from_value(serde_json::json!({"reference":{"schemaVersion":1,"kind":"face","ownerFeatureId":"pad","role":"box-face:zmax","occurrencePath":[]},"offsetMm":-5,"deflectionMm":0.01})).unwrap()
+ }
++
++#[tokio::test]
++async fn close_and_reopen_after_verified_worker_rejects_late_face_section() {
++    let root = tempfile::tempdir().unwrap();
++    let (state, baseline) = fixture::fixture(root.path()).await;
++    let before = fixture::snapshot(&state, &baseline.id).await;
++    let called = AtomicBool::new(false);
++    let reopen_after_worker = || {
++        called.store(true, Ordering::Relaxed);
++        state.project_access.release(&baseline.id).unwrap();
++        state
++            .project_access
++            .acquire(&state.root, &baseline.id)
++            .unwrap();
++    };
++    let error = section_inner(
++        &state,
++        &baseline.id,
++        baseline.current_revision.as_deref().unwrap(),
++        "body",
++        &query(),
++        fixture::token(),
++        fixture::executable(),
++        PhaseHook {
++            after_worker: Some(&reopen_after_worker),
++            ..Default::default()
++        },
++    )
++    .await
++    .unwrap_err();
++    assert!(
++        called.load(Ordering::Relaxed),
++        "The actual face_section worker must finish before reopen"
++    );
++    assert!(error.to_string().contains("MEASUREMENT_STALE"), "{error}");
++    assert_eq!(fixture::snapshot(&state, &baseline.id).await, before);
++    fixture::clean(&state).await;
++    assert_eq!(
++        std::fs::read_dir(state.root.join(".transient/face-sections"))
++            .unwrap()
++            .count(),
++        0
++    );
++    let fresh = section_with_executable(
++        &state,
++        &baseline.id,
++        baseline.current_revision.as_deref().unwrap(),
++        "body",
++        &query(),
++        fixture::token(),
++        fixture::executable(),
++    )
++    .await
++    .unwrap();
++    assert_eq!(
++        Some(&fresh.report.revision_id),
++        baseline.current_revision.as_ref()
++    );
++    assert_eq!(fixture::snapshot(&state, &baseline.id).await, before);
++    fixture::clean(&state).await;
++    state.project_access.release(&baseline.id).unwrap();
++}

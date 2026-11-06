@@ -1,5 +1,8 @@
+import { useRef } from "react";
+import { UnavailableProjectCard } from "../features/project-catalog/UnavailableProjectCard";
+import { readProjectSnapshot } from "../features/project-catalog/api";
+import type { UnavailableEntry } from "../features/project-catalog/useProjectCatalog";
 import { version as appVersion } from "../../package.json";
-import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
   Box, Cpu, FolderOpen, LayoutGrid, LoaderCircle, PackageOpen, Pencil, Plus, Search, Settings2, Star, Trash2,
@@ -14,6 +17,7 @@ import { ExportProjectBundleControl } from "../features/project-bundle/ExportPro
 
 type Props = {
   projects: Project[];
+  unavailable: UnavailableEntry[];
   loading: boolean;
   error: unknown;
   search: string;
@@ -30,8 +34,8 @@ type Props = {
   onError: (message: string) => void;
 };
 
-export function Dashboard({ projects, loading, error, search, onSearch, onSettings, onImport, onImportBundle, onExportBundle, onNew, onOpen, onRename, onDelete, onRefresh, onError }: Props) {
-  const queryClient = useQueryClient();
+export function Dashboard({ projects, unavailable, loading, error, search, onSearch, onSettings, onImport, onImportBundle, onExportBundle, onNew, onOpen, onRename, onDelete, onRefresh, onError }: Props) {
+  const pinRequests = useRef(new Set<string>());
   const visible = [...projects]
     .sort((a, b) => Number(b.pinned) - Number(a.pinned))
     .filter((project) => [
@@ -42,14 +46,12 @@ export function Dashboard({ projects, loading, error, search, onSearch, onSettin
     ].some((text) => text.toLowerCase().includes(search.toLowerCase())));
 
   function togglePin(project: Project) {
-    const current = queryClient.getQueryData<Project[]>(["projects"]) ?? [];
-    const latest = current.find((item) => item.id === project.id) ?? project;
-    const next = { ...latest, pinned: !latest.pinned };
-    queryClient.setQueryData<Project[]>(["projects"], current.map((item) => item.id === project.id ? next : item));
-    void saveProject(next).then(onRefresh).catch((cause) => {
-      queryClient.setQueryData(["projects"], current);
-      onError(errorText(cause));
-    });
+    if (pinRequests.current.has(project.id)) return;
+    pinRequests.current.add(project.id);
+    void readProjectSnapshot(project.id)
+      .then(latest => saveProject({ ...latest, pinned: !latest.pinned }))
+      .then(onRefresh).catch(cause => onError(errorText(cause)))
+      .finally(() => pinRequests.current.delete(project.id));
   }
 
   return <main className="dashboard">
@@ -69,9 +71,10 @@ export function Dashboard({ projects, loading, error, search, onSearch, onSettin
         <div className="search-input"><Search size={14} /><input aria-label={t("Search projects")} placeholder={t("Find a project…")} value={search} onChange={(event) => onSearch(event.target.value)} /></div>
       </div>
       {loading ? <div className="empty-state"><LoaderCircle className="spin" />{t("Loading projects…")}</div>
-        : error ? <div className="error-inline">{errorText(error)}</div>
+        : error ? <div className="error-inline">{errorText(error)}<Button onClick={onRefresh}>{t("Refresh project catalog")}</Button></div>
           : <div className="project-grid">
             <button className="new-project-card" onClick={onNew}><span><Plus size={24} /></span><strong>{t("Create a project")}</strong><small>{t("From a thought to a tangible thing")}</small></button>
+            {unavailable.filter(entry => [entry.index.name, entry.index.idHint].some(value => value?.toLowerCase().includes(search.toLowerCase())) || !search).map(entry => <UnavailableProjectCard key={entry.rowKey} entry={entry} onRetry={onRefresh} />)}
             {visible.map((project) => <motion.article layout="position" transition={{ layout: { duration: 0.42, ease: [0.22, 1, 0.36, 1] } }} className={`project-card${project.pinned ? " is-pinned" : ""}`} key={project.id}>
               <button className="project-art" onClick={() => onOpen(project)}>
                 {project.thumbnail && project.thumbnailRevision === project.currentRevision
