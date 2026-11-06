@@ -1,0 +1,123 @@
+name: Storage proposed permission patch review
+on:
+  push:
+    branches: [codex/storage-week]
+    paths:
+      - docs/integration/storage-folder-permission-ipc.patch
+      - .github/workflows/storage-permission-review.yml
+  workflow_dispatch:
+concurrency:
+  group: storage-permission-review-${{ github.ref }}
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  isolated-proposal:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          targets: x86_64-unknown-linux-gnu
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+          cache-on-failure: true
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .local/occt-build-unix-x86_64-unknown-linux-gnu
+            .local/occt-install-unix-x86_64-unknown-linux-gnu
+          key: occt-V8_0_1-x86_64-unknown-linux-gnu-v1
+      - name: Check exact proposal and apply only inside this temporary runner checkout
+        run: |
+          set -euo pipefail
+          mkdir -p storage-permission-review-evidence
+          git rev-parse HEAD > storage-permission-review-evidence/checkout-sha.txt
+          patch=docs/integration/storage-folder-permission-ipc.patch
+          printf '%s  %s\n' '02a11c3298fff552d2129188957dbacfd017a6f467e92194dcbd2ed5c709a8f0' "$patch" | sha256sum --check
+          sha256sum "$patch" > storage-permission-review-evidence/patch-sha256.txt
+          git diff --quiet
+          git diff --cached --quiet
+          git apply --check --index "$patch"
+          git apply --index "$patch"
+          git diff --cached --check
+          git diff --cached --name-only | LC_ALL=C sort > storage-permission-review-evidence/actual-files.txt
+          cat <<'EXPECTED' > storage-permission-review-evidence/expected-files.txt
+          .github/workflows/storage-benchmark.yml
+          .github/workflows/storage-native-check.yml
+          apps/desktop/src-tauri/src/permissions.rs
+          apps/desktop/src-tauri/src/permissions/folder.rs
+          apps/desktop/src-tauri/src/permissions/folder/host.rs
+          apps/desktop/src-tauri/src/permissions/folder/host/tests.rs
+          apps/desktop/src-tauri/src/permissions/folder/host/tests/worker.rs
+          apps/desktop/src-tauri/src/permissions/managed_requests.rs
+          apps/desktop/src-tauri/src/project_repository/sqlite_folder/api/model.rs
+          apps/desktop/src-tauri/src/project_repository/window_sources/approval.rs
+          apps/desktop/src-tauri/src/project_repository/window_sources/approval/tests.rs
+          apps/desktop/src-tauri/src/project_repository/window_sources/operation.rs
+          apps/desktop/src-tauri/src/project_repository/window_sources/supported.rs
+          apps/desktop/src/features/project-sources/permissionContract.test.ts
+          apps/desktop/src/features/project-sources/permissionContract.ts
+          apps/desktop/src/lib/api.ts
+          EXPECTED
+          diff -u storage-permission-review-evidence/expected-files.txt storage-permission-review-evidence/actual-files.txt
+          git diff --cached --stat > storage-permission-review-evidence/proposal-stat.txt
+          while IFS= read -r source; do sha256sum "$source"; done < storage-permission-review-evidence/actual-files.txt > storage-permission-review-evidence/source-sha256.txt
+          printf '%s\n' 'REVIEW ONLY: proposed source is applied in this temporary checkout; task branch runtime remains unchanged.' > storage-permission-review-evidence/scope.txt
+          cat storage-permission-review-evidence/scope.txt >> "$GITHUB_STEP_SUMMARY"
+          cat storage-permission-review-evidence/patch-sha256.txt >> "$GITHUB_STEP_SUMMARY"
+      - name: Existing native prerequisites
+        run: sudo apt-get update && sudo apt-get install -y cmake g++ make libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - name: Frontend proposal checks
+        run: |
+          set -euo pipefail
+          npm ci
+          npm test 2>&1 | tee storage-permission-review-evidence/frontend-tests.log
+          npm run build 2>&1 | tee storage-permission-review-evidence/frontend-build.log
+          npm run lint
+          npm run check:i18n
+          npm run check:docs
+          npm run check:migrations
+          npm run check:version
+      - name: Existing native build and smoke route with proposed source
+        env:
+          FORMA_NATIVE_TEST_ONLY: '1'
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          set -o pipefail
+          bash scripts/build-native-unix.sh x86_64-unknown-linux-gnu app 2>&1 | tee storage-permission-review-evidence/native-smoke.log
+      - name: Strict host and original-request checks without native client
+        run: |
+          set -euo pipefail
+          cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml --all -- --check
+          cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --all-targets --no-default-features -- -D warnings 2>&1 | tee storage-permission-review-evidence/no-client-clippy.log
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib permissions::folder::host::tests:: -- --nocapture 2>&1 | tee storage-permission-review-evidence/permission-tests.log
+          grep -F 'test result: ok. 12 passed; 0 failed;' storage-permission-review-evidence/permission-tests.log
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib project_repository::window_sources:: -- --nocapture 2>&1 | tee storage-permission-review-evidence/window-tests.log
+          grep -F 'test result: ok. 16 passed; 0 failed;' storage-permission-review-evidence/window-tests.log
+      - name: Strict existing native-client configuration
+        run: |
+          set -o pipefail
+          cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --all-targets --features native-worker-client -- -D warnings 2>&1 | tee storage-permission-review-evidence/client-clippy.log
+      - name: Genuine permission review plan command and history roundtrip
+        env:
+          FORMA_OCCT_ROOT: ${{ github.workspace }}/.local/occt-install-unix-x86_64-unknown-linux-gnu
+          FORMA_FOLDER_TEST_WORKER: ${{ github.workspace }}/apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/forma-cad-worker
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          test -x "$FORMA_FOLDER_TEST_WORKER"
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target x86_64-unknown-linux-gnu --features native-occt --lib permissions::folder::host::tests::worker::real_permission_model_command_and_history -- --ignored --exact --nocapture 2>&1 | tee storage-permission-review-evidence/real-permission-roundtrip.log
+          grep -F 'test result: ok. 1 passed; 0 failed;' storage-permission-review-evidence/real-permission-roundtrip.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: permission-proposal-review-${{ github.sha }}-${{ github.run_attempt }}
+          path: storage-permission-review-evidence/
