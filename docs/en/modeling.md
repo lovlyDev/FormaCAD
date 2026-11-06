@@ -38,9 +38,9 @@ CAD IR stores the semantic face and signed distance in `extrudeFace`. Rust passe
 
 ### Selected-edge fillet and chamfer (M3)
 
-Press `3` to switch to edge selection, select a supported box edge and press `Ctrl+B`. Choose Fillet or Chamfer. Drag the size slider or enter a precise positive radius or setback in millimetres. The separate 3D preview rebuilds with OCCT without saving a revision. Choose Build and confirm the project edit to commit. Escape closes the dialog and discards the draft.
+Press `3` to switch to edge selection. Click an edge, then Shift-click to add or remove edges on the same body. Press `Ctrl+B` and choose Fillet or Chamfer. The dialog shows the selected edge count. Drag the slider or enter a positive radius or setback in millimetres. The OCCT preview rebuilds in a separate view. Choose Build and confirm the project edit to commit, or press Escape to discard the draft.
 
-CAD IR stores the source body feature, semantic edge reference and positive radius or equal setback in `filletReferencedEdge` or `chamferReferencedEdge`. The host adds the feature and updates the body in one transaction. A missing edge or unbuildable size rolls back the command batch. This workflow accepts one box edge per operation. The resulting solid has no v1 semantic catalog for further edge picks. Tests cover volume, BREP, STEP round-trip, rejected inputs and rollback.
+CAD IR stores the source body feature, first semantic edge reference, optional additional references and the common radius or setback in `filletReferencedEdge` or `chamferReferencedEdge`. Existing single-edge revisions still load. The worker resolves every edge against the original BREP and builds the contours together. The host updates the body in one transaction and rolls back the command batch on invalid input. The tool accepts up to 64 resolved edges, including box edges and circular cylinder rims. The result has no v1 semantic catalogue for subsequent edge blends. Tests check cylinder volume, BREP validity, STEP round-trip, rejected inputs and rollback.
 
 ### Shell (M3)
 

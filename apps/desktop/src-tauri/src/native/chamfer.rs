@@ -1,5 +1,5 @@
 use super::{ffi, NativeError, Solid};
-use crate::cad_ir::{TopologyKind, TopologyReference};
+use crate::cad_ir::TopologyReference;
 
 impl Solid {
     pub fn chamfer_all_edges(&self, distance_mm: f64) -> Result<Self, NativeError> {
@@ -11,25 +11,7 @@ impl Solid {
         reference: &TopologyReference,
         distance_mm: f64,
     ) -> Result<Self, NativeError> {
-        if !reference.is_valid()
-            || reference.kind != TopologyKind::Edge
-            || !crate::cad_ir::topology::valid_box_edge_key(&reference.role)
-        {
-            return Err(NativeError {
-                code: "INVALID_TOPOLOGY_REFERENCE".into(),
-                detail: "Invalid bounded edge reference".into(),
-            });
-        }
-        cxx::let_cxx_string!(owner = &reference.owner_feature_id);
-        cxx::let_cxx_string!(role = &reference.role);
-        cxx::let_cxx_string!(path = reference.occurrence_path.join("/"));
-        Self::checked(ffi::chamfer_referenced_edge(
-            self.as_ref(),
-            &owner,
-            &role,
-            &path,
-            distance_mm,
-        ))
+        self.blend_referenced_edges(reference, &[], distance_mm, true)
     }
 }
 

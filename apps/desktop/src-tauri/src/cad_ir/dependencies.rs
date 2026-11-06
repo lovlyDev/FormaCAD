@@ -18,17 +18,31 @@ impl Operation {
                 body_feature_id,
                 reference,
                 ..
-            }
-            | Self::ChamferReferencedEdge {
-                body_feature_id,
-                reference,
-                ..
             } => {
                 let mut result = vec![
                     body_feature_id.as_str(),
                     reference.owner_feature_id.as_str(),
                 ];
                 result.extend(reference.occurrence_path.iter().map(String::as_str));
+                result
+            }
+            Self::FilletReferencedEdge {
+                body_feature_id,
+                reference,
+                additional_references,
+                ..
+            }
+            | Self::ChamferReferencedEdge {
+                body_feature_id,
+                reference,
+                additional_references,
+                ..
+            } => {
+                let mut result = vec![body_feature_id.as_str()];
+                for edge in std::iter::once(reference).chain(additional_references) {
+                    result.push(&edge.owner_feature_id);
+                    result.extend(edge.occurrence_path.iter().map(String::as_str));
+                }
                 result
             }
             Self::Hole {
@@ -38,9 +52,6 @@ impl Operation {
                 body_feature_id, ..
             }
             | Self::FilletEdge {
-                body_feature_id, ..
-            }
-            | Self::FilletReferencedEdge {
                 body_feature_id, ..
             }
             | Self::Chamfer {

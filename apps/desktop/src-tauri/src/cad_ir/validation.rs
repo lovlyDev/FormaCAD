@@ -280,27 +280,28 @@ impl Document {
                 Operation::FilletReferencedEdge {
                     body_feature_id,
                     reference: topology,
+                    additional_references,
                     radius,
                 }
                 | Operation::ChamferReferencedEdge {
                     body_feature_id,
                     reference: topology,
+                    additional_references,
                     distance: radius,
                 } => {
                     reference(body_feature_id, FeatureKind::Solid)?;
                     check_dimension(radius, &parameters, false, id)?;
-                    if !topology.is_valid()
-                        || topology.kind != TopologyKind::Edge
-                        || !super::topology::valid_box_edge_key(&topology.role)
-                    {
+                    if !super::topology_refs::valid_blend_edges(topology, additional_references) {
                         return Err(ValidationError::new(
                             ErrorCode::InvalidValue,
                             Some(id.to_owned()),
                         ));
                     }
-                    reference(&topology.owner_feature_id, FeatureKind::Solid)?;
-                    for occurrence in &topology.occurrence_path {
-                        reference(occurrence, FeatureKind::Solid)?;
+                    for edge in std::iter::once(topology).chain(additional_references) {
+                        reference(&edge.owner_feature_id, FeatureKind::Solid)?;
+                        for occurrence in &edge.occurrence_path {
+                            reference(occurrence, FeatureKind::Solid)?;
+                        }
                     }
                     FeatureKind::Solid
                 }

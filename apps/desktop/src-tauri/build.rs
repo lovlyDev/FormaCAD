@@ -44,6 +44,7 @@ fn main() {
             .file("../../../cad-core/src/cone.cpp")
             .file("../../../cad-core/src/fillet.cpp")
             .file("../../../cad-core/src/chamfer.cpp")
+            .file("../../../cad-core/src/edge_blend.cpp")
             .file("../../../cad-core/src/transforms.cpp")
             .file("../../../cad-core/src/affine_transform.cpp")
             .file("../../../cad-core/src/snap_reference.cpp")

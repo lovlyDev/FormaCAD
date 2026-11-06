@@ -8,25 +8,33 @@ import { matchesReferenceRoute } from "../viewer/topology/referenceRoute";
 
 export type EdgeBlendMode = "fillet" | "chamfer";
 
-export function edgeBlendTarget(project: Project, selection: EdgeSelection | null) {
-  const reference = selection?.topologyRef;
-  if (!selection || !reference?.role.startsWith("box-edge:") ||
-      selection.revisionId !== project.currentRevision) return null;
+export function edgeBlendTarget(project: Project, selection: readonly EdgeSelection[]) {
+  const first = selection[0];
+  if (!first || selection.length > 64 || first.revisionId !== project.currentRevision) return null;
   const revision = project.revisions.find((item) => item.id === project.currentRevision);
   const document = readTypedCadDocument(revision?.program ?? "");
-  const body = document?.bodies.find((item) => item.id === selection.bodyId);
-  if (!document || !body || !matchesReferenceRoute(document, body.sourceFeatureId, reference))
-    return null;
-  return { document, body, reference };
+  const body = document?.bodies.find((item) => item.id === first.bodyId);
+  if (!document || !body) return null;
+  const references = [];
+  for (const edge of selection) {
+    const reference = edge.topologyRef;
+    if (!reference || edge.bodyId !== first.bodyId || edge.revisionId !== first.revisionId ||
+        edge.sceneToken !== first.sceneToken || !matchesReferenceRoute(document, body.sourceFeatureId, reference))
+      return null;
+    references.push(reference);
+  }
+  const [reference, ...additionalReferences] = references;
+  return { document, body, reference, additionalReferences };
 }
 
-export function captureEdgeBlend(project: Project, selection: EdgeSelection, mode: EdgeBlendMode, mm: number) {
+export function captureEdgeBlend(project: Project, selection: readonly EdgeSelection[], mode: EdgeBlendMode, mm: number) {
   const target = edgeBlendTarget(project, selection);
   if (!target || !Number.isFinite(mm) || mm <= 0 || mm > 10000) return null;
-  const { document, body, reference } = target;
+  const { document, body, reference, additionalReferences } = target;
   const name = mode === "fillet" ? t("Edge fillet") : t("chamfer");
   const size = { kind: "literal", mm };
-  const source = { bodyFeatureId: body.sourceFeatureId, reference };
+  const source = { bodyFeatureId: body.sourceFeatureId, reference,
+    ...(additionalReferences.length ? { additionalReferences } : {}) };
   const operation = mode === "fillet"
     ? { type: "filletReferencedEdge", ...source, radius: size }
     : { type: "chamferReferencedEdge", ...source, distance: size };

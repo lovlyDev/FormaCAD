@@ -120,19 +120,14 @@ pub(crate) mod ffi {
             owner: &CxxString,
         ) -> UniquePtr<Shape>;
         fn topology_occurrence(source: &Shape, id: &CxxString) -> UniquePtr<Shape>;
-        fn fillet_referenced_edge(
+        fn blend_referenced_edges(
             source: &Shape,
             owner: &CxxString,
             role: &CxxString,
             path: &CxxString,
-            radius_mm: f64,
-        ) -> UniquePtr<Shape>;
-        fn chamfer_referenced_edge(
-            source: &Shape,
-            owner: &CxxString,
-            role: &CxxString,
-            path: &CxxString,
-            distance_mm: f64,
+            additional: &CxxString,
+            size_mm: f64,
+            chamfer: bool,
         ) -> UniquePtr<Shape>;
         fn make_cylinder(radius_mm: f64, height_mm: f64) -> UniquePtr<Shape>;
         fn make_referenced_cylinder(

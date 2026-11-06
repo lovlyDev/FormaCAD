@@ -351,17 +351,22 @@ export async function mountViewportTransformHarness(
       edge: () => useWorkspace.getState().selectedEdge,
       edgeScreen: async (role: string) => {
         const { cadEdges } = await import("../src/features/viewer/edgeSelection");
+        const { pickCadEdge } = await import("../src/features/viewer/pickCadEdge");
         const state = live();
         const body = state?.scene.getObjectByName("body") as Mesh | undefined;
         const edge = body && cadEdges(body)?.find((item) => item.topologyRef?.role === role);
         if (!state || !body || !edge || edge.points.length < 2) return null;
         body.updateWorldMatrix(true, false);
-        const point = new THREE.Vector3(...edge.points[0])
-          .lerp(new THREE.Vector3(...edge.points.at(-1)!), 0.5)
-          .applyMatrix4(body.matrixWorld).project(state.camera);
         const rect = state.gl.domElement.getBoundingClientRect();
-        return { x: rect.left + (point.x + 1) * rect.width / 2,
-          y: rect.top + (1 - point.y) * rect.height / 2 };
+        for (let i = 1; i < edge.points.length; i++) {
+          const point = new THREE.Vector3(...edge.points[i - 1])
+            .lerp(new THREE.Vector3(...edge.points[i]), 0.5)
+            .applyMatrix4(body.matrixWorld).project(state.camera);
+          const local = { x: (point.x + 1) * rect.width / 2, y: (1 - point.y) * rect.height / 2 };
+          const hit = pickCadEdge(body.parent!, state.camera, local, rect.width, rect.height);
+          if (hit?.topologyRef?.role === role) return { x: rect.left + local.x, y: rect.top + local.y };
+        }
+        return null;
       },
       topFaceScreen: () => {
         const state = live();

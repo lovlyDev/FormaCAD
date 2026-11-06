@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cmath>
 #include <filesystem>
+#include <numbers>
 
 int main() {
   return run_test([] {
@@ -34,5 +35,31 @@ int main() {
             "selected chamfer BREP and volume survive STEP");
     require(!forma::chamfer_referenced_edge(*referenced, "pad", edge, "missing", 2.)->ok(),
             "stale occurrence was accepted");
+
+    const auto cylinder = forma::make_referenced_cylinder(10., 20., "round_pad");
+    require(cylinder->ok(), "cylinder construction failed");
+    constexpr auto top = "cylinder-edge:top";
+    constexpr auto both = "round_pad\tcylinder-edge:bottom\t\n";
+    constexpr double size = 2.;
+    for (const bool bevel : {false, true}) {
+      const auto one = forma::blend_referenced_edges(*cylinder, "round_pad", top, "", "", size, bevel);
+      const auto two = forma::blend_referenced_edges(*cylinder, "round_pad", top, "", both, size, bevel);
+      require(one->ok(), one->error_message().c_str());
+      require(two->ok(), two->error_message().c_str());
+      const double loss = cylinder->volume_mm3() - two->volume_mm3();
+      require(loss > 0 && std::abs(loss - 2 * (cylinder->volume_mm3() - one->volume_mm3())) < 1e-5,
+              "both circular rims must remove equal amounts of material");
+      if (bevel) {
+        const double expected = 2 * std::numbers::pi * (10 * size * size - size * size * size / 3);
+        require(std::abs(loss - expected) < 1e-5, "cylinder chamfer volume");
+      }
+      require(forma::write_step(*two, path.string(), error), "write two-edge STEP");
+      const auto round_trip = forma::read_step(path.string());
+      std::filesystem::remove(path);
+      require(round_trip->ok() && std::abs(round_trip->volume_mm3() - two->volume_mm3()) < 1e-5,
+              "two-edge BREP and volume survive STEP");
+      require(!forma::blend_referenced_edges(*cylinder, "round_pad", top, "",
+        "round_pad\tcylinder-edge:top\t\n", size, bevel)->ok(), "duplicate edge was accepted");
+    }
   });
 }

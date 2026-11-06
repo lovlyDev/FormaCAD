@@ -153,6 +153,7 @@ export default function App() {
     selected,
     selectedFace,
     selectedEdge,
+    selectedEdges,
     setSelected,
   } = useWorkspace();
   const projectAccess = useProjectAccess(project?.id, setError);
@@ -174,7 +175,7 @@ export default function App() {
   const [torusTarget, setTorusTarget] = useState<{ id: string; revision: string | null } | null>(null);
   const [datumTarget, setDatumTarget] = useState<{ id: string; revision: string | null; kind: DatumKind; sources: DatumSourceOption[] } | null>(null);
   const [faceExtrusion, setFaceExtrusion] = useState<{ projectId: string; selection: FaceSelection; initialMm?: number } | null>(null);
-  const [edgeBlend, setEdgeBlend] = useState<{ projectId: string; selection: EdgeSelection } | null>(null);
+  const [edgeBlend, setEdgeBlend] = useState<{ projectId: string; selection: readonly EdgeSelection[] } | null>(null);
   const [shellSelection, setShellSelection] = useState<{ projectId: string; selection: FaceSelection } | null>(null);
   const [patternSelection, setPatternSelection] = useState<{ projectId: string; revision: string | null; bodyId: string } | null>(null);
   const [duplicateSelection, setDuplicateSelection] = useState<{ projectId: string; revision: string | null; bodyId: string; spacingMm: number } | null>(null);
@@ -1195,9 +1196,9 @@ export default function App() {
                     : undefined}
                   onBlendEdge={!editingBlocked && !pending && !modal && !compare &&
                     committedScene.interactive && selectedEdge?.sceneToken === object.uuid &&
-                    edgeBlendTarget(project, selectedEdge)
+                    edgeBlendTarget(project, selectedEdges)
                     ? () => {
-                        setEdgeBlend({ projectId: project.id, selection: selectedEdge });
+                        setEdgeBlend({ projectId: project.id, selection: selectedEdges });
                         setModal("edgeBlend");
                       }
                     : undefined}
@@ -1676,7 +1677,7 @@ export default function App() {
           onApply={(operation) => {
             setEdgeBlend(null);
             setModal(null);
-            void ask(operation.captured.prompt, t("Blend selected edge"), project.name, async () => {
+            void ask(operation.captured.prompt, t("Blend selected edges"), project.name, async () => {
               setBusy(true, t("Построение геометрии"));
               try {
                 await applyModel(operation.captured, { invoke: operation.invoke });

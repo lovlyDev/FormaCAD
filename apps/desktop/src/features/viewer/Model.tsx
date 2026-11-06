@@ -44,6 +44,8 @@ export function Model({
   const setBodySelection = useWorkspace((s) => s.setBodySelection);
   const selectFace = useWorkspace((s) => s.setSelectedFace);
   const selectEdge = useWorkspace((s) => s.setSelectedEdge);
+  const pickEdge = useWorkspace((s) => s.pickSelectedEdge);
+  const selectedEdges = useWorkspace((s) => s.selectedEdges);
   const light = useTheme() === "light";
   useBodyAppearance(
     object,
@@ -78,10 +80,10 @@ export function Model({
       if (!edges) return;
       edges.forEach((edge, index) => {
         const ordinal = index + 1;
-        const selected =
-          selectedEdge?.revisionId === revisionId &&
-          selectedEdge.bodyId === node.name &&
-          selectedEdge.edgeOrdinal === ordinal;
+        const matches = (edge: EdgeSelection | null) =>
+          edge?.revisionId === revisionId && edge.bodyId === node.name && edge.edgeOrdinal === ordinal;
+        const selected = matches(selectedEdge) || selectedEdges.some((edge) =>
+          edge.sceneToken === object.uuid && matches(edge));
         if (selectionMode !== "edge" && !selected) return;
         const overlay = edgeOverlay(node, edge, ordinal, selected);
         if (!overlay) return;
@@ -105,6 +107,7 @@ export function Model({
     object,
     revisionId,
     selectedEdge,
+    selectedEdges,
     selectionMode,
     size.width,
     size.height,
@@ -143,15 +146,14 @@ export function Model({
           }
           if (object.getObjectByName(hit.bodyId)?.userData.formaSelectionLocked)
             return;
-          select(hit.bodyId);
-          selectEdge({
+          pickEdge({
             bodyId: hit.bodyId,
             edgeOrdinal: hit.edgeOrdinal,
             revisionId,
             sceneToken: object.uuid,
             ...(hit.topologyRef ? { topologyRef: hit.topologyRef } : {}),
             ...(hit.semanticKey ? { semanticKey: hit.semanticKey } : {}),
-          });
+          }, e.nativeEvent.shiftKey);
           onPoint(hit.point.clone());
           return;
         }

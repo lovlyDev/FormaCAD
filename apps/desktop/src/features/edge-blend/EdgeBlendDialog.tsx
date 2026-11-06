@@ -12,7 +12,7 @@ type Blend = NonNullable<ReturnType<typeof captureEdgeBlend>>;
 
 export function EdgeBlendDialog({ project, selection, disabled, close, onApply }: {
   project: Project;
-  selection: EdgeSelection;
+  selection: readonly EdgeSelection[];
   disabled: boolean;
   close: () => void;
   onApply: (blend: Blend) => void;
@@ -29,12 +29,13 @@ export function EdgeBlendDialog({ project, selection, disabled, close, onApply }
     project.currentRevision, !!draft && !disabled && (autoPreview || refresh > 0), refresh);
   const label = mode === "fillet" ? t("Fillet radius") : t("Расстояние");
   return (
-    <Modal open wide onClose={close} title={t("Blend selected edge")}
+    <Modal open wide onClose={close} title={t("Blend selected edges")}
       description={t("Review exact geometry before saving a new revision.")}>
       <form onSubmit={(event) => {
         event.preventDefault();
         if (!disabled && draft && !preview.error) onApply(draft);
       }}>
+        <p className="field-hint">{t("Selected edges: {{value0}}", { value0: selection.length })}</p>
         <label className="field">
           {t("Edge treatment")}
           <select aria-label={t("Edge treatment")} value={mode} disabled={disabled}

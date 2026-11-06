@@ -286,21 +286,29 @@ pub fn build_body_with_assets(
             Operation::FilletReferencedEdge {
                 body_feature_id,
                 reference,
+                additional_references,
                 radius,
             } => match get(body_feature_id)? {
-                FeatureValue::Solid(source) => FeatureValue::Solid(
-                    source.fillet_referenced_edge(reference, dimension(radius, &parameters)?)?,
-                ),
+                FeatureValue::Solid(source) => FeatureValue::Solid(source.blend_referenced_edges(
+                    reference,
+                    additional_references,
+                    dimension(radius, &parameters)?,
+                    false,
+                )?),
                 _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
             },
             Operation::ChamferReferencedEdge {
                 body_feature_id,
                 reference,
+                additional_references,
                 distance,
             } => match get(body_feature_id)? {
-                FeatureValue::Solid(source) => FeatureValue::Solid(
-                    source.chamfer_referenced_edge(reference, dimension(distance, &parameters)?)?,
-                ),
+                FeatureValue::Solid(source) => FeatureValue::Solid(source.blend_referenced_edges(
+                    reference,
+                    additional_references,
+                    dimension(distance, &parameters)?,
+                    true,
+                )?),
                 _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
             },
             Operation::Translate {

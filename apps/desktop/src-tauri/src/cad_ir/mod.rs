@@ -230,6 +230,8 @@ pub enum Operation {
     FilletReferencedEdge {
         body_feature_id: String,
         reference: TopologyReference,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        additional_references: Vec<TopologyReference>,
         radius: Dimension,
     },
     Chamfer {
@@ -239,6 +241,8 @@ pub enum Operation {
     ChamferReferencedEdge {
         body_feature_id: String,
         reference: TopologyReference,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        additional_references: Vec<TopologyReference>,
         distance: Dimension,
     },
     Translate {

@@ -60,6 +60,7 @@ add_library(forma_cad_core STATIC
   src/cone.cpp
   src/fillet.cpp
   src/chamfer.cpp
+  src/edge_blend.cpp
   src/transforms.cpp
   src/rotation.cpp
   src/mirror.cpp
