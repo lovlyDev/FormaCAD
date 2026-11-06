@@ -786,6 +786,14 @@ fn parse_commands(id: &str, output: &str) -> Result<Vec<Command>> {
 /// collide with (or masquerade as) existing model IDs.
 fn check_prefix(id: &str, commands: &[Command], prefix: &str) -> Result<()> {
     for command in commands {
+        if let Command::SeparateSolids { new_bodies, .. } = command {
+            if new_bodies.iter().any(|body| !body.id.starts_with(prefix)) {
+                return Err(output_invalid(
+                    id,
+                    "New body ids must start with idPrefix".into(),
+                ));
+            }
+        }
         let new_id = match command {
             Command::AddFeature { feature } => Some(&feature.id),
             Command::AddBody { body } => Some(&body.id),

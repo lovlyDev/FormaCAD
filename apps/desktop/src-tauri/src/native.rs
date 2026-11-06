@@ -37,6 +37,8 @@ pub mod reference_measurements;
 mod revolution;
 pub mod section;
 #[cfg(feature = "native-occt")]
+mod separate_solids;
+#[cfg(feature = "native-occt")]
 mod shell;
 #[cfg(feature = "native-occt")]
 pub mod snapping;

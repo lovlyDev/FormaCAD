@@ -139,7 +139,7 @@ bool write_glb(const Shape& source, const std::string& path, std::string& code) 
     json << "{\"asset\":{\"version\":\"2.0\",\"generator\":\"Forma CAD\"},"
             "\"scene\":0,\"scenes\":[{\"nodes\":[0]}],\"nodes\":[{\"mesh\":0,\"name\":\"Body\"}],"
             "\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0},\"indices\":1,"
-            "\"extras\":{\"formaFaceTriangleCounts\":[";
+            "\"extras\":{\"formaSolidCount\":" << source.solid_count() << ",\"formaFaceTriangleCounts\":[";
     for (std::size_t face = 0; face < face_triangles.size(); ++face) {
       if (face != 0) json << ',';
       json << face_triangles[face];

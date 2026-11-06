@@ -234,6 +234,16 @@ pub fn build_body_with_assets(
                 }
                 _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
             },
+            Operation::ExtractSolid {
+                body_feature_id,
+                index,
+                expected_count,
+            } => match get(body_feature_id)? {
+                FeatureValue::Solid(source) => {
+                    FeatureValue::Solid(source.extract_solid(*index, *expected_count)?)
+                }
+                _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
+            },
             Operation::PatternLinear { .. } | Operation::PatternCircular { .. } => {
                 FeatureValue::Solid(super::pattern::build_pattern(
                     &feature.operation,

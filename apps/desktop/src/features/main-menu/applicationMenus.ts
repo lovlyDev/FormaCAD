@@ -12,6 +12,7 @@ interface Actions {
   shell?: () => void;
   pattern?: () => void;
   duplicateBody?: () => void;
+  separateSolids?: () => void;
   palette: () => void;
   settings: (page?: string) => void;
   workspaces: () => void;
@@ -142,6 +143,13 @@ export function applicationMenus(
           shortcut: "Shift D",
           disabled: !actions.duplicateBody,
           run: () => actions.duplicateBody?.(),
+        },
+        {
+          id: "separateSolids",
+          label: t("Separate solids"),
+          shortcut: "P",
+          disabled: !actions.separateSolids,
+          run: () => actions.separateSolids?.(),
         },
         {
           id: "plugins",

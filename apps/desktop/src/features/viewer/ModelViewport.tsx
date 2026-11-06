@@ -54,6 +54,7 @@ export function ModelViewport({
   onExtrudeFace,
   onBlendEdge,
   onDuplicateBody,
+  onSeparateSolids,
 }: {
   projectId: string;
   object: THREE.Group;
@@ -73,6 +74,7 @@ export function ModelViewport({
   onExtrudeFace?: (distanceMm?: number) => void;
   onBlendEdge?: () => void;
   onDuplicateBody?: () => void;
+  onSeparateSolids?: () => void;
 }) {
   return (
     <section className="center-panel">
@@ -109,6 +111,7 @@ export function ModelViewport({
               onExtrudeFace={onExtrudeFace}
               onBlendEdge={onBlendEdge}
               onDuplicateBody={onDuplicateBody}
+              onSeparateSolids={onSeparateSolids}
             />
           </Suspense>
         </ViewerBoundary>

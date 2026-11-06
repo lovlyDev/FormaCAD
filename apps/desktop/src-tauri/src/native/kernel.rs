@@ -156,6 +156,7 @@ pub(crate) mod ffi {
             occurrence: &CxxString,
             offset_mm: f64,
         ) -> UniquePtr<Shape>;
+        fn extract_solid(source: &Shape, index: i32, expected_count: i32) -> UniquePtr<Shape>;
         #[allow(clippy::too_many_arguments)]
         fn pattern_linear(
             source: &Shape,

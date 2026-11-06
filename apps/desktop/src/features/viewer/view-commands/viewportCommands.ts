@@ -37,6 +37,7 @@ export interface ViewportCommandContext {
   onExtrudeFace?: () => void;
   onBlendEdge?: () => void;
   onDuplicateBody?: () => void;
+  onSeparateSolids?: () => void;
 }
 
 function selectBodies(object: THREE.Group, action: SelectionAction) {
@@ -132,6 +133,7 @@ export function viewportCommands(
     "model.extrudeFace": context.onExtrudeFace,
     "model.edgeBlend": context.onBlendEdge,
     "model.duplicateBody": context.onDuplicateBody,
+    "model.separateSolids": context.onSeparateSolids,
     "transform.adjustLast": () =>
       useTransformViewport.getState().setAdjustOpen(true),
     "transform.pivotPie": pie(pivotPie),

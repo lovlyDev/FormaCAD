@@ -30,6 +30,7 @@ export const defaultBindings: readonly KeyBinding[] = [
   binding("model.extrudeFace", "KeyE"),
   binding("model.edgeBlend", "KeyB", { primary: true }),
   binding("model.duplicateBody", "KeyD", { shift: true }),
+  binding("model.separateSolids", "KeyP"),
   binding("transform.adjustLast", "F9"),
   binding("selection.all", "KeyA"),
   binding("selection.none", "KeyA", { alt: true }),

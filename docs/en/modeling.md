@@ -60,6 +60,12 @@ Select a body and press `Shift+D` or choose **Tools → Duplicate body**. Enter 
 
 `duplicate_body` copies the required features and bound parameters, gives them new identifiers, and rebinds semantic topology references to the copy. STEP assets stay shared by their immutable content hashes. Editing a copied parameter affects only the copy. Existing feature and body IDs stay the same. The transaction rejects ID collisions. Host tests verify volumes and extents after exporting and reopening the committed STEP.
 
+### Separate solids (M3)
+
+Select a compound body and press `P` or choose **Tools → Separate solids**. Confirm the edit to get independently selectable bodies in one revision. The first solid retains the original body ID. This operation uses the existing solids in the BREP compound and keeps their placements. It accepts 2 to 128 solids. An older preview without a solid count must be regenerated before the tool becomes available.
+
+`separate_solids` creates an `extractSolid` feature for each output. The worker checks the original count on every rebuild. A count mismatch fails the transaction. For changes that reorder the source solids, recreate the separation to keep the intended parts.
+
 Current schema operations:
 
 | Group | Operations | Result |

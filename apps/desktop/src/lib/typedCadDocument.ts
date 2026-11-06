@@ -42,6 +42,7 @@ export function featureDependencies(feature: TypedCadFeature): string[] {
     case "shell":
     case "patternLinear":
     case "patternCircular":
+    case "extractSolid":
     case "fillet":
     case "filletEdge":
     case "filletReferencedEdge":
@@ -83,6 +84,7 @@ export function canSuppressFeature(feature: TypedCadFeature): boolean {
 export function solidFeature(feature: TypedCadFeature): boolean {
   return [
     "importStep",
+    "extractSolid",
     "sphere",
     "torus",
     "cone",

@@ -352,6 +352,20 @@ impl Document {
                     }
                     FeatureKind::Solid
                 }
+                Operation::ExtractSolid {
+                    body_feature_id,
+                    index,
+                    expected_count,
+                } => {
+                    reference(body_feature_id, FeatureKind::Solid)?;
+                    if !(2..=128).contains(expected_count) || index >= expected_count {
+                        return Err(ValidationError::new(
+                            ErrorCode::InvalidValue,
+                            Some(id.to_owned()),
+                        ));
+                    }
+                    FeatureKind::Solid
+                }
                 Operation::PatternLinear {
                     body_feature_id,
                     repeat_hole,

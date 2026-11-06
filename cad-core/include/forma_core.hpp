@@ -29,6 +29,7 @@ public:
   double volume_mm3() const noexcept;
   double surface_area_mm2() const noexcept;
   int face_count() const noexcept;
+  int solid_count() const noexcept;
   int edge_count() const noexcept;
   double extent_x_mm() const noexcept;
   double extent_y_mm() const noexcept;
@@ -64,6 +65,7 @@ private:
   friend std::unique_ptr<Shape> fillet_edge(const Shape&, const std::string&, double) noexcept;
   friend std::unique_ptr<Shape> chamfer_all_edges(const Shape&, double) noexcept;
   friend std::unique_ptr<Shape> shell(const Shape&, const std::string&, const std::string&, const std::string&, double) noexcept;
+  friend std::unique_ptr<Shape> extract_solid(const Shape&, int, int) noexcept;
   friend std::unique_ptr<Shape> pattern_linear(const Shape&, int, double, double, double, int, double, double, double) noexcept;
   friend std::unique_ptr<Shape> pattern_circular(const Shape&, int, double, double, double, double, double, double, double) noexcept;
   friend std::unique_ptr<Shape> chamfer_referenced_edge(const Shape&, const std::string&, const std::string&, const std::string&, double) noexcept;
@@ -120,6 +122,7 @@ std::unique_ptr<Shape> shell(const Shape& source, const std::string& owner, cons
                              const std::string& occurrence, double offset_mm) noexcept;
 std::unique_ptr<Shape> pattern_linear(const Shape& source, int count_u, double ux, double uy, double uz,
                                      int count_v, double vx, double vy, double vz) noexcept;
+std::unique_ptr<Shape> extract_solid(const Shape& source, int index, int expected_count) noexcept;
 std::unique_ptr<Shape> pattern_circular(const Shape& source, int count, double ox, double oy, double oz,
                                        double dx, double dy, double dz, double step_deg) noexcept;
 std::unique_ptr<Shape> chamfer_referenced_edge(const Shape& source, const std::string& owner,

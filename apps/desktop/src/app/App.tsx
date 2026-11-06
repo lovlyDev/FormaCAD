@@ -121,6 +121,7 @@ import { PatternDialog } from "../features/pattern/PatternDialog";
 import { capturePattern, patternTarget } from "../features/pattern/patternCommand";
 import { DuplicateBodyDialog } from "../features/duplicate-body/DuplicateBodyDialog";
 import { captureDuplicateBody, duplicateBodyTarget } from "../features/duplicate-body/duplicateBodyCommand";
+import { captureSeparateSolids } from "../features/separate-solids/separateSolidsCommand";
 import { datumSources } from "../features/add-menu/datum/datumSources";
 import { captureDatum, type DatumKind } from "../features/add-menu/datum/datumModel";
 import { captureTorus } from "../features/add-menu/torus/torusCommands";
@@ -289,6 +290,20 @@ export default function App() {
       }
     : undefined;
   const selectedBodyLabel = selectedBody ? bodyLabel(selectedBody) : selected;
+  const separation = !editingBlocked && !pending && !modal && !compare &&
+    project && selectedBody && committedScene.interactive
+    ? captureSeparateSolids(project, selectedBody) : null;
+  const openSeparateSolids = separation ? () => {
+    void ask(separation.captured.prompt, t("Create a separate body for each solid in the selection."),
+      separation.name, async () => {
+        setBusy(true, t("Построение геометрии"));
+        try {
+          await applyModel(separation.captured, { invoke: separation.invoke });
+        } finally {
+          setBusy(false);
+        }
+      }, "modify_project", separation.captured.base.id);
+  } : undefined;
   const selectedLabel =
     selectedEdge && selectedEdge.revisionId === project?.currentRevision
       ? t("{{value0}} · CAD edge {{value1}}", {
@@ -987,6 +1002,7 @@ export default function App() {
                   }
                 : undefined,
               duplicateBody: openDuplicateBody,
+              separateSolids: openSeparateSolids,
               palette: () => setModal("palette"),
               settings: (page) => {
                 if (page) persist("forma.ui.settingsPage", JSON.stringify(page));
@@ -1162,6 +1178,7 @@ export default function App() {
                   onScreenshot={(data) => void captureScreenshot(data)}
                   onVisibility={visibility.onVisibility}
                   onDuplicateBody={openDuplicateBody}
+                  onSeparateSolids={openSeparateSolids}
                   onExtrudeFace={!editingBlocked && !pending && !modal && !compare &&
                     committedScene.interactive && selectedFace?.sceneToken === object.uuid &&
                     faceExtrusionTarget(project, selectedFace)

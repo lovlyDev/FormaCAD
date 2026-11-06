@@ -20,6 +20,8 @@ mod inputs;
 mod lifecycle;
 #[path = "model_apply_transaction/pattern.rs"]
 mod pattern;
+#[path = "model_apply_transaction/separate_solids.rs"]
+mod separate_solids;
 #[path = "model_apply_transaction/shell.rs"]
 mod shell;
 #[path = "model_apply_transaction/torus.rs"]

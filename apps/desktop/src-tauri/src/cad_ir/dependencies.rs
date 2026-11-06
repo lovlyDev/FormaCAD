@@ -52,6 +52,9 @@ impl Operation {
             | Self::PatternCircular {
                 body_feature_id, ..
             }
+            | Self::ExtractSolid {
+                body_feature_id, ..
+            }
             | Self::Translate {
                 body_feature_id, ..
             }

@@ -101,6 +101,21 @@ export async function mountViewportTransformHarness(
         document.bodies.push({ id: prefix, name: command.name, sourceFeatureId: `${prefix}_placement` });
         continue;
       }
+      if (command.command === "separate_solids") {
+        const original = document.bodies.find((item: any) => item.id === command.bodyId);
+        const source = original.sourceFeatureId;
+        const outputs = [original, ...command.newBodies];
+        const prefix = command.newBodies[0].id;
+        for (const [index, output] of outputs.entries()) {
+          const id = `${prefix}_part${index}`;
+          document.features.push({ id, name: output.name, operation: {
+            type: "extractSolid", bodyFeatureId: source, index, expectedCount: outputs.length,
+          } });
+          output.sourceFeatureId = id;
+          if (index > 0) document.bodies.push(output);
+        }
+        continue;
+      }
       const body = document.bodies.find(
         (item: any) => item.id === command.bodyId,
       );
@@ -379,14 +394,14 @@ export async function mountViewportTransformHarness(
           y: rect.top + ((1 - point.y) / 2) * rect.height,
         };
       },
-      bodyScreen: () => {
+      bodyScreen: (fractionX = 0.5) => {
         const state = live();
         const body = state?.scene.getObjectByName("body");
         if (!state || !body) return null;
-        const centre = new THREE.Box3()
-          .setFromObject(body)
-          .getCenter(new THREE.Vector3())
-          .project(state.camera);
+        const bounds = new THREE.Box3().setFromObject(body);
+        const centre = bounds.getCenter(new THREE.Vector3());
+        centre.x = THREE.MathUtils.lerp(bounds.min.x, bounds.max.x, fractionX);
+        centre.project(state.camera);
         const rect = state.gl.domElement.getBoundingClientRect();
         return {
           x: rect.left + ((centre.x + 1) / 2) * rect.width,

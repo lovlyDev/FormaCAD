@@ -97,6 +97,13 @@ pub struct Body {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SeparateBody {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(
     tag = "kind",
     rename_all = "camelCase",
@@ -183,6 +190,11 @@ pub enum Operation {
         body_feature_id: String,
         repeat_hole: bool,
         layout: pattern::LinearPattern,
+    },
+    ExtractSolid {
+        body_feature_id: String,
+        index: u8,
+        expected_count: u8,
     },
     PatternCircular {
         body_feature_id: String,
@@ -341,6 +353,10 @@ pub enum DimensionField {
     deny_unknown_fields
 )]
 pub enum Command {
+    SeparateSolids {
+        body_id: String,
+        new_bodies: Vec<SeparateBody>,
+    },
     DuplicateBody {
         body_id: String,
         new_body_id: String,

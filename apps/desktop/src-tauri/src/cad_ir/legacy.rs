@@ -76,6 +76,7 @@ impl Document {
                 | Operation::Shell { .. }
                 | Operation::PatternLinear { .. }
                 | Operation::PatternCircular { .. }
+                | Operation::ExtractSolid { .. }
                 | Operation::Rotate { .. }
                 | Operation::Transform { .. }
                 | Operation::Mirror { .. }

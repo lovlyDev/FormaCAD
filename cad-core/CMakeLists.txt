@@ -56,6 +56,7 @@ add_library(forma_cad_core STATIC
   src/extrude_face.cpp
   src/shell.cpp
   src/pattern.cpp
+  src/separate_solids.cpp
   src/cone.cpp
   src/fillet.cpp
   src/chamfer.cpp
