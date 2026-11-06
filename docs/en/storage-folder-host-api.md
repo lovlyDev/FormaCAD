@@ -505,3 +505,39 @@ next request captures the new commit. Retired menus cannot move another folder's
 cursor. Host stale-snapshot refusals do not fall back to estimates. Ordinary worker
 failures may return an explicitly non-exact estimate only in the original current
 context. See the [snap contract](../integration/storage-snap-renderer-source.en.md).
+
+### One-use host decision for the original command
+
+The Rust `window_sources/approval` module retains the original `FolderOperation`
+and typed Model/History command before the user decision. `request_write` checks
+window, source ID, project ID and expected commit. `resolve_write` accepts a decision
+only for that window; `consume_write` requires the same original identity.
+`ApprovedCommand.execute` executes the retained command without accepting a replacement
+payload after approval. The common executor validates CAD programs; the host must
+validate input sizes before creating a request from IPC.
+
+Requests remain in RAM for at most five minutes, with at most 128 pending entries.
+Restart or source/window closure never restores permission. Denial, repeated
+resolution, replay, another same-ID folder and saved-state changes cannot authorize
+a write. ReadSession and audit/settings are not permission authority. The existing
+publisher still checks history and obtains the actual OS writer lease. Requesting
+or deciding alone does not write project data.
+
+The global registry mutex never spans an await. A per-request mutex serializes
+resolution and consumption. Eight regressions use genuine FCP1/SQLite folders for
+original command retention, read-only decisions, foreign selectors, denial/expiry/
+replay, close/reopen, changed commits, concurrent consumers, independent requests
+and registry capacity. CI runs these alongside existing window-source tests.
+Until CI succeeds the new Rust checks are not claimed as locally executed: this
+machine lacks a complete Windows SDK.
+
+A separate explicit native CI test executes retained CAD commands for 40→80 mm,
+then Undo/Redo through the same one-use route and inspects actual STEP files with
+the worker to check volume and bounds. It requires an explicitly built worker and
+runs with `--ignored --exact`; a normal skipped/ignored run is not its validation.
+
+This is a host foundation, without a new user action. Existing shared
+`request_permission`/`resolve_permission` and model/history IPC are not connected
+yet; their integration requires a separate agreed patch. No parallel IPC, managed
+project rows or serialized grants are added. Folder controls remain hidden until
+the complete read/write flow is ready.

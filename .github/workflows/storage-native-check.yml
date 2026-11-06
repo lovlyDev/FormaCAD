@@ -87,6 +87,16 @@ jobs:
           test -x "$FORMA_FOLDER_TEST_WORKER"
           cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target x86_64-unknown-linux-gnu --features native-occt --lib project_repository::sqlite_folder::api::worker_tests::real_worker_host_api_roundtrip -- --ignored --exact --nocapture 2>&1 | tee storage-native-evidence/folder-host-api-roundtrip.log
           grep -F 'test result: ok. 1 passed; 0 failed;' storage-native-evidence/folder-host-api-roundtrip.log
+      - name: Execute retained folder permission commands with the real CAD worker
+        env:
+          FORMA_OCCT_ROOT: ${{ github.workspace }}/.local/occt-install-unix-x86_64-unknown-linux-gnu
+          FORMA_FOLDER_TEST_WORKER: ${{ github.workspace }}/apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/forma-cad-worker
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          set -o pipefail
+          test -x "$FORMA_FOLDER_TEST_WORKER"
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target x86_64-unknown-linux-gnu --features native-occt --lib project_repository::window_sources::approval::tests::worker::real_command_decision_applies_original_cad_and_history -- --ignored --exact --nocapture 2>&1 | tee storage-native-evidence/folder-command-approval.log
+          grep -F 'test result: ok. 1 passed; 0 failed;' storage-native-evidence/folder-command-approval.log
       - name: Execute selected STEP transfer with the real CAD worker
         env:
           FORMA_OCCT_ROOT: ${{ github.workspace }}/.local/occt-install-unix-x86_64-unknown-linux-gnu

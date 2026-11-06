@@ -22,9 +22,26 @@ pub mod operation;
         any(target_arch = "x86_64", target_arch = "aarch64")
     )
 ))]
+pub mod approval;
+
+#[cfg(any(
+    windows,
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    )
+))]
 mod supported;
 #[derive(Default)]
 pub struct WindowSources {
+    #[cfg(any(
+        windows,
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        )
+    ))]
+    approvals: approval::ApprovalRequests,
     #[cfg(any(
         windows,
         all(
@@ -50,6 +67,7 @@ impl WindowSources {
             )
         ))]
         {
+            self.approvals.close(label, None);
             let scope = self
                 .scopes
                 .lock()
@@ -103,7 +121,9 @@ impl WindowSources {
             )
         ))]
         {
-            self.existing(label)?.close(key)
+            let closed = self.existing(label)?.close(key)?;
+            self.approvals.close(label, Some(key));
+            Ok(closed)
         }
         #[cfg(not(any(
             windows,
