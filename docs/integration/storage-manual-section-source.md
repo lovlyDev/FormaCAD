@@ -2,7 +2,7 @@
 
 [English](storage-manual-section-source.en.md) · [Host API](../ru/storage-folder-host-api.md)
 
-Статус: **подготовлен, не применён**. Issue #31 / PR #35, исполнитель wenlixxq,
+Статус: **применён после явного согласования всех шести файлов; native CI ожидается**. Issue #31 / PR #35, исполнитель wenlixxq,
 согласование и приёмка lovlyDev. Основа runtime `64bde10`.
 Diff: [storage-manual-section-source.patch](storage-manual-section-source.patch).
 
@@ -35,7 +35,7 @@ API принимает необязательный FolderSourceRef, сохра�
 ## Проверки и незавершённые условия
 
 Применимость и staged rustfmt прошли. Полная проверка TypeScript с виртуальной
-подстановкой всех пяти подготовленных CAD API прошла; рабочие исходники не менялись.
+подстановкой всех пяти подготовленных CAD API прошла; это была проверка подготовленного патча. После согласованного применения production build прошёл в рабочей ветке.
 Новая native-регрессия подготовлена, но **ещё не выполнялась**: настоящий STEP
 40×20×10 помещается в FCP1 без authored program/preview, managed-двойник повреждается.
 Проверяются source hash, периметр сечения 120 мм, отказ после закрытия во время
@@ -44,4 +44,4 @@ API принимает необязательный FolderSourceRef, сохра�
 
 Патч ещё не подключает workspace state или кнопку папки и не завершает этап 4.
 Native/Cargo/C++/protocol/permissions/SQL/версии неизменны. Общие model_section и
-frontend-файлы требуют согласования по §5 ТЗ до применения.
+frontend-файлы согласованы владельцем по §5 ТЗ перед применением.

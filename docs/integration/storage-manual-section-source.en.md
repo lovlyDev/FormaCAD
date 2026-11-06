@@ -2,7 +2,7 @@
 
 [Русский](storage-manual-section-source.md) · [Host API](../en/storage-folder-host-api.md)
 
-Status: **prepared, unapplied**. Issue #31 / PR #35; implementation wenlixxq,
+Status: **applied after explicit owner agreement for all six files; native CI pending**. Issue #31 / PR #35; implementation wenlixxq,
 agreement and acceptance lovlyDev. Runtime base `64bde10`.
 Diff: [storage-manual-section-source.patch](storage-manual-section-source.patch).
 
@@ -35,7 +35,7 @@ Browser folder requests reuse the translated PROJECT_FOLDER_UNSUPPORTED error.
 ## Checks and unfinished gates
 
 Applicability and staged rustfmt passed. Full frontend TypeScript checking with
-all five staged CAD APIs virtually overlaid passed without changing working sources.
+all five staged CAD APIs virtually overlaid passed before application. Production build also passed in the working branch after the approved application.
 The new native regression is prepared but **has not executed**: a real 40×20×10
 STEP is copied to FCP1 without authored program/preview; its managed twin is corrupted.
 Assertions cover source hash, 120 mm section perimeter, rejection after closing
@@ -45,4 +45,4 @@ remain required.
 
 Workspace state and folder controls are not wired; stage 4 is incomplete.
 No native/Cargo/C++/protocol/permissions/SQL/version changes. Shared model_section
-and frontend files require agreement under specification §5 before application.
+and frontend files received explicit owner agreement under specification §5 before application.

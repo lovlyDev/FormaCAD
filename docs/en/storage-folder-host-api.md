@@ -541,3 +541,20 @@ This is a host foundation, without a new user action. Existing shared
 yet; their integration requires a separate agreed patch. No parallel IPC, managed
 project rows or serialized grants are added. Folder controls remain hidden until
 the complete read/write flow is ready.
+
+### Manual section of the original STEP source
+
+Existing `section_model` accepts an optional sourceId/expectedCommitId pair. The
+host checks the original window and passes the selected folder's RepositoryRead to
+the same CAD worker; invalid or incomplete pairs never fall back to managed storage.
+Reading raw STEP does not require authored program. The original snapshot, revision
+and sealed bytes are checked strictly before and after the worker, including workspace
+cleanup. Metadata-only commits also invalidate manual sections. Verified bytes move
+into the common stager without a second complete staging copy.
+
+The six files in the [exact contract](../integration/storage-manual-section-source.en.md)
+were explicitly agreed and applied. Production build and rustfmt passed locally.
+A new genuine FCP1/STEP test checks the 120 mm perimeter with a corrupted managed
+twin and refusal after source closure; its explicit native CI PASS is pending.
+The frontend API can pass source references, while its production section caller
+requires a separate agreed patch. This backend route alone is not complete folder UI.

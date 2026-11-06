@@ -1,3 +1,5 @@
+import type { FolderSourceRef } from "../../project-sources/contract";
+import { native } from "../../../lib/api";
 import { invoke } from "@tauri-apps/api/core";
 import { z } from "zod";
 import type { SectionPlane } from "./sectionPlane";
@@ -9,8 +11,9 @@ const report = z.object({ sourceSha256: z.string().regex(/^[a-f0-9]{64}$/), geom
     .refine(curves => curves.reduce((count, curve) => count + curve.pointsMm.length, 0) <= 100000),
 }) });
 export type SectionReport = z.infer<typeof report>;
-export async function sectionModel(projectId: string, expectedRevision: string, sourceSha256: string, plane: SectionPlane): Promise<SectionReport> {
-  const result = report.parse(await invoke("section_model", { projectId, expectedRevision, ...plane }));
+export async function sectionModel(projectId: string, expectedRevision: string, sourceSha256: string, plane: SectionPlane, source?: FolderSourceRef): Promise<SectionReport> {
+  if(source&&!native)throw Error("PROJECT_FOLDER_UNSUPPORTED");
+  const result = report.parse(await invoke("section_model", { projectId, expectedRevision, ...plane, ...(source ? {sourceId:source.sourceId,expectedCommitId:source.commitId} : {}) }));
   if (result.sourceSha256 !== sourceSha256) throw new Error("SECTION_STALE");
   return result;
 }
