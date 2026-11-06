@@ -1,0 +1,384 @@
+diff --git a/apps/desktop/src/features/viewer/sections/face-section/faceSectionCapture.ts b/apps/desktop/src/features/viewer/sections/face-section/faceSectionCapture.ts
+index a32f512..71e0653 100644
+--- a/apps/desktop/src/features/viewer/sections/face-section/faceSectionCapture.ts
++++ b/apps/desktop/src/features/viewer/sections/face-section/faceSectionCapture.ts
+@@ -1,3 +1,4 @@
++import {sourceRefFor,type ProjectSourceBinding} from "../../../project-sources/sourceBinding";
+ import type { Project } from "../../../../types";
+ import type { FaceSelection } from "../../faceSelection";
+ import { readTypedCadDocument } from "../../../../lib/typedCadDocument";
+@@ -5,14 +6,17 @@ import { readTopologyReference } from "../../topology/topologyReference";
+ import { matchesReferenceRoute } from "../../topology/referenceRoute";
+ import type { FaceSectionReport } from "./faceSectionSchema";
+ 
+-export function captureFaceSection(project:Project|null,selection:FaceSelection|null,offsetMm:number,active:boolean){
++export function captureFaceSection(project:Project|null,selection:FaceSelection|null,offsetMm:number,active:boolean,sourceBinding?:ProjectSourceBinding|null){
+  if(!active||!project?.currentRevision||selection?.revisionId!==project.currentRevision||!Number.isFinite(offsetMm)||Math.abs(offsetMm)>10000)return null;
++ if(sourceBinding!==undefined&&(!sourceBinding||sourceBinding.projectId!==project.id))return null;
++ const folder=sourceBinding?sourceRefFor(sourceBinding,project.id):undefined;
++ const sourceOpeningId=sourceBinding?.openingId;
+  const revision=project.revisions.find(item=>item.id===project.currentRevision),rawProgram=revision?.program??"",document=readTypedCadDocument(rawProgram);
+  const body=document?.bodies.find(item=>item.id===selection.bodyId),reference=readTopologyReference(selection.topologyRef);
+  const source=project.files.find(file=>file.name===revision?.source&&/\.st(e)?p$/i.test(file.name));
+  if(!document||document.revisionId!==project.currentRevision||!body||!reference||reference.kind!=="face"||reference.role==="cylinder-face:side"||!matchesReferenceRoute(document,body.sourceFeatureId,reference)||!source?.sha256||!source.size)return null;
+  const request={projectId:project.id,expectedRevision:project.currentRevision,bodyId:body.id,query:{reference,offsetMm,deflectionMm:0.01}};
+- return{key:JSON.stringify({request,rawProgram,sourceSha256:source.sha256,sourceSize:source.size}),request,rawProgram,sourceSha256:source.sha256,sourceSize:source.size};
++ return{...(sourceOpeningId?{source:folder,sourceOpeningId}:{}),key:JSON.stringify({sourceOpeningId,sourceId:folder?.sourceId,taskScopeId:folder?.taskScopeId,request,rawProgram,sourceSha256:source.sha256,sourceSize:source.size}),request,rawProgram,sourceSha256:source.sha256,sourceSize:source.size};
+ }
+ export type FaceSectionCapture=NonNullable<ReturnType<typeof captureFaceSection>>;
+ export function matchesFaceSection(report:FaceSectionReport,capture:FaceSectionCapture){
+diff --git a/apps/desktop/src/features/viewer/sections/face-section/faceSectionApi.ts b/apps/desktop/src/features/viewer/sections/face-section/faceSectionApi.ts
+index 2fa5458..3dcebe4 100644
+--- a/apps/desktop/src/features/viewer/sections/face-section/faceSectionApi.ts
++++ b/apps/desktop/src/features/viewer/sections/face-section/faceSectionApi.ts
+@@ -3,7 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
+ import { native } from "../../../../lib/api";
+ import { matchesFaceSection,type FaceSectionCapture } from "./faceSectionCapture";
+ import { readFaceSectionReport } from "./faceSectionSchema";
+-export async function sectionReference(captured:FaceSectionCapture, source?:FolderSourceRef){
++export async function sectionReference(captured:FaceSectionCapture, source:FolderSourceRef|undefined=captured.source){
++ if(captured.sourceOpeningId&&(source?.sourceId!==captured.source?.sourceId||source?.commitId!==captured.source?.commitId||source?.taskScopeId!==captured.source?.taskScopeId))throw Error("SECTION_STALE");
+  if(source&&!native)throw Error("PROJECT_FOLDER_UNSUPPORTED");
+   if(!native)throw Error("SECTION_NATIVE_REQUIRED");
+  const report=readFaceSectionReport(await invoke("section_model_reference",source ? {...captured.request, sourceId:source.sourceId, expectedCommitId:source.commitId} : captured.request));
+diff --git a/apps/desktop/src/features/viewer/sections/face-section/useFaceSection.ts b/apps/desktop/src/features/viewer/sections/face-section/useFaceSection.ts
+index c8e579b..7aae02b 100644
+--- a/apps/desktop/src/features/viewer/sections/face-section/useFaceSection.ts
++++ b/apps/desktop/src/features/viewer/sections/face-section/useFaceSection.ts
+@@ -1,4 +1,5 @@
+ import { useEffect,useMemo,useRef,useState } from "react";
++import type {ProjectSourceBinding} from "../../../project-sources/sourceBinding";
+ import type { Project } from "../../../../types";
+ import type { FaceSelection } from "../../faceSelection";
+ import { captureFaceSection } from "./faceSectionCapture";
+@@ -6,8 +7,8 @@ import { sectionReference } from "./faceSectionApi";
+ import type { FaceSectionReport } from "./faceSectionSchema";
+ 
+ /** One unfinished invocation survives context changes; only a current verified result clips. */
+-export function useFaceSection(project:Project|null,selection:FaceSelection|null,offsetMm:number,active:boolean,sceneToken:string,automatic=true,blocked=false){
+- const capture=useMemo(()=>{const value=captureFaceSection(project,selection,offsetMm,active);return value?{...value,key:JSON.stringify([value.key,sceneToken])}:null;},[project,selection,offsetMm,active,sceneToken]);
++export function useFaceSection(project:Project|null,selection:FaceSelection|null,offsetMm:number,active:boolean,sceneToken:string,automatic=true,blocked=false,sourceBinding?:ProjectSourceBinding|null){
++ const capture=useMemo(()=>{const value=captureFaceSection(project,selection,offsetMm,active,sourceBinding);return value?{...value,key:JSON.stringify([value.key,sceneToken])}:null;},[project,selection,offsetMm,active,sceneToken,sourceBinding]);
+  const forced=useRef<{key:string;epoch:number}|null>(null);
+  const latest=useRef({key:"",epoch:0});
+  if(latest.current.key!==(capture?.key??"")){latest.current={key:capture?.key??"",epoch:latest.current.epoch+1};forced.current=null;}
+@@ -26,5 +27,5 @@ export function useFaceSection(project:Project|null,selection:FaceSelection|null
+   },delay);return()=>clearTimeout(timer);
+  },[capture,result.key,tick,forceTick,automatic,blocked]);
+  const aligned=!!capture&&result.key===capture.key,report=aligned?result.report:undefined;
+- return{available:!!capture,working:working||blocked,pending:!!capture&&(working||(automatic&&!aligned)),report,error:aligned?result.error:undefined,plane:report?.geometry.plane,calculate:()=>{if(!capture||blocked||inFlight.current)return;forced.current={key:capture.key,epoch:latest.current.epoch};setForceTick(value=>value+1);}};
++ return{available:!!capture,working:working||blocked,pending:!!capture&&(working||(automatic&&!aligned)),report,error:aligned?result.error:undefined,plane:report?.geometry.plane,calculate:()=>{if(!capture||blocked||inFlight.current||latest.current.key!==capture.key)return;forced.current={key:capture.key,epoch:latest.current.epoch};setForceTick(value=>value+1);}};
+ }
+diff --git a/apps/desktop/src/features/project-sources/faceSectionSource.test.tsx b/apps/desktop/src/features/project-sources/faceSectionSource.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/faceSectionSource.test.tsx
+@@ -0,0 +1,62 @@
++import {afterEach,expect,it,vi} from "vitest";
++import {act,cleanup,renderHook} from "@testing-library/react";
++import {folderSource,refreshFolderSource,type ProjectSourceBinding} from "./sourceBinding";
++import {pairTestContext} from "../pair-measurements/pairTestContext";
++import {captureFaceSection,type FaceSectionCapture} from "../viewer/sections/face-section/faceSectionCapture";
++import {useFaceSection} from "../viewer/sections/face-section/useFaceSection";
++import type {FaceSectionReport} from "../viewer/sections/face-section/faceSectionSchema";
++import * as api from "../viewer/sections/face-section/faceSectionApi";
++const mocks=vi.hoisted(()=>({invoke:vi.fn()}));
++vi.mock("@tauri-apps/api/core",()=>({invoke:mocks.invoke}));
++vi.mock("../../lib/api",()=>({native:true}));
++afterEach(()=>{cleanup();vi.restoreAllMocks();vi.resetAllMocks();vi.useRealTimers();});
++function fixture(){
++ const context=pairTestContext();const binding=(id="first")=>folderSource(context.project.id,{sourceId:id,commitId:"commit",taskScopeId:`task-${id}`});
++ const capture=(source:ProjectSourceBinding)=>captureFaceSection(context.project,context.face,-2,true,source)!;
++ return{context,binding,capture};
++}
++function report(capture:FaceSectionCapture):FaceSectionReport{
++ return{projectId:capture.request.projectId,schemaVersion:1,requestId:"0fdca3bb-60ac-4014-99e9-28b8306687c7",engine:{name:"occt",protocolVersion:1},evaluationSource:"rebuiltAuthoredFaceAndSealedStep",revisionId:capture.request.expectedRevision,bodyId:capture.request.bodyId,sourceSha256:capture.sourceSha256,sourceSize:capture.sourceSize,documentSha256:"a".repeat(64),importedAssetSeals:[],query:capture.request.query,face:{areaMm2:800,originMm:[0,0,10],normal:[0,0,1]},geometry:{plane:{originMm:[0,0,10+capture.request.query.offsetMm],normal:[0,0,1],deflectionMm:.01},totalLengthMm:0,curves:[]}};
++}
++it("separates equal-ID openings while preserving compatible face geometry identity",()=>{
++ const{binding,capture}=fixture(),source=binding();if(source.kind!=="folder")throw Error("fixture");
++ const original=capture(source),next=capture(refreshFolderSource(source,{...source.source,commitId:"metadata"}));
++ expect(capture(binding("second")).key).not.toBe(original.key);expect(capture(binding()).key).not.toBe(original.key);
++ expect(next.key).toBe(original.key);expect(next.source?.commitId).toBe("metadata");expect(original.source?.commitId).toBe("commit");
++});
++it("refuses absent or mismatched explicit bindings without managed fallback",()=>{
++ const{context}=fixture();expect(captureFaceSection(context.project,context.face,-2,true,null)).toBeNull();
++ const wrong=folderSource("other",{sourceId:"source",commitId:"commit",taskScopeId:"task"});
++ expect(captureFaceSection(context.project,context.face,-2,true,wrong)).toBeNull();
++ expect(captureFaceSection(context.project,context.face,-2,true)).not.toBeNull();
++});
++it("never clips with a late result after reopening an identical source",async()=>{
++ vi.useFakeTimers();const{context,binding}=fixture();let resolve!:(value:FaceSectionReport)=>void;
++ const load=vi.spyOn(api,"sectionReference").mockImplementationOnce(()=>new Promise(done=>{resolve=done;}));
++ const hook=renderHook(({source})=>useFaceSection(context.project,context.face,-2,true,context.sceneToken,true,false,source),{initialProps:{source:binding()}});
++ await act(async()=>vi.advanceTimersByTime(400));const old=load.mock.calls[0][0];hook.rerender({source:binding()});
++ await act(async()=>resolve(report(old)));expect(hook.result.current.plane).toBeUndefined();expect(hook.result.current.report).toBeUndefined();
++});
++it("retains compatible face report through metadata and uses fresh commit on explicit refresh",async()=>{
++ vi.useFakeTimers();const{context,binding}=fixture(),source=binding();if(source.kind!=="folder")throw Error("fixture");
++ const load=vi.spyOn(api,"sectionReference").mockImplementation(async capture=>report(capture));
++ const hook=renderHook(({source})=>useFaceSection(context.project,context.face,-2,true,context.sceneToken,true,false,source),{initialProps:{source:source as ProjectSourceBinding}});
++ await act(async()=>vi.advanceTimersByTime(400));const previous=hook.result.current.report;
++ hook.rerender({source:refreshFolderSource(source,{...source.source,commitId:"metadata"})});
++ expect(hook.result.current.report).toBe(previous);expect(load).toHaveBeenCalledTimes(1);
++ act(()=>hook.result.current.calculate());await act(async()=>vi.advanceTimersByTime(0));
++ expect(load.mock.calls[1][0].source?.commitId).toBe("metadata");expect(hook.result.current.plane?.originMm).toEqual([0,0,8]);
++});
++it("ignores a calculate callback belonging to a retired opening",async()=>{
++ vi.useFakeTimers();const{context,binding}=fixture();const load=vi.spyOn(api,"sectionReference").mockImplementation(async capture=>report(capture));
++ const hook=renderHook(({source})=>useFaceSection(context.project,context.face,-2,true,context.sceneToken,false,false,source),{initialProps:{source:binding()}});
++ const stale=hook.result.current.calculate;hook.rerender({source:binding("second")});act(()=>stale());await act(async()=>vi.advanceTimersByTime(0));
++ expect(load).not.toHaveBeenCalled();act(()=>hook.result.current.calculate());await act(async()=>vi.advanceTimersByTime(0));
++ expect(load).toHaveBeenCalledTimes(1);expect(load.mock.calls[0][0].source?.sourceId).toBe("second");
++});
++it("uses captured folder routing in native face-section API and refuses foreign overrides",async()=>{
++ const{binding,capture}=fixture(),captured=capture(binding());const hash=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(captured.rawProgram));
++ mocks.invoke.mockResolvedValue({...report(captured),documentSha256:Array.from(new Uint8Array(hash),byte=>byte.toString(16).padStart(2,"0")).join("")});
++ await api.sectionReference(captured);expect(mocks.invoke).toHaveBeenCalledWith("section_model_reference",{...captured.request,sourceId:"first",expectedCommitId:"commit"});
++ mocks.invoke.mockClear();await expect(api.sectionReference(captured,{sourceId:"other",commitId:"commit",taskScopeId:"other-task"})).rejects.toThrow("SECTION_STALE");expect(mocks.invoke).not.toHaveBeenCalled();
++});
+diff --git a/apps/desktop/src/features/project-sources/sceneRead.ts b/apps/desktop/src/features/project-sources/sceneRead.ts
+index fcb7b2a..ebc64fc 100644
+--- a/apps/desktop/src/features/project-sources/sceneRead.ts
++++ b/apps/desktop/src/features/project-sources/sceneRead.ts
+@@ -9,9 +9,13 @@ function geometry(project:Project){
+ }
+ function bind(projectId:string,revisionId:Project["currentRevision"],seal:ReturnType<typeof geometry>,binding:ProjectSourceBinding){
+  const source=sourceRefFor(binding,projectId);
+- return{projectId,revisionId,source,isCurrent:()=>{
++ const isOpeningCurrent=()=>{
+   const state=useWorkspace.getState();
+-  if(!state.project||state.project.id!==projectId||!isSourceCurrent(state.sourceBinding,binding))return false;
++  return !!state.project&&state.project.id===projectId&&isSourceCurrent(state.sourceBinding,binding);
++ };
++ return{projectId,revisionId,source,isOpeningCurrent,isCurrent:()=>{
++  const state=useWorkspace.getState();
++  if(!state.project||!isOpeningCurrent())return false;
+   const current=geometry(state.project);return seal.every((value,index)=>value===current[index]);
+  }};
+ }
+diff --git a/apps/desktop/src/features/viewer/sections/sectionSource.ts b/apps/desktop/src/features/viewer/sections/sectionSource.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/viewer/sections/sectionSource.ts
+@@ -0,0 +1,18 @@
++import {useWorkspace} from "../../../stores/workspace";
++import type {Project} from "../../../types";
++import {captureSceneRead,displayedSceneRead} from "../../project-sources/sceneRead";
++import type {ProjectSourceBinding} from "../../project-sources/sourceBinding";
++
++/** Retained geometry may keep its local clipping plane in its own opening.
++ * Exact new curves require the current displayed geometry and original source. */
++export function captureSectionSource(object:object,project:Project|null,binding:ProjectSourceBinding|null){
++ const read=captureSceneRead(project,binding),displayed=displayedSceneRead(object);
++ if(!read||!binding||(!displayed&&binding.kind==="folder"))return null;
++ const isOpeningCurrent=()=>read.isOpeningCurrent()&&(!displayed||displayed.isOpeningCurrent());
++ const isCurrent=()=>read.isCurrent()&&(!displayed||displayed.isCurrent());
++ return{openingId:binding.openingId,source:read.source,isOpeningCurrent,isCurrent,
++  isSnapshotCurrent:()=>{
++   const current=useWorkspace.getState().sourceBinding;
++   return isCurrent()&&(!read.source||(current?.kind==="folder"&&current.source.commitId===read.source.commitId));
++  }};
++}
+diff --git a/apps/desktop/src/features/viewer/sections/useSectionView.ts b/apps/desktop/src/features/viewer/sections/useSectionView.ts
+index 36007d7..50978c5 100644
+--- a/apps/desktop/src/features/viewer/sections/useSectionView.ts
++++ b/apps/desktop/src/features/viewer/sections/useSectionView.ts
+@@ -1,33 +1,37 @@
+ import { useEffect, useMemo, useRef, useState } from "react";
+ import { Box3, Vector3, type Group } from "three";
+ import { native } from "../../../lib/api";
+-import { usePersistentState } from "../../../lib/persistence";
++import { useSourcePreference } from "../../project-sources/useSourcePreference";
+ import { useWorkspace } from "../../../stores/workspace";
+ import { sectionModel, type SectionReport } from "./sectionApi";
+ import { sectionNormals, worldToCad, type SectionPlane, type VectorMm } from "./sectionPlane";
+ import { useFaceSection } from "./face-section/useFaceSection";
++import {captureSectionSource} from "./sectionSource";
+ 
+ const defaultNormal: VectorMm = [0, 0, 1];
+ 
+ export function useSectionView(object: Group, scope: string, comparison: boolean, suspended = false) {
+   const project = useWorkspace(state => state.project);
++  const binding = useWorkspace(state => state.sourceBinding);
+   const selectedFace = useWorkspace(state => state.selectedFace);
++  const context=useMemo(()=>captureSectionSource(object,project,binding),[object,project,binding]);
+   const revision = project?.revisions.find(revision => revision.id === project.currentRevision);
+   const source = project?.files.find(file => file.name === revision?.source && /\.(step|stp)$/i.test(file.name));
+-  const available = native && !!source?.sha256 && !!project?.currentRevision && !comparison;
+-  const [open, setOpen] = usePersistentState(`${scope}.section.open`, false);
+-  const [enabled, setEnabled] = usePersistentState(`${scope}.section.enabled`, false);
+-  const [savedMode,setMode] = usePersistentState<"manual"|"selectedFace">(`${scope}.section.mode`,"manual");
++  const canClip = native && !!source?.sha256 && !!project?.currentRevision && !comparison && !!context?.isOpeningCurrent();
++  const available = canClip && !!context?.isCurrent();
++  const [open, setOpen] = useSourcePreference(`${scope}.section.open`, false,binding);
++  const [enabled, setEnabled] = useSourcePreference(`${scope}.section.enabled`, false,binding);
++  const [savedMode,setMode] = useSourcePreference<"manual"|"selectedFace">(`${scope}.section.mode`,"manual",binding);
+   const mode=savedMode==="selectedFace"?"selectedFace":"manual";
+-  const [faceOffset,setFaceOffset] = usePersistentState(`${scope}.section.faceOffsetMm`,0);
+-  const [savedFaceAutomatic,setFaceAutomatic] = usePersistentState(`${scope}.section.faceAutomatic`,true);
++  const [faceOffset,setFaceOffset] = useSourcePreference(`${scope}.section.faceOffsetMm`,0,binding);
++  const [savedFaceAutomatic,setFaceAutomatic] = useSourcePreference(`${scope}.section.faceAutomatic`,true,binding);
+   const faceAutomatic=savedFaceAutomatic!==false;
+-  const [savedAxis, setAxis] = usePersistentState<"xy" | "xz" | "yz" | "free">(`${scope}.section.axis`, "xy");
++  const [savedAxis, setAxis] = useSourcePreference<"xy" | "xz" | "yz" | "free">(`${scope}.section.axis`, "xy",binding);
+   const axis = ["xy", "xz", "yz", "free"].includes(savedAxis) ? savedAxis : "xy";
+   const center = useMemo(() => worldToCad(new Box3().setFromObject(object).getCenter(new Vector3()).toArray() as VectorMm)
+     .map(value => Math.round(value * 1e6) / 1e6) as VectorMm, [object]);
+-  const [offset, setOffset] = usePersistentState(`${scope}.section.offsetMm`, center[2]);
+-  const [savedNormal, setNormal] = usePersistentState<VectorMm>(`${scope}.section.normal`, defaultNormal);
++  const [offset, setOffset] = useSourcePreference(`${scope}.section.offsetMm`, center[2],binding);
++  const [savedNormal, setNormal] = useSourcePreference<VectorMm>(`${scope}.section.normal`, defaultNormal,binding);
+   const normal = Array.isArray(savedNormal) && savedNormal.length === 3 && savedNormal.every(value => typeof value === "number" && Number.isFinite(value)) ? savedNormal : defaultNormal;
+   const plane: SectionPlane = useMemo(() => {
+     const direction = axis === "free" ? normal : sectionNormals[axis];
+@@ -35,11 +39,11 @@ export function useSectionView(object: Group, scope: string, comparison: boolean
+     return { normal: direction, originMm: direction.map(value => length ? value / length * offset : 0) as VectorMm, deflectionMm: 0.01 };
+   }, [axis, normal, offset]);
+   const valid = Number.isFinite(offset) && Math.abs(offset) <= 10000 && Math.hypot(...plane.normal) >= 1e-9 && plane.normal.every(value => Number.isFinite(value) && Math.abs(value) <= 1e6);
+-  const key = JSON.stringify({ projectId: project?.id, revision: project?.currentRevision, source: source?.sha256, plane });
++  const key = JSON.stringify({ projectId: project?.id, revision: project?.currentRevision, source: source?.sha256, size:source?.size, opening:context?.openingId,folder:context?.source,plane });
+   // Retained geometry keeps its GPU plane. Fresh-head native curves must wait
+   // until that committed geometry is actually displayed.
+   const alive = useRef(true), inFlight = useRef(false);
+-  const faceSection=useFaceSection(project,selectedFace,faceOffset,available&&enabled&&!suspended&&mode==="selectedFace",object.uuid,faceAutomatic,mode==="selectedFace"&&inFlight.current);
++  const faceSection=useFaceSection(project,selectedFace,faceOffset,available&&enabled&&!suspended&&mode==="selectedFace",object.uuid,faceAutomatic,mode==="selectedFace"&&inFlight.current,binding);
+   const wantedManual=available && enabled && valid && !suspended && mode==="manual";
+   const active = wantedManual && !faceSection.working;
+   const latest = useRef(key); latest.current = key;
+@@ -48,20 +52,21 @@ export function useSectionView(object: Group, scope: string, comparison: boolean
+   const [result, setResult] = useState<{ key: string; data?: SectionReport; error?: unknown }>({ key: "" });
+   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+   useEffect(() => {
+-    if (!active || inFlight.current || result.key === key) return;
++    if (!active || inFlight.current || result.key === key || !context?.isSnapshotCurrent()) return;
+     const timer = setTimeout(() => {
++      if(!context.isSnapshotCurrent())return;
+       inFlight.current = true; setPending(true);
+       const request = JSON.parse(key) as { projectId: string; revision: string; source: string; plane: SectionPlane };
+-      void sectionModel(request.projectId, request.revision, request.source, request.plane).then(data => {
+-        if (alive.current && wanted.current && latest.current === key) setResult({ key, data });
+-      }, error => { if (alive.current && wanted.current && latest.current === key) setResult({ key, error }); })
++      void sectionModel(request.projectId, request.revision, request.source, request.plane,context.source).then(data => {
++        if (alive.current && wanted.current && latest.current === key && context.isSnapshotCurrent()) setResult({ key, data });
++      }, error => { if (alive.current && wanted.current && latest.current === key && context.isSnapshotCurrent()) setResult({ key, error }); })
+         .finally(() => { inFlight.current = false; if (alive.current) { setPending(false); setTick(value => value + 1); } });
+     }, 400);
+     return () => clearTimeout(timer);
+-  }, [key, active, result.key, tick]);
++  }, [key, active, result.key, tick,context]);
+   return { available: available && !suspended, suspended, enabled: enabled && available, setEnabled, open, setOpen, axis, setAxis, offset, setOffset, normal, setNormal, valid,
+     mode,setMode,faceSection,faceOffset,setFaceOffset,faceAutomatic,setFaceAutomatic,units:project?.units??"mm",
+     plane:mode==="selectedFace"?(faceSection.plane??plane):plane,
+-    clipEnabled:mode==="selectedFace"?!!faceSection.report:enabled&&available&&valid,
++    clipEnabled:mode==="selectedFace"?!!faceSection.report:enabled&&canClip&&valid,
+     pending: wantedManual && (faceSection.working || pending || result.key !== key), report:mode==="selectedFace"?faceSection.report:(active && result.key === key ? result.data : undefined), error:active && result.key === key ? result.error : null };
+ }
+diff --git a/apps/desktop/src/features/viewer/sections/useSectionView.test.tsx b/apps/desktop/src/features/viewer/sections/useSectionView.test.tsx
+index 0eb0516..0a2e760 100644
+--- a/apps/desktop/src/features/viewer/sections/useSectionView.test.tsx
++++ b/apps/desktop/src/features/viewer/sections/useSectionView.test.tsx
+@@ -18,7 +18,7 @@ function setup(){
+  const project=newProject("Section","blank","mm","codex");project.currentRevision=head;
+  const program=JSON.stringify({schemaVersion:2,revisionId:head,parameters:[],features:[{id:"profile",name:"Profile",operation:{type:"rectangle"}},{id:"pad",name:"Pad",operation:{type:"extrude",sketchId:"profile"}}],bodies:[{id:"body",name:"Body",sourceFeatureId:"pad"}]});
+  project.revisions=[{id:head,parent:null,createdAt:project.createdAt,prompt:"Source",parameters:defaults,program,source:"source.step"}];project.files=[{name:"source.step",kind:"model",sha256:sha,size:100}];
+- useWorkspace.setState({project,selectedFace:{bodyId:"body",revisionId:head,faceOrdinal:99,topologyRef:{schemaVersion:1,kind:"face",ownerFeatureId:"pad",role:"box-face:zmax",occurrencePath:[]}}});
++ useWorkspace.getState().setProject(project);useWorkspace.setState({selectedFace:{bodyId:"body",revisionId:head,faceOrdinal:99,topologyRef:{schemaVersion:1,kind:"face",ownerFeatureId:"pad",role:"box-face:zmax",occurrencePath:[]}}});
+  localStorage.setItem(`${scope}.section.enabled`,"true");return new Group();
+ }
+ function faceReport(capture:FaceSectionCapture):FaceSectionReport{
+diff --git a/apps/desktop/src/features/project-sources/sectionSource.test.tsx b/apps/desktop/src/features/project-sources/sectionSource.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/sectionSource.test.tsx
+@@ -0,0 +1,91 @@
++import {act,cleanup,renderHook} from "@testing-library/react";
++import {afterEach,expect,it,vi} from "vitest";
++import {Group} from "three";
++import {useWorkspace} from "../../stores/workspace";
++import {pairTestContext} from "../pair-measurements/pairTestContext";
++import {captureSceneRead,rememberSceneRead} from "./sceneRead";
++import {captureSectionSource} from "../viewer/sections/sectionSource";
++import {useSectionView} from "../viewer/sections/useSectionView";
++import type {SectionReport} from "../viewer/sections/sectionApi";
++const mocks=vi.hoisted(()=>({manual:vi.fn(),face:vi.fn(),invoke:vi.fn()}));
++vi.mock("@tauri-apps/api/core",async original=>({...await original<typeof import("@tauri-apps/api/core")>(),invoke:mocks.invoke}));
++vi.mock("../viewer/sections/sectionApi",()=>({sectionModel:mocks.manual}));
++vi.mock("../viewer/sections/face-section/faceSectionApi",()=>({sectionReference:mocks.face}));
++vi.mock("../../lib/api",async original=>({...await original<typeof import("../../lib/api")>(),native:true}));
++afterEach(()=>{cleanup();vi.useRealTimers();vi.resetAllMocks();localStorage.clear();useWorkspace.getState().setProject(null);});
++const scope="forma.ui.section-source";
++function fixture(){
++ const context=pairTestContext();
++ const open=(id="first")=>{
++  useWorkspace.getState().openFolderProject(context.project,{sourceId:id,commitId:"commit",taskScopeId:`task-${id}`});
++  const object=new Group(),state=useWorkspace.getState();rememberSceneRead(object,captureSceneRead(state.project,state.sourceBinding));return object;
++ };
++ return{context,open,object:open()};
++}
++const report=():SectionReport=>({sourceSha256:"a".repeat(64),geometry:{plane:{originMm:[0,0,0],normal:[0,0,1],deflectionMm:.01},totalLengthMm:120,curves:[]}});
++async function start(view:ReturnType<typeof renderHook<ReturnType<typeof useSectionView>,{object:Group}>>){
++ await act(async()=>view.result.current.setEnabled(true));await act(async()=>vi.advanceTimersByTime(400));
++}
++it("routes production manual sections through the displayed folder original commit",async()=>{
++ vi.useFakeTimers();const f=fixture();mocks.manual.mockResolvedValue(report());
++ const view=renderHook(({object})=>useSectionView(object,scope,false),{initialProps:{object:f.object}});await start(view);
++ expect(mocks.manual).toHaveBeenCalledTimes(1);expect(mocks.manual.mock.calls[0][4]).toEqual({sourceId:"first",commitId:"commit",taskScopeId:"task-first"});
++ expect(view.result.current.report).toEqual(report());
++});
++it.each(["resolve","reject"] as const)("rejects late manual %s after equal-ID source replacement",async outcome=>{
++ vi.useFakeTimers();const f=fixture();let finish!:(value:SectionReport)=>void,fail!:(error:Error)=>void;
++ mocks.manual.mockImplementationOnce(()=>new Promise<SectionReport>((resolve,reject)=>{finish=resolve;fail=reject;})).mockResolvedValue(report());
++ const view=renderHook(({object})=>useSectionView(object,scope,false),{initialProps:{object:f.object}});await start(view);
++ act(()=>view.rerender({object:f.open("second")}));
++ await act(async()=>{if(outcome==="resolve")finish(report());else fail(Error("old source"));});
++ expect(view.result.current.report).toBeUndefined();expect(view.result.current.error).toBeNull();expect(view.result.current.enabled).toBe(false);
++ await start(view);expect(mocks.manual.mock.calls[1][4].sourceId).toBe("second");expect(view.result.current.report).toEqual(report());
++});
++it("restarts strict manual metadata requests with the next commit without retargeting the running request",async()=>{
++ vi.useFakeTimers();const f=fixture();let finish!:(value:SectionReport)=>void;
++ mocks.manual.mockImplementationOnce(()=>new Promise<SectionReport>(resolve=>{finish=resolve;})).mockResolvedValue(report());
++ const view=renderHook(({object})=>useSectionView(object,scope,false),{initialProps:{object:f.object}});await start(view);
++ const state=useWorkspace.getState(),binding=state.sourceBinding!;if(binding.kind!=="folder")throw Error("fixture");
++ act(()=>{expect(useWorkspace.getState().publishFolderSnapshot({...f.context.project,name:"Metadata"},binding,{...binding.source,commitId:"metadata"})).toBe(true);});
++ expect(mocks.manual.mock.calls[0][4].commitId).toBe("commit");await act(async()=>finish(report()));
++ expect(view.result.current.report).toBeUndefined();await act(async()=>vi.advanceTimersByTime(400));
++ expect(mocks.manual.mock.calls[1][4].commitId).toBe("metadata");expect(view.result.current.report).toEqual(report());
++});
++it("does not borrow folder routing for an unregistered or retired displayed object",()=>{
++ const f=fixture();let state=useWorkspace.getState();expect(captureSectionSource(new Group(),state.project,state.sourceBinding)).toBeNull();
++ const original=captureSectionSource(f.object,state.project,state.sourceBinding)!;expect(original.isCurrent()).toBe(true);
++ f.open("second");state=useWorkspace.getState();expect(captureSectionSource(f.object,state.project,state.sourceBinding)?.isOpeningCurrent()).toBe(false);
++ expect(original.isOpeningCurrent()).toBe(false);expect(original.isSnapshotCurrent()).toBe(false);
++});
++it("retains only local clipping during same-opening geometry replacement and suspends new native work",async()=>{
++ vi.useFakeTimers();const f=fixture();mocks.manual.mockResolvedValue(report());
++ const view=renderHook(()=>useSectionView(f.object,scope,false,true));await act(async()=>view.result.current.setEnabled(true));
++ const state=useWorkspace.getState(),binding=state.sourceBinding!;if(binding.kind!=="folder")throw Error("fixture");
++ act(()=>{useWorkspace.getState().publishFolderSnapshot({...f.context.project,files:f.context.project.files.map(file=>({...file,sha256:"b".repeat(64)}))},binding,{...binding.source,commitId:"geometry"});});
++ expect(view.result.current.clipEnabled).toBe(true);expect(view.result.current.available).toBe(false);
++ await act(async()=>vi.advanceTimersByTime(1000));expect(mocks.manual).not.toHaveBeenCalled();
++});
++it("keeps folder section preferences in RAM and refuses stale setters after reopening",async()=>{
++ vi.useFakeTimers();const f=fixture();localStorage.setItem(`${scope}.section.enabled`,"true");
++ const view=renderHook(({object})=>useSectionView(object,scope,false),{initialProps:{object:f.object}});
++ expect(view.result.current.enabled).toBe(false);const stale=view.result.current.setOffset;
++ await act(async()=>{view.result.current.setOffset(9);view.result.current.setFaceOffset(3);});expect(view.result.current.offset).toBe(9);
++ act(()=>view.rerender({object:f.open("second")}));act(()=>stale(77));
++ expect(view.result.current.offset).toBe(0);expect(view.result.current.faceOffset).toBe(0);expect(localStorage.getItem(`${scope}.section.offsetMm`)).toBeNull();
++});
++it("passes the folder opening into the production selected-face section caller",async()=>{
++ vi.useFakeTimers();const f=fixture();useWorkspace.getState().setSelectedFace(f.context.face);
++ mocks.face.mockImplementation(async capture=>({projectId:capture.request.projectId,revisionId:capture.request.expectedRevision,geometry:{plane:{originMm:[0,0,0],normal:[0,0,1],deflectionMm:.01},totalLengthMm:120,curves:[]}}));
++ const view=renderHook(()=>useSectionView(f.object,scope,false));
++ await act(async()=>{view.result.current.setEnabled(true);view.result.current.setMode("selectedFace");});await act(async()=>vi.advanceTimersByTime(400));
++ expect(mocks.face).toHaveBeenCalledTimes(1);expect(mocks.face.mock.calls[0][0].source).toEqual({sourceId:"first",commitId:"commit",taskScopeId:"task-first"});
++ expect(view.result.current.faceSection.report).toBeDefined();
++});
++it("routes the manual native API to its original source and rejects mismatched STEP reports",async()=>{
++ const api=await vi.importActual<typeof import("../viewer/sections/sectionApi")>("../viewer/sections/sectionApi");
++ const source={sourceId:"first",commitId:"commit",taskScopeId:"task-first"},value=report();mocks.invoke.mockResolvedValue(value);
++ await api.sectionModel("project","revision",value.sourceSha256,value.geometry.plane,source);
++ expect(mocks.invoke).toHaveBeenCalledWith("section_model",{projectId:"project",expectedRevision:"revision",...value.geometry.plane,sourceId:"first",expectedCommitId:"commit"});
++ mocks.invoke.mockResolvedValue({...value,sourceSha256:"b".repeat(64)});
++ await expect(api.sectionModel("project","revision",value.sourceSha256,value.geometry.plane,source)).rejects.toThrow("SECTION_STALE");
++});
