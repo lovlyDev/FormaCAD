@@ -36,6 +36,8 @@ Interface settings control density and text size. Input enables number-row numpa
 
 Tasks uses the existing CAD queue and cancellation API. Open **Activity** to see project messages and the latest 200 saved model edits, undos and redos, newest first. Entries show the time in the selected locale and the revision description when available. The desktop app reads model events from the current project's SQLite history through `project_activity`. **Logs** shows recorded project errors. Detailed host diagnostic logs remain local. The native transaction test checks edit, undo and redo order, and the browser test opens both editors in Russian and English with both themes.
 
+Right-click a saved operation in the model tree or press Shift+F10 on its focused row and choose **Copy as command**. The clipboard receives an `add_feature` Command API JSON object with a new feature ID and the operation's current arguments. Referenced inputs must exist in the destination document, and changing a body's output requires a separate command. Copying leaves the model and project history intact.
+
 ## Technical route and persistence
 
 The [tree model](../../apps/desktop/src/features/workspace-areas/layoutModel.ts) validates `layoutVersion: 1`, size, depth, IDs, editor types and ratios. Corrupt or future layouts display a safe preset; unknown data never executes code. [Layout geometry](../../apps/desktop/src/features/workspace-areas/layoutGeometry.ts) computes rectangles and recursive minima. The [shell](../../apps/desktop/src/features/workspace-areas/WorkspaceShell.tsx) renders editor instances in a flat list with stable keys: changing the split tree does not change their React parent or remount Canvas. Previously opened hidden editors stay mounted until the project closes.

@@ -326,6 +326,8 @@
   "Body group": "Группа тел",
   "Body groups": "Группы тел",
   "Model revision saved": "Ревизия модели сохранена",
+  "Copy as command": "Копировать как команду",
+  "Could not copy the command.": "Не удалось скопировать команду.",
   "Model edit undone": "Правка модели отменена",
   "Model edit redone": "Правка модели повторена",
   "Model activity is unavailable.": "Журнал операций модели недоступен.",
