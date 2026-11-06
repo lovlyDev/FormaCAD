@@ -2,17 +2,19 @@ import { useSyncExternalStore } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { persist } from "./persistence";
+import { applyThemeTokens, type BaseTheme } from "../features/theme-editor/themePreferences";
 
 export function applyTheme(value: string) {
   const theme = value === "light" ? "light" : "dark";
   document.documentElement.dataset.theme = theme;
+  applyThemeTokens(theme);
   persist("forma.theme", theme);
   if (isTauri()) {
     void getCurrentWindow().setTheme(theme).catch(console.error);
   }
 }
 
-const currentTheme = () =>
+const currentTheme = (): BaseTheme =>
   document.documentElement.dataset.theme === "light" ? "light" : "dark";
 
 function subscribe(listener: () => void) {
@@ -26,5 +28,5 @@ function subscribe(listener: () => void) {
 
 // React and WebGL follow the same attribute as CSS, without remounting the scene.
 export function useTheme() {
-  return useSyncExternalStore(subscribe, currentTheme, () => "dark");
+  return useSyncExternalStore<BaseTheme>(subscribe, currentTheme, () => "dark");
 }

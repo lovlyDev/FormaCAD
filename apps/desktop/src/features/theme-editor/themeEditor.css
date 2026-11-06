@@ -1,0 +1,37 @@
+.theme-editor summary {
+  cursor: pointer;
+}
+
+.theme-editor-colors {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(11rem, 100%), 1fr));
+  gap: 8px 12px;
+  margin: 12px 0;
+}
+
+.theme-editor-colors label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.theme-editor-colors input {
+  flex: 0 0 2.5rem;
+  inline-size: 2.5rem;
+  block-size: 1.75rem;
+}
+
+.theme-editor-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.theme-editor-actions button {
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel2);
+}

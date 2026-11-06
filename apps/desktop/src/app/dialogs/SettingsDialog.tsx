@@ -5,6 +5,7 @@ import { Check, Cpu, LoaderCircle, RefreshCw, ShieldCheck } from "lucide-react";
 import { t, errorText, systemText, getLocale, setLocale } from "../../i18n";
 import { Button, IconButton, Modal, Select } from "../../components/ui";
 import { applyTheme } from "../../lib/theme";
+import { ThemeEditor } from "../../features/theme-editor/ThemeEditor";
 import { usePersistentState } from "../../lib/persistence";
 import {
   health,
@@ -249,6 +250,7 @@ export function SettingsDialog({
               <p>
                 {t("The 3D viewport and controls follow the selected theme.")}
               </p>
+              <ThemeEditor />
             </>
           ) : (
             <>

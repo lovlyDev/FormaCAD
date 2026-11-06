@@ -1,4 +1,5 @@
 import { AdaptiveGrid } from "./grid/AdaptiveGrid";
+import { defaultPalettes, useThemeFile, validPalette } from "../theme-editor/themePreferences";
 import "./viewportResponsive.css";
 import { useSectionView } from "./sections/useSectionView";
 import { SectionControls } from "./sections/SectionControls";
@@ -113,7 +114,10 @@ export default function Viewer({
   );
   const section = useSectionView(object, viewKey, !!comparison, !interactive);
   const [playing, setPlaying] = usePersistentState(`${viewKey}.playing`, false);
-  const light = useTheme() === "light";
+  const theme = useTheme();
+  const light = theme === "light";
+  const [themeFile] = useThemeFile(theme);
+  const palette = useMemo(() => validPalette(themeFile) ?? defaultPalettes[theme], [themeFile, theme]);
   const [motionStarted, setMotionStarted] = usePersistentState(
     `${viewKey}.motionStarted`,
     false,
@@ -452,7 +456,7 @@ export default function Viewer({
             useWorkspace.getState().setSelected(null);
         }}
       >
-        <color attach="background" args={[light ? "#f5f7f9" : "#202326"]} />
+        <color attach="background" args={[palette.viewport]} />
         <ambientLight intensity={1.5} />
         <hemisphereLight args={["#dbe5ff", "#4d4234", 2]} />
         <directionalLight
@@ -522,7 +526,7 @@ export default function Viewer({
             />
           </>
         )}
-        {grid && <AdaptiveGrid object={object} light={light} />}
+        {grid && <AdaptiveGrid object={object} gridColor={palette.grid} majorColor={palette.gridMajor} />}
         {!comparison && interactive && <DatumOverlay object={object} light={light} />}
         <SectionScene
           object={object}
@@ -558,7 +562,7 @@ export default function Viewer({
         />
         <GizmoHelper alignment="bottom-right" margin={[56, 65]}>
           <GizmoViewport
-            axisColors={["#ce726a", "#88a780", "#7a9bce"]}
+            axisColors={[palette.axisX, palette.axisY, palette.axisZ]}
             labelColor="#fff"
             hideNegativeAxes
           />
