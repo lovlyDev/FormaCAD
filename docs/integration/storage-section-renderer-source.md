@@ -2,7 +2,7 @@
 
 [English](storage-section-renderer-source.en.md) · [Host API](../ru/storage-folder-host-api.md) · [Ручной STEP backend](storage-manual-section-source.md)
 
-Статус: **подготовлен, не применён; требуется отдельное согласование девяти файлов**.
+Статус: **применён после явного согласования всех девяти файлов владельцем**.
 Issue #31 / PR #35, исполнитель wenlixxq, согласование и приёмка lovlyDev.
 Основа `bc9878a2c76e9df29372ede720f4476497259b94` плюс уже согласованный и
 применённый шестифайловый manual-section патч. Точный [diff](storage-section-renderer-source.patch)
@@ -60,4 +60,4 @@ setProject вместо прямой записи project без binding. Все
 
 Новых пользовательских текстов и стилей нет. Кнопка папки, writer/permission UI,
 history/import/export этим патчем не подключаются. Этап 4 остаётся незавершённым.
-По §5 ТЗ общие frontend/scene/section файлы требуют отдельного согласования до применения.
+Общие frontend/scene/section файлы согласованы владельцем по §5 ТЗ перед применением.

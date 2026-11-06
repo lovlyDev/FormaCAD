@@ -2,7 +2,7 @@
 
 [Русский](storage-section-renderer-source.md) · [Host API](../en/storage-folder-host-api.md) · [Manual STEP backend](storage-manual-section-source.en.md)
 
-Status: **prepared, unapplied; separate agreement for nine files required**.
+Status: **applied after explicit owner agreement for all nine files**.
 Issue #31 / PR #35; implementation wenlixxq, agreement and acceptance lovlyDev.
 Base `bc9878a2c76e9df29372ede720f4476497259b94` plus the explicitly approved and
 applied six-file manual-section patch. The exact [diff](storage-section-renderer-source.patch)
@@ -59,4 +59,4 @@ STEP hash. These checks are not OCCT execution or installed-app acceptance.
 
 No user text or styles are added. Folder controls, writer/permission UI and
 history/import/export are not connected by this patch. Stage 4 is incomplete.
-Specification §5 requires separate agreement before shared frontend/scene/section edits.
+The owner explicitly agreed to the shared frontend/scene/section edits under specification §5 before application.

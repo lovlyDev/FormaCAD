@@ -565,6 +565,20 @@ into the common stager without a second complete staging copy.
 The six files in the [exact contract](../integration/storage-manual-section-source.en.md)
 were explicitly agreed and applied. Production build and rustfmt passed locally.
 A new genuine FCP1/STEP test checks the 120 mm perimeter with a corrupted managed
-twin and refusal after source closure; its explicit native CI PASS is pending.
-The frontend API can pass source references, while its production section caller
-requires a separate agreed patch. This backend route alone is not complete folder UI.
+twin and refusal after source closure; its explicit native CI PASS is confirmed on fcd7ab1 (native42226643167).
+The frontend API and production caller of both section modes are connected after
+separate agreement for the nine files in the
+[renderer contract](../integration/storage-section-renderer-source.en.md).
+
+Manual sections retain the original commit, hide late result/error after opening
+changes and restart after metadata commits. Selected-face sections retain compatible
+geometry results on metadata refresh; the next request uses the fresh reference.
+No running request is retargeted to another folder. Both modes keep the existing
+single-unfinished-native-call sequencing.
+
+The actual loaded object's context comes from its WeakMap entry. Retained geometry
+keeps its local GPU plane only within the same opening; exact curves wait for current
+displayed geometry. An unregistered folder object never receives managed fallback.
+Folder panel preferences stay in RAM and reset on a new opening without reading or
+writing managed preferences. Complete folder writer UI is still unfinished and
+folder controls remain hidden.

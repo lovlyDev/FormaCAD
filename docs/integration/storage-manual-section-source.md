@@ -2,7 +2,7 @@
 
 [English](storage-manual-section-source.en.md) · [Host API](../ru/storage-folder-host-api.md)
 
-Статус: **применён после явного согласования всех шести файлов; native CI ожидается**. Issue #31 / PR #35, исполнитель wenlixxq,
+Статус: **применён после явного согласования всех шести файлов; native CI PASS на fcd7ab1**. Issue #31 / PR #35, исполнитель wenlixxq,
 согласование и приёмка lovlyDev. Основа runtime `64bde10`.
 Diff: [storage-manual-section-source.patch](storage-manual-section-source.patch).
 
@@ -36,12 +36,12 @@ API принимает необязательный FolderSourceRef, сохра�
 
 Применимость и staged rustfmt прошли. Полная проверка TypeScript с виртуальной
 подстановкой всех пяти подготовленных CAD API прошла; это была проверка подготовленного патча. После согласованного применения production build прошёл в рабочей ветке.
-Новая native-регрессия подготовлена, но **ещё не выполнялась**: настоящий STEP
+Новая native-регрессия **прошла на fcd7ab1**: настоящий STEP
 40×20×10 помещается в FCP1 без authored program/preview, managed-двойник повреждается.
 Проверяются source hash, периметр сечения 120 мм, отказ после закрытия во время
 настоящего worker, неизменность SQL/app state и очистка transient workspace.
-После применения нужны strict/native CI, frontend tests/build и явный PASS этого теста.
+На fcd7ab1 все три CI SUCCESS: Quality42226650589, comparison42226643155, native42226643167. В терминальном native логе подтверждён явный PASS raw_folder_step_section_uses_original_source_and_refuses_late_close; strict Clippy и 15 window-source тестов также прошли.
 
-Патч ещё не подключает workspace state или кнопку папки и не завершает этап 4.
+Этот шестифайловый backend-патч не добавляет кнопку папки и не завершает этап 4. Production caller сечений подключён отдельным согласованным [renderer-патчем](storage-section-renderer-source.md).
 Native/Cargo/C++/protocol/permissions/SQL/версии неизменны. Общие model_section и
 frontend-файлы согласованы владельцем по §5 ТЗ перед применением.

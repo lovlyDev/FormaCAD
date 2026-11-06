@@ -3,7 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { native } from "../../../../lib/api";
 import { matchesFaceSection,type FaceSectionCapture } from "./faceSectionCapture";
 import { readFaceSectionReport } from "./faceSectionSchema";
-export async function sectionReference(captured:FaceSectionCapture, source?:FolderSourceRef){
+export async function sectionReference(captured:FaceSectionCapture, source:FolderSourceRef|undefined=captured.source){
+ if(captured.sourceOpeningId&&(source?.sourceId!==captured.source?.sourceId||source?.commitId!==captured.source?.commitId||source?.taskScopeId!==captured.source?.taskScopeId))throw Error("SECTION_STALE");
  if(source&&!native)throw Error("PROJECT_FOLDER_UNSUPPORTED");
   if(!native)throw Error("SECTION_NATIVE_REQUIRED");
  const report=readFaceSectionReport(await invoke("section_model_reference",source ? {...captured.request, sourceId:source.sourceId, expectedCommitId:source.commitId} : captured.request));

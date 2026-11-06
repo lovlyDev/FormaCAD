@@ -9,9 +9,13 @@ function geometry(project:Project){
 }
 function bind(projectId:string,revisionId:Project["currentRevision"],seal:ReturnType<typeof geometry>,binding:ProjectSourceBinding){
  const source=sourceRefFor(binding,projectId);
- return{projectId,revisionId,source,isCurrent:()=>{
+ const isOpeningCurrent=()=>{
   const state=useWorkspace.getState();
-  if(!state.project||state.project.id!==projectId||!isSourceCurrent(state.sourceBinding,binding))return false;
+  return !!state.project&&state.project.id===projectId&&isSourceCurrent(state.sourceBinding,binding);
+ };
+ return{projectId,revisionId,source,isOpeningCurrent,isCurrent:()=>{
+  const state=useWorkspace.getState();
+  if(!state.project||!isOpeningCurrent())return false;
   const current=geometry(state.project);return seal.every((value,index)=>value===current[index]);
  }};
 }
