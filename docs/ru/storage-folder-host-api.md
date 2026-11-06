@@ -494,5 +494,16 @@ Folder-состояния раскрытия этих панелей живут 
 не читают и не пишут managed preferences и не сохраняют process-local tokens.
 Прямые legacy callers могут опустить binding; production UI передаёт его явно.
 Состав 16 файлов и проверки — в [контракте измерений renderer](../integration/storage-measurement-renderer-source.md).
-Face/manual sections, snap, history/import/export и writer/permission UI остаются
+Face/manual sections, history/import/export и writer/permission UI остаются
 следующими интеграциями; видимые folder controls пока не добавлены.
+### Snap исходной отображаемой сцены
+
+Pointer и контекстное меню используют read-контекст действительно загруженного
+объекта. Контекст захватывается до загрузки и хранится в WeakMap без записи в
+GLB/JSON. Запрос передаёт исходный FolderSourceRef; поздние ответы после смены
+открытия, геометрии или нового размещения курсора не меняют координаты и ошибки.
+Metadata refresh сохраняет совместимый запрос с его исходным commit; следующий
+запрос получает новый commit. Старое меню не переносит курсор новой папки.
+Отказ host о stale snapshot не заменяется оценочной точкой. Обычная ошибка worker
+может дать явно non-exact оценку только в исходном действующем контексте.
+Точный объём и проверки: [контракт snap](../integration/storage-snap-renderer-source.md).

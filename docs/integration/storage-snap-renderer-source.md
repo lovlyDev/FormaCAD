@@ -2,7 +2,7 @@
 
 [English](storage-snap-renderer-source.en.md) · [Host API](../ru/storage-folder-host-api.md) · [Измерения](storage-measurement-renderer-source.md)
 
-Статус: **подготовлен, не применён; требуется отдельное согласование**.
+Статус: **применён после явного согласования всех девяти файлов владельцем**.
 Issue #31 / PR #35, исполнитель wenlixxq, приёмка lovlyDev.
 Основа `db3ce03d643fcc4adc2ed592fbab2ac4c3f4046e` содержит применённые 16 файлов
 измерений. Точный [патч](storage-snap-renderer-source.patch) затрагивает девять путей
@@ -74,4 +74,4 @@ installed-app acceptance. Композитный прототип с face core �
 
 Face/manual sections и writer/permission UI этим патчем не подключаются. Видимой
 кнопки папки нет; этап 4 остаётся незавершённым. По §5 ТЗ общие snap/pie/cursor файлы
-ожидают согласования до применения.
+были согласованы владельцем до применения.

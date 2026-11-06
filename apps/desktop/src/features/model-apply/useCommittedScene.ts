@@ -1,5 +1,6 @@
 import type {ProjectSourceBinding} from "../project-sources/sourceBinding";
 import {sourceRefFor} from "../project-sources/sourceBinding";
+import {captureSceneRead,rememberSceneRead} from "../project-sources/sceneRead";
 import { useEffect, useRef, useSyncExternalStore, useState, useMemo } from "react";
 import * as THREE from "three";
 import { loadModel } from "../../lib/files";
@@ -24,14 +25,16 @@ export function useCommittedScene(project: Project | null, revision: Revision | 
   const seal = useMemo(() => file ? `${file.name}:${file.sha256 ?? "unsealed"}:${file.size}${file.data ? `:inline-${++inlineVersion.current}` : ""}` : `missing:${fileName ?? ""}`, [file?.name, file?.sha256, file?.size, file?.data, fileName]);
   const identity: SceneIdentity | null = project && revision && requiresFile && sourceReady ? { projectId: project.id, revisionId: revision.id, sourceSeal: seal,...(sourceOpeningId?{sourceOpeningId}:{}) } : null;
   const key = useMemo(() => project && revision && requiresFile && sourceReady ? JSON.stringify({ projectId: project.id, revisionId: revision.id, sourceSeal: seal,...(sourceOpeningId?{sourceOpeningId}:{}) }) : "", [project?.id, revision?.id, requiresFile, seal,sourceOpeningId,sourceReady]);
-  const request = useRef({ identity, file, folder, source: revision?.source, previewName: revision?.preview });
-  request.current = { identity, file, folder, source: revision?.source, previewName: revision?.preview };
+  const sceneRead=captureSceneRead(project,sourceBinding);
+  const request = useRef({ sceneRead,identity, file, folder, source: revision?.source, previewName: revision?.preview });
+  request.current = { sceneRead,identity, file, folder, source: revision?.source, previewName: revision?.preview };
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     const captured = request.current;
     void scene.load(captured.identity, async () => {
       if (!captured.file || !captured.identity) throw new Error("MODEL_PREVIEW_MISSING");
       const object = captured.folder?await loadModel(captured.file,captured.identity.projectId,captured.folder):await loadModel(captured.file,captured.identity.projectId);
+      rememberSceneRead(object,captured.sceneRead);
       object.userData.formaNativeCadPreview ||= captured.file.name === captured.previewName && /\.st(e)?p$/i.test(captured.source ?? "");
       return object;
     });

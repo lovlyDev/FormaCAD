@@ -2,7 +2,7 @@
 
 [Русский](storage-snap-renderer-source.md) · [Host API](../en/storage-folder-host-api.md) · [Measurements](storage-measurement-renderer-source.en.md)
 
-Status: **prepared, unapplied; separate agreement required**.
+Status: **applied after explicit owner agreement for all nine files**.
 Issue #31 / PR #35, implementation wenlixxq, acceptance lovlyDev.
 Base `db3ce03d643fcc4adc2ed592fbab2ac4c3f4046e` includes the applied 16-file
 measurement scope. The exact [patch](storage-snap-renderer-source.patch) changes
@@ -72,5 +72,5 @@ Exact diff applicability passed. These renderer mocks are not new OCCT measureme
 or installed-app acceptance. The composite with face core does not replace exact validation of these nine paths.
 
 This patch does not connect face/manual sections or writer/permission UI. No visible
-folder button is added; stage 4 is incomplete. Specification §5 requires agreement
-before shared snap/pie/cursor source edits.
+folder button is added; stage 4 is incomplete. Specification §5 agreement
+was satisfied by explicit owner agreement before the shared source edits.

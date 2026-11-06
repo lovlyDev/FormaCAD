@@ -491,6 +491,17 @@ their result merely because a name or messages changed.
 Folder disclosure preferences for these panels remain in RAM, without managed
 preference IO or persisted process-local tokens. Direct legacy callers may omit
 binding; production UI supplies it explicitly. See the [renderer measurement contract](../integration/storage-measurement-renderer-source.en.md)
-for exact 16-file scope and checks. Face/manual sections, snap, history/import/export
+for exact 16-file scope and checks. Face/manual sections, history/import/export
 and writer/permission UI remain subsequent integrations; visible folder controls
 are not added yet.
+### Snap from the displayed source scene
+
+Pointer and context-menu operations use the read context of the actual loaded
+object. Captured before loading, it remains in a WeakMap and never enters GLB/JSON.
+Requests pass the original FolderSourceRef. Replies after opening or geometry
+changes, or newer cursor placement, cannot change cursor position or error state.
+Compatible metadata refresh preserves the running request's original commit; the
+next request captures the new commit. Retired menus cannot move another folder's
+cursor. Host stale-snapshot refusals do not fall back to estimates. Ordinary worker
+failures may return an explicitly non-exact estimate only in the original current
+context. See the [snap contract](../integration/storage-snap-renderer-source.en.md).
