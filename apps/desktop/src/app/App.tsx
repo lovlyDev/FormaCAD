@@ -1416,8 +1416,8 @@ export default function App() {
                 />
               ),
               tasks: <CadTaskPanel onError={setError} />,
-              activity: <ActivityPanel messages={project.messages} />,
-              logs: <ActivityPanel messages={project.messages} errorsOnly />,
+              activity: <ActivityPanel project={project} />,
+              logs: <ActivityPanel project={project} errorsOnly />,
             }}
           />
         </div>

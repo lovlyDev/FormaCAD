@@ -98,6 +98,7 @@ pub fn run() {
             projects::acknowledge_recovery,
             projects::save_project,
             project_history::history_status,
+            project_history::activity::project_activity,
             project_history::undo_model,
             project_history::redo_model,
             project_storage_v2::ipc::inspect_project_folder,

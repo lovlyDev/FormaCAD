@@ -160,6 +160,9 @@ export async function mountViewportTransformHarness(
       return eventId;
     }
     if (command === "list_projects") return [project];
+    if (command === "project_activity") return args.projectId === project.id
+      ? [{ id: 1, kind: "edit", toRevision: project.currentRevision, createdAt: "2026-01-01T00:00:00Z" }]
+      : [];
     if (
       ["interrupted_sessions", "cad_task_status", "plugins_list"].includes(
         command,

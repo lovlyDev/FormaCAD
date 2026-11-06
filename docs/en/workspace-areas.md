@@ -34,7 +34,7 @@ T toggles viewport tools and N toggles the sidebar while the viewport editor has
 
 Interface settings control density and text size. Input enables number-row numpad emulation for front, side and top views (1/3/7); the complete new numpad mapping belongs to M2. Navigation controls orbit around selection, zoom toward the pointer and zoom/pan sensitivity. Pointer zoom uses a plane through the orbit center, not an exact CAD snap. View settings do not create revisions. Theme changes apply immediately to the interface, WebGL background and grid.
 
-Tasks uses the existing CAD queue and cancellation API. Activity shows recorded project events; Logs shows recorded project errors. These editors do not read full host diagnostic logs, which remain local.
+Tasks uses the existing CAD queue and cancellation API. Open **Activity** to see project messages and the latest 200 saved model edits, undos and redos, newest first. Entries show the time in the selected locale and the revision description when available. The desktop app reads model events from the current project's SQLite history through `project_activity`. **Logs** shows recorded project errors. Detailed host diagnostic logs remain local. The native transaction test checks edit, undo and redo order, and the browser test opens both editors in Russian and English with both themes.
 
 ## Technical route and persistence
 
