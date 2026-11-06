@@ -12,6 +12,11 @@
 
 namespace forma {
 
+std::unique_ptr<Shape> chamfer_referenced_edge(const Shape& source, const std::string& owner,
+    const std::string& role, const std::string& path, double distance_mm) noexcept {
+  return blend_referenced_edges(source, owner, role, path, {}, distance_mm, true);
+}
+
 std::unique_ptr<Shape> chamfer_all_edges(const Shape& source, double distance_mm) noexcept {
   if (!source.ok()) return failure("INVALID_SOURCE", "Chamfer input is invalid");
   if (!std::isfinite(distance_mm) || distance_mm <= 0.0 || distance_mm > 10000.0)

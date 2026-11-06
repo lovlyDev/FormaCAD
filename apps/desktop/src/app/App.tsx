@@ -107,6 +107,25 @@ import {
   type PendingAction,
 } from "./dialogs/ActionReviewDialog";
 import { ExportDialog } from "./dialogs/ExportDialog";
+import { TorusDialog } from "../features/add-menu/torus/TorusDialog";
+import { DatumDialog, type DatumSourceOption } from "../features/add-menu/datum/DatumDialog";
+import { FaceExtrusionDialog } from "../features/face-extrusion/FaceExtrusionDialog";
+import { captureFaceExtrusion, faceExtrusionTarget } from "../features/face-extrusion/faceExtrusionCommand";
+import type { FaceSelection } from "../features/viewer/faceSelection";
+import type { EdgeSelection } from "../features/viewer/edgeSelection";
+import { EdgeBlendDialog } from "../features/edge-blend/EdgeBlendDialog";
+import { edgeBlendTarget } from "../features/edge-blend/edgeBlendCommand";
+import { ShellDialog } from "../features/shell/ShellDialog";
+import { captureShell, shellFaces } from "../features/shell/shellCommand";
+import { PatternDialog } from "../features/pattern/PatternDialog";
+import { capturePattern, patternTarget } from "../features/pattern/patternCommand";
+import { DuplicateBodyDialog } from "../features/duplicate-body/DuplicateBodyDialog";
+import { captureDuplicateBody, duplicateBodyTarget } from "../features/duplicate-body/duplicateBodyCommand";
+import { captureSeparateSolids } from "../features/separate-solids/separateSolidsCommand";
+import { captureBodyGroupCommand } from "../features/body-groups/bodyGroupCommands";
+import { datumSources } from "../features/add-menu/datum/datumSources";
+import { captureDatum, type DatumKind } from "../features/add-menu/datum/datumModel";
+import { captureTorus } from "../features/add-menu/torus/torusCommands";
 import { NewProjectDialog } from "./dialogs/NewProjectDialog";
 import { ParametersDialog } from "./dialogs/ParametersDialog";
 import { ProgramDialog } from "./dialogs/ProgramDialog";
@@ -116,7 +135,7 @@ const stamp = () => new Date().toISOString();
 const legacyMotionPrompt = (text: string) =>
   text.startsWith("Добавь анимацию движения к текущей сборке.");
 export default function App() {
-  useLocale();
+  const locale = useLocale();
   const nav = useNavigate();
   const { projectId } = useParams();
   const queryClient = useQueryClient();
@@ -134,6 +153,7 @@ export default function App() {
     selected,
     selectedFace,
     selectedEdge,
+    selectedEdges,
     setSelected,
   } = useWorkspace();
   const projectAccess = useProjectAccess(project?.id, setError);
@@ -150,8 +170,19 @@ export default function App() {
     staleTime: 60000,
   });
   const [modal, setModal] = useState<
-    "new" | "settings" | "export" | "palette" | "parameters" | null
+    "new" | "settings" | "export" | "palette" | "parameters" | "torus" | "datum" | "faceExtrusion" | "edgeBlend" | "shell" | "pattern" | "duplicateBody" | null
   >(null);
+  const [torusTarget, setTorusTarget] = useState<{ id: string; revision: string | null } | null>(null);
+  const [datumTarget, setDatumTarget] = useState<{ id: string; revision: string | null; kind: DatumKind; sources: DatumSourceOption[] } | null>(null);
+  const [faceExtrusion, setFaceExtrusion] = useState<{ projectId: string; selection: FaceSelection; initialMm?: number } | null>(null);
+  const [edgeBlend, setEdgeBlend] = useState<{ projectId: string; selection: readonly EdgeSelection[] } | null>(null);
+  const [shellSelection, setShellSelection] = useState<{ projectId: string; selection: FaceSelection } | null>(null);
+  const [patternSelection, setPatternSelection] = useState<{ projectId: string; revision: string | null; bodyId: string } | null>(null);
+  const [duplicateSelection, setDuplicateSelection] = useState<{ projectId: string; revision: string | null; bodyId: string; spacingMm: number } | null>(null);
+  const datumTargetCurrent = !!datumTarget && project?.id === datumTarget.id
+    && project.currentRevision === datumTarget.revision;
+  const torusTargetCurrent = !!torusTarget && project?.id === torusTarget.id
+    && project.currentRevision === torusTarget.revision;
   const stateKey = `forma.ui.project.${projectId ?? "home"}`;
   const [search, setSearch] = usePersistentState("forma.ui.search", "");
   const [renameTarget, setRenameTarget] = useState<Project | null>(null);
@@ -211,12 +242,13 @@ export default function App() {
       (message) => message.role !== "user" || !legacyMotionPrompt(message.text),
     ) ?? [];
   const geometryKey = JSON.stringify(parameters);
+  const needsEmptyFallback = committedScene.hasFile || !!revision?.program;
   const model = useMemo(
     () =>
-      committedScene.hasFile
+      needsEmptyFallback
         ? new THREE.Group()
         : buildModel(JSON.parse(geometryKey) as Parameters),
-    [geometryKey, committedScene.hasFile],
+    [geometryKey, needsEmptyFallback],
   );
   const object =
     committedScene.object ?? (committedScene.hasFile ? emptyScene : model);
@@ -240,7 +272,40 @@ export default function App() {
         })
       : null;
   const selectedBody = selected ? object.getObjectByName(selected) : undefined;
+  const availableShellFaces = project && !compare && committedScene.interactive
+    ? shellFaces(project, shellSelection?.selection ?? selectedFace, object)
+    : [];
+  const patternInput = project && patternSelection?.projectId === project.id &&
+    patternSelection.revision === project.currentRevision
+    ? patternTarget(project, patternSelection.bodyId) : null;
+  const duplicateInput = project && duplicateSelection?.projectId === project.id &&
+    duplicateSelection.revision === project.currentRevision
+    ? duplicateBodyTarget(project, duplicateSelection.bodyId) : undefined;
+  const openDuplicateBody = !editingBlocked && !pending && !modal && !compare && project && selected &&
+    committedScene.interactive && selectedBody?.visible && !selectedBody.userData.formaSelectionLocked &&
+    duplicateBodyTarget(project, selected)
+    ? () => {
+        const width = new THREE.Box3().setFromObject(selectedBody).getSize(new THREE.Vector3()).x;
+        const spacingMm = Math.max(1, Math.min(10000, Math.ceil(width * 1.1)));
+        setDuplicateSelection({ projectId: project.id, revision: project.currentRevision, bodyId: selected, spacingMm });
+        setModal("duplicateBody");
+      }
+    : undefined;
   const selectedBodyLabel = selectedBody ? bodyLabel(selectedBody) : selected;
+  const separation = !editingBlocked && !pending && !modal && !compare &&
+    project && selectedBody && committedScene.interactive
+    ? captureSeparateSolids(project, selectedBody) : null;
+  const openSeparateSolids = separation ? () => {
+    void ask(separation.captured.prompt, t("Create a separate body for each solid in the selection."),
+      separation.name, async () => {
+        setBusy(true, t("Построение геометрии"));
+        try {
+          await applyModel(separation.captured, { invoke: separation.invoke });
+        } finally {
+          setBusy(false);
+        }
+      }, "modify_project", separation.captured.base.id);
+  } : undefined;
   const selectedLabel =
     selectedEdge && selectedEdge.revisionId === project?.currentRevision
       ? t("{{value0}} · CAD edge {{value1}}", {
@@ -562,10 +627,11 @@ export default function App() {
       p.id,
     );
   }
-  async function importFiles(files: FileList | null) {
+  async function importFiles(files: FileList | null, expectedProjectId?: string) {
     if (!files?.length) return;
     try {
       const importedFiles = await Promise.all(Array.from(files).map(readFile));
+      if (expectedProjectId && useWorkspace.getState().project?.id !== expectedProjectId) return;
       if (!project) {
         setAttachments(importedFiles);
         setModal("new");
@@ -579,7 +645,7 @@ export default function App() {
           .join("\n"),
         async () => {
           const p = useWorkspace.getState().project;
-          if (!p) return;
+          if (!p || (expectedProjectId && p.id !== expectedProjectId)) return;
           const imported = await prepareProjectImport(p, importedFiles);
           await update(imported.project);
           if (!imported.hasMesh) {
@@ -600,15 +666,19 @@ export default function App() {
     }
   }
   async function captureScreenshot(data: string) {
-    const blob = await (await fetch(data)).blob();
-    const transfer = new DataTransfer();
-    transfer.items.add(
-      new File([blob], `viewport-${crypto.randomUUID()}.png`, {
-        type: "image/png",
-      }),
-    );
-    await importFiles(transfer.files);
-    chatInput.current?.focus();
+    const id = project?.id;
+    if (!id) return;
+    try {
+      const blob = await (await fetch(data)).blob();
+      const transfer = new DataTransfer();
+      transfer.items.add(
+        new File([blob], `viewport-${crypto.randomUUID()}.png`, { type: "image/png" }),
+      );
+      await importFiles(transfer.files, id);
+      if (useWorkspace.getState().project?.id === id) chatInput.current?.focus();
+    } catch (cause) {
+      if (useWorkspace.getState().project?.id === id) setError(errorText(cause));
+    }
   }
   async function send(request = prompt) {
     if (!project || editingBlocked || !request.trim()) return;
@@ -912,6 +982,34 @@ export default function App() {
               import: () => fileInput.current?.click(),
               export: () => setModal("export"),
               parameters: () => setModal("parameters"),
+              addTorus: () => {
+                if (!project) return;
+                setTorusTarget({ id: project.id, revision: project.currentRevision });
+                setModal("torus");
+              },
+              addDatum: (kind) => {
+                if (!project) return;
+                setDatumTarget({ id: project.id, revision: project.currentRevision, kind,
+                  sources: datumSources(project, selectedFace, selectedEdge) });
+                setModal("datum");
+              },
+              shell: !editingBlocked && !pending && !modal && project && selectedFace &&
+                availableShellFaces.length > 1
+                ? () => {
+                    setShellSelection({ projectId: project.id, selection: selectedFace });
+                    setModal("shell");
+                  }
+                : undefined,
+              pattern: !editingBlocked && !pending && !modal && !compare && project && selected &&
+                committedScene.interactive && selectedBody?.visible &&
+                !selectedBody.userData.formaSelectionLocked && patternTarget(project, selected)
+                ? () => {
+                    setPatternSelection({ projectId: project.id, revision: project.currentRevision, bodyId: selected });
+                    setModal("pattern");
+                  }
+                : undefined,
+              duplicateBody: openDuplicateBody,
+              separateSolids: openSeparateSolids,
               palette: () => setModal("palette"),
               settings: (page) => {
                 if (page) persist("forma.ui.settingsPage", JSON.stringify(page));
@@ -928,6 +1026,8 @@ export default function App() {
             },
             !!project,
             editingBlocked,
+            native && !!project && (project.currentRevision === null
+              || (!!revision?.program && !!readTypedCadDocument(revision.program))),
           )}
         />
         {project && (
@@ -1084,6 +1184,24 @@ export default function App() {
                   onRetry={committedScene.retry}
                   onScreenshot={(data) => void captureScreenshot(data)}
                   onVisibility={visibility.onVisibility}
+                  onDuplicateBody={openDuplicateBody}
+                  onSeparateSolids={openSeparateSolids}
+                  onExtrudeFace={!editingBlocked && !pending && !modal && !compare &&
+                    committedScene.interactive && selectedFace?.sceneToken === object.uuid &&
+                    faceExtrusionTarget(project, selectedFace)
+                    ? (initialMm) => {
+                        setFaceExtrusion({ projectId: project.id, selection: selectedFace, initialMm });
+                        setModal("faceExtrusion");
+                      }
+                    : undefined}
+                  onBlendEdge={!editingBlocked && !pending && !modal && !compare &&
+                    committedScene.interactive && selectedEdge?.sceneToken === object.uuid &&
+                    edgeBlendTarget(project, selectedEdges)
+                    ? () => {
+                        setEdgeBlend({ projectId: project.id, selection: selectedEdges });
+                        setModal("edgeBlend");
+                      }
+                    : undefined}
                   confirmEdit={(title, description, detail, run) =>
                     new Promise<boolean>((resolve) => {
                       void ask(
@@ -1129,6 +1247,20 @@ export default function App() {
                     )
                   }
                   onEdit={() => setModal("parameters")}
+                  onGroupCommand={!editingBlocked && !pending && !modal && !compare && committedScene.interactive
+                    ? (command) => {
+                        const operation = captureBodyGroupCommand(project, command);
+                        void ask(operation.captured.prompt, t("Save the new body group membership."),
+                          project.name, async () => {
+                            setBusy(true, t("Построение геометрии"));
+                            try {
+                              await applyModel(operation.captured, { invoke: operation.invoke });
+                            } finally {
+                              setBusy(false);
+                            }
+                          }, "modify_project", project.id);
+                      }
+                    : undefined}
                 />
               ),
               files: (
@@ -1285,8 +1417,8 @@ export default function App() {
                 />
               ),
               tasks: <CadTaskPanel onError={setError} />,
-              activity: <ActivityPanel messages={project.messages} />,
-              logs: <ActivityPanel messages={project.messages} errorsOnly />,
+              activity: <ActivityPanel project={project} />,
+              logs: <ActivityPanel project={project} errorsOnly />,
             }}
           />
         </div>
@@ -1487,6 +1619,156 @@ export default function App() {
           if (project && !busy) await update({ ...project, agent });
         }}
       />
+      {modal === "torus" && project && (
+        <TorusDialog
+          key={project.id}
+          close={() => setModal(null)}
+          disabled={editingBlocked || !torusTargetCurrent}
+          onApply={(major, minor) => {
+            if (!torusTargetCurrent) return;
+            const operation = captureTorus(project, torusTarget.revision, major, minor);
+            setModal(null);
+            void ask(
+              t("Add torus"),
+              t("Create a solid ring around the Z axis at the model origin."),
+              t("Torus radii: {{major}} / {{minor}} mm", {
+                major: major.toLocaleString(locale, { maximumSignificantDigits: 15 }),
+                minor: minor.toLocaleString(locale, { maximumSignificantDigits: 15 }),
+              }),
+              async () => {
+                setBusy(true, t("Построение геометрии"));
+                try {
+                  await applyModel(operation.captured, { invoke: operation.invoke });
+                } finally {
+                  setBusy(false);
+                }
+              },
+              "modify_project",
+              project.id,
+            );
+          }}
+        />
+      )}
+      {modal === "faceExtrusion" && faceExtrusion && project?.id === faceExtrusion.projectId && (
+        <FaceExtrusionDialog close={() => { setFaceExtrusion(null); setModal(null); }}
+          initialMm={faceExtrusion.initialMm}
+          disabled={editingBlocked || !faceExtrusionTarget(project, faceExtrusion.selection)}
+          onApply={(distance) => {
+            const operation = captureFaceExtrusion(project, faceExtrusion.selection, distance);
+            if (!operation) return;
+            setFaceExtrusion(null);
+            setModal(null);
+            void ask(operation.captured.prompt,
+              t("Use a positive distance to add material or a negative distance to cut it."),
+              project.name, async () => {
+                setBusy(true, t("Построение геометрии"));
+                try {
+                  await applyModel(operation.captured, { invoke: operation.invoke });
+                } finally {
+                  setBusy(false);
+                }
+              }, "modify_project", project.id);
+          }} />
+      )}
+      {modal === "edgeBlend" && edgeBlend && project?.id === edgeBlend.projectId && (
+        <EdgeBlendDialog project={project} selection={edgeBlend.selection}
+          close={() => { setEdgeBlend(null); setModal(null); }}
+          disabled={editingBlocked || !edgeBlendTarget(project, edgeBlend.selection)}
+          onApply={(operation) => {
+            setEdgeBlend(null);
+            setModal(null);
+            void ask(operation.captured.prompt, t("Blend selected edges"), project.name, async () => {
+              setBusy(true, t("Построение геометрии"));
+              try {
+                await applyModel(operation.captured, { invoke: operation.invoke });
+              } finally {
+                setBusy(false);
+              }
+            }, "modify_project", project.id);
+          }} />
+      )}
+      {modal === "shell" && shellSelection && project?.id === shellSelection.projectId &&
+        shellSelection.selection.topologyRef && (
+        <ShellDialog primary={shellSelection.selection.topologyRef} faces={availableShellFaces}
+          close={() => { setShellSelection(null); setModal(null); }}
+          disabled={editingBlocked || availableShellFaces.length < 2}
+          onApply={(openings, offset) => {
+            const operation = captureShell(project, shellSelection.selection, openings, offset);
+            if (!operation) return;
+            setShellSelection(null);
+            setModal(null);
+            void ask(operation.captured.prompt, t("Choose which faces to remove and how thick to make the walls."),
+              project.name, async () => {
+                setBusy(true, t("Построение геометрии"));
+                try {
+                  await applyModel(operation.captured, { invoke: operation.invoke });
+                } finally {
+                  setBusy(false);
+                }
+              }, "modify_project", project.id);
+          }} />
+      )}
+      {modal === "pattern" && patternSelection && project?.id === patternSelection.projectId && (
+        <PatternDialog canRepeatHole={patternInput?.canRepeatHole ?? false}
+          close={() => { setPatternSelection(null); setModal(null); }}
+          disabled={editingBlocked || !patternInput}
+          onApply={(repeatHole, layout) => {
+            if (!patternInput) return;
+            const operation = capturePattern(project, patternSelection.bodyId, repeatHole, layout);
+            if (!operation) return;
+            setPatternSelection(null);
+            setModal(null);
+            void ask(operation.captured.prompt, t("Repeat a body or its active hole at regular intervals."),
+              project.name, async () => {
+                setBusy(true, t("Построение геометрии"));
+                try {
+                  await applyModel(operation.captured, { invoke: operation.invoke });
+                } finally {
+                  setBusy(false);
+                }
+              }, "modify_project", project.id);
+          }} />
+      )}
+      {modal === "duplicateBody" && duplicateSelection && project?.id === duplicateSelection.projectId && (
+        <DuplicateBodyDialog sourceName={duplicateInput?.name ?? ""} spacingMm={duplicateSelection.spacingMm}
+          close={() => { setDuplicateSelection(null); setModal(null); }}
+          disabled={editingBlocked || !duplicateInput}
+          onApply={(name, offset) => {
+            if (!duplicateInput) return;
+            const operation = captureDuplicateBody(project, duplicateSelection.bodyId, name, offset);
+            if (!operation) return;
+            setDuplicateSelection(null);
+            setModal(null);
+            void ask(operation.captured.prompt,
+              t("Make an independent copy of this body's modeling history and parameters."),
+              name, async () => {
+                setBusy(true, t("Построение геометрии"));
+                try {
+                  await applyModel(operation.captured, { invoke: operation.invoke });
+                } finally {
+                  setBusy(false);
+                }
+              }, "modify_project", project.id);
+          }} />
+      )}
+      {modal === "datum" && project && datumTarget && (
+        <DatumDialog key={datumTarget.kind} kind={datumTarget.kind} sources={datumTarget.sources}
+          close={() => setModal(null)} disabled={editingBlocked || !datumTargetCurrent}
+          onApply={(datum) => {
+            if (!datumTargetCurrent) return;
+            const operation = captureDatum(project, datum);
+            setModal(null);
+            void ask(operation.captured.prompt, t("Add construction geometry in model coordinates."), project.name,
+              async () => {
+                setBusy(true, t("Построение геометрии"));
+                try {
+                  await applyModel(operation.captured, { invoke: operation.invoke });
+                } finally {
+                  setBusy(false);
+                }
+              }, "modify_project", project.id);
+          }} />
+      )}
       {!revision || revision.source || revision.program ? (
         <ProgramDialog
           open={modal === "parameters"}

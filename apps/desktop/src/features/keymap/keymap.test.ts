@@ -15,7 +15,8 @@ describe("physical key routing and ownership", () => {
     expect(resolve("KeyZ", { ctrlKey: true, shiftKey: true })).toBe(
       "history.redo",
     );
-    expect(resolve("KeyG", { shiftKey: true })).toBeNull();
+    expect(resolve("KeyG", { key: "П", shiftKey: true })).toBe("selection.similar");
+    expect(resolve("KeyL", { key: "д" })).toBe("selection.linked");
   });
   it("resolves numpad emulation before selection digits and respects modal priority", () => {
     expect(resolve("Digit1")).toBe("selection.body");

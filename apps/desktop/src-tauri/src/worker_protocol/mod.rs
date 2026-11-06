@@ -1,4 +1,5 @@
 //! Isolated worker protocol. Legacy handlers preserved; new operations separate.
+mod datum;
 mod dispatch;
 mod face_section;
 mod measurement;

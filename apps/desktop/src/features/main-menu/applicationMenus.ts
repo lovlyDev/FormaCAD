@@ -1,11 +1,18 @@
 import { t } from "../../i18n";
 import type { MenuGroup } from "./MainMenu";
+import { datumLabels, type DatumKind } from "../add-menu/datum/datumModel";
 interface Actions {
   duplicate: () => void;
   create: () => void;
   import: () => void;
   export: () => void;
   parameters: () => void;
+  addTorus: () => void;
+  addDatum: (kind: DatumKind) => void;
+  shell?: () => void;
+  pattern?: () => void;
+  duplicateBody?: () => void;
+  separateSolids?: () => void;
   palette: () => void;
   settings: (page?: string) => void;
   workspaces: () => void;
@@ -14,6 +21,7 @@ export function applicationMenus(
   actions: Actions,
   projectOpen: boolean,
   blocked: boolean,
+  canAddGeometry = false,
 ): MenuGroup[] {
   return [
     {
@@ -88,6 +96,18 @@ export function applicationMenus(
       label: "Add",
       actions: [
         {
+          id: "torus",
+          label: t("Torus"),
+          run: actions.addTorus,
+          disabled: blocked || !canAddGeometry,
+        },
+        ...(Object.keys(datumLabels) as DatumKind[]).map((kind) => ({
+          id: kind,
+          label: t(datumLabels[kind]),
+          run: () => actions.addDatum(kind),
+          disabled: blocked || !canAddGeometry,
+        })),
+        {
           id: "feature",
           label: t("Edit model parameters"),
           run: actions.parameters,
@@ -105,6 +125,32 @@ export function applicationMenus(
       id: "tools",
       label: "Tools",
       actions: [
+        {
+          id: "shell",
+          label: t("Shell"),
+          disabled: !actions.shell,
+          run: () => actions.shell?.(),
+        },
+        {
+          id: "pattern",
+          label: t("Pattern"),
+          disabled: !actions.pattern,
+          run: () => actions.pattern?.(),
+        },
+        {
+          id: "duplicateBody",
+          label: t("Duplicate body"),
+          shortcut: "Shift D",
+          disabled: !actions.duplicateBody,
+          run: () => actions.duplicateBody?.(),
+        },
+        {
+          id: "separateSolids",
+          label: t("Separate solids"),
+          shortcut: "P",
+          disabled: !actions.separateSolids,
+          run: () => actions.separateSolids?.(),
+        },
         {
           id: "plugins",
           label: t("Plugins"),

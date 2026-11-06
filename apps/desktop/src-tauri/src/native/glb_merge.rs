@@ -85,7 +85,11 @@ fn append_u32(output: &mut Vec<u8>, value: usize) -> Result<(), NativeError> {
     Ok(())
 }
 
-pub fn merge_body_glbs(bodies: &[BodyGlb<'_>], destination: &Path) -> Result<(), NativeError> {
+pub fn merge_body_glbs(
+    bodies: &[BodyGlb<'_>],
+    datums: &serde_json::Value,
+    destination: &Path,
+) -> Result<(), NativeError> {
     if bodies.is_empty() {
         return Err(invalid("No body GLBs to merge"));
     }
@@ -138,7 +142,7 @@ pub fn merge_body_glbs(bodies: &[BodyGlb<'_>], destination: &Path) -> Result<(),
     let gltf = json!({
         "asset": {"version": "2.0", "generator": "Forma CAD"},
         "scene": 0,
-        "scenes": [{"nodes": scene_nodes}],
+        "scenes": [{"nodes": scene_nodes, "extras": {"formaDatums": datums}}],
         "nodes": nodes,
         "meshes": meshes,
         "buffers": [{"byteLength": binary.len()}],

@@ -2615,7 +2615,7 @@ body { background: var(--bg); }
   white-space: normal;
 }
 .measure-result > .custom-select { min-width: 0; width: 100%; }
-.measure-result > span { grid-column: 1 / -1; text-align: center; color: var(--muted); }
+.measure-result > span { grid-column: 1 / -1; text-align: center; color: var(--custom-measurement, var(--muted)); }
 .settings-layout .cad-python-action { margin-top: 20px; }
 .program-editor { min-height: 360px; max-height: 52vh; }
 

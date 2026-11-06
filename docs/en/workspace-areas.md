@@ -34,7 +34,11 @@ T toggles viewport tools and N toggles the sidebar while the viewport editor has
 
 Interface settings control density and text size. Input enables number-row numpad emulation for front, side and top views (1/3/7); the complete new numpad mapping belongs to M2. Navigation controls orbit around selection, zoom toward the pointer and zoom/pan sensitivity. Pointer zoom uses a plane through the orbit center, not an exact CAD snap. View settings do not create revisions. Theme changes apply immediately to the interface, WebGL background and grid.
 
-Tasks uses the existing CAD queue and cancellation API. Activity shows recorded project events; Logs shows recorded project errors. These editors do not read full host diagnostic logs, which remain local.
+Tasks uses the existing CAD queue and cancellation API. Open **Activity** to see project messages and the latest 200 saved model edits, undos and redos, newest first. Entries show the time in the selected locale and the revision description when available. The desktop app reads model events from the current project's SQLite history through `project_activity`. **Logs** shows recorded project errors. Detailed host diagnostic logs remain local. The native transaction test checks edit, undo and redo order, and the browser test opens both editors in Russian and English with both themes.
+
+Right-click a saved operation in the model tree or press Shift+F10 on its focused row and choose **Copy as command**. The clipboard receives an `add_feature` Command API JSON object with a new feature ID and the operation's current arguments. Referenced inputs must exist in the destination document, and changing a body's output requires a separate command. Copying leaves the model and project history intact.
+
+In **Settings → Appearance**, expand **Theme editor**. Customize interface surfaces, text, borders, accent, selection, warnings and measurements, plus the viewport background, grid and axis colors. The editor checks the foreground text colors against the three editable interface surfaces at a minimum ratio of 4.5:1. Choose **Apply custom theme** to save the palette for the active light or dark theme in local UI preferences. Import or export a versioned JSON file up to 8 KiB. Import loads the colors into the editor for review before applying them. **Restore default theme** resets the active theme. Applying colors keeps the scene and project revision in place.
 
 ## Technical route and persistence
 

@@ -1,6 +1,8 @@
 mod bindings;
 #[cfg(test)]
 mod bindings_tests;
+mod duplicate_body;
+mod separate_solids;
 mod sketch;
 mod topology_refs;
 mod transform_body;
@@ -32,6 +34,11 @@ pub fn apply_commands(
     let mut staged = current.clone();
     for command in commands {
         match command {
+            Command::GroupCreate { .. }
+            | Command::GroupAdd { .. }
+            | Command::GroupRemove { .. } => super::groups::apply(&mut staged, command)?,
+            Command::DuplicateBody { .. } => duplicate_body::apply(&mut staged, command)?,
+            Command::SeparateSolids { .. } => separate_solids::apply(&mut staged, command)?,
             Command::TransformBody { .. } => transform_body::apply(&mut staged, command)?,
             Command::SetTopologyReference { .. } => topology_refs::apply(&mut staged, command)?,
             Command::AddParameter { parameter } => staged.parameters.push(parameter.clone()),
@@ -76,6 +83,7 @@ pub fn apply_commands(
                         ValidationError::new(ErrorCode::MissingTarget, Some(feature_id.clone()))
                     })?;
                 let dimension = match (&mut feature.operation, field) {
+                    (Operation::Shell { offset, .. }, DimensionField::Distance) => offset,
                     (Operation::Rectangle { width, .. }, DimensionField::Width) => width,
                     (Operation::Rectangle { depth, .. }, DimensionField::Depth) => depth,
                     (Operation::Circle { radius }, DimensionField::Radius) => radius,
@@ -86,6 +94,7 @@ pub fn apply_commands(
                     (Operation::Cone { top_radius, .. }, DimensionField::TopRadius) => top_radius,
                     (Operation::Cone { height, .. }, DimensionField::Height) => height,
                     (Operation::Extrude { distance, .. }, DimensionField::Distance) => distance,
+                    (Operation::ExtrudeFace { distance, .. }, DimensionField::Distance) => distance,
                     (Operation::Hole { radius, .. }, DimensionField::Radius) => radius,
                     (Operation::Hole { depth, .. }, DimensionField::HoleDepth) => depth,
                     (Operation::Fillet { radius, .. }, DimensionField::Radius) => radius,
@@ -93,7 +102,11 @@ pub fn apply_commands(
                     (Operation::FilletReferencedEdge { radius, .. }, DimensionField::Radius) => {
                         radius
                     }
-                    (Operation::Chamfer { distance, .. }, DimensionField::Distance) => distance,
+                    (Operation::Chamfer { distance, .. }, DimensionField::Distance)
+                    | (
+                        Operation::ChamferReferencedEdge { distance, .. },
+                        DimensionField::Distance,
+                    ) => distance,
                     _ => {
                         return Err(ValidationError::new(
                             ErrorCode::UnsupportedField,
@@ -151,6 +164,7 @@ pub fn apply_commands(
     if staged.features == current.features
         && staged.parameters == current.parameters
         && staged.bodies == current.bodies
+        && staged.groups == current.groups
     {
         return Err(ValidationError::new(ErrorCode::NoChange, None));
     }

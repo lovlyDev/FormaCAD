@@ -26,6 +26,7 @@ export function Model({
   selectionMode,
   revisionId,
   onPoint,
+  onTangentChain,
   interactive = true,
 }: {
   object: THREE.Group;
@@ -36,6 +37,7 @@ export function Model({
   selectionMode: SelectionFilter;
   revisionId: string | null;
   onPoint: (p: THREE.Vector3) => void;
+  onTangentChain?: () => void;
   interactive?: boolean;
 }) {
   const { camera, gl, size } = useThree();
@@ -44,6 +46,9 @@ export function Model({
   const setBodySelection = useWorkspace((s) => s.setBodySelection);
   const selectFace = useWorkspace((s) => s.setSelectedFace);
   const selectEdge = useWorkspace((s) => s.setSelectedEdge);
+  const pickEdge = useWorkspace((s) => s.pickSelectedEdge);
+  const selectedEdges = useWorkspace((s) => s.selectedEdges);
+  const selectedFaces = useWorkspace((s) => s.selectedFaces);
   const light = useTheme() === "light";
   useBodyAppearance(
     object,
@@ -57,15 +62,20 @@ export function Model({
     if (!selectedFace || selectedFace.revisionId !== revisionId) return;
     const mesh = object.getObjectByName(selectedFace.bodyId);
     if (!(mesh instanceof THREE.Mesh)) return;
-    const overlay = faceOverlay(mesh, selectedFace.faceOrdinal);
-    if (!overlay) return;
-    mesh.add(overlay);
+    const ordinals = selectedFaces.filter((face) =>
+      face.sceneToken === object.uuid && face.revisionId === revisionId && face.bodyId === selectedFace.bodyId)
+      .map((face) => face.faceOrdinal);
+    const overlays = [...new Set([selectedFace.faceOrdinal, ...ordinals])]
+      .map((ordinal) => faceOverlay(mesh, ordinal)).filter((overlay) => overlay !== null);
+    for (const overlay of overlays) mesh.add(overlay);
     return () => {
-      overlay.removeFromParent();
-      overlay.geometry.dispose();
-      (overlay.material as THREE.Material).dispose();
+      for (const overlay of overlays) {
+        overlay.removeFromParent();
+        overlay.geometry.dispose();
+        (overlay.material as THREE.Material).dispose();
+      }
     };
-  }, [object, revisionId, selectedFace]);
+  }, [object, revisionId, selectedFace, selectedFaces]);
   useEffect(() => {
     if (!revisionId) return;
     const overlays: (
@@ -78,10 +88,10 @@ export function Model({
       if (!edges) return;
       edges.forEach((edge, index) => {
         const ordinal = index + 1;
-        const selected =
-          selectedEdge?.revisionId === revisionId &&
-          selectedEdge.bodyId === node.name &&
-          selectedEdge.edgeOrdinal === ordinal;
+        const matches = (edge: EdgeSelection | null) =>
+          edge?.revisionId === revisionId && edge.bodyId === node.name && edge.edgeOrdinal === ordinal;
+        const selected = matches(selectedEdge) || selectedEdges.some((edge) =>
+          edge.sceneToken === object.uuid && matches(edge));
         if (selectionMode !== "edge" && !selected) return;
         const overlay = edgeOverlay(node, edge, ordinal, selected);
         if (!overlay) return;
@@ -105,6 +115,7 @@ export function Model({
     object,
     revisionId,
     selectedEdge,
+    selectedEdges,
     selectionMode,
     size.width,
     size.height,
@@ -143,15 +154,15 @@ export function Model({
           }
           if (object.getObjectByName(hit.bodyId)?.userData.formaSelectionLocked)
             return;
-          select(hit.bodyId);
-          selectEdge({
+          pickEdge({
             bodyId: hit.bodyId,
             edgeOrdinal: hit.edgeOrdinal,
             revisionId,
             sceneToken: object.uuid,
             ...(hit.topologyRef ? { topologyRef: hit.topologyRef } : {}),
             ...(hit.semanticKey ? { semanticKey: hit.semanticKey } : {}),
-          });
+          }, e.nativeEvent.shiftKey);
+          if (e.nativeEvent.altKey) onTangentChain?.();
           onPoint(hit.point.clone());
           return;
         }

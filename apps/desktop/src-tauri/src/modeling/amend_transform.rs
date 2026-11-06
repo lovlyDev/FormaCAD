@@ -38,7 +38,7 @@ fn stale() -> AppError {
     AppError::Invalid("AMEND_STALE".into())
 }
 
-fn read_document(project: &Project, id: &str) -> Option<Document> {
+pub(super) fn read_document(project: &Project, id: &str) -> Option<Document> {
     let revision = project
         .revisions
         .iter()
@@ -112,7 +112,7 @@ fn definition(
     project: &Project,
     capture: &AmendCapture,
 ) -> Option<(Document, Document, Vec<LastTransformCommand>)> {
-    let before = read_document(project, &capture.base_revision)?;
+    let before = read_document(project, capture.base_revision.as_deref()?)?;
     let current = read_document(project, &capture.expected_revision)?;
     let commands = describe(&before, &current)?;
     Some((before, current, commands))
@@ -124,14 +124,14 @@ pub async fn status(state: &AppState, project_id: &str) -> Result<Option<LastTra
     let Some(capture) = history.capture_amend(&project)? else {
         return Ok(None);
     };
-    let Some((_, _, commands)) = definition(&project, &capture) else {
+    let Some((before, _, commands)) = definition(&project, &capture) else {
         return Ok(None);
     };
     Ok(Some(LastTransformStatus {
         expected_revision: capture.expected_revision,
         expected_generation: capture.generation,
         transaction_id: capture.transaction_id,
-        base_revision: capture.base_revision,
+        base_revision: before.revision_id,
         commands,
     }))
 }

@@ -5,6 +5,8 @@ use super::NativeError;
 pub(crate) mod ffi {
     unsafe extern "C++" {
         include!("cad-core/include/forma_core.hpp");
+        include!("cad-core/include/forma_datum.hpp");
+        include!("cad-core/include/forma_datum_anchor.hpp");
         include!("cad-core/include/forma_measurement.hpp");
         include!("cad-core/include/forma_pair_measurement.hpp");
 
@@ -118,12 +120,15 @@ pub(crate) mod ffi {
             owner: &CxxString,
         ) -> UniquePtr<Shape>;
         fn topology_occurrence(source: &Shape, id: &CxxString) -> UniquePtr<Shape>;
-        fn fillet_referenced_edge(
+        fn smart_select(source: &Shape, kind: i32, seed: u32) -> UniquePtr<CxxVector<u32>>;
+        fn blend_referenced_edges(
             source: &Shape,
             owner: &CxxString,
             role: &CxxString,
             path: &CxxString,
-            radius_mm: f64,
+            additional: &CxxString,
+            size_mm: f64,
+            chamfer: bool,
         ) -> UniquePtr<Shape>;
         fn make_cylinder(radius_mm: f64, height_mm: f64) -> UniquePtr<Shape>;
         fn make_referenced_cylinder(
@@ -132,6 +137,56 @@ pub(crate) mod ffi {
             owner: &CxxString,
         ) -> UniquePtr<Shape>;
         fn make_sphere(radius_mm: f64) -> UniquePtr<Shape>;
+        fn make_torus(major_radius_mm: f64, minor_radius_mm: f64) -> UniquePtr<Shape>;
+        fn extrude_face(
+            source: &Shape,
+            owner: &CxxString,
+            role: &CxxString,
+            occurrence: &CxxString,
+            distance_mm: f64,
+        ) -> UniquePtr<Shape>;
+        fn shell(
+            source: &Shape,
+            owner: &CxxString,
+            roles: &CxxString,
+            occurrence: &CxxString,
+            offset_mm: f64,
+        ) -> UniquePtr<Shape>;
+        fn extract_solid(source: &Shape, index: i32, expected_count: i32) -> UniquePtr<Shape>;
+        #[allow(clippy::too_many_arguments)]
+        fn pattern_linear(
+            source: &Shape,
+            count_u: i32,
+            ux: f64,
+            uy: f64,
+            uz: f64,
+            count_v: i32,
+            vx: f64,
+            vy: f64,
+            vz: f64,
+        ) -> UniquePtr<Shape>;
+        #[allow(clippy::too_many_arguments)]
+        fn pattern_circular(
+            source: &Shape,
+            count: i32,
+            ox: f64,
+            oy: f64,
+            oz: f64,
+            dx: f64,
+            dy: f64,
+            dz: f64,
+            step_deg: f64,
+        ) -> UniquePtr<Shape>;
+        unsafe fn validate_datum(kind: i32, data: *const f64, count: usize) -> bool;
+        unsafe fn datum_anchor(
+            solid: &Shape,
+            kind: i32,
+            owner: &CxxString,
+            role: &CxxString,
+            occurrence: &CxxString,
+            frame: *mut f64,
+            count: usize,
+        ) -> bool;
         fn make_cone(bottom_radius_mm: f64, top_radius_mm: f64, height_mm: f64)
             -> UniquePtr<Shape>;
         unsafe fn make_polygon_prism(

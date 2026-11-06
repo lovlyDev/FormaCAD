@@ -4,6 +4,10 @@
 
 The viewer displays the current revision's saved geometry. Drag to orbit, right-drag to pan, and use the wheel to zoom. Reset/fit and isometric, top, front, and side views are available. Orthographic and perspective modes keep separate camera states. The workspace also controls the grid, rendering style (solid and edges, solid, wireframe, transparent), and body visibility. Camera and display settings are restored per project after restart. See [Viewer](../../apps/desktop/src/features/viewer/Viewer.tsx), [camera](../../apps/desktop/src/features/viewer/CameraControl.tsx), and [render modes](../../apps/desktop/src/features/viewer/renderMode.ts).
 
+## Viewport snapshot
+
+Choose **Viewport snapshot** in the 3D toolbar. Choose 1×, 2× or 3× output resolution and optionally enable **Transparent background**. The PNG keeps the current camera and visible scene, including the grid. The maximum is 4096 pixels per side. Confirm attachment import to add the PNG to the project and the current chat draft. The viewport resolution and background are restored and the CAD revision stays the same.
+
 ## X-Ray and Ghost
 
 The display menu offers X-Ray and Ghost. X-Ray makes surfaces translucent and renders outlines without depth testing, revealing a separate body inside a closed enclosing body. Hidden contours are deliberately visible rather than physically transparent. Ghost keeps the selected body opaque and dims other bodies. Selecting another body moves the emphasis immediately; without a selection the entire model is dimmed. Hidden bodies remain hidden. Ordinary CAD face/edge selection rules still apply: displaying a hidden outline in X-Ray does not turn it into an available topology reference.

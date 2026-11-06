@@ -6,14 +6,84 @@ This guide describes the current local source tree. The published installer may 
 
 ## Model construction
 
+### Torus (M3)
+
+Immediately after creating a torus, press F9 in the viewport to adjust both radii. A successful adjustment replaces the last Undo step while retaining saved revisions. If the project or history changes, reopen the panel.
+
+`make_torus` builds a solid OCCT torus at the origin around the Z axis. The major radius measures the distance to the centre of the tube section. The minor radius measures the tube radius. Both use millimetres. The major radius is capped at 10,000 mm. The minor radius and the difference between the two radii must exceed the OCCT tolerance. These constraints preserve an open hole and exclude degenerate and self-intersecting shapes.
+
+In the desktop app, open an empty project or a project with a saved CAD IR v2 model. Choose Add → Torus, enter both radii, and select Build. The fields accept bare values in millimetres and values with units such as `1 cm` or `0.5 in`. The torus is added as a separate body at the model origin.
+
+`AddFeature` and `AddBody` run as one transaction. The document stores `majorRadius` and `minorRadius` on the `torus` operation. Rust validates the radii and delegates construction to the worker. A successful build saves one revision. A validation or worker error preserves the previous model and history. `forma_torus_test` compares volume, area and extents with analytical values, checks BREP validity after a STEP round-trip, and verifies rejection of invalid radii.
+
 A CAD IR v2 document contains `schemaVersion: 2`, `revisionId`, and `parameters`, `features`, and `bodies` arrays. Element IDs remain stable across edits. A parameter has a name and a canonical millimeter value. A feature dimension is either a literal value or a reference to a parameter, so changing one parameter rebuilds dependent features. A body names its final feature with `sourceFeatureId`. Multiple bodies can be independent or participate in Boolean operations. See the [types](../../apps/desktop/src-tauri/src/cad_ir/mod.rs) and [validation rules](../../apps/desktop/src-tauri/src/cad_ir/validation.rs).
+
+### Datum geometry in the kernel (M3)
+
+The `forma::datum` module builds OCCT construction geometry in model coordinates. A plane is a square face with a centre and normal, an axis is a segment with a midpoint and direction, and a point is a vertex. The kernel checks coordinates, direction and size. Construction elements have their own topology and require no positive volume.
+
+In the Add menu, choose Datum plane, Datum axis or Datum point. Enter the coordinates in the model coordinate system. For a plane, also enter a normal and side length. For an axis, enter a direction and length. CAD IR stores `datumPlane`, `datumAxis` or `datumPoint` separately from bodies. The worker checks the geometry before the revision is saved. A project with only datums produces no body files. Datums appear alongside the model and leave solid mass and body STEP export unchanged.
+
+Press F9 in the viewport immediately after creating a datum to adjust its parameters within the same Undo step. The previous revision is retained. A change to history makes the adjustment request stale.
+
+To anchor a datum, select a planar face or straight edge and choose it under Datum reference. Earlier datum planes appear in the same list. Offset follows the original normal or tangent from the face centroid, edge midpoint or plane origin. Angle tilts the normal or direction toward a local tangent. F9 changes the offset, angle and size while retaining the source.
+
+CAD IR stores the reference and its parameters in a `datumOnReference` operation. The worker resolves the semantic reference on each build and records the computed placement in preview metadata. Curved faces, circular edges and unsupported references are rejected. A failed anchor preserves the current revision. `forma_datum_test` checks measurements and BREP after a separate STEP round-trip. `forma_datum_anchor_test` checks exact positions and rejects stale references.
+
+### Face extrusion (M3)
+
+In face selection mode (`2`), select a planar box face or cylinder cap with a semantic reference. Press `E` to enter a signed length, or drag the arrow along the face normal and review the estimated distance in the same dialog. Positive distance adds material. Negative distance cuts into the body. Enter applies the distance after the usual project confirmation. Escape cancels the draft. If the camera looks straight along the normal, use `E` for exact input.
+
+CAD IR stores the semantic face and signed distance in `extrudeFace`. Rust passes them to OCCT's `BRepFeat_MakePrism`. One command batch adds the feature and sets the body source. An unavailable face, an empty result or the wrong volume change leaves the previous revision intact. The resulting solid has no v1 semantic catalog for downstream face or edge picks. Kernel tests cover both signs, invalid inputs, dimensions, volume and STEP round-trip.
+
+### Selected-edge fillet and chamfer (M3)
+
+Press `3` to switch to edge selection. Click an edge, then Shift-click to add or remove edges on the same body. Press `Ctrl+B` and choose Fillet or Chamfer. The dialog shows the selected edge count. Drag the slider or enter a positive radius or setback in millimetres. The OCCT preview rebuilds in a separate view. Choose Build and confirm the project edit to commit, or press Escape to discard the draft.
+
+CAD IR stores the source body feature, first semantic edge reference, optional additional references and the common radius or setback in `filletReferencedEdge` or `chamferReferencedEdge`. Existing single-edge revisions still load. The worker resolves every edge against the original BREP and builds the contours together. The host updates the body in one transaction and rolls back the command batch on invalid input. The tool accepts up to 64 resolved edges, including box edges and circular cylinder rims. The result has no v1 semantic catalogue for subsequent edge blends. Tests check cylinder volume, BREP validity, STEP round-trip, rejected inputs and rollback.
+
+### Exact topology selection
+
+Pick a face and press `L` to select its owning body. Pick a face or edge and press `Shift+G` to select similar elements on the same body. Alt-click an edge to select its tangent chain. The corresponding controls appear in the 3D toolbar after a pick. The original pick stays active for tools that accept one element.
+
+The native worker reconstructs the committed BREP. Similarity compares geometry type, area or length and available analytic radii. The dimensional tolerance is the larger of 0.01% and 0.000001 in the relevant units. A tangent chain follows a shared vertex with one continuation within 0.001 radians. The result applies to the same visible committed scene. Selection creates no revision. The worker caps a body at 20,000 candidates and a result at 1,024 items.
+
+### Shell (M3)
+
+In face selection mode (`2`), select a face with a semantic reference and choose **Tools → Shell**. The selected face is checked as the first opening. Check any additional openings on the same body and leave at least one face in place. Enter a positive wall thickness. Walls go inward by default. Enable **Build walls outward** to grow the outside dimensions. Choose Build and confirm the edit.
+
+The `shell` operation stores a solid source, a signed wall offset and unique semantic face references for the openings. OCCT builds the walls with `BRepOffsetAPI_MakeThickSolid`. A stale reference, invalid result or inward wall that leaves no cavity rolls back the transaction. Tests cover inward and outward walls, multiple openings, dimensions, volume, BREP and STEP round-trip.
+
+### Linear and circular patterns (M3)
+
+Select a body in the 3D view and choose **Tools → Pattern**. For a linear pattern, choose the first CAD axis and signed spacing, then optionally add rows along a different axis. For a circular pattern, choose the CAD axis, set its origin in model coordinates and enter a signed angular step. **Repeat the hole only** is available when the body's active feature is a hole. Build and confirm the project edit to save the pattern as one operation.
+
+`patternLinear` repeats a body along one step vector or on a grid with two independent vectors. `patternCircular` repeats a body around a model-space axis with a signed angular step. The count includes the source and is limited to 128 instances. Body copies stay as independent solids in a compound. When the current source is an active hole feature, the same commands can repeat its cutter and cut the stock once. A hole pattern that removes no additional material fails without saving the edit.
+
+### Duplicate body (M3)
+
+Select a body and press `Shift+D` or choose **Tools → Duplicate body**. Enter the name and offset in model coordinates. The initial X offset uses the selected body's width. Confirm the edit to save the new body and its history together.
+
+`duplicate_body` copies the required features and bound parameters, gives them new identifiers, and rebinds semantic topology references to the copy. STEP assets stay shared by their immutable content hashes. Editing a copied parameter affects only the copy. Existing feature and body IDs stay the same. The transaction rejects ID collisions. Host tests verify volumes and extents after exporting and reopening the committed STEP.
+
+### Separate solids (M3)
+
+Select a compound body and press `P` or choose **Tools → Separate solids**. Confirm the edit to get independently selectable bodies in one revision. The first solid retains the original body ID. This operation uses the existing solids in the BREP compound and keeps their placements. It accepts 2 to 128 solids. An older preview without a solid count must be regenerated before the tool becomes available.
+
+`separate_solids` creates an `extractSolid` feature for each output. The worker checks the original count on every rebuild. A count mismatch fails the transaction. For changes that reorder the source solids, recreate the separation to keep the intended parts.
+
+### Body groups (M3)
+
+Use **Body groups** in the model tree to create a named group from the selection. The group button selects its visible and unlocked members. Use the adjacent controls to add selected bodies, remove members, or delete the group. Deleting the group keeps its bodies.
+
+CAD IR stores groups as optional lists of body IDs in the saved revision. `group_create`, `group_add` and `group_remove` update membership through the Command API and participate in Undo. A body can belong to multiple groups. Older documents open with no groups. The STEP geometry retains the same solids and dimensions.
 
 Current schema operations:
 
 | Group | Operations | Result |
 | --- | --- | --- |
 | 2D basis | `sketch2d`, `rectangle`, `circle` | A profile for extrusion; the interactive sketch currently supports one polygon loop. |
-| Solids | `sphere`, `cone`, `extrude` | A solid; extrusion refers to an earlier profile. |
+| Solids | `sphere`, `cone`, `torus`, `extrude` | A solid; extrusion refers to an earlier profile. |
 | Processing | `hole`, `fillet`, `filletEdge`, `chamfer`, `translate` | A derived result from an existing body feature. |
 | Geometry combination | `boolean` with `union`, `cut`, `intersect` | Union, subtraction, or intersection of two results. |
 

@@ -9,7 +9,7 @@ import { executeCapturedApply, type CapturedApply } from "./capturedApply";
 /** One adopted geometry result, with independently reported optional conversation persistence. */
 export function useModelApply() {
   const query = useQueryClient();
-  return async (captured: CapturedApply, options?: { reviewPlan?: ReviewPlan | null; assistantMessage?: string }) => {
+  return async (captured: CapturedApply, options?: { reviewPlan?: ReviewPlan | null; assistantMessage?: string; invoke?: (captured: CapturedApply) => Promise<Project> }) => {
     const cache = (project: Project) => query.setQueryData<Project[]>(["projects"], current => {
       const items = current ?? [];
       return items.some(item => item.id === project.id) ? items.map(item => item.id === project.id ? project : item) : [...items, project];
@@ -21,7 +21,7 @@ export function useModelApply() {
     try {
       const outcome = await executeCapturedApply(captured, {
         getCurrent: () => useWorkspace.getState().project,
-        invoke: request => applyProgram(request.base, request.program, request.prompt, options?.reviewPlan),
+        invoke: options?.invoke ?? (request => applyProgram(request.base, request.program, request.prompt, options?.reviewPlan)),
         adopt,
         reconcileTarget: async result => {
           const before = useWorkspace.getState().project;

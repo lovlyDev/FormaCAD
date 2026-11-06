@@ -5,7 +5,46 @@ use std::collections::HashSet;
 impl Operation {
     pub fn dependencies(&self) -> Vec<&str> {
         match self {
+            Self::DatumOnReference { anchor, .. } => match &anchor.source {
+                super::datum_anchor::DatumSource::Plane { feature_id } => vec![feature_id],
+                super::datum_anchor::DatumSource::Topology { reference, .. } => {
+                    let mut result = vec![reference.owner_feature_id.as_str()];
+                    result.extend(reference.occurrence_path.iter().map(String::as_str));
+                    result
+                }
+            },
             Self::Extrude { sketch_id, .. } | Self::Revolve { sketch_id, .. } => vec![sketch_id],
+            Self::ExtrudeFace {
+                body_feature_id,
+                reference,
+                ..
+            } => {
+                let mut result = vec![
+                    body_feature_id.as_str(),
+                    reference.owner_feature_id.as_str(),
+                ];
+                result.extend(reference.occurrence_path.iter().map(String::as_str));
+                result
+            }
+            Self::FilletReferencedEdge {
+                body_feature_id,
+                reference,
+                additional_references,
+                ..
+            }
+            | Self::ChamferReferencedEdge {
+                body_feature_id,
+                reference,
+                additional_references,
+                ..
+            } => {
+                let mut result = vec![body_feature_id.as_str()];
+                for edge in std::iter::once(reference).chain(additional_references) {
+                    result.push(&edge.owner_feature_id);
+                    result.extend(edge.occurrence_path.iter().map(String::as_str));
+                }
+                result
+            }
             Self::Hole {
                 body_feature_id, ..
             }
@@ -15,10 +54,16 @@ impl Operation {
             | Self::FilletEdge {
                 body_feature_id, ..
             }
-            | Self::FilletReferencedEdge {
+            | Self::Chamfer {
                 body_feature_id, ..
             }
-            | Self::Chamfer {
+            | Self::PatternLinear {
+                body_feature_id, ..
+            }
+            | Self::PatternCircular {
+                body_feature_id, ..
+            }
+            | Self::ExtractSolid {
                 body_feature_id, ..
             }
             | Self::Translate {
@@ -33,6 +78,18 @@ impl Operation {
             | Self::Mirror {
                 body_feature_id, ..
             } => vec![body_feature_id],
+            Self::Shell {
+                body_feature_id,
+                openings,
+                ..
+            } => {
+                let mut result = vec![body_feature_id.as_str()];
+                if let Some(first) = openings.first() {
+                    result.push(first.owner_feature_id.as_str());
+                    result.extend(first.occurrence_path.iter().map(String::as_str));
+                }
+                result
+            }
             Self::Boolean {
                 left_feature_id,
                 right_feature_id,
@@ -45,6 +102,10 @@ impl Operation {
             | Self::Rectangle { .. }
             | Self::Circle { .. }
             | Self::Sphere { .. }
+            | Self::Torus { .. }
+            | Self::DatumPlane { .. }
+            | Self::DatumAxis { .. }
+            | Self::DatumPoint { .. }
             | Self::Cone { .. } => vec![],
         }
     }
@@ -53,6 +114,21 @@ impl Operation {
     /// Generators and multi-input booleans cannot be suppressed safely.
     pub fn suppression_source(&self) -> Option<&str> {
         match self {
+            Self::ExtrudeFace {
+                body_feature_id, ..
+            }
+            | Self::ChamferReferencedEdge {
+                body_feature_id, ..
+            }
+            | Self::Shell {
+                body_feature_id, ..
+            }
+            | Self::PatternLinear {
+                body_feature_id, ..
+            }
+            | Self::PatternCircular {
+                body_feature_id, ..
+            } => Some(body_feature_id),
             Self::Hole {
                 body_feature_id, ..
             }
@@ -131,6 +207,7 @@ mod tests {
             },
         };
         let document = Document {
+            groups: Vec::new(),
             schema_version: SCHEMA_VERSION,
             revision_id: "revision".into(),
             parameters: vec![],

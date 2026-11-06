@@ -1,8 +1,17 @@
 use super::{ffi, NativeError, Solid};
+use crate::cad_ir::TopologyReference;
 
 impl Solid {
     pub fn chamfer_all_edges(&self, distance_mm: f64) -> Result<Self, NativeError> {
         Self::checked(ffi::chamfer_all_edges(self.as_ref(), distance_mm))
+    }
+
+    pub fn chamfer_referenced_edge(
+        &self,
+        reference: &TopologyReference,
+        distance_mm: f64,
+    ) -> Result<Self, NativeError> {
+        self.blend_referenced_edges(reference, &[], distance_mm, true)
     }
 }
 

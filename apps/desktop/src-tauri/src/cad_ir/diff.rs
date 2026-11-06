@@ -2,7 +2,7 @@
 //!
 //! IDs, rather than positions in the feature tree, identify entities. Positions
 //! are retained in each snapshot because feature order is meaningful to rebuilds.
-use super::{Body, Document, Feature, Parameter, Result};
+use super::{Body, BodyGroup, Document, Feature, Parameter, Result};
 use serde::Serialize;
 use std::collections::HashMap;
 
@@ -29,11 +29,16 @@ pub struct DocumentDiff {
     pub parameters: Vec<EntityChange<Parameter>>,
     pub features: Vec<EntityChange<Feature>>,
     pub bodies: Vec<EntityChange<Body>>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub groups: Vec<EntityChange<BodyGroup>>,
 }
 
 impl DocumentDiff {
     pub fn is_empty(&self) -> bool {
-        self.parameters.is_empty() && self.features.is_empty() && self.bodies.is_empty()
+        self.parameters.is_empty()
+            && self.features.is_empty()
+            && self.bodies.is_empty()
+            && self.groups.is_empty()
     }
 }
 
@@ -48,6 +53,7 @@ pub fn diff_documents(before: &Document, after: &Document) -> Result<DocumentDif
         parameters: changes(&before.parameters, &after.parameters, |p| &p.id),
         features: changes(&before.features, &after.features, |f| &f.id),
         bodies: changes(&before.bodies, &after.bodies, |b| &b.id),
+        groups: changes(&before.groups, &after.groups, |group| &group.id),
     })
 }
 
@@ -109,6 +115,7 @@ mod tests {
 
     fn document() -> Document {
         Document {
+            groups: Vec::new(),
             schema_version: SCHEMA_VERSION,
             revision_id: "first".into(),
             parameters: vec![Parameter {

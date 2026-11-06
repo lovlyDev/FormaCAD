@@ -8,9 +8,21 @@ pub(super) fn cut_hole(
     radius_mm: f64,
     depth_mm: f64,
 ) -> Result<Solid, NativeError> {
-    let cutter =
-        Solid::cylinder(radius_mm, depth_mm)?.translated(center_mm[0], center_mm[1], start_z_mm)?;
-    let result = source.cut(&cutter)?;
+    let cutter = hole_cutter(center_mm, start_z_mm, radius_mm, depth_mm)?;
+    cut_hole_geometry(source, &cutter)
+}
+
+pub(super) fn hole_cutter(
+    center_mm: [f64; 2],
+    start_z_mm: f64,
+    radius_mm: f64,
+    depth_mm: f64,
+) -> Result<Solid, NativeError> {
+    Solid::cylinder(radius_mm, depth_mm)?.translated(center_mm[0], center_mm[1], start_z_mm)
+}
+
+pub(super) fn cut_hole_geometry(source: &Solid, cutter: &Solid) -> Result<Solid, NativeError> {
+    let result = source.cut(cutter)?;
     let removed = source.volume_mm3() - result.volume_mm3();
     if removed <= source.volume_mm3().max(1.0) * 1e-10 {
         return Err(NativeError {

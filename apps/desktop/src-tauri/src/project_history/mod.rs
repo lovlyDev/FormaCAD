@@ -1,5 +1,6 @@
 //! Durable model transaction history. Revisions and artifacts remain immutable;
 //! only a logical cursor changes, atomically with the saved project payload.
+pub mod activity;
 mod artifacts;
 mod persistence;
 mod portable;

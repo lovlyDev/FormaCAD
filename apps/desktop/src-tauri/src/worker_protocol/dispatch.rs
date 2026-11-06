@@ -108,6 +108,9 @@ pub(super) fn handle(input: &[u8], cwd: &Path) -> Response {
             "Section fields are not accepted for other worker operations",
         );
     }
+    if request.operation.as_deref() == Some("validate_datums") {
+        return super::datum::handle(request);
+    }
     let inspection_only = request.operation.as_deref() == Some("inspect_step");
     let result = match request.operation.as_deref() {
         Some("import_step") if request.document.is_none() && request.body_id.is_none() => {

@@ -3,7 +3,14 @@
 use serde::{Deserialize, Serialize};
 mod affine_transform;
 pub mod assets;
+mod datum;
+pub mod datum_anchor;
+mod groups;
+pub mod pattern;
+pub use groups::BodyGroup;
+pub(crate) mod shell;
 pub mod topology_refs;
+mod torus;
 pub use topology_refs::{TopologyKind, TopologyReference};
 
 pub const SCHEMA_VERSION: u32 = 2;
@@ -62,6 +69,8 @@ pub struct Document {
     pub parameters: Vec<Parameter>,
     pub features: Vec<Feature>,
     pub bodies: Vec<Body>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub groups: Vec<BodyGroup>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -89,6 +98,13 @@ pub struct Body {
     pub id: String,
     pub name: String,
     pub source_feature_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SeparateBody {
+    pub id: String,
+    pub name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -134,6 +150,27 @@ pub enum Operation {
     Sphere {
         radius: Dimension,
     },
+    Torus {
+        major_radius: Dimension,
+        minor_radius: Dimension,
+    },
+    DatumPlane {
+        origin_mm: [f64; 3],
+        normal: [f64; 3],
+        side_mm: f64,
+    },
+    DatumAxis {
+        origin_mm: [f64; 3],
+        direction: [f64; 3],
+        length_mm: f64,
+    },
+    DatumPoint {
+        origin_mm: [f64; 3],
+    },
+    DatumOnReference {
+        geometry: datum_anchor::DatumGeometry,
+        anchor: datum_anchor::DatumAnchor,
+    },
     Cone {
         bottom_radius: Dimension,
         top_radius: Dimension,
@@ -142,6 +179,31 @@ pub enum Operation {
     Extrude {
         sketch_id: String,
         distance: Dimension,
+    },
+    ExtrudeFace {
+        body_feature_id: String,
+        reference: TopologyReference,
+        distance: Dimension,
+    },
+    Shell {
+        body_feature_id: String,
+        openings: Vec<TopologyReference>,
+        offset: Dimension,
+    },
+    PatternLinear {
+        body_feature_id: String,
+        repeat_hole: bool,
+        layout: pattern::LinearPattern,
+    },
+    ExtractSolid {
+        body_feature_id: String,
+        index: u8,
+        expected_count: u8,
+    },
+    PatternCircular {
+        body_feature_id: String,
+        repeat_hole: bool,
+        layout: pattern::CircularPattern,
     },
     Revolve {
         sketch_id: String,
@@ -168,10 +230,19 @@ pub enum Operation {
     FilletReferencedEdge {
         body_feature_id: String,
         reference: TopologyReference,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        additional_references: Vec<TopologyReference>,
         radius: Dimension,
     },
     Chamfer {
         body_feature_id: String,
+        distance: Dimension,
+    },
+    ChamferReferencedEdge {
+        body_feature_id: String,
+        reference: TopologyReference,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        additional_references: Vec<TopologyReference>,
         distance: Dimension,
     },
     Translate {
@@ -290,6 +361,28 @@ pub enum DimensionField {
     deny_unknown_fields
 )]
 pub enum Command {
+    GroupCreate {
+        group: BodyGroup,
+    },
+    GroupAdd {
+        group_id: String,
+        body_ids: Vec<String>,
+    },
+    GroupRemove {
+        group_id: String,
+        #[serde(default)]
+        body_ids: Option<Vec<String>>,
+    },
+    SeparateSolids {
+        body_id: String,
+        new_bodies: Vec<SeparateBody>,
+    },
+    DuplicateBody {
+        body_id: String,
+        new_body_id: String,
+        name: String,
+        offset_mm: [f64; 3],
+    },
     TransformBody {
         body_id: String,
         feature_id: String,

@@ -13,7 +13,11 @@ pub mod assets;
 #[cfg(feature = "native-occt")]
 mod chamfer;
 #[cfg(feature = "native-occt")]
+pub(crate) mod datum;
+#[cfg(feature = "native-occt")]
 mod document;
+#[cfg(feature = "native-occt")]
+mod extrude_face;
 pub mod face_section;
 #[cfg(feature = "native-occt")]
 mod fillet;
@@ -26,16 +30,24 @@ pub mod inspection;
 #[cfg(feature = "native-occt")]
 pub mod job;
 pub mod pair_measurements;
+#[cfg(feature = "native-occt")]
+mod pattern;
 pub mod reference_measurements;
 #[cfg(feature = "native-occt")]
 mod revolution;
 pub mod section;
+#[cfg(feature = "native-occt")]
+mod separate_solids;
+#[cfg(feature = "native-occt")]
+mod shell;
 #[cfg(feature = "native-occt")]
 pub mod snapping;
 #[cfg(feature = "native-occt")]
 pub mod step_import;
 #[cfg(feature = "native-occt")]
 mod topology_refs;
+#[cfg(feature = "native-occt")]
+mod torus;
 #[cfg(feature = "native-occt")]
 mod transforms;
 pub mod worker;

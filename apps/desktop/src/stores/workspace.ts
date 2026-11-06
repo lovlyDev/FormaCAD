@@ -11,7 +11,9 @@ interface Workspace {
   /** Ordered body selection; `selected` is its active element. */
   selectedBodies: string[];
   selectedFace: FaceSelection | null;
+  selectedFaces: FaceSelection[];
   selectedEdge: EdgeSelection | null;
+  selectedEdges: EdgeSelection[];
   busy: boolean;
   stage: string;
   error: string | null;
@@ -19,7 +21,10 @@ interface Workspace {
   setSelected: (s: string | null) => void;
   setBodySelection: (bodies: readonly string[], active: string | null) => void;
   setSelectedFace: (selection: FaceSelection | null) => void;
+  setFaceSelection: (selection: FaceSelection[], active: FaceSelection) => void;
   setSelectedEdge: (selection: EdgeSelection | null) => void;
+  setEdgeSelection: (selection: EdgeSelection[], active: EdgeSelection) => void;
+  pickSelectedEdge: (selection: EdgeSelection, additive: boolean) => void;
   setBusy: (b: boolean, stage?: string) => void;
   setError: (e: string | null) => void;
   update: (p: Project) => Promise<void>;
@@ -37,7 +42,9 @@ export const useWorkspace = create<Workspace>((set, get) => ({
   selected: null,
   selectedBodies: [],
   selectedFace: null,
+  selectedFaces: [],
   selectedEdge: null,
+  selectedEdges: [],
   busy: false,
   stage: "Ready",
   error: null,
@@ -54,7 +61,9 @@ export const useWorkspace = create<Workspace>((set, get) => ({
       // Body ids survive a new revision of the same project; transforms keep the selection.
       selectedBodies: sameProject ? current.selectedBodies : selected ? [selected] : [],
       selectedFace: same ? current.selectedFace : null,
+      selectedFaces: same ? current.selectedFaces : [],
       selectedEdge: same ? current.selectedEdge : null,
+      selectedEdges: same ? current.selectedEdges : [],
       error: null,
     });
   },
@@ -62,17 +71,28 @@ export const useWorkspace = create<Workspace>((set, get) => ({
     const id = get().project?.id;
     if (id)
       persist(`forma.ui.project.${id}.selected`, JSON.stringify(selected));
-    set({ selected, selectedBodies: selected ? [selected] : [], selectedFace: null, selectedEdge: null });
+    set({ selected, selectedBodies: selected ? [selected] : [], selectedFace: null, selectedFaces: [], selectedEdge: null, selectedEdges: [] });
   },
   setBodySelection: (bodies, active) => {
     const unique = [...new Set(bodies)];
     const selected = active && unique.includes(active) ? active : (unique.at(-1) ?? null);
     const id = get().project?.id;
     if (id) persist(`forma.ui.project.${id}.selected`, JSON.stringify(selected));
-    set({ selected, selectedBodies: unique, selectedFace: null, selectedEdge: null });
+    set({ selected, selectedBodies: unique, selectedFace: null, selectedFaces: [], selectedEdge: null, selectedEdges: [] });
   },
-  setSelectedFace: (selectedFace) => set({ selectedFace, selectedEdge: null }),
-  setSelectedEdge: (selectedEdge) => set({ selectedEdge, selectedFace: null }),
+  setSelectedFace: (selectedFace) => set({ selectedFace, selectedFaces: selectedFace ? [selectedFace] : [], selectedEdge: null, selectedEdges: [] }),
+  setFaceSelection: (selectedFaces, selectedFace) => set({ selectedFaces, selectedFace, selectedEdge: null, selectedEdges: [] }),
+  setSelectedEdge: (selectedEdge) => set({ selectedEdge, selectedFace: null, selectedFaces: [], selectedEdges: selectedEdge ? [selectedEdge] : [] }),
+  setEdgeSelection: (selectedEdges, selectedEdge) => set({ selectedEdges, selectedEdge, selectedFace: null, selectedFaces: [] }),
+  pickSelectedEdge: (edge, additive) => {
+    const current = get();
+    if (!additive || current.selected !== edge.bodyId) current.setSelected(edge.bodyId);
+    const previous = additive ? current.selectedEdges.filter((item) =>
+      item.bodyId === edge.bodyId && item.revisionId === edge.revisionId && item.sceneToken === edge.sceneToken) : [];
+    const index = previous.findIndex((item) => item.edgeOrdinal === edge.edgeOrdinal);
+    const next = index >= 0 ? previous.filter((_, i) => i !== index) : [...previous, edge];
+    set({ selectedEdge: next.at(-1) ?? null, selectedEdges: next, selectedFace: null, selectedFaces: [] });
+  },
   setBusy: (busy, stage = "Ready") => set({ busy, stage }),
   setError: (error) => set({ error }),
   update: async (project) => {
@@ -85,10 +105,12 @@ export const useWorkspace = create<Workspace>((set, get) => ({
         saved.id === get().project?.id && saved.currentRevision === get().project?.currentRevision
           ? get().selectedFace
           : null,
+      selectedFaces: saved.currentRevision === get().project?.currentRevision ? get().selectedFaces : [],
       selectedEdge:
         saved.id === get().project?.id && saved.currentRevision === get().project?.currentRevision
           ? get().selectedEdge
           : null,
+      selectedEdges: saved.currentRevision === get().project?.currentRevision ? get().selectedEdges : [],
     });
   },
   revise: async (parameters, prompt, source, preview, program, programBase) => {

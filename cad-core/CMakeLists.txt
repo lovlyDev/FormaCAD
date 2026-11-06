@@ -27,7 +27,7 @@ else()
 endif()
 
 set(FORMA_OCCT_LIBRARIES
-  TKDESTEP TKXSBase TKDE TKMesh TKPrim TKBO TKFillet TKShHealing TKBool TKTopAlgo TKGeomAlgo
+  TKDESTEP TKXSBase TKDE TKMesh TKFeat TKOffset TKPrim TKBO TKFillet TKShHealing TKBool TKTopAlgo TKGeomAlgo
   TKBRep TKGeomBase TKG3d TKG2d TKMath TKernel)
 
 add_library(forma_cad_core STATIC
@@ -50,9 +50,18 @@ add_library(forma_cad_core STATIC
   src/profile_revolve.cpp
   src/section.cpp
   src/sphere.cpp
+  src/torus.cpp
+  src/datum.cpp
+  src/datum_anchor.cpp
+  src/extrude_face.cpp
+  src/shell.cpp
+  src/pattern.cpp
+  src/separate_solids.cpp
   src/cone.cpp
   src/fillet.cpp
   src/chamfer.cpp
+  src/edge_blend.cpp
+  src/smart_selection.cpp
   src/transforms.cpp
   src/rotation.cpp
   src/mirror.cpp
@@ -66,6 +75,58 @@ target_link_libraries(forma_cad_core PUBLIC ${FORMA_OCCT_LIBRARIES})
 
 include(CTest)
 if(BUILD_TESTING)
+  add_executable(forma_pattern_test tests/pattern_test.cpp)
+  target_link_libraries(forma_pattern_test PRIVATE forma_cad_core)
+  add_test(NAME forma_pattern_test COMMAND forma_pattern_test)
+  if(WIN32)
+    set_tests_properties(forma_pattern_test PROPERTIES
+      ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OpenCASCADE_BINARY_DIR}")
+  endif()
+  add_executable(forma_smart_selection_test tests/smart_selection_test.cpp)
+  target_link_libraries(forma_smart_selection_test PRIVATE forma_cad_core)
+  add_test(NAME forma_smart_selection_test COMMAND forma_smart_selection_test)
+  if(WIN32)
+    set_tests_properties(forma_smart_selection_test PROPERTIES
+      ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OpenCASCADE_BINARY_DIR}")
+  endif()
+  add_executable(forma_shell_test tests/shell_test.cpp)
+  target_link_libraries(forma_shell_test PRIVATE forma_cad_core)
+  add_test(NAME forma_shell_test COMMAND forma_shell_test)
+  if(WIN32)
+    set_tests_properties(forma_shell_test PROPERTIES
+      ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OpenCASCADE_BINARY_DIR}")
+  endif()
+  add_executable(forma_extrude_face_test tests/extrude_face_test.cpp)
+  target_include_directories(forma_extrude_face_test PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+  target_link_libraries(forma_extrude_face_test PRIVATE forma_cad_core)
+  add_test(NAME forma_extrude_face_test COMMAND forma_extrude_face_test)
+  if(WIN32)
+    set_tests_properties(forma_extrude_face_test PROPERTIES
+      ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OpenCASCADE_BINARY_DIR}")
+  endif()
+  add_executable(forma_datum_anchor_test tests/datum_anchor_test.cpp)
+  target_link_libraries(forma_datum_anchor_test PRIVATE forma_cad_core)
+  add_test(NAME forma_datum_anchor_test COMMAND forma_datum_anchor_test)
+  if(WIN32)
+    set_tests_properties(forma_datum_anchor_test PROPERTIES
+      ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OpenCASCADE_BINARY_DIR}")
+  endif()
+  add_executable(forma_datum_test tests/datum_test.cpp)
+  target_include_directories(forma_datum_test PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+  target_link_libraries(forma_datum_test PRIVATE forma_cad_core)
+  add_test(NAME forma_datum_test COMMAND forma_datum_test)
+  if(WIN32)
+    set_tests_properties(forma_datum_test PROPERTIES
+      ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OpenCASCADE_BINARY_DIR}")
+  endif()
+  add_executable(forma_torus_test tests/torus_test.cpp)
+  target_include_directories(forma_torus_test PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+  target_link_libraries(forma_torus_test PRIVATE forma_cad_core)
+  add_test(NAME forma_torus_test COMMAND forma_torus_test)
+  if(WIN32)
+    set_tests_properties(forma_torus_test PROPERTIES
+      ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OpenCASCADE_BINARY_DIR}")
+  endif()
   add_executable(forma_snap_reference_test tests/snap_reference_test.cpp)
   target_include_directories(forma_snap_reference_test PRIVATE ${OpenCASCADE_INCLUDE_DIR})
   target_link_libraries(forma_snap_reference_test PRIVATE forma_cad_core)

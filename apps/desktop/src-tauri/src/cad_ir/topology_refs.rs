@@ -4,8 +4,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
 pub const MAX_OCCURRENCE_PATH: usize = 64;
+pub const MAX_BLEND_EDGES: usize = 64;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TopologyKind {
     Edge,
@@ -13,7 +14,7 @@ pub enum TopologyKind {
     Vertex,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TopologyReference {
     pub schema_version: u32,
@@ -66,4 +67,12 @@ impl TopologyReference {
                 TopologyKind::Vertex => valid_box_vertex_role(&self.role),
             }
     }
+}
+
+pub fn valid_blend_edges(first: &TopologyReference, additional: &[TopologyReference]) -> bool {
+    let mut unique = HashSet::new();
+    additional.len() < MAX_BLEND_EDGES
+        && std::iter::once(first).chain(additional).all(|reference| {
+            reference.kind == TopologyKind::Edge && reference.is_valid() && unique.insert(reference)
+        })
 }

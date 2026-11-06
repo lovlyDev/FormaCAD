@@ -1,7 +1,5 @@
 #include "internal/shape_impl.hpp"
-#include "internal/topology_resolver.hpp"
 #include <BRepPrimAPI_MakeBox.hxx>
-#include <BRepFilletAPI_MakeFillet.hxx>
 #include <NCollection_IndexedMap.hxx>
 #include <TopTools_ShapeMapHasher.hxx>
 #include <TopExp.hxx>
@@ -12,7 +10,6 @@
 #include <gp_Pnt.hxx>
 #include <algorithm>
 #include <array>
-#include <cmath>
 #include <sstream>
 
 namespace forma {
@@ -134,18 +131,6 @@ std::unique_ptr<Shape> topology_occurrence(const Shape& source, const std::strin
 
 std::unique_ptr<Shape> fillet_referenced_edge(const Shape& source, const std::string& owner,
     const std::string& role, const std::string& path, double radius) noexcept {
-  if (!source.ok()) return failure("INVALID_SOURCE", "Invalid fillet source");
-  if (!std::isfinite(radius) || radius <= 0 || radius > 10000)
-    return failure("INVALID_DIMENSION", "Invalid fillet radius");
-  try {
-    const auto selected = resolve_topology(source.impl_->shape, source.impl_->topology, TopAbs_EDGE, owner, role, path);
-    if (!selected.valid()) return failure(selected.code.c_str(), selected.detail.c_str());
-    BRepFilletAPI_MakeFillet builder(source.impl_->shape);
-    builder.Add(radius, TopoDS::Edge(selected.entity));
-    builder.Build();
-    if (!builder.IsDone()) return failure("FILLET_FAILED", "Selected edge cannot be filleted");
-    return checked(builder.Shape()); // Topological modifiers deliberately invalidate v1 catalog.
-  } catch (const Standard_Failure& error) { return failure("FILLET_FAILED", error.GetMessageString()); }
-  catch (...) { return failure("NATIVE_ERROR", "Referenced fillet failed"); }
+  return blend_referenced_edges(source, owner, role, path, {}, radius, false);
 }
 } // namespace forma

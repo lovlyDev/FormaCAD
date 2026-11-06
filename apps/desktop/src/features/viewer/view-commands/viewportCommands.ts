@@ -34,6 +34,12 @@ export interface ViewportCommandContext {
   hasCadFaces: boolean;
   hasCadEdges: boolean;
   onVisibility?: (action: VisibilityAction) => void;
+  onExtrudeFace?: () => void;
+  onBlendEdge?: () => void;
+  onDuplicateBody?: () => void;
+  onSeparateSolids?: () => void;
+  onSelectLinked?: () => void;
+  onSelectSimilar?: () => void;
 }
 
 function selectBodies(object: THREE.Group, action: SelectionAction) {
@@ -126,6 +132,10 @@ export function viewportCommands(
     "transform.move": begin("move"),
     "transform.rotate": begin("rotate"),
     "transform.scale": begin("scale"),
+    "model.extrudeFace": context.onExtrudeFace,
+    "model.edgeBlend": context.onBlendEdge,
+    "model.duplicateBody": context.onDuplicateBody,
+    "model.separateSolids": context.onSeparateSolids,
     "transform.adjustLast": () =>
       useTransformViewport.getState().setAdjustOpen(true),
     "transform.pivotPie": pie(pivotPie),
@@ -135,6 +145,8 @@ export function viewportCommands(
     "selection.invert": () => selectBodies(context.object, "invert"),
     "selection.box": () => useRegionSelect.getState().setMode("box"),
     "selection.circle": () => useRegionSelect.getState().setMode("circle"),
+    "selection.linked": context.onSelectLinked,
+    "selection.similar": context.onSelectSimilar,
     "selection.body": () => context.setSelectionMode("body"),
     "selection.face": context.hasCadFaces
       ? () => context.setSelectionMode("face")

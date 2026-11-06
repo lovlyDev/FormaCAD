@@ -2,7 +2,9 @@
 
 #include <memory>
 #include <cstddef>
+#include <cstdint>
 #include <string>
+#include <vector>
 #include "forma_section.hpp"
 #include "forma_section.hpp"
 #include "forma_measurement.hpp"
@@ -29,6 +31,7 @@ public:
   double volume_mm3() const noexcept;
   double surface_area_mm2() const noexcept;
   int face_count() const noexcept;
+  int solid_count() const noexcept;
   int edge_count() const noexcept;
   double extent_x_mm() const noexcept;
   double extent_y_mm() const noexcept;
@@ -40,6 +43,10 @@ private:
   bool update_bounds();
   friend std::unique_ptr<Shape> failure(const char*, const char*) noexcept;
   friend std::unique_ptr<Shape> checked(TopoDS_Shape) noexcept;
+  friend bool datum_anchor(const Shape&, int, const std::string&, const std::string&,
+    const std::string&, double*, std::size_t) noexcept;
+  friend std::unique_ptr<Shape> extrude_face(const Shape&, const std::string&,
+    const std::string&, const std::string&, double) noexcept;
   friend std::unique_ptr<SnapResult> snap_reference(const Shape&, int, const std::string&,
     const std::string&, const std::string&, const double*, std::size_t) noexcept;
   friend std::unique_ptr<Shape> boolean_apply(const Shape&, const Shape&, BooleanKind) noexcept;
@@ -48,6 +55,8 @@ private:
   friend std::unique_ptr<Shape> make_referenced_cylinder(double, double, const std::string&) noexcept;
   friend std::unique_ptr<Shape> topology_occurrence(const Shape&, const std::string&) noexcept;
   friend std::unique_ptr<Shape> fillet_referenced_edge(const Shape&, const std::string&, const std::string&, const std::string&, double) noexcept;
+  friend std::unique_ptr<Shape> blend_referenced_edges(const Shape&, const std::string&, const std::string&, const std::string&, const std::string&, double, bool) noexcept;
+  friend std::unique_ptr<std::vector<std::uint32_t>> smart_select(const Shape&, int, std::uint32_t) noexcept;
   friend std::unique_ptr<MeasurementResult> measure_reference(const Shape&, int, const std::string&, const std::string&, const std::string&) noexcept;
   friend std::unique_ptr<PairMeasurementResult> measure_reference_pair(const Shape&, int,
     int, const std::string&, const std::string&, const std::string&,
@@ -59,6 +68,11 @@ private:
   friend std::unique_ptr<Shape> fillet_all_edges(const Shape&, double) noexcept;
   friend std::unique_ptr<Shape> fillet_edge(const Shape&, const std::string&, double) noexcept;
   friend std::unique_ptr<Shape> chamfer_all_edges(const Shape&, double) noexcept;
+  friend std::unique_ptr<Shape> shell(const Shape&, const std::string&, const std::string&, const std::string&, double) noexcept;
+  friend std::unique_ptr<Shape> extract_solid(const Shape&, int, int) noexcept;
+  friend std::unique_ptr<Shape> pattern_linear(const Shape&, int, double, double, double, int, double, double, double) noexcept;
+  friend std::unique_ptr<Shape> pattern_circular(const Shape&, int, double, double, double, double, double, double, double) noexcept;
+  friend std::unique_ptr<Shape> chamfer_referenced_edge(const Shape&, const std::string&, const std::string&, const std::string&, double) noexcept;
   friend std::unique_ptr<Shape> translate(const Shape&, double, double, double) noexcept;
   friend std::unique_ptr<Shape> transform_affine(const Shape&, const double*, std::size_t) noexcept;
   friend std::unique_ptr<Shape> rotate(const Shape&, double, double, double, double, double, double, double) noexcept;
@@ -88,8 +102,13 @@ std::unique_ptr<Shape> make_referenced_box(double, double, double, const std::st
 std::unique_ptr<Shape> make_referenced_cylinder(double, double, const std::string&) noexcept;
 std::unique_ptr<Shape> topology_occurrence(const Shape&, const std::string&) noexcept;
 std::unique_ptr<Shape> fillet_referenced_edge(const Shape&, const std::string&, const std::string&, const std::string&, double) noexcept;
+std::unique_ptr<Shape> blend_referenced_edges(const Shape&, const std::string&, const std::string&, const std::string&, const std::string&, double, bool) noexcept;
+std::unique_ptr<std::vector<std::uint32_t>> smart_select(const Shape&, int, std::uint32_t) noexcept;
 std::unique_ptr<Shape> make_cylinder(double radius_mm, double height_mm) noexcept;
 std::unique_ptr<Shape> make_sphere(double radius_mm) noexcept;
+std::unique_ptr<Shape> make_torus(double major_radius_mm, double minor_radius_mm) noexcept;
+std::unique_ptr<Shape> extrude_face(const Shape&, const std::string& owner,
+  const std::string& role, const std::string& occurrence, double distance_mm) noexcept;
 std::unique_ptr<Shape> make_cone(double bottom_radius_mm, double top_radius_mm, double height_mm) noexcept;
 std::unique_ptr<Shape> make_polygon_prism(const double* outline_xy, std::size_t coordinate_count, int plane,
                                           double origin_x_mm, double origin_y_mm,
@@ -105,6 +124,15 @@ std::unique_ptr<Shape> make_profile_revolve(const double* coordinates, std::size
     double axis_x, double axis_y, double axis_z, double angle_deg) noexcept;
 std::unique_ptr<Shape> fillet_edge(const Shape& source, const std::string& edge_key, double radius_mm) noexcept;
 std::unique_ptr<Shape> chamfer_all_edges(const Shape& source, double distance_mm) noexcept;
+std::unique_ptr<Shape> shell(const Shape& source, const std::string& owner, const std::string& roles,
+                             const std::string& occurrence, double offset_mm) noexcept;
+std::unique_ptr<Shape> pattern_linear(const Shape& source, int count_u, double ux, double uy, double uz,
+                                     int count_v, double vx, double vy, double vz) noexcept;
+std::unique_ptr<Shape> extract_solid(const Shape& source, int index, int expected_count) noexcept;
+std::unique_ptr<Shape> pattern_circular(const Shape& source, int count, double ox, double oy, double oz,
+                                       double dx, double dy, double dz, double step_deg) noexcept;
+std::unique_ptr<Shape> chamfer_referenced_edge(const Shape& source, const std::string& owner,
+    const std::string& role, const std::string& path, double distance_mm) noexcept;
 std::unique_ptr<Shape> translate(const Shape& source, double x_mm, double y_mm, double z_mm) noexcept;
 std::unique_ptr<Shape> rotate(const Shape& source, double origin_x_mm, double origin_y_mm, double origin_z_mm,
     double axis_x, double axis_y, double axis_z, double angle_deg) noexcept;

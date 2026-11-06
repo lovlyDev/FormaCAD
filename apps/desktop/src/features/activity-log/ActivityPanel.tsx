@@ -1,30 +1,50 @@
 import { t, getLocale, systemText, errorText } from "../../i18n";
-import type { Message } from "../../types";
+import { useQuery } from "@tanstack/react-query";
+import { native } from "../../lib/api";
+import type { Project } from "../../types";
+import { projectActivity } from "./activityApi";
+
+const labels = { edit: "Model revision saved", undo: "Model edit undone", redo: "Model edit redone" };
+
 export function ActivityPanel({
-  messages,
+  project,
   errorsOnly = false,
 }: {
-  messages: Message[];
+  project: Project;
   errorsOnly?: boolean;
 }) {
-  const entries = messages.filter((message) =>
+  const history = useQuery({
+    queryKey: ["project-activity", project.id, project.currentRevision, project.revisions.length],
+    queryFn: () => projectActivity(project.id), enabled: native && !errorsOnly, retry: false,
+  });
+  const messages = project.messages.filter((message) =>
     errorsOnly
       ? message.role === "error"
       : message.role === "event" || message.role === "error",
-  );
+  ).map((message) => ({
+    id: `message-${message.id}`,
+    at: message.createdAt,
+    label: message.role === "event" ? systemText(message.text) : errorText(message.text),
+    detail: undefined as string | undefined,
+  }));
+  const revisions = errorsOnly ? [] : (history.data ?? []).map((event) => ({
+    id: `history-${event.id}`,
+    at: event.createdAt,
+    label: t(labels[event.kind]),
+    detail: project.revisions.find((revision) => revision.id === event.toRevision)?.prompt,
+  }));
+  const entries = [...revisions, ...messages].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
   return (
     <div className="workspace-content-list">
-      {entries.map((message) => (
-        <article key={message.id}>
-          <time>{new Date(message.createdAt).toLocaleString(getLocale())}</time>
-          <p>
-            {message.role === "event"
-              ? systemText(message.text)
-              : errorText(message.text)}
-          </p>
+      {entries.map((entry) => (
+        <article key={entry.id}>
+          <time dateTime={entry.at}>{new Date(entry.at).toLocaleString(getLocale())}</time>
+          <p>{entry.label}</p>
+          {entry.detail && <p className="field-hint">{entry.detail}</p>}
         </article>
       ))}
-      {!entries.length && (
+      {!errorsOnly && history.isError && <p role="status">{t("Model activity is unavailable.")}</p>}
+      {!entries.length && !history.isError && (
         <p className="field-hint">
           {errorsOnly ? t("No recorded errors") : t("No recorded activity")}
         </p>

@@ -51,6 +51,10 @@ export function ModelViewport({
   onScreenshot,
   onVisibility,
   confirmEdit,
+  onExtrudeFace,
+  onBlendEdge,
+  onDuplicateBody,
+  onSeparateSolids,
 }: {
   projectId: string;
   object: THREE.Group;
@@ -67,6 +71,10 @@ export function ModelViewport({
   onScreenshot: (data: string) => void;
   onVisibility?: (action: VisibilityAction) => void;
   confirmEdit?: ConfirmEdit;
+  onExtrudeFace?: (distanceMm?: number) => void;
+  onBlendEdge?: () => void;
+  onDuplicateBody?: () => void;
+  onSeparateSolids?: () => void;
 }) {
   return (
     <section className="center-panel">
@@ -100,6 +108,10 @@ export function ModelViewport({
               onScreenshot={onScreenshot}
               onVisibility={onVisibility}
               confirmEdit={confirmEdit}
+              onExtrudeFace={onExtrudeFace}
+              onBlendEdge={onBlendEdge}
+              onDuplicateBody={onDuplicateBody}
+              onSeparateSolids={onSeparateSolids}
             />
           </Suspense>
         </ViewerBoundary>
