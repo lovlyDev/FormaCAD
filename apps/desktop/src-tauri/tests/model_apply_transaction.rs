@@ -4,6 +4,8 @@
 mod activity;
 #[path = "model_apply_transaction/amend.rs"]
 mod amend;
+#[path = "model_apply_transaction/boolean_tool.rs"]
+mod boolean_tool;
 #[path = "model_apply_transaction/chamfer_edge.rs"]
 mod chamfer_edge;
 #[path = "model_apply_transaction/datum.rs"]

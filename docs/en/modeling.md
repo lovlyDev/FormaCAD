@@ -72,6 +72,12 @@ Select a compound body and press `P` or choose **Tools → Separate solids**. Co
 
 `separate_solids` creates an `extractSolid` feature for each output. The worker checks the original count on every rebuild. A count mismatch fails the transaction. For changes that reorder the source solids, recreate the separation to keep the intended parts.
 
+### Boolean operation with a retained tool
+
+With at least two visible, unlocked bodies in a saved native model, choose **Tools → Boolean operation**. Select the target, the separate tool body and **Boolean union**, **Boolean cut** or **Boolean intersection**. Review the OCCT preview and click **Build** to save the operation. The target changes and keeps its body ID. The tool keeps its original ID, geometry and history and can be selected separately.
+
+The Command API adds a two-input Boolean feature and changes only the target body's output in a single transaction. OCCT builds in non-destructive mode. Empty or invalid results fail without a new revision. A full revision export includes both bodies. A retained tool can overlap the result, especially after union or intersection. Measure each body separately when comparing volumes. Tests verify volumes, BREP validity, STEP round-trip and transaction rollback.
+
 ### Body groups (M3)
 
 Use **Body groups** in the model tree to create a named group from the selection. The group button selects its visible and unlocked members. Use the adjacent controls to add selected bodies, remove members, or delete the group. Deleting the group keeps its bodies.

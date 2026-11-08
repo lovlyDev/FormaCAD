@@ -13,6 +13,7 @@ interface Actions {
   pattern?: () => void;
   duplicateBody?: () => void;
   separateSolids?: () => void;
+  booleanOperation?: () => void;
   palette: () => void;
   settings: (page?: string) => void;
   workspaces: () => void;
@@ -150,6 +151,12 @@ export function applicationMenus(
           shortcut: "P",
           disabled: !actions.separateSolids,
           run: () => actions.separateSolids?.(),
+        },
+        {
+          id: "booleanOperation",
+          label: t("Boolean operation"),
+          disabled: !actions.booleanOperation,
+          run: () => actions.booleanOperation?.(),
         },
         {
           id: "plugins",

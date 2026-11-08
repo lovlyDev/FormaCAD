@@ -15,5 +15,20 @@ int main() {
     auto moved = forma::translate(*result, 5.0, 0.0, 0.0);
     require(moved && moved->ok(), "translation failed");
     require(std::abs(moved->volume_mm3() - expected) < 0.01, "translation changed volume");
+    const auto body = forma::make_box(40., 20., 10.);
+    const auto tool_box = forma::make_box(10., 10., 10.);
+    const auto offset_tool = forma::translate(*tool_box, 20., 0., 0.);
+    require(body->ok() && offset_tool->ok(), "Boolean pair construction");
+    const auto cut = forma::boolean_cut(*body, *offset_tool);
+    const auto fused = forma::boolean_union(*body, *offset_tool);
+    const auto common = forma::boolean_intersect(*body, *offset_tool);
+    require(cut->ok() && fused->ok() && common->ok(), "non-destructive operations failed");
+    require(std::abs(cut->volume_mm3() - 7500.) < 1e-6, "cut must remove the 500 mm³ overlap");
+    require(std::abs(fused->volume_mm3() - 8500.) < 1e-6, "union volume");
+    require(std::abs(common->volume_mm3() - 500.) < 1e-6, "intersection volume");
+    const auto far_tool = forma::translate(*offset_tool, 100., 0., 0.);
+    require(!forma::boolean_intersect(*body, *far_tool)->ok(), "disjoint intersection produced a solid");
+    const auto reused = forma::translate(*offset_tool, 1., 0., 0.);
+    require(reused->ok() && std::abs(reused->volume_mm3() - 1000.) < 1e-6, "tool no longer rebuilds");
   });
 }

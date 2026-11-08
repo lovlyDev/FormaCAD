@@ -1,6 +1,7 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { baseDocument, viewportTransformWorker } from "./viewportTransformFixture";
+import { buildPreviewPacket } from "./viewportPreviewFixture";
 
 const worker = viewportTransformWorker();
 test.skip(!worker, "Requires the Windows native CAD worker");
@@ -10,28 +11,13 @@ const cylinder = structuredClone(baseDocument);
 Object.assign(cylinder.features[0], { operation: { type: "circle", radius: { kind: "literal", mm: 10 } } });
 Object.assign(cylinder.features[1].operation, { distance: { kind: "literal", mm: 20 } });
 
-function previewPacket(source: string) {
-  const id = randomUUID();
-  const model = worker!.build(JSON.parse(source), id);
-  const { result } = worker!.measure(id, "body", { kind: "bodyMetrics" });
-  const { kind: _kind, extentsMm, ...metrics } = result;
-  const metadata = Buffer.from(JSON.stringify({
-    protocolVersion: 1, sourceSha256: createHash("sha256").update(source).digest("hex"),
-    metrics: { ...metrics, boundsMm: extentsMm },
-  }));
-  const header = Buffer.alloc(4);
-  header.writeUInt32LE(metadata.length);
-  const glb = Buffer.from(model.files[`${id}.glb`].data.split(",")[1], "base64");
-  return [...Buffer.concat([header, metadata, glb])];
-}
-
 for (const locale of ["ru", "en"] as const) {
   for (const theme of ["dark", "light"] as const) {
     test(`edge fillet and chamfer (${locale}, ${theme})`, async ({ page }) => {
       const ru = locale === "ru";
       const id = randomUUID();
       await page.exposeFunction("__m2Build", (document: unknown, id: string) => worker!.build(document, id));
-      await page.exposeFunction("__m3Preview", previewPacket);
+      await page.exposeFunction("__m3Preview", (source: string) => buildPreviewPacket(worker!, source));
       await page.route(/\/src\/main\.tsx(?:\?.*)?$/, (route) => route.fulfill({
         contentType: "application/javascript", body: "export {};",
       }));
