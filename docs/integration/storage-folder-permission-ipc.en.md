@@ -19,7 +19,7 @@ optional ReviewPlan, CAD Commands or History intent. Incomplete references fail
 without managed fallback. The invoking WebviewWindow supplies the actual window.
 The registry captures one original FolderOperation; pure preparation receives its
 Project and reuses existing validators/command preparation. The complete ApplyRequest,
-including ReviewPlan and prepared revision, stays in RAM through decision/execution.
+including ReviewPlan and the Commands-prepared revision, stays in RAM through decision/execution.
 The same executor builds geometry; no second algorithm is introduced.
 
 The folder reply is `{id, requiresConfirmation}`. Only existing server confirmation
@@ -75,7 +75,7 @@ Rust/workflow source matches the base; applicability passed. Ten new transport t
 cover legacy wire shape, original source, deep Commands/ReviewPlan capture, the host
 flag and refusal of malformed receipts.
 
-The new Rust tests **have not executed yet**. Twelve genuine SQL/FCP1 cases cover
+The first isolated review42309170343 confirmed native compilation, **567 library PASS /20 ignored** and11 smoke PASS. All12 new SQL/FCP1 cases and the foreign prepared-request window test have explicit PASS in the terminal log. Strict no-client/client Clippy and the separately selected ignored worker test remain unexecuted gates. The SQL/FCP1 cases cover
 policy/overrides, corrupt settings, zero managed project rows, wrong source/window/
 project/commit, physical same-ID folders, audit failure/tampering, denial, replay/
 reopen and SQL waits without registry locks. The window suite adds refusal of a

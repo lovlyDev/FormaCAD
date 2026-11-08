@@ -19,7 +19,7 @@ Model с необязательным ReviewPlan, CAD Commands либо History.
 отказ без managed fallback. Окно берётся из вызывающего WebviewWindow. Registry
 захватывает один исходный FolderOperation; чистая подготовка получает его Project
 и вызывает существующие валидаторы/command pipeline. Полный ApplyRequest, включая
-ReviewPlan и подготовленную revision, сохраняется в RAM до решения и выполнения.
+ReviewPlan и revision, подготовленную Commands, сохраняется в RAM до решения и выполнения.
 Построение использует тот же executor, без нового алгоритма геометрии.
 
 Ответ folder request — `{id, requiresConfirmation}`. Этот флаг определяется только
@@ -74,7 +74,7 @@ frontend/Rust/workflow исходники совпадают с основой; 
 Десять новых transport-тестов проверяют legacy wire shape, исходный источник,
 глубокий capture Commands/ReviewPlan, серверный флаг и отказ неверным receipts.
 
-Новые Rust-тесты **пока не выполнены**. Подготовлены 12 реальных SQL/FCP1 проверок
+Первое изолированное CI-ревью 42309170343 подтвердило native-сборку, **567 library PASS / 20 ignored** и 11 smoke PASS. Все 12 новых SQL/FCP1 проверок и window-проверка чужого prepared request имеют явный PASS в терминальном логе. No-client/client strict Clippy и отдельный ignored worker-тест ещё не выполнены; эти условия остаются открытыми. SQL/FCP1 проверки покрывают
 policy/overrides, malformed settings, zero managed project rows, wrong source/window/
 project/commit, две физические папки с одним ID, audit failure/tampering, denial,
 replay/reopen и SQL await без registry lock. Window-suite добавляет отдельный отказ
