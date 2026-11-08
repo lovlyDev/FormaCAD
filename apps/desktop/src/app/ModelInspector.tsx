@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, Box, SlidersHorizontal } from "lucide-react";
 import { t, fixedNumber, getLocale } from "../i18n";
+import {sourceRefFor,type ProjectSourceBinding} from "../features/project-sources/sourceBinding";
 import { native } from "../lib/api";
 import { inspectSavedModel } from "../lib/modelInspection";
 import type { inspectModel } from "../lib/model";
@@ -10,6 +11,7 @@ import type { EdgeSelection } from "../features/viewer/edgeSelection";
 import "./ModelInspector.css";
 
 interface Props {
+  sourceBinding?:ProjectSourceBinding|null;
   project: Project;
   revision: Revision | undefined;
   selectedLabel: string | null;
@@ -24,6 +26,7 @@ interface Props {
 }
 
 export function ModelInspector({
+  sourceBinding,
   project,
   revision,
   selectedLabel,
@@ -37,14 +40,16 @@ export function ModelInspector({
   onEditParameters,
 }: Props) {
   const source = revision?.source ?? "";
+  const validSource=sourceBinding===undefined||!!sourceBinding&&sourceBinding.projectId===project.id;
+  const folder=validSource&&sourceBinding?sourceRefFor(sourceBinding,project.id):undefined;
   const exact = useQuery({
-    queryKey: ["exact-model-properties", project.id, revision?.id],
-    queryFn: () => inspectSavedModel(project.id, revision!.id),
-    enabled: native && !!revision && /\.st(e)?p$/i.test(source),
+    queryKey: ["exact-model-properties", project.id, revision?.id,sourceBinding?.openingId,folder?.sourceId,folder?.taskScopeId,folder?.commitId,validSource],
+    queryFn: () => folder?inspectSavedModel(project.id,revision!.id,folder):inspectSavedModel(project.id,revision!.id),
+    enabled: validSource && native && !!revision && /\.st(e)?p$/i.test(source),
     retry: false,
     staleTime: Infinity,
   });
-  const properties = exact.data;
+  const properties = validSource?exact.data:undefined;
   const dimensions = properties?.boundsMm ?? stats.size;
   const unitFactor =
     project.units === "inch" ? 25.4 : project.units === "cm" ? 10 : 1;

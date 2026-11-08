@@ -5,7 +5,7 @@ use crate::{
 };
 use sha2::{Digest, Sha256};
 
-pub(super) fn source(revision_id: &str, name: &str, bytes: &[u8]) -> Result<String> {
+pub(crate) fn source(revision_id: &str, name: &str, bytes: &[u8]) -> Result<String> {
     let sha256 = format!("{:x}", Sha256::digest(bytes));
     let document = Document {
         schema_version: 2,

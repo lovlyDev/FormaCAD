@@ -83,5 +83,12 @@ These guides describe the consolidated 1.2.6 candidate and its limits. Final pac
 - [Shared 2.0 scope and acceptance](../architecture-2.0.md).
 - [Viewport and modal transforms (M2)](viewport-transforms.md): G/R/S, F9, selection, visibility, views, pie menus and snapping.
 - [AI prompt for alternating development](collaboration-ai-prompt.md).
+- [Storage program: audit and limits](storage-program.md).
+- [Storage format comparison](storage-formats.md).
+- [Folder format decision](storage-format-decision.md).
+- [Repository read contract](storage-contract.md).
+- [Pure backend project catalog](storage-catalog.md).
+- [Transfer selected STEP into a new folder](storage-step-transfer.md).
+- [Independent folder Rust host API](storage-folder-host-api.md).
 - [Workspace areas and editors](workspace-areas.md): project/workspace tabs, split/join, stable viewport, contextual properties and navigation settings.
 - [Preparing Blender workflow adaptations](blender-parity.md): research method, local evidence, checks and limitations; [topic notes](../parity/blender/README.md) and [2.0 gap inventory](../parity/blender/readiness.md).

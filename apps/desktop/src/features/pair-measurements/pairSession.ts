@@ -8,7 +8,7 @@ export class PairSession {
  subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener);};};
  snapshot=()=>this.value;
  private publish(value:PairState){this.value=value;this.listeners.forEach(listener=>listener());}
- setContext(context:PairCapture|null){if(this.closed||context?.key===this.context?.key)return;this.epoch++;this.context=context;this.publish({key:context?.key??"",phase:"idle",working:this.inFlight,report:null});}
+ setContext(context:PairCapture|null){if(this.closed)return;if(context?.key===this.context?.key){this.context=context;return;}this.epoch++;this.context=context;this.publish({key:context?.key??"",phase:"idle",working:this.inFlight,report:null});}
  stopWaiting(){if(this.closed)return;this.epoch++;this.publish({...this.value,phase:this.value.report?"ready":"idle",error:undefined});}
  async run(load:(capture:PairCapture)=>Promise<PairReport>){
   const capture=this.context;if(this.closed||!capture||this.inFlight)return;

@@ -11,7 +11,7 @@ export class MeasurementSession {
   snapshot=()=>this.value;
   private publish(value:MeasurementState){this.value=value;this.listeners.forEach(listener=>listener());}
   setContext(context:MeasurementCapture|null){
-    if(context?.key===this.context?.key)return;
+    if(context?.key===this.context?.key){this.context=context;return;}
     this.epoch++;this.context=context;this.publish({key:context?.key??"",phase:"idle",working:this.inFlight,report:null});
   }
   stopWaiting(){this.epoch++;this.publish({...this.value,phase:this.value.report?"ready":"idle",error:undefined});}

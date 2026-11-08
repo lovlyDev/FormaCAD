@@ -1,0 +1,86 @@
+name: Storage comparison
+on:
+  push:
+    branches: [codex/storage-week]
+    paths-ignore: [docs/integration/**]
+  workflow_dispatch:
+concurrency:
+  group: storage-comparison-${{ github.ref }}
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+          cache-on-failure: true
+      - name: Webview dependencies
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - run: npm ci
+      - run: npm run build
+      - name: Runner environment
+        run: |
+          mkdir -p storage-evidence
+          uname -a > storage-evidence/environment.txt
+          lscpu >> storage-evidence/environment.txt
+          lsblk -o NAME,TYPE,SIZE,ROTA,MOUNTPOINTS >> storage-evidence/environment.txt
+          rustc --version >> storage-evidence/environment.txt
+          git rev-parse HEAD >> storage-evidence/environment.txt
+      - name: Compile and test independent folder host API without native client
+        run: |
+          set -o pipefail
+          cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --all-targets --no-default-features -- -D warnings 2>&1 | tee storage-evidence/host-api-clippy.log
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib project_repository::sqlite_folder:: -- --nocapture 2>&1 | tee storage-evidence/host-api-tests.log
+          grep -E '^test result: ok\. [1-9][0-9]* passed; 0 failed;' storage-evidence/host-api-tests.log
+          grep -E 'test project_repository::sqlite_folder::format::metadata_tests::metadata_succeeds_with_event_reads_denied_and_cannot_be_mistaken_for_full_archive \.\.\. ok' storage-evidence/host-api-tests.log
+          grep -E 'test project_repository::sqlite_folder::api::metadata_tests::metadata_does_not_adopt_unverified_archive_as_write_copy_or_history_authority \.\.\. ok' storage-evidence/host-api-tests.log
+      - name: Test window-owned folder source routing
+        run: |
+          set -o pipefail
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib project_repository::window_sources:: -- --nocapture 2>&1 | tee storage-evidence/window-source-tests.log
+          grep -F 'test result: ok. 15 passed; 0 failed;' storage-evidence/window-source-tests.log
+          grep -E 'test project_repository::window_sources::approval::tests::preparation_uses_original_project_once_and_failed_validation_mints_no_request \.\.\. ok' storage-evidence/window-source-tests.log
+          grep -E 'test project_repository::window_sources::approval::tests::request_is_read_only_and_retains_exact_typed_intent_until_one_use \.\.\. ok' storage-evidence/window-source-tests.log
+          grep -E 'test project_repository::window_sources::approval::tests::concurrent_consumers_receive_only_one_original_command \.\.\. ok' storage-evidence/window-source-tests.log
+          grep -E 'test project_repository::window_sources::approval::tests::per_request_wait_does_not_hold_global_registry_or_other_decisions \.\.\. ok' storage-evidence/window-source-tests.log
+          grep -E 'test project_repository::window_sources::operation::tests::window_read_only_copy_does_not_acquire_source_writer_authority \.\.\. ok' storage-evidence/window-source-tests.log
+          grep -E 'test project_repository::window_sources::assets::tests::assets_bind_original_source_commit_and_descriptor_without_app_index \.\.\. ok' storage-evidence/window-source-tests.log
+      - name: Test refresh through the original backend source
+        run: |
+          set -o pipefail
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib project_repository::backend::read::refresh_tests:: -- --nocapture 2>&1 | tee storage-evidence/source-refresh-tests.log
+          grep -F 'test result: ok. 3 passed; 0 failed;' storage-evidence/source-refresh-tests.log
+      - name: Measure actual FCP1 metadata and complete read scopes
+        env:
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          set -o pipefail
+          /usr/bin/time -v -o storage-evidence/fcp1-read-resources.txt cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib project_repository::sqlite_folder::api::benchmark::measure_scoped_reads -- --ignored --exact --nocapture 2>&1 | tee storage-evidence/fcp1-read-benchmark.log
+          grep -F 'test result: ok. 1 passed; 0 failed;' storage-evidence/fcp1-read-benchmark.log
+      - name: Compile shared measurement integration with strict lint
+        run: |
+          set -o pipefail
+          cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --all-targets --features native-worker-client -- -D warnings 2>&1 | tee storage-evidence/clippy.log
+      - name: Compare real storage primitives
+        env:
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          set -o pipefail
+          /usr/bin/time -v -o storage-evidence/process-resources.txt cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib project_repository::benchmark::compare_storage_representations -- --ignored --nocapture 2>&1 | tee storage-evidence/benchmark.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: storage-comparison-${{ github.sha }}
+          path: storage-evidence/

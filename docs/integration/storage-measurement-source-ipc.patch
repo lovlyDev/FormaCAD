@@ -1,0 +1,402 @@
+diff --git a/apps/desktop/src-tauri/src/model_measurement/mod.rs b/apps/desktop/src-tauri/src/model_measurement/mod.rs
+index c87f5df..8308566 100644
+--- a/apps/desktop/src-tauri/src/model_measurement/mod.rs
++++ b/apps/desktop/src-tauri/src/model_measurement/mod.rs
+@@ -23,16 +23,51 @@ pub struct ConfirmedMeasurement {
+ }
+ 
+ #[tauri::command]
++#[allow(clippy::too_many_arguments)]
+ pub async fn measure_model_reference(
+     project_id: String,
+     expected_revision: String,
+     body_id: String,
+     query: MeasurementQuery,
++    source_id: Option<String>,
++    expected_commit_id: Option<String>,
++    window: tauri::WebviewWindow,
++    sources: tauri::State<'_, crate::project_repository::window_sources::WindowSources>,
+     state: tauri::State<'_, AppState>,
+ ) -> Result<ConfirmedMeasurement> {
++    if source_id.is_some() != expected_commit_id.is_some() {
++        return Err(crate::core::AppError::Invalid(
++            "PROJECT_SNAPSHOT_CHANGED".into(),
++        ));
++    }
+     #[cfg(feature = "native-worker-client")]
+     {
++        let source = match (source_id, expected_commit_id) {
++            (Some(key), Some(commit)) => Some(
++                sources
++                    .capture_read(window.label(), &key, &project_id, &commit)
++                    .await?,
++            ),
++            (None, None) => None,
++            _ => {
++                return Err(crate::core::AppError::Invalid(
++                    "PROJECT_SNAPSHOT_CHANGED".into(),
++                ))
++            }
++        };
+         let executable = crate::native::worker::worker_executable()?;
++        if let Some(read) = source {
++            return build::measure_source_with_executable(
++                &state,
++                read,
++                &expected_revision,
++                &body_id,
++                &query,
++                std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
++                &executable,
++            )
++            .await;
++        }
+         build::measure_with_executable(
+             &state,
+             &project_id,
+@@ -46,7 +81,21 @@ pub async fn measure_model_reference(
+     }
+     #[cfg(not(feature = "native-worker-client"))]
+     {
+-        let _ = (project_id, expected_revision, body_id, query, state);
++        let _ = (
++            project_id,
++            expected_revision,
++            body_id,
++            query,
++            state,
++            window,
++            sources,
++            expected_commit_id,
++        );
++        if source_id.is_some() {
++            return Err(crate::core::AppError::Invalid(
++                "PROJECT_FOLDER_UNSUPPORTED".into(),
++            ));
++        }
+         Err(failure(
+             "MEASUREMENT_UNAVAILABLE",
+             "Exact reference measurements require the native build",
+diff --git a/apps/desktop/src-tauri/src/model_pair_measurement/mod.rs b/apps/desktop/src-tauri/src/model_pair_measurement/mod.rs
+index d21bdce..7611392 100644
+--- a/apps/desktop/src-tauri/src/model_pair_measurement/mod.rs
++++ b/apps/desktop/src-tauri/src/model_pair_measurement/mod.rs
+@@ -17,16 +17,51 @@ pub(super) fn failure(code: &str, detail: impl Into<String>) -> AppError {
+     AppError::Invalid(serde_json::json!({"code":code,"message":detail.into()}).to_string())
+ }
+ #[tauri::command]
++#[allow(clippy::too_many_arguments)]
+ pub async fn measure_model_pair(
+     project_id: String,
+     expected_revision: String,
+     body_id: String,
+     query: PairMeasurementQuery,
++    source_id: Option<String>,
++    expected_commit_id: Option<String>,
++    window: tauri::WebviewWindow,
++    sources: tauri::State<'_, crate::project_repository::window_sources::WindowSources>,
+     state: tauri::State<'_, AppState>,
+ ) -> Result<ConfirmedPairMeasurement> {
++    if source_id.is_some() != expected_commit_id.is_some() {
++        return Err(crate::core::AppError::Invalid(
++            "PROJECT_SNAPSHOT_CHANGED".into(),
++        ));
++    }
+     #[cfg(feature = "native-worker-client")]
+     {
++        let source = match (source_id, expected_commit_id) {
++            (Some(key), Some(commit)) => Some(
++                sources
++                    .capture_read(window.label(), &key, &project_id, &commit)
++                    .await?,
++            ),
++            (None, None) => None,
++            _ => {
++                return Err(crate::core::AppError::Invalid(
++                    "PROJECT_SNAPSHOT_CHANGED".into(),
++                ))
++            }
++        };
+         let executable = crate::native::worker::worker_executable()?;
++        if let Some(read) = source {
++            return build::measure_source_with_executable(
++                &state,
++                read,
++                &expected_revision,
++                &body_id,
++                &query,
++                std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
++                &executable,
++            )
++            .await;
++        }
+         build::measure_with_executable(
+             &state,
+             &project_id,
+@@ -40,7 +75,21 @@ pub async fn measure_model_pair(
+     }
+     #[cfg(not(feature = "native-worker-client"))]
+     {
+-        let _ = (project_id, expected_revision, body_id, query, state);
++        let _ = (
++            project_id,
++            expected_revision,
++            body_id,
++            query,
++            state,
++            window,
++            sources,
++            expected_commit_id,
++        );
++        if source_id.is_some() {
++            return Err(crate::core::AppError::Invalid(
++                "PROJECT_FOLDER_UNSUPPORTED".into(),
++            ));
++        }
+         Err(failure(
+             "MEASUREMENT_UNAVAILABLE",
+             "Pair measurements require the native OpenCascade build",
+diff --git a/apps/desktop/src-tauri/src/model_face_section/mod.rs b/apps/desktop/src-tauri/src/model_face_section/mod.rs
+index 7f73ec9..6e5fd02 100644
+--- a/apps/desktop/src-tauri/src/model_face_section/mod.rs
++++ b/apps/desktop/src-tauri/src/model_face_section/mod.rs
+@@ -18,16 +18,51 @@ pub(super) fn failure(code: &str, detail: impl Into<String>) -> AppError {
+     AppError::Invalid(serde_json::json!({"code":code,"message":detail.into()}).to_string())
+ }
+ #[tauri::command]
++#[allow(clippy::too_many_arguments)]
+ pub async fn section_model_reference(
+     project_id: String,
+     expected_revision: String,
+     body_id: String,
+     query: FaceSectionQuery,
++    source_id: Option<String>,
++    expected_commit_id: Option<String>,
++    window: tauri::WebviewWindow,
++    sources: tauri::State<'_, crate::project_repository::window_sources::WindowSources>,
+     state: tauri::State<'_, AppState>,
+ ) -> Result<ConfirmedFaceSection> {
++    if source_id.is_some() != expected_commit_id.is_some() {
++        return Err(crate::core::AppError::Invalid(
++            "PROJECT_SNAPSHOT_CHANGED".into(),
++        ));
++    }
+     #[cfg(feature = "native-worker-client")]
+     {
++        let source = match (source_id, expected_commit_id) {
++            (Some(key), Some(commit)) => Some(
++                sources
++                    .capture_read(window.label(), &key, &project_id, &commit)
++                    .await?,
++            ),
++            (None, None) => None,
++            _ => {
++                return Err(crate::core::AppError::Invalid(
++                    "PROJECT_SNAPSHOT_CHANGED".into(),
++                ))
++            }
++        };
+         let executable = crate::native::worker::worker_executable()?;
++        if let Some(read) = source {
++            return build::section_source_with_executable(
++                &state,
++                read,
++                &expected_revision,
++                &body_id,
++                &query,
++                std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
++                &executable,
++            )
++            .await;
++        }
+         build::section_with_executable(
+             &state,
+             &project_id,
+@@ -41,7 +76,21 @@ pub async fn section_model_reference(
+     }
+     #[cfg(not(feature = "native-worker-client"))]
+     {
+-        let _ = (project_id, expected_revision, body_id, query, state);
++        let _ = (
++            project_id,
++            expected_revision,
++            body_id,
++            query,
++            state,
++            window,
++            sources,
++            expected_commit_id,
++        );
++        if source_id.is_some() {
++            return Err(crate::core::AppError::Invalid(
++                "PROJECT_FOLDER_UNSUPPORTED".into(),
++            ));
++        }
+         Err(failure(
+             "SECTION_UNAVAILABLE",
+             "Face section requires the native OpenCascade build",
+diff --git a/apps/desktop/src-tauri/src/model_snap.rs b/apps/desktop/src-tauri/src/model_snap.rs
+index 82d6788..47f34a9 100644
+--- a/apps/desktop/src-tauri/src/model_snap.rs
++++ b/apps/desktop/src-tauri/src/model_snap.rs
+@@ -18,16 +18,50 @@ pub struct ConfirmedSnap {
+ }
+ 
+ #[tauri::command]
++#[allow(clippy::too_many_arguments)]
+ pub async fn snap_model_reference(
+     project_id: String,
+     expected_revision: String,
+     body_id: String,
+     query: SnapQuery,
++    source_id: Option<String>,
++    expected_commit_id: Option<String>,
++    window: tauri::WebviewWindow,
++    sources: tauri::State<'_, crate::project_repository::window_sources::WindowSources>,
+     state: tauri::State<'_, AppState>,
+ ) -> Result<ConfirmedSnap> {
++    if source_id.is_some() != expected_commit_id.is_some() {
++        return Err(crate::core::AppError::Invalid(
++            "PROJECT_SNAPSHOT_CHANGED".into(),
++        ));
++    }
+     #[cfg(feature = "native-worker-client")]
+     {
++        let source = match (source_id, expected_commit_id) {
++            (Some(key), Some(commit)) => Some(
++                sources
++                    .capture_read(window.label(), &key, &project_id, &commit)
++                    .await?,
++            ),
++            (None, None) => None,
++            _ => {
++                return Err(crate::core::AppError::Invalid(
++                    "PROJECT_SNAPSHOT_CHANGED".into(),
++                ))
++            }
++        };
+         let executable = crate::native::worker::worker_executable()?;
++        if let Some(read) = source {
++            return build::snap_source_with_executable(
++                &state,
++                read,
++                &expected_revision,
++                &body_id,
++                &query,
++                &executable,
++            )
++            .await;
++        }
+         build::snap_with_executable(
+             &state,
+             &project_id,
+@@ -40,7 +74,21 @@ pub async fn snap_model_reference(
+     }
+     #[cfg(not(feature = "native-worker-client"))]
+     {
+-        let _ = (project_id, expected_revision, body_id, query, state);
++        let _ = (
++            project_id,
++            expected_revision,
++            body_id,
++            query,
++            state,
++            window,
++            sources,
++            expected_commit_id,
++        );
++        if source_id.is_some() {
++            return Err(crate::core::AppError::Invalid(
++                "PROJECT_FOLDER_UNSUPPORTED".into(),
++            ));
++        }
+         Err(crate::core::AppError::Invalid(
+             serde_json::json!({"code":"SNAP_UNAVAILABLE","message":"Exact snapping requires the native build"})
+                 .to_string(),
+diff --git a/apps/desktop/src/features/reference-measurements/measurementApi.ts b/apps/desktop/src/features/reference-measurements/measurementApi.ts
+index a156d61..309ce82 100644
+--- a/apps/desktop/src/features/reference-measurements/measurementApi.ts
++++ b/apps/desktop/src/features/reference-measurements/measurementApi.ts
+@@ -1,12 +1,14 @@
++import type { FolderSourceRef } from "../../features/project-sources/contract";
+ import { invoke } from "@tauri-apps/api/core";
+ import { native } from "../../lib/api";
+ import { readMeasurementReport } from "./measurementSchema";
+ import { reportMatchesCapture,type MeasurementCapture } from "./measurementCapture";
+ 
+ /** No renderer document, path, hash or measured value is sent to native IPC. */
+-export async function measureReference(captured:MeasurementCapture) {
++export async function measureReference(captured:MeasurementCapture, source?:FolderSourceRef) {
++  if(source&&!native)throw Error("PROJECT_FOLDER_UNSUPPORTED");
+   if(!native)throw Error("MEASUREMENT_NATIVE_REQUIRED");
+-  const report=readMeasurementReport(await invoke("measure_model_reference",captured.request));
++  const report=readMeasurementReport(await invoke("measure_model_reference",source ? {...captured.request, sourceId:source.sourceId, expectedCommitId:source.commitId} : captured.request));
+   if(!reportMatchesCapture(report,captured))throw Error("MEASUREMENT_STALE");
+   // Compare the raw saved source actually captured by this renderer. The host
+   // independently checks committed bytes before queueing and before returning.
+diff --git a/apps/desktop/src/features/pair-measurements/pairApi.ts b/apps/desktop/src/features/pair-measurements/pairApi.ts
+index 0eeec43..6fe2897 100644
+--- a/apps/desktop/src/features/pair-measurements/pairApi.ts
++++ b/apps/desktop/src/features/pair-measurements/pairApi.ts
+@@ -1,10 +1,12 @@
++import type { FolderSourceRef } from "../project-sources/contract";
+ import { invoke } from "@tauri-apps/api/core";
+ import { native } from "../../lib/api";
+ import { matchesPairReport,type PairCapture } from "./pairCapture";
+ import { readPairReport } from "./pairSchema";
+-export async function measurePair(capture:PairCapture){
+- if(!native)throw Error("MEASUREMENT_UNSUPPORTED");
+- const report=readPairReport(await invoke("measure_model_pair",capture.request));
++export async function measurePair(capture:PairCapture, source?:FolderSourceRef){
++ if(source&&!native)throw Error("PROJECT_FOLDER_UNSUPPORTED");
++  if(!native)throw Error("MEASUREMENT_UNSUPPORTED");
++ const report=readPairReport(await invoke("measure_model_pair",source ? {...capture.request, sourceId:source.sourceId, expectedCommitId:source.commitId} : capture.request));
+  if(!matchesPairReport(report,capture))throw Error("MEASUREMENT_STALE");
+  const hash=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(capture.rawProgram));
+  if(report.documentSha256!==Array.from(new Uint8Array(hash),value=>value.toString(16).padStart(2,"0")).join(""))throw Error("MEASUREMENT_STALE");
+diff --git a/apps/desktop/src/features/viewer/sections/face-section/faceSectionApi.ts b/apps/desktop/src/features/viewer/sections/face-section/faceSectionApi.ts
+index 70b54b8..2fa5458 100644
+--- a/apps/desktop/src/features/viewer/sections/face-section/faceSectionApi.ts
++++ b/apps/desktop/src/features/viewer/sections/face-section/faceSectionApi.ts
+@@ -1,10 +1,12 @@
++import type { FolderSourceRef } from "../../../project-sources/contract";
+ import { invoke } from "@tauri-apps/api/core";
+ import { native } from "../../../../lib/api";
+ import { matchesFaceSection,type FaceSectionCapture } from "./faceSectionCapture";
+ import { readFaceSectionReport } from "./faceSectionSchema";
+-export async function sectionReference(captured:FaceSectionCapture){
+- if(!native)throw Error("SECTION_NATIVE_REQUIRED");
+- const report=readFaceSectionReport(await invoke("section_model_reference",captured.request));
++export async function sectionReference(captured:FaceSectionCapture, source?:FolderSourceRef){
++ if(source&&!native)throw Error("PROJECT_FOLDER_UNSUPPORTED");
++  if(!native)throw Error("SECTION_NATIVE_REQUIRED");
++ const report=readFaceSectionReport(await invoke("section_model_reference",source ? {...captured.request, sourceId:source.sourceId, expectedCommitId:source.commitId} : captured.request));
+  if(!matchesFaceSection(report,captured))throw Error("SECTION_STALE");
+  const hash=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(captured.rawProgram));
+  if(report.documentSha256!==Array.from(new Uint8Array(hash),byte=>byte.toString(16).padStart(2,"0")).join(""))throw Error("SECTION_STALE");
+diff --git a/apps/desktop/src/features/snapping/snapApi.ts b/apps/desktop/src/features/snapping/snapApi.ts
+index 87c2f30..58c02ce 100644
+--- a/apps/desktop/src/features/snapping/snapApi.ts
++++ b/apps/desktop/src/features/snapping/snapApi.ts
+@@ -1,3 +1,5 @@
++import type { FolderSourceRef } from "../project-sources/contract";
++import { native } from "../../lib/api";
+ import { invoke } from "@tauri-apps/api/core";
+ import { z } from "zod";
+ import {
+@@ -62,12 +64,15 @@ export interface ExactSnapResult {
+ export async function exactSnap(
+   scope: { projectId: string; revisionId: string; bodyId: string },
+   query: ExactSnapQuery,
++  source?: FolderSourceRef,
+ ): Promise<ExactSnapResult> {
++  if(source&&!native)throw Error("PROJECT_FOLDER_UNSUPPORTED");
+   const raw: unknown = await invoke("snap_model_reference", {
+     projectId: scope.projectId,
+     expectedRevision: scope.revisionId,
+     bodyId: scope.bodyId,
+     query,
++    ...(source ? {sourceId:source.sourceId,expectedCommitId:source.commitId} : {}),
+   });
+   const parsed = confirmed.safeParse(raw);
+   if (

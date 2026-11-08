@@ -6,21 +6,22 @@ import type { Project } from "../../types";
 import type { EdgeSelection } from "../viewer/edgeSelection";
 import type { FaceSelection } from "../viewer/faceSelection";
 import { EditorDisclosure } from "../model-editor/EditorDisclosure";
-import { usePersistentState } from "../../lib/persistence";
+import {useSourcePreference} from "../project-sources/useSourcePreference";
+import type {ProjectSourceBinding} from "../project-sources/sourceBinding";
 import { supportedMeasurementQueries } from "./measurementCapabilities";
 import { useExactReferenceMeasurement } from "./useExactReferenceMeasurement";
 import { measurementRows } from "./measurementRows";
 import type { MeasurementQuery } from "./measurementSchema";
 import "./ExactReferenceMeasurement.css";
 
-export function ExactReferenceMeasurement({project,bodyId,edge,face,interactive,hostAvailable}:{project:Project|null;bodyId:string|null;edge:EdgeSelection|null;face:FaceSelection|null;interactive:boolean;hostAvailable:boolean}){
-  const [open,setOpen]=usePersistentState(`forma.ui.project.${project?.id??"empty"}.referenceMeasurement.open`,false);
+export function ExactReferenceMeasurement({project,bodyId,edge,face,interactive,hostAvailable,sourceBinding}:{sourceBinding?:ProjectSourceBinding|null;project:Project|null;bodyId:string|null;edge:EdgeSelection|null;face:FaceSelection|null;interactive:boolean;hostAvailable:boolean}){
+  const [open,setOpen]=useSourcePreference(`forma.ui.project.${project?.id??"empty"}.referenceMeasurement.open`,false,sourceBinding??null);
   const [kind,setKind]=useState<MeasurementQuery["kind"]>("bodyMetrics");
   const [diagnosticsOpen,setDiagnosticsOpen]=useState(false);
   const queries=useMemo(()=>supportedMeasurementQueries(project,bodyId,edge,face),[project,bodyId,edge,face]);
   const query=queries.find(query=>query.kind===kind)??queries[0]??{kind:"bodyMetrics" as const};
   const selectionToken=JSON.stringify({edge,face,bodyId});
-  const measurement=useExactReferenceMeasurement({project,bodyId,query,selectionToken,interactive:interactive&&hostAvailable&&queries.length>0});
+  const measurement=useExactReferenceMeasurement({project,bodyId,query,selectionToken,sourceBinding,interactive:interactive&&hostAvailable&&queries.length>0});
   const labels:Record<MeasurementQuery["kind"],string>={bodyMetrics:t("Selected body metrics"),edgeLength:t("Selected edge length"),edgeRadius:t("Selected edge radius"),edgeDiameter:t("Selected edge diameter"),faceArea:t("Selected face area"),planarFace:t("Selected planar face")};
   const pending=measurement.phase==="pending",previous=!!measurement.report&&(pending||measurement.phase==="failed");
   const rows=measurement.report?measurementRows(measurement.report.result,project?.units??"mm"):[];

@@ -8,8 +8,13 @@ pub mod apply;
 mod build;
 pub mod commands;
 mod commit;
+pub(crate) mod execution;
 mod legacy;
+pub(crate) mod prepared_change;
+pub(crate) mod prepared_request;
 mod program;
+pub(crate) mod repository_apply;
+pub(crate) use build::GeneratedModel;
 mod workspace;
 
 fn publish(outcome: apply::ApplyOutcome, app: &tauri::AppHandle) -> Project {

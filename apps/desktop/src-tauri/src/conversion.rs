@@ -14,7 +14,7 @@ use std::{
 };
 use tauri::State;
 #[cfg(feature = "native-worker-client")]
-mod import_document;
+pub(crate) mod import_document;
 
 #[tauri::command]
 pub async fn convert_step(

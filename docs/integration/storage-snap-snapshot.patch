@@ -1,0 +1,12 @@
+diff --git a/apps/desktop/src-tauri/src/model_snap/build.rs b/apps/desktop/src-tauri/src/model_snap/build.rs
+--- a/apps/desktop/src-tauri/src/model_snap/build.rs
++++ b/apps/desktop/src-tauri/src/model_snap/build.rs
+@@ -47,7 +47,7 @@ pub async fn snap_with_executable(
+     )?;
+     crate::native::assets::stage_project_assets(
+         state,
+-        &captured.project,
++        &captured.snapshot.project,
+         &captured.document,
+         &workspace.path,
+     )?;

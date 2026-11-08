@@ -57,6 +57,14 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_deep_link::init())
         .manage(account::AccountState::default())
+        .manage(project_repository::window_sources::WindowSources::default())
+        .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                window
+                    .state::<project_repository::window_sources::WindowSources>()
+                    .close_window(window.label());
+            }
+        })
         .setup(|app| {
             let data = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data)?;
@@ -92,6 +100,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             projects::list_projects,
+            projects::read_project_snapshot,
+            project_repository::window_sources::ipc::open_project_folder,
+            project_repository::window_sources::ipc::close_project_source,
             projects::save_project_thumbnail,
             projects::delete_project,
             projects::interrupted_sessions,

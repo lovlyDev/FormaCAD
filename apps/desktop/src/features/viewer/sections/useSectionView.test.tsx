@@ -18,7 +18,7 @@ function setup(){
  const project=newProject("Section","blank","mm","codex");project.currentRevision=head;
  const program=JSON.stringify({schemaVersion:2,revisionId:head,parameters:[],features:[{id:"profile",name:"Profile",operation:{type:"rectangle"}},{id:"pad",name:"Pad",operation:{type:"extrude",sketchId:"profile"}}],bodies:[{id:"body",name:"Body",sourceFeatureId:"pad"}]});
  project.revisions=[{id:head,parent:null,createdAt:project.createdAt,prompt:"Source",parameters:defaults,program,source:"source.step"}];project.files=[{name:"source.step",kind:"model",sha256:sha,size:100}];
- useWorkspace.setState({project,selectedFace:{bodyId:"body",revisionId:head,faceOrdinal:99,topologyRef:{schemaVersion:1,kind:"face",ownerFeatureId:"pad",role:"box-face:zmax",occurrencePath:[]}}});
+ useWorkspace.getState().setProject(project);useWorkspace.setState({selectedFace:{bodyId:"body",revisionId:head,faceOrdinal:99,topologyRef:{schemaVersion:1,kind:"face",ownerFeatureId:"pad",role:"box-face:zmax",occurrencePath:[]}}});
  localStorage.setItem(`${scope}.section.enabled`,"true");return new Group();
 }
 function faceReport(capture:FaceSectionCapture):FaceSectionReport{

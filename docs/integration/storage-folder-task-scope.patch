@@ -1,0 +1,183 @@
+diff --git a/apps/desktop/src-tauri/src/project_repository/sqlite_folder/session.rs b/apps/desktop/src-tauri/src/project_repository/sqlite_folder/session.rs
+index 0e95cb3..9f86866 100644
+--- a/apps/desktop/src-tauri/src/project_repository/sqlite_folder/session.rs
++++ b/apps/desktop/src-tauri/src/project_repository/sqlite_folder/session.rs
+@@ -41,6 +41,10 @@ pub(super) struct FolderSnapshot {
+ }
+ 
+ impl FolderSnapshot {
++    pub(super) fn task_scope_id(&self) -> &str {
++        &self.opening.task_id
++    }
++
+     fn scope(&self) -> format::ReadScope {
+         if self.saved.history().is_some() {
+             format::ReadScope::Complete
+diff --git a/apps/desktop/src-tauri/src/project_repository/sqlite_folder/api.rs b/apps/desktop/src-tauri/src/project_repository/sqlite_folder/api.rs
+index b3ca477..7a697f4 100644
+--- a/apps/desktop/src-tauri/src/project_repository/sqlite_folder/api.rs
++++ b/apps/desktop/src-tauri/src/project_repository/sqlite_folder/api.rs
+@@ -35,6 +35,11 @@ pub struct ReadView {
+     snapshot: FolderSnapshot,
+ }
+ impl ReadView {
++    /// Nonpersistent opening group for task status/cancellation, never access authority.
++    pub fn task_scope_id(&self) -> &str {
++        self.snapshot.task_scope_id()
++    }
++
+     pub fn project(&self) -> &Project {
+         self.snapshot.project()
+     }
+diff --git a/apps/desktop/src-tauri/src/project_repository/backend/read.rs b/apps/desktop/src-tauri/src/project_repository/backend/read.rs
+index 2ed73d9..33edd51 100644
+--- a/apps/desktop/src-tauri/src/project_repository/backend/read.rs
++++ b/apps/desktop/src-tauri/src/project_repository/backend/read.rs
+@@ -28,6 +28,22 @@ impl<'a> RepositoryRead<'a> {
+         })
+     }
+ 
++    /// Managed/V2 retain project grouping; FCP1 uses its actual opening group.
++    pub fn task_scope_id(&self) -> &str {
++        match &self.snapshot.backend {
++            super::CapturedBackend::Managed { snapshot, .. } => &snapshot.project.id,
++            super::CapturedBackend::Folder(snapshot) => &snapshot.project().id,
++            #[cfg(any(
++                windows,
++                all(
++                    target_os = "linux",
++                    any(target_arch = "x86_64", target_arch = "aarch64")
++                )
++            ))]
++            super::CapturedBackend::Independent(snapshot) => snapshot.task_scope_id(),
++        }
++    }
++
+     pub fn project(&self) -> &Project {
+         self.snapshot.project()
+     }
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/ipc.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/ipc.rs
+index 8b1be66..4f9d1c1 100644
+--- a/apps/desktop/src-tauri/src/project_repository/window_sources/ipc.rs
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/ipc.rs
+@@ -8,6 +8,7 @@ use tauri::State;
+ pub struct FolderOpen {
+     source_id: String,
+     commit_id: String,
++    task_scope_id: String,
+     project: Project,
+ }
+ 
+@@ -49,6 +50,7 @@ pub async fn open_project_folder(
+         Ok(Some(FolderOpen {
+             source_id: opened.id.to_string(),
+             commit_id: opened.snapshot.commit_id().into(),
++            task_scope_id: opened.snapshot.task_scope_id().into(),
+             project: opened.snapshot.project().clone(),
+         }))
+     }
+diff --git a/apps/desktop/src/features/project-sources/contract.ts b/apps/desktop/src/features/project-sources/contract.ts
+index acf4389..ba92282 100644
+--- a/apps/desktop/src/features/project-sources/contract.ts
++++ b/apps/desktop/src/features/project-sources/contract.ts
+@@ -3,4 +3,6 @@
+ export interface FolderSourceRef {
+   readonly sourceId: string;
+   readonly commitId: string;
++  // Host-provided grouping only. Read/write IPC still validates sourceId + commitId.
++  readonly taskScopeId: string;
+ }
+diff --git a/apps/desktop/src-tauri/src/model_inspection/read.rs b/apps/desktop/src-tauri/src/model_inspection/read.rs
+index 7d8d74b..13ee224 100644
+--- a/apps/desktop/src-tauri/src/model_inspection/read.rs
++++ b/apps/desktop/src-tauri/src/model_inspection/read.rs
+@@ -60,7 +60,7 @@ where
+     F: FnOnce(PathBuf, Arc<AtomicBool>) -> Fut,
+     Fut: Future<Output = Result<ExactProperties>>,
+ {
+-    let id = read.project().id.clone();
++    let task_scope = read.task_scope_id().to_owned();
+     let revision = read
+         .project()
+         .revisions
+@@ -93,7 +93,7 @@ where
+     let cancel = Arc::new(AtomicBool::new(false));
+     let _cad = state
+         .cad_tasks
+-        .acquire(&id, "inspection", cancel.clone())
++        .acquire(&task_scope, "inspection", cancel.clone())
+         .await?;
+     read.recheck().await?;
+     let workspace = crate::project_access::transient::Workspace::create(&state.root)?;
+diff --git a/apps/desktop/src-tauri/src/model_inspection/read/folder_tests.rs b/apps/desktop/src-tauri/src/model_inspection/read/folder_tests.rs
+index 1227cb4..ed4c532 100644
+--- a/apps/desktop/src-tauri/src/model_inspection/read/folder_tests.rs
++++ b/apps/desktop/src-tauri/src/model_inspection/read/folder_tests.rs
+@@ -43,8 +43,21 @@ async fn independent_step_properties_use_original_folder_and_refuse_late_close()
+     let read = RepositoryRead::from_folder_view(Arc::clone(&source), original)
+         .await
+         .unwrap();
+-    let properties = run_bound(&state, read, &revision, |p, c| async move {
+-        crate::native::inspection::inspect_with_executable(&p, c, &tests::worker()).await
++    let expected_scope = read.task_scope_id().to_owned();
++    assert_ne!(expected_scope, id);
++    let properties = run_bound(&state, read, &revision, |p, c| {
++        let state = &state;
++        let expected_scope = &expected_scope;
++        async move {
++            assert!(state
++                .cad_tasks
++                .status()?
++                .iter()
++                .any(|task| task.kind == "inspection"
++                    && task.project_id == *expected_scope
++                    && task.state == "running"));
++            crate::native::inspection::inspect_with_executable(&p, c, &tests::worker()).await
++        }
+     })
+     .await
+     .unwrap()
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/assets/tests.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/assets/tests.rs
+index feaa66f..2ca7329 100644
+--- a/apps/desktop/src-tauri/src/project_repository/window_sources/assets/tests.rs
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/assets/tests.rs
+@@ -34,6 +34,12 @@ async fn assets_bind_original_source_commit_and_descriptor_without_app_index() {
+     let key_b = second.id.to_string();
+     let commit_a = first.snapshot.commit_id();
+     let commit_b = second.snapshot.commit_id();
++    let scope_a = first.snapshot.task_scope_id().to_owned();
++    let scope_b = second.snapshot.task_scope_id().to_owned();
++    crate::security::valid_id(&scope_a).unwrap();
++    crate::security::valid_id(&scope_b).unwrap();
++    assert_ne!(scope_a, scope_b);
++    assert_ne!(scope_a, id);
+     let before = std::fs::read(a.path().join("project.sqlite")).unwrap();
+     assert_eq!(
+         windows
+@@ -83,6 +89,7 @@ async fn assets_bind_original_source_commit_and_descriptor_without_app_index() {
+         .capture_read("assets", &key_a, &id, commit_a)
+         .await
+         .unwrap();
++    assert_eq!(stale_read.task_scope_id(), scope_a);
+     assert!(stale_read.read_history().await.unwrap().is_some());
+     closing_read.close();
+     assert!(closing_read.recheck().await.is_err());
+@@ -104,6 +111,8 @@ async fn assets_bind_original_source_commit_and_descriptor_without_app_index() {
+             .unwrap(),
+         Publication::Committed(_)
+     ));
++    let fresh = source.capture_metadata().await.unwrap();
++    assert_eq!(fresh.task_scope_id(), scope_a);
+     assert!(stale_read.recheck().await.is_err());
+     assert!(stale_read.read_history().await.is_err());
+     assert!(windows
+@@ -116,6 +125,9 @@ async fn assets_bind_original_source_commit_and_descriptor_without_app_index() {
+         .unwrap();
+     assert!(windows.close_source("assets", &key_b).unwrap());
+     assert!(closing_source.recheck().await.is_err());
++    let reopened = scope.open(b.path()).await.unwrap();
++    assert_ne!(reopened.snapshot.task_scope_id(), scope_b);
++    assert_ne!(reopened.snapshot.task_scope_id(), scope_a);
+     assert!(windows
+         .read_asset("assets", &key_b, &id, commit_b, "fixture.pdf")
+         .await

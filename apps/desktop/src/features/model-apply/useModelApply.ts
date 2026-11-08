@@ -1,6 +1,9 @@
+import {isSourceCurrent} from "../project-sources/sourceBinding";
+import { readProjectSnapshot } from "../project-catalog/api";
+import { invalidateProjectCatalog } from "../project-catalog/cache";
 import { useQueryClient } from "@tanstack/react-query";
 import { useWorkspace } from "../../stores/workspace";
-import { applyProgram, listProjects, saveProject } from "../../lib/api";
+import { applyProgram, saveProject } from "../../lib/api";
 import { t, errorText } from "../../i18n";
 import type { Project } from "../../types";
 import type { ReviewPlan } from "../agents/review/plan/reviewPlan";
@@ -10,40 +13,44 @@ import { executeCapturedApply, type CapturedApply } from "./capturedApply";
 export function useModelApply() {
   const query = useQueryClient();
   return async (captured: CapturedApply, options?: { reviewPlan?: ReviewPlan | null; assistantMessage?: string }) => {
+    const origin=useWorkspace.getState().sourceBinding;
+    const sameOrigin=()=>origin?isSourceCurrent(useWorkspace.getState().sourceBinding,origin):!useWorkspace.getState().sourceBinding;
     const cache = (project: Project) => query.setQueryData<Project[]>(["projects"], current => {
       const items = current ?? [];
       return items.some(item => item.id === project.id) ? items.map(item => item.id === project.id ? project : item) : [...items, project];
     });
-    const adopt = (project: Project) => { cache(project); useWorkspace.getState().setProject(project); };
+    const adopt = (project: Project) => { cache(project); if(sameOrigin())useWorkspace.getState().setProject(project); };
     const targetError = (message: string) => {
-      if (useWorkspace.getState().project?.id === captured.base.id) useWorkspace.getState().setError(message);
+      if (sameOrigin()&&useWorkspace.getState().project?.id === captured.base.id&&(captured.sourceOpeningId===undefined||captured.sourceOpeningId===useWorkspace.getState().sourceBinding?.openingId)) useWorkspace.getState().setError(message);
     };
     try {
+      if(origin?.kind==="folder")throw new Error("PROJECT_SOURCE_WRITE_NOT_AUTHORIZED");
       const outcome = await executeCapturedApply(captured, {
-        getCurrent: () => useWorkspace.getState().project,
+        getCurrent: () => sameOrigin()?useWorkspace.getState().project:null,
+        getSourceOpeningId:()=>useWorkspace.getState().sourceBinding?.openingId,
         invoke: request => applyProgram(request.base, request.program, request.prompt, options?.reviewPlan),
         adopt,
         reconcileTarget: async result => {
           const before = useWorkspace.getState().project;
-          const latest = (await listProjects()).find(project => project.id === result.id);
-          if (!latest) throw new Error("MODEL_APPLY_RESULT_INVALID");
+          const latest = await readProjectSnapshot(result.id);
           cache(latest);
           const current = useWorkspace.getState().project;
-          if (current?.id === latest.id && current.currentRevision === before?.currentRevision && current.id === before?.id) adopt(latest);
+          if (sameOrigin()&&current?.id === latest.id && current.currentRevision === before?.currentRevision && current.id === before?.id) adopt(latest);
         },
         saveCommittedMetadata: options?.assistantMessage === undefined ? undefined : async result => {
-          const latest = (await listProjects()).find(project => project.id === result.id);
-          if (!latest) throw new Error("MODEL_APPLY_RESULT_INVALID");
+          if(useWorkspace.getState().project?.id===result.id&&!sameOrigin())throw new Error("PROJECT_SNAPSHOT_CHANGED");
+          const latest = await readProjectSnapshot(result.id);
+          if(useWorkspace.getState().project?.id===result.id&&!sameOrigin())throw new Error("PROJECT_SNAPSHOT_CHANGED");
           const saved = await saveProject({ ...latest, messages: [...latest.messages, {
             id: crypto.randomUUID(), role: "assistant", text: options.assistantMessage!, createdAt: new Date().toISOString(),
           }] });
           cache(saved);
           const current = useWorkspace.getState().project;
-          if (current?.id === saved.id && current.currentRevision === saved.currentRevision) adopt(saved);
+          if (sameOrigin()&&current?.id === saved.id && current.currentRevision === saved.currentRevision) adopt(saved);
         },
         metadataFailed: (_result, cause) => targetError(`${t("The model was saved, but the assistant message could not be saved.")}\n${errorText(cause)}`),
         refreshTarget: () => {
-          void query.invalidateQueries({ queryKey: ["projects"] });
+          invalidateProjectCatalog(query);
           void query.invalidateQueries({ queryKey: ["model-history", captured.base.id] });
         },
       });

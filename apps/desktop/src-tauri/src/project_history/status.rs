@@ -6,8 +6,14 @@ use crate::{
 };
 
 pub async fn status_for(state: &AppState, project_id: &str) -> Result<HistoryStatus> {
-    let snapshot = repository::capture_history_state(state, project_id).await?;
-    from_snapshot(state, &snapshot).await
+    let snapshot = repository::legacy::capture_controls(state, project_id).await?;
+    let status = if let Some(full) = snapshot.fallback() {
+        from_snapshot(state, full).await?
+    } else {
+        snapshot.status()
+    };
+    snapshot.recheck(state).await?;
+    Ok(status)
 }
 
 async fn from_snapshot(state: &AppState, snapshot: &HistoryStateSnapshot) -> Result<HistoryStatus> {
@@ -28,3 +34,7 @@ mod tests;
 #[cfg(test)]
 #[path = "status/session_tests.rs"]
 mod session_tests;
+
+#[cfg(test)]
+#[path = "status/fast_tests.rs"]
+mod fast_tests;
