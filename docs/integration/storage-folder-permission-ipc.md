@@ -2,7 +2,7 @@
 
 [English](storage-folder-permission-ipc.en.md) · [Host API](../ru/storage-folder-host-api.md) · [Сечения](storage-section-renderer-source.md)
 
-Статус: **подготовлен; в рабочей ветке не применён; согласование владельца ещё не запрошено**.
+Статус: **подготовлен и проверен в изолированном CI; в рабочей ветке не применён; требуется согласование владельца**.
 Issue #31 / PR #35, исполнитель wenlixxq, согласование и приёмка lovlyDev.
 Основа `3e945bca9cfb956b23ecdaafd4eb52e95bd0af37`. Точный
 [патч](storage-folder-permission-ipc.patch) меняет 16 путей ниже. SHA256:
@@ -74,7 +74,7 @@ frontend/Rust/workflow исходники совпадают с основой; 
 Десять новых transport-тестов проверяют legacy wire shape, исходный источник,
 глубокий capture Commands/ReviewPlan, серверный флаг и отказ неверным receipts.
 
-Первое изолированное CI-ревью 42309170343 подтвердило native-сборку, **567 library PASS / 20 ignored** и 11 smoke PASS. Все 12 новых SQL/FCP1 проверок и window-проверка чужого prepared request имеют явный PASS в терминальном логе. No-client/client strict Clippy и отдельный ignored worker-тест ещё не выполнены; эти условия остаются открытыми. SQL/FCP1 проверки покрывают
+Изолированное [CI-ревью 42478517392](https://github.com/lovlyDev/FormaCAD/actions/runs/42478517392) на контрольном SHA 9ef0650 завершилось **SUCCESS** для того же SHA256 патча. Подтверждены 407 frontend-тестов, native-сборка, **567 library PASS / 20 ignored**, 11 smoke PASS, отдельные **12 SQL/FCP1 PASS**, **16 window-source PASS**, оба strict Clippy режима и явный **real_permission_model_command_and_history PASS**. Ignored в общем запуске не считается исполнением: worker-тест выполнен отдельной командой с --ignored --exact. Проверены отказ неверному ReviewPlan и CAD Commands 40→80 мм с Undo/Redo. SQL/FCP1 проверки покрывают
 policy/overrides, malformed settings, zero managed project rows, wrong source/window/
 project/commit, две физические папки с одним ID, audit failure/tampering, denial,
 replay/reopen и SQL await без registry lock. Window-suite добавляет отдельный отказ

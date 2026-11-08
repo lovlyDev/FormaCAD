@@ -2,7 +2,7 @@
 
 [Русский](storage-folder-permission-ipc.md) · [Host API](../en/storage-folder-host-api.md) · [Sections](storage-section-renderer-source.en.md)
 
-Status: **prepared, unapplied in the task branch; owner agreement not requested yet**.
+Status: **prepared and validated in isolated CI, unapplied in the task branch; owner agreement required**.
 Issue #31 / PR #35; implementation wenlixxq, agreement and acceptance lovlyDev.
 Base `3e945bca9cfb956b23ecdaafd4eb52e95bd0af37`. The exact
 [patch](storage-folder-permission-ipc.patch) changes the 16 paths below. SHA256:
@@ -75,7 +75,7 @@ Rust/workflow source matches the base; applicability passed. Ten new transport t
 cover legacy wire shape, original source, deep Commands/ReviewPlan capture, the host
 flag and refusal of malformed receipts.
 
-The first isolated review42309170343 confirmed native compilation, **567 library PASS /20 ignored** and11 smoke PASS. All12 new SQL/FCP1 cases and the foreign prepared-request window test have explicit PASS in the terminal log. Strict no-client/client Clippy and the separately selected ignored worker test remain unexecuted gates. The SQL/FCP1 cases cover
+Isolated [review42478517392](https://github.com/lovlyDev/FormaCAD/actions/runs/42478517392) on control SHA9ef0650 finished **SUCCESS** for the same patch digest. Terminal logs confirm407 frontend tests, native compilation, **567 library PASS /20 ignored**,11 smoke PASS, explicit **12 SQL/FCP1 PASS**, **16 window-source PASS**, both strict Clippy configurations and explicit **real_permission_model_command_and_history PASS**. Ignored during the general suite is not counted as execution: the worker test ran separately with --ignored --exact, checking refusal of false ReviewPlan metrics and actual40→80 mm CAD Commands with Undo/Redo. The SQL/FCP1 cases cover
 policy/overrides, corrupt settings, zero managed project rows, wrong source/window/
 project/commit, physical same-ID folders, audit failure/tampering, denial, replay/
 reopen and SQL waits without registry locks. The window suite adds refusal of a
