@@ -151,4 +151,9 @@ jobs:
           working-directory: apps/desktop/src-tauri
           token: ${{ secrets.GITHUB_TOKEN }}
           # SQLx's unused MySQL feature retains rsa in Cargo.lock; Forma uses SQLite only.
-          ignore: RUSTSEC-2023-0071
+          # RUSTSEC-2026-0459 (bundled SQLite < 3.54, crafted db + -wal pair leaks page cache):
+          # Forma opens only its own forma.sqlite in the user's data folder, never a SQLite file
+          # from a project, bundle or download, so exploiting it needs write access to that folder.
+          # No SQLx release accepts the patched libsqlite3-sys 0.39 yet; remove when one does.
+          # Accepted by lovlyDev on 2026-11-09.
+          ignore: RUSTSEC-2023-0071,RUSTSEC-2026-0459
