@@ -34,6 +34,7 @@ export function useRevisionEvents() {
         if (current?.id === id) useWorkspace.getState().setProject(latest);
       }).catch(cause => console.warn("Revision snapshot could not be refreshed", cause));
       void query.invalidateQueries({ queryKey: ["model-history", id] });
+      void query.invalidateQueries({ queryKey: ["project-activity", id] });
     }).then(unlisten => { if (!alive) unlisten(); else stop = unlisten; })
       .catch(cause => console.warn("Revision listener could not be registered", cause));
     return () => { alive = false; stop?.(); };

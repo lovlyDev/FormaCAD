@@ -2,7 +2,8 @@ import { useEffect, type RefObject } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { OrbitHandle } from "./CameraControl";
-export function Capture({ onReady, controlsRef }: { onReady: (fn: () => string) => void; controlsRef: RefObject<OrbitHandle | null> }) {
+import { viewportPng, type ViewportPngOptions } from "./capture/viewportPng";
+export function Capture({ onReady, controlsRef }: { onReady: (fn: ((options: ViewportPngOptions) => string) | null) => void; controlsRef: RefObject<OrbitHandle | null> }) {
   const { gl, scene, camera } = useThree();
   useFrame(() => {
     if (import.meta.env.DEV) {
@@ -29,10 +30,8 @@ export function Capture({ onReady, controlsRef }: { onReady: (fn: () => string) 
     }
   });
   useEffect(() => {
-    onReady(() => {
-      gl.render(scene, camera);
-      return gl.domElement.toDataURL("image/png");
-    });
+    onReady((options) => viewportPng(gl, scene, camera, options));
+    return () => onReady(null);
   }, [gl, scene, camera, onReady]);
   return null;
 }

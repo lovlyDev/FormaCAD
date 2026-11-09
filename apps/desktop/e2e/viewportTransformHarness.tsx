@@ -1,3 +1,5 @@
+import type { Mesh } from "three";
+
 /** Actual App with an IPC boundary that emulates the host Command API and rebuilds every revision with the real worker. */
 type Built = {
   files: Record<string, { data: string; size: number; sha256: string }>;
@@ -7,6 +9,8 @@ type Built = {
 declare global {
   interface Window {
     __m2Build: (document: unknown, revisionId: string) => Promise<Built>;
+    __m3Measure?: (revisionId: string, bodyId: string, query: unknown) => Promise<object>;
+    __m3Preview?: (program: string) => Promise<number[]>;
     __m2Snap: (
       revisionId: string,
       bodyId: string,
@@ -77,6 +81,52 @@ export async function mountViewportTransformHarness(
     JSON.parse(project.revisions.find((item: any) => item.id === id).program);
   const applyTransforms = (document: any, commands: any[]) => {
     for (const command of commands) {
+      if (command.command === "add_feature") {
+        document.features.push(command.feature);
+        continue;
+      }
+      if (command.command === "duplicate_body") {
+        // The browser harness only needs the rectangle/extrude fixture.
+        const body = document.bodies.find((item: any) => item.id === command.bodyId);
+        const pad = document.features.find((item: any) => item.id === body.sourceFeatureId);
+        const profile = document.features.find((item: any) => item.id === pad.operation.sketchId);
+        const prefix = command.newBodyId;
+        document.features.push(
+          { ...profile, id: `${prefix}_f0` },
+          { ...pad, id: `${prefix}_f1`, operation: { ...pad.operation, sketchId: `${prefix}_f0` } },
+          { id: `${prefix}_placement`, name: command.name, operation: {
+            type: "translate", bodyFeatureId: `${prefix}_f1`, offsetMm: command.offsetMm,
+          } },
+        );
+        document.bodies.push({ id: prefix, name: command.name, sourceFeatureId: `${prefix}_placement` });
+        continue;
+      }
+      if (command.command === "separate_solids") {
+        const original = document.bodies.find((item: any) => item.id === command.bodyId);
+        const source = original.sourceFeatureId;
+        const outputs = [original, ...command.newBodies];
+        const prefix = command.newBodies[0].id;
+        for (const [index, output] of outputs.entries()) {
+          const id = `${prefix}_part${index}`;
+          document.features.push({ id, name: output.name, operation: {
+            type: "extractSolid", bodyFeatureId: source, index, expectedCount: outputs.length,
+          } });
+          output.sourceFeatureId = id;
+          if (index > 0) document.bodies.push(output);
+        }
+        continue;
+      }
+      if (command.command === "group_create") {
+        (document.groups ??= []).push(command.group);
+        continue;
+      }
+      if (command.command === "group_add" || command.command === "group_remove") {
+        const group = document.groups.find((item: any) => item.id === command.groupId);
+        if (command.command === "group_add") group.bodyIds = [...new Set([...group.bodyIds, ...command.bodyIds])];
+        else if (command.bodyIds) group.bodyIds = group.bodyIds.filter((id: string) => !command.bodyIds.includes(id));
+        else document.groups = document.groups.filter((item: any) => item !== group);
+        continue;
+      }
       const body = document.bodies.find(
         (item: any) => item.id === command.bodyId,
       );
@@ -85,6 +135,10 @@ export async function mountViewportTransformHarness(
           code: "MISSING_TARGET",
           message: command.bodyId,
         });
+      if (command.command === "set_body_source") {
+        body.sourceFeatureId = command.sourceFeatureId;
+        continue;
+      }
       document.features.push({
         id: command.featureId,
         name: command.name,
@@ -106,6 +160,9 @@ export async function mountViewportTransformHarness(
       return eventId;
     }
     if (command === "list_projects") return [project];
+    if (command === "project_activity") return args.projectId === project.id
+      ? [{ id: 1, kind: "edit", toRevision: project.currentRevision, createdAt: "2026-01-01T00:00:00Z" }]
+      : [];
     if (
       ["interrupted_sessions", "cad_task_status", "plugins_list"].includes(
         command,
@@ -146,6 +203,12 @@ export async function mountViewportTransformHarness(
       });
       return project;
     }
+    if (command === "measure_model_reference" && window.__m3Measure) {
+      const report = await window.__m3Measure(args.expectedRevision, args.bodyId, args.query);
+      return { projectId: project.id, ...report };
+    }
+    if (command === "preview_model" && window.__m3Preview) return window.__m3Preview(args.program);
+    if (command === "cancel_model_preview") return;
     if (command === "snap_model_reference") {
       if (args.expectedRevision !== project.currentRevision)
         throw JSON.stringify({ code: "SNAP_STALE", message: "stale" });
@@ -284,6 +347,39 @@ export async function mountViewportTransformHarness(
       theme: applyTheme,
       project: () => useWorkspace.getState().project,
       selection: () => useWorkspace.getState().selectedBodies,
+      face: () => useWorkspace.getState().selectedFace,
+      edge: () => useWorkspace.getState().selectedEdge,
+      edgeScreen: async (role: string) => {
+        const { cadEdges } = await import("../src/features/viewer/edgeSelection");
+        const { pickCadEdge } = await import("../src/features/viewer/pickCadEdge");
+        const state = live();
+        const body = state?.scene.getObjectByName("body") as Mesh | undefined;
+        const edge = body && cadEdges(body)?.find((item) => item.topologyRef?.role === role);
+        if (!state || !body || !edge || edge.points.length < 2) return null;
+        body.updateWorldMatrix(true, false);
+        const rect = state.gl.domElement.getBoundingClientRect();
+        for (let i = 1; i < edge.points.length; i++) {
+          const point = new THREE.Vector3(...edge.points[i - 1])
+            .lerp(new THREE.Vector3(...edge.points[i]), 0.5)
+            .applyMatrix4(body.matrixWorld).project(state.camera);
+          const local = { x: (point.x + 1) * rect.width / 2, y: (1 - point.y) * rect.height / 2 };
+          const hit = pickCadEdge(body.parent!, state.camera, local, rect.width, rect.height);
+          if (hit?.topologyRef?.role === role) return { x: rect.left + local.x, y: rect.top + local.y };
+        }
+        return null;
+      },
+      topFaceScreen: () => {
+        const state = live();
+        const body = state?.scene.getObjectByName("body");
+        if (!state || !body) return null;
+        const box = new THREE.Box3().setFromObject(body);
+        const point = box.getCenter(new THREE.Vector3());
+        point.y = box.max.y;
+        point.project(state.camera);
+        const rect = state.gl.domElement.getBoundingClientRect();
+        return { x: rect.left + (point.x + 1) * rect.width / 2,
+          y: rect.top + (1 - point.y) * rect.height / 2 };
+      },
       visible: () => live()?.scene.getObjectByName("body")?.visible ?? null,
       viewDirection: () =>
         live()
@@ -291,8 +387,8 @@ export async function mountViewportTransformHarness(
           .toArray()
           .map((value: number) => Math.round(value * 1000) / 1000) ?? null,
       /** World-space render bounds of the body; render X equals CAD X. */
-      bounds: () => {
-        const body = live()?.scene.getObjectByName("body");
+      bounds: (bodyId = "body") => {
+        const body = live()?.scene.getObjectByName(bodyId);
         if (!body) return null;
         const box = new THREE.Box3().setFromObject(body);
         return [...box.min.toArray(), ...box.max.toArray()];
@@ -317,14 +413,14 @@ export async function mountViewportTransformHarness(
           y: rect.top + ((1 - point.y) / 2) * rect.height,
         };
       },
-      bodyScreen: () => {
+      bodyScreen: (fractionX = 0.5) => {
         const state = live();
         const body = state?.scene.getObjectByName("body");
         if (!state || !body) return null;
-        const centre = new THREE.Box3()
-          .setFromObject(body)
-          .getCenter(new THREE.Vector3())
-          .project(state.camera);
+        const bounds = new THREE.Box3().setFromObject(body);
+        const centre = bounds.getCenter(new THREE.Vector3());
+        centre.x = THREE.MathUtils.lerp(bounds.min.x, bounds.max.x, fractionX);
+        centre.project(state.camera);
         const rect = state.gl.domElement.getBoundingClientRect();
         return {
           x: rect.left + ((centre.x + 1) / 2) * rect.width,

@@ -9,6 +9,7 @@ const feature = z.looseObject({
   suppressed: z.boolean().optional(),
 });
 const body = z.looseObject({ id, name: z.string(), sourceFeatureId: id });
+const bodyGroup = z.strictObject({ id, name: z.string(), bodyIds: z.array(id) });
 const documentSchema = z.looseObject({
   schemaVersion: z.literal(2),
   revisionId: id,
@@ -17,6 +18,7 @@ const documentSchema = z.looseObject({
   ),
   features: z.array(feature),
   bodies: z.array(body),
+  groups: z.array(bodyGroup).optional(),
 });
 
 export type TypedCadDocument = z.infer<typeof documentSchema>;
@@ -38,10 +40,16 @@ export function featureDependencies(feature: TypedCadFeature): string[] {
     case "revolve":
       return typeof op.sketchId === "string" ? [op.sketchId] : [];
     case "hole":
+    case "extrudeFace":
+    case "shell":
+    case "patternLinear":
+    case "patternCircular":
+    case "extractSolid":
     case "fillet":
     case "filletEdge":
     case "filletReferencedEdge":
     case "chamfer":
+    case "chamferReferencedEdge":
     case "translate":
     case "transform":
     case "rotate":
@@ -59,10 +67,15 @@ export function featureDependencies(feature: TypedCadFeature): string[] {
 export function canSuppressFeature(feature: TypedCadFeature): boolean {
   return [
     "hole",
+    "extrudeFace",
+    "shell",
+    "patternLinear",
+    "patternCircular",
     "fillet",
     "filletEdge",
     "filletReferencedEdge",
     "chamfer",
+    "chamferReferencedEdge",
     "translate",
     "transform",
     "rotate",
@@ -73,15 +86,22 @@ export function canSuppressFeature(feature: TypedCadFeature): boolean {
 export function solidFeature(feature: TypedCadFeature): boolean {
   return [
     "importStep",
+    "extractSolid",
     "sphere",
+    "torus",
     "cone",
     "extrude",
+    "extrudeFace",
+    "shell",
+    "patternLinear",
+    "patternCircular",
     "revolve",
     "hole",
     "fillet",
     "filletEdge",
     "filletReferencedEdge",
     "chamfer",
+    "chamferReferencedEdge",
     "translate",
     "transform",
     "rotate",

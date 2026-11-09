@@ -76,6 +76,20 @@ describe("project history", () => {
       .getState()
       .revise({ ...defaults, width: 140 }, "Changed width");
     expect(useWorkspace.getState().selectedEdge).toBeNull();
+    expect(useWorkspace.getState().selectedEdges).toEqual([]);
+  });
+  it("toggles edges within the current body, revision and scene", () => {
+    const { pickSelectedEdge } = useWorkspace.getState();
+    const first = { bodyId: "body", edgeOrdinal: 1, revisionId: "rev", sceneToken: "scene" };
+    const second = { ...first, edgeOrdinal: 2 };
+    pickSelectedEdge(first, false);
+    pickSelectedEdge(second, true);
+    expect(useWorkspace.getState().selectedEdges).toEqual([first, second]);
+    pickSelectedEdge(second, true);
+    expect(useWorkspace.getState().selectedEdge).toBe(first);
+    const different = { ...second, sceneToken: "replacement" };
+    pickSelectedEdge(different, true);
+    expect(useWorkspace.getState().selectedEdges).toEqual([different]);
   });
   it("does not silently reset corrupted browser storage", async () => {
     localStorage.setItem("forma.projects.v1", "not-json");

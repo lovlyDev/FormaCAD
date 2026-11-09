@@ -5,13 +5,14 @@ import { disposeModel } from "../../lib/model";
 import type { Project, Revision } from "../../types";
 import { CommittedScene, type SceneIdentity } from "./committedScene";
 import { committedSelectionScene } from "./committedSelectionScene";
+import { isDatumOnlyProgram } from "../add-menu/datum/datumModel";
 
 /** Geometry never falls back to a parameter primitive while a committed file loads or fails. */
 export function useCommittedScene(project: Project | null, revision: Revision | undefined) {
   const [scene] = useState(() => new CommittedScene<THREE.Group>(disposeModel));
   const snapshot = useSyncExternalStore(scene.subscribe, scene.snapshot, scene.snapshot);
   const fileName = revision?.preview ?? revision?.source;
-  const requiresFile = !!fileName || !!revision?.program;
+  const requiresFile = !!fileName || (!!revision?.program && !isDatumOnlyProgram(revision.program));
   const file = project?.files.find(item => item.name === fileName);
   const inlineVersion = useRef(0);
   // Inline strings are immutable. A changed value gets a new opaque local token;

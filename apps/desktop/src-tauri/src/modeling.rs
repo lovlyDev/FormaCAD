@@ -3,6 +3,8 @@ use crate::{
     models::Project,
 };
 use tauri::{Emitter, State};
+pub mod amend_datum;
+pub mod amend_torus;
 pub mod amend_transform;
 pub mod apply;
 mod build;
@@ -39,7 +41,7 @@ pub async fn apply_ir_commands(
     project_id: String,
     commands: Vec<crate::cad_ir::Command>,
     prompt: String,
-    expected_revision: String,
+    expected_revision: Option<String>,
     state: State<'_, AppState>,
     app: tauri::AppHandle,
 ) -> Result<Project> {

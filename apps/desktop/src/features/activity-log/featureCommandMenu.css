@@ -1,0 +1,21 @@
+.feature-command-menu {
+  position: fixed;
+  z-index: 40;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  max-width: min(20rem, 100vw);
+}
+
+.feature-command-menu > button {
+  color: inherit;
+  padding: 6px 10px;
+  text-align: start;
+  width: 100%;
+}
+
+.feature-command-menu > button:hover,
+.feature-command-menu > button:focus-visible {
+  background: var(--panel2);
+}

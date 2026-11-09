@@ -8,6 +8,7 @@ use sha2::{Digest, Sha256};
 pub(super) fn source(revision_id: &str, name: &str, bytes: &[u8]) -> Result<String> {
     let sha256 = format!("{:x}", Sha256::digest(bytes));
     let document = Document {
+        groups: Vec::new(),
         schema_version: 2,
         revision_id: revision_id.into(),
         parameters: Vec::new(),

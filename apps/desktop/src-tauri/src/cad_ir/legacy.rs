@@ -60,12 +60,23 @@ impl Document {
                 },
                 Operation::ImportStep { .. }
                 | Operation::Sphere { .. }
+                | Operation::Torus { .. }
+                | Operation::ExtrudeFace { .. }
+                | Operation::DatumPlane { .. }
+                | Operation::DatumAxis { .. }
+                | Operation::DatumPoint { .. }
+                | Operation::DatumOnReference { .. }
                 | Operation::Cone { .. }
                 | Operation::Hole { .. }
                 | Operation::Fillet { .. }
                 | Operation::FilletEdge { .. }
                 | Operation::FilletReferencedEdge { .. }
                 | Operation::Chamfer { .. }
+                | Operation::ChamferReferencedEdge { .. }
+                | Operation::Shell { .. }
+                | Operation::PatternLinear { .. }
+                | Operation::PatternCircular { .. }
+                | Operation::ExtractSolid { .. }
                 | Operation::Rotate { .. }
                 | Operation::Transform { .. }
                 | Operation::Mirror { .. }

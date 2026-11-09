@@ -56,6 +56,16 @@ pub fn execute(
         shapes.push(shape);
         paths.push(path);
     }
+    let datums = if selected_body_id.is_none() {
+        let lookup: std::collections::HashMap<_, _> = bodies
+            .iter()
+            .zip(&shapes)
+            .map(|(body, shape)| (body.id.as_str(), shape))
+            .collect();
+        super::datum::resolve(document, |id| lookup.get(id).copied())?
+    } else {
+        Default::default()
+    };
     let glbs: Vec<_> = bodies
         .iter()
         .zip(&paths)
@@ -74,7 +84,7 @@ pub fn execute(
         aggregate = aggregate.compound(&shape)?;
     }
     aggregate.write_step(&cwd.join("model.step"))?;
-    merge_body_glbs(&glbs, &cwd.join("preview.glb"))?;
+    merge_body_glbs(&glbs, &serde_json::json!(datums), &cwd.join("preview.glb"))?;
     for path in paths {
         let _ = fs::remove_file(path);
     }

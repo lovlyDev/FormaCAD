@@ -3,6 +3,8 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FeatureKind {
+    Datum,
+    DatumPlane,
     Sketch,
     ProfileSketch,
     Solid,
@@ -34,6 +36,7 @@ impl Document {
             parameters.insert(parameter.id.as_str(), parameter.value_mm);
         }
         let mut features = HashMap::new();
+        let mut hole_sources = HashSet::new();
         let mut sketch_points_total = 0usize;
         let mut sketch_constraints_total = 0usize;
         for feature in &self.features {
@@ -64,6 +67,16 @@ impl Document {
                         Some(id.to_owned()),
                     )),
                 }
+            };
+            let pattern_target = |target: &str, repeat_hole: bool| {
+                reference(target, FeatureKind::Solid)?;
+                if repeat_hole && !hole_sources.contains(target) {
+                    return Err(ValidationError::new(
+                        ErrorCode::InvalidValue,
+                        Some(id.to_owned()),
+                    ));
+                }
+                Ok(())
             };
             let kind = match &feature.operation {
                 Operation::ImportStep { asset_id, sha256 } => {
@@ -121,6 +134,53 @@ impl Document {
                 Operation::Sphere { radius } => {
                     check_dimension(radius, &parameters, false, id)?;
                     FeatureKind::Solid
+                }
+                Operation::Torus {
+                    major_radius,
+                    minor_radius,
+                } => {
+                    let major = resolve_dimension(major_radius, &parameters, id)?;
+                    let minor = resolve_dimension(minor_radius, &parameters, id)?;
+                    torus::validate_radii(major, minor, id)?;
+                    FeatureKind::Solid
+                }
+                Operation::DatumPlane { .. }
+                | Operation::DatumAxis { .. }
+                | Operation::DatumPoint { .. } => {
+                    feature.operation.validate_datum(id)?;
+                    if matches!(feature.operation, Operation::DatumPlane { .. }) {
+                        FeatureKind::DatumPlane
+                    } else {
+                        FeatureKind::Datum
+                    }
+                }
+                Operation::DatumOnReference { geometry, anchor } => {
+                    use super::datum_anchor::{DatumGeometry, DatumSource};
+                    if !anchor.valid() || !geometry.valid() {
+                        return Err(ValidationError::new(
+                            ErrorCode::InvalidValue,
+                            Some(id.to_owned()),
+                        ));
+                    }
+                    match &anchor.source {
+                        DatumSource::Plane { feature_id } => {
+                            reference(feature_id, FeatureKind::DatumPlane)?
+                        }
+                        DatumSource::Topology {
+                            reference: topology,
+                            ..
+                        } => {
+                            reference(&topology.owner_feature_id, FeatureKind::Solid)?;
+                            for occurrence in &topology.occurrence_path {
+                                reference(occurrence, FeatureKind::Solid)?;
+                            }
+                        }
+                    }
+                    if matches!(geometry, DatumGeometry::Plane { .. }) {
+                        FeatureKind::DatumPlane
+                    } else {
+                        FeatureKind::Datum
+                    }
                 }
                 Operation::Cone {
                     bottom_radius,
@@ -220,13 +280,43 @@ impl Document {
                 Operation::FilletReferencedEdge {
                     body_feature_id,
                     reference: topology,
+                    additional_references,
                     radius,
+                }
+                | Operation::ChamferReferencedEdge {
+                    body_feature_id,
+                    reference: topology,
+                    additional_references,
+                    distance: radius,
                 } => {
                     reference(body_feature_id, FeatureKind::Solid)?;
                     check_dimension(radius, &parameters, false, id)?;
+                    if !super::topology_refs::valid_blend_edges(topology, additional_references) {
+                        return Err(ValidationError::new(
+                            ErrorCode::InvalidValue,
+                            Some(id.to_owned()),
+                        ));
+                    }
+                    for edge in std::iter::once(topology).chain(additional_references) {
+                        reference(&edge.owner_feature_id, FeatureKind::Solid)?;
+                        for occurrence in &edge.occurrence_path {
+                            reference(occurrence, FeatureKind::Solid)?;
+                        }
+                    }
+                    FeatureKind::Solid
+                }
+                Operation::ExtrudeFace {
+                    body_feature_id,
+                    reference: topology,
+                    distance,
+                } => {
+                    reference(body_feature_id, FeatureKind::Solid)?;
+                    let distance = resolve_dimension(distance, &parameters, id)?;
                     if !topology.is_valid()
-                        || topology.kind != TopologyKind::Edge
-                        || !super::topology::valid_box_edge_key(&topology.role)
+                        || topology.kind != TopologyKind::Face
+                        || !distance.is_finite()
+                        || distance.abs() <= 1e-7
+                        || distance.abs() > MAX_DIMENSION_MM
                     {
                         return Err(ValidationError::new(
                             ErrorCode::InvalidValue,
@@ -237,6 +327,62 @@ impl Document {
                     for occurrence in &topology.occurrence_path {
                         reference(occurrence, FeatureKind::Solid)?;
                     }
+                    FeatureKind::Solid
+                }
+                Operation::Shell {
+                    body_feature_id,
+                    openings,
+                    offset,
+                } => {
+                    reference(body_feature_id, FeatureKind::Solid)?;
+                    let offset = resolve_dimension(offset, &parameters, id)?;
+                    if !super::shell::valid_openings(openings)
+                        || !offset.is_finite()
+                        || offset.abs() <= 1e-7
+                        || offset.abs() > MAX_DIMENSION_MM
+                    {
+                        return Err(ValidationError::new(
+                            ErrorCode::InvalidValue,
+                            Some(id.to_owned()),
+                        ));
+                    }
+                    let topology = &openings[0];
+                    reference(&topology.owner_feature_id, FeatureKind::Solid)?;
+                    for occurrence in &topology.occurrence_path {
+                        reference(occurrence, FeatureKind::Solid)?;
+                    }
+                    FeatureKind::Solid
+                }
+                Operation::ExtractSolid {
+                    body_feature_id,
+                    index,
+                    expected_count,
+                } => {
+                    reference(body_feature_id, FeatureKind::Solid)?;
+                    if !(2..=128).contains(expected_count) || index >= expected_count {
+                        return Err(ValidationError::new(
+                            ErrorCode::InvalidValue,
+                            Some(id.to_owned()),
+                        ));
+                    }
+                    FeatureKind::Solid
+                }
+                Operation::PatternLinear {
+                    body_feature_id,
+                    repeat_hole,
+                    layout,
+                } => {
+                    pattern_target(body_feature_id, *repeat_hole)?;
+                    layout.validate(id)?;
+                    FeatureKind::Solid
+                }
+                Operation::PatternCircular {
+                    body_feature_id,
+                    repeat_hole,
+                    layout,
+                } => {
+                    pattern_target(body_feature_id, *repeat_hole)?;
+                    layout.validate(id)?;
                     FeatureKind::Solid
                 }
                 Operation::Translate {
@@ -304,6 +450,9 @@ impl Document {
                     FeatureKind::Solid
                 }
             };
+            if !feature.suppressed && matches!(feature.operation, Operation::Hole { .. }) {
+                hole_sources.insert(id);
+            }
             features.insert(id, kind);
         }
         for body in &self.bodies {
@@ -314,6 +463,23 @@ impl Document {
                     ErrorCode::InvalidBody,
                     Some(body.id.clone()),
                 ));
+            }
+        }
+        for group in &self.groups {
+            check_identity(&mut ids, &group.id)?;
+            check_name(&group.name, &group.id)?;
+        }
+        super::groups::validate(&self.groups, &self.bodies)?;
+        for feature in &self.features {
+            if let Operation::DatumOnReference { anchor, .. } = &feature.operation {
+                if let super::datum_anchor::DatumSource::Topology { body_id, .. } = &anchor.source {
+                    if !self.bodies.iter().any(|body| &body.id == body_id) {
+                        return Err(ValidationError::new(
+                            ErrorCode::BrokenReference,
+                            Some(feature.id.clone()),
+                        ));
+                    }
+                }
             }
         }
         Ok(())

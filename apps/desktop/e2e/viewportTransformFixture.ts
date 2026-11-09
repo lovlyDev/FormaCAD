@@ -23,9 +23,8 @@ export function viewportTransformWorker() {
   };
   let runs = 0;
   const builds = new Map<string, { document: string; step: Buffer }>();
-  return {
-    /** Exact snap through the worker's own `snap_query` on the sealed revision inputs. */
-    snap(revisionId: string, bodyId: string, query: unknown) {
+  function sealedQuery(revisionId: string, bodyId: string, query: unknown,
+    operation: "snap_query" | "measure_reference") {
       const built = builds.get(revisionId);
       if (!built) throw Error(`unknown revision ${revisionId}`);
       const cwd = path.join(stage, `${++runs}-snap-${revisionId}`);
@@ -38,13 +37,13 @@ export function viewportTransformWorker() {
         cwd,
         input: JSON.stringify({
           protocolVersion: 1,
-          operation: "snap_query",
+          operation,
           requestId: crypto.randomUUID(),
           bodyId,
           documentSha256: sha(built.document),
           sourceSha256: sha(built.step),
           sourceSize: built.step.length,
-          snapQuery: query,
+          ...(operation === "snap_query" ? { snapQuery: query } : { measurementQuery: query }),
         }),
         windowsHide: true,
         timeout: 120000,
@@ -54,8 +53,14 @@ export function viewportTransformWorker() {
         fs.readFileSync(path.join(cwd, "result.json"), "utf8"),
       );
       if (result.status !== "completed") throw Error(JSON.stringify(result));
-      return JSON.parse(fs.readFileSync(path.join(cwd, "snap.json"), "utf8"));
-    },
+      const output = operation === "snap_query" ? "snap.json" : "measurement.json";
+      return JSON.parse(fs.readFileSync(path.join(cwd, output), "utf8"));
+  }
+  return {
+    snap: (revisionId: string, bodyId: string, query: unknown) =>
+      sealedQuery(revisionId, bodyId, query, "snap_query"),
+    measure: (revisionId: string, bodyId: string, query: unknown) =>
+      sealedQuery(revisionId, bodyId, query, "measure_reference"),
     build(document: unknown, revisionId: string) {
       const cwd = path.join(stage, `${++runs}-${revisionId}`);
       fs.mkdirSync(cwd);

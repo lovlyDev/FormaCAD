@@ -7,20 +7,20 @@ pub(crate) struct AmendCapture {
     pub expected_revision: String,
     pub transaction_id: String,
     pub generation: u64,
-    pub base_revision: String,
+    pub base_revision: Option<String>,
 }
 
 impl HistoryState {
     /// Only the last committed edit can be amended. Materialized undo/redo heads cannot.
     pub(crate) fn capture_amend(&self, current: &Project) -> Result<Option<AmendCapture>> {
         self.validate(current)?;
-        if self.cursor < 2
+        if self.cursor == 0
             || self.cursor + 1 != self.entries.len()
             || self.head != self.entries[self.cursor]
         {
             return Ok(None);
         }
-        let (Some(head), Some(base)) = (&self.head, &self.entries[self.cursor - 1]) else {
+        let Some(head) = &self.head else {
             return Ok(None);
         };
         Ok(Some(AmendCapture {
@@ -28,7 +28,7 @@ impl HistoryState {
             expected_revision: head.clone(),
             transaction_id: head.clone(),
             generation: self.generation,
-            base_revision: base.clone(),
+            base_revision: self.entries[self.cursor - 1].clone(),
         }))
     }
 }

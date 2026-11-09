@@ -12,6 +12,7 @@ export const measurementQuerySchema=z.discriminatedUnion("kind",[
   z.strictObject({kind:z.literal("edgeDiameter"),reference:edge}),
   z.strictObject({kind:z.literal("faceArea"),reference:face}),
   z.strictObject({kind:z.literal("planarFace"),reference:face}),
+  z.strictObject({kind:z.literal("topologySelection"),mode:z.enum(["similarFaces","similarEdges","tangentChain"]),seed:z.number().int().min(1).max(20000)}),
 ]);
 export type MeasurementQuery=z.infer<typeof measurementQuerySchema>;
 const count=z.number().int().positive().max(0xffffffff);
@@ -22,6 +23,7 @@ const resultSchema=z.discriminatedUnion("kind",[
   z.strictObject({kind:z.literal("edgeDiameter"),diameterMm:positive}),
   z.strictObject({kind:z.literal("faceArea"),areaMm2:positive}),
   z.strictObject({kind:z.literal("planarFace"),areaMm2:positive,originMm:vector,normal:vector.refine(normal=>Math.abs(normal.reduce((sum,value)=>sum+value*value,0)-1)<=1e-8)}),
+  z.strictObject({kind:z.literal("topologySelection"),ordinals:z.array(count.max(20000)).min(1).max(1024).refine(values=>values.every((value,index)=>index===0||values[index-1]<value))}),
 ]);
 const assetSeal=z.strictObject({assetId:z.string().regex(/^step_[a-f0-9]{64}$/),sha256:digest,size:z.number().int().positive().max(40*1024*1024)}).refine(seal=>seal.assetId===`step_${seal.sha256}`);
 export const measurementReportSchema=z.strictObject({
@@ -29,7 +31,8 @@ export const measurementReportSchema=z.strictObject({
   evaluationSource:z.literal("rebuiltAuthoredBody"),revisionId:z.string().uuid(),bodyId:id,sourceSha256:digest,sourceSize:z.number().int().positive().max(40*1024*1024),
   documentSha256:digest,importedAssetSeals:z.array(assetSeal).max(32).refine(seals=>seals.reduce((sum,seal)=>sum+seal.size,0)<=128*1024*1024&&seals.every((seal,index)=>!index||seals[index-1].assetId<seal.assetId)),
   query:measurementQuerySchema,result:resultSchema,
-}).refine(report=>report.query.kind===report.result.kind);
+}).refine(report=>report.query.kind===report.result.kind&&
+  (report.query.kind!=="topologySelection"||(report.result.kind==="topologySelection"&&report.result.ordinals.includes(report.query.seed))));
 export type MeasurementReport=z.infer<typeof measurementReportSchema>;
 export type MeasurementValue=MeasurementReport["result"];
 

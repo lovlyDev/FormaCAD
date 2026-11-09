@@ -10,6 +10,7 @@ export interface CadDocumentDiff {
   parameters: EntityChange<TypedCadDocument["parameters"][number]>[];
   features: EntityChange<TypedCadDocument["features"][number]>[];
   bodies: EntityChange<TypedCadDocument["bodies"][number]>[];
+  groups?: EntityChange<NonNullable<TypedCadDocument["groups"]>[number]>[];
 }
 
 export async function compareCadRevisions(projectId: string, fromRevisionId: string, toRevisionId: string): Promise<CadDocumentDiff | null> {

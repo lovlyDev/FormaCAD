@@ -1,4 +1,7 @@
 import { AdaptiveGrid } from "./grid/AdaptiveGrid";
+import { SmartSelectionTools } from "../selection/smart-select/SmartSelectionTools";
+import { useSmartSelection } from "../selection/smart-select/useSmartSelection";
+import { defaultPalettes, useThemeFile, validPalette } from "../theme-editor/themePreferences";
 import "./viewportResponsive.css";
 import { useSectionView } from "./sections/useSectionView";
 import { SectionControls } from "./sections/SectionControls";
@@ -43,9 +46,12 @@ import { measurement, type MeasureKind } from "../../lib/measurement";
 import { Model } from "./Model";
 import { CameraControl, type OrbitHandle } from "./CameraControl";
 import { Capture } from "./Capture";
+import { ViewportCaptureDialog } from "./capture/ViewportCaptureDialog";
+import type { ViewportPngOptions } from "./capture/viewportPng";
 import { PluginToolbarMenu } from "../plugins/PluginToolbarMenu";
 import type { RenderMode } from "./renderMode";
 import { faceTriangleCounts } from "./faceSelection";
+import { FaceExtrusionHandle } from "../face-extrusion/FaceExtrusionHandle";
 import { cadEdges } from "./edgeSelection";
 import {
   useViewportInteraction,
@@ -54,6 +60,7 @@ import {
 import { ModalTransform } from "../transform/viewport/ModalTransform";
 import { TransformHud } from "../transform/viewport/TransformHud";
 import { AdjustLastPanel } from "../adjust-last/AdjustLastPanel";
+import { DatumOverlay } from "../add-menu/datum/DatumOverlay";
 import {
   RegionSelectController,
   RegionSelectOverlay,
@@ -80,6 +87,10 @@ export default function Viewer({
   interactive = true,
   onVisibility,
   confirmEdit,
+  onExtrudeFace,
+  onBlendEdge,
+  onDuplicateBody,
+  onSeparateSolids,
 }: {
   object: THREE.Group;
   onScreenshot: (data: string) => void;
@@ -87,6 +98,10 @@ export default function Viewer({
   interactive?: boolean;
   onVisibility?: (action: VisibilityAction) => void;
   confirmEdit?: ConfirmEdit;
+  onExtrudeFace?: (distanceMm?: number) => void;
+  onBlendEdge?: () => void;
+  onDuplicateBody?: () => void;
+  onSeparateSolids?: () => void;
 }) {
   const projectId = useWorkspace((s) => s.project?.id ?? "empty");
   const viewKey = `forma.ui.project.${projectId}.view.${comparison ? "comparison" : "main"}`;
@@ -101,7 +116,10 @@ export default function Viewer({
   );
   const section = useSectionView(object, viewKey, !!comparison, !interactive);
   const [playing, setPlaying] = usePersistentState(`${viewKey}.playing`, false);
-  const light = useTheme() === "light";
+  const theme = useTheme();
+  const light = theme === "light";
+  const [themeFile] = useThemeFile(theme);
+  const palette = useMemo(() => validPalette(themeFile) ?? defaultPalettes[theme], [themeFile, theme]);
   const [motionStarted, setMotionStarted] = usePersistentState(
     `${viewKey}.motionStarted`,
     false,
@@ -134,13 +152,15 @@ export default function Viewer({
       setPoints((prev) => prev.map((item) => (item.id === point.id ? point : item))),
     [],
   );
-  const [capture, setCapture] = useState<(() => string) | null>(null);
+  const [capture, setCapture] = useState<((options: ViewportPngOptions) => string) | null>(null);
+  const [captureOpen, setCaptureOpen] = useState(false);
   const controlsRef = useRef<OrbitHandle | null>(null);
   const appliedPreset = useRef(preset);
   const selected = useWorkspace((s) => s.selected);
   const selectedFace = useWorkspace((s) => s.selectedFace);
   const selectedEdge = useWorkspace((s) => s.selectedEdge);
-  const revisionId = useWorkspace((s) => s.project?.currentRevision ?? null);
+  const project = useWorkspace((s) => s.project);
+  const revisionId = project?.currentRevision ?? null;
   const hasCadFaces = useMemo(() => {
     if (!object.userData.formaNativeCadPreview) return false;
     let available = false;
@@ -163,7 +183,7 @@ export default function Viewer({
     return available;
   }, [object]);
   const handleCapture = useCallback(
-    (fn: () => string) => setCapture(() => fn),
+    (fn: ((options: ViewportPngOptions) => string) | null) => setCapture(() => fn),
     [],
   );
   const [fitBox, setFitBox] = useState<THREE.Box3 | null>(null);
@@ -176,6 +196,7 @@ export default function Viewer({
     [setPreset],
   );
   const editable = interactive && !comparison;
+  const smartSelection = useSmartSelection(object, editable && !measure, setSelectionMode);
   const { transformRef, onConfirm, adopt } = useViewportInteraction({
     enabled: !comparison,
     emulateNumpad: navigation.emulateNumpad,
@@ -203,6 +224,12 @@ export default function Viewer({
     hasCadEdges: hasCadEdges && !comparison,
     onVisibility,
     confirmEdit,
+    onExtrudeFace,
+    onBlendEdge,
+    onDuplicateBody,
+    onSeparateSolids,
+    onSelectLinked: smartSelection.canLink ? smartSelection.linked : undefined,
+    onSelectSimilar: smartSelection.canSelect ? smartSelection.similar : undefined,
   });
   const mouse = navigationPresets[navigation.mousePreset];
   return (
@@ -231,6 +258,7 @@ export default function Viewer({
         />
       )}
       <div className="viewport-toolbars">
+        <SmartSelectionTools tools={smartSelection} />
         <div className="view-toolbar">
           <IconButton
             label={t("Select body")}
@@ -346,10 +374,9 @@ export default function Viewer({
             <Maximize size={16} />
           </IconButton>
           <IconButton
-            label={t("Attach viewport to chat")}
-            onClick={() => {
-              if (capture) onScreenshot(capture());
-            }}
+            label={t("Viewport snapshot")}
+            disabled={!capture}
+            onClick={() => setCaptureOpen(true)}
           >
             <Camera size={17} />
           </IconButton>
@@ -429,13 +456,13 @@ export default function Viewer({
         }
         shadows
         dpr={[1, 1.75]}
-        gl={{ antialias: true, preserveDrawingBuffer: true }}
+        gl={{ alpha: true, antialias: true, preserveDrawingBuffer: true }}
         onPointerMissed={(event) => {
           if (editable && !event.shiftKey)
             useWorkspace.getState().setSelected(null);
         }}
       >
-        <color attach="background" args={[light ? "#f5f7f9" : "#202326"]} />
+        <color attach="background" args={[palette.viewport]} />
         <ambientLight intensity={1.5} />
         <hemisphereLight args={["#dbe5ff", "#4d4234", 2]} />
         <directionalLight
@@ -457,6 +484,7 @@ export default function Viewer({
             selected={selected}
             selectedFace={selectedFace}
             selectedEdge={selectedEdge}
+            onTangentChain={smartSelection.chain}
             selectionMode={selectionMode}
             revisionId={comparison ? null : revisionId}
             onPoint={(p) => {
@@ -505,7 +533,8 @@ export default function Viewer({
             />
           </>
         )}
-        {grid && <AdaptiveGrid object={object} light={light} />}
+        {grid && <AdaptiveGrid object={object} gridColor={palette.grid} majorColor={palette.gridMajor} />}
+        {!comparison && interactive && <DatumOverlay object={object} light={light} />}
         <SectionScene
           object={object}
           plane={section.plane}
@@ -513,6 +542,11 @@ export default function Viewer({
           report={section.report}
           light={light}
         />
+        {editable && !measure && project && selectedFace && onExtrudeFace &&
+          selectedFace.sceneToken === object.uuid && (
+          <FaceExtrusionHandle key={`${object.uuid}:${selectedFace.bodyId}:${selectedFace.faceOrdinal}`}
+            project={project} selection={selectedFace} object={object} open={onExtrudeFace} />
+        )}
         <OrbitControls
           ref={controlsRef as never}
           makeDefault
@@ -535,7 +569,7 @@ export default function Viewer({
         />
         <GizmoHelper alignment="bottom-right" margin={[56, 65]}>
           <GizmoViewport
-            axisColors={["#ce726a", "#88a780", "#7a9bce"]}
+            axisColors={[palette.axisX, palette.axisY, palette.axisZ]}
             labelColor="#fff"
             hideNegativeAxes
           />
@@ -557,6 +591,10 @@ export default function Viewer({
         />
         <Capture onReady={handleCapture} controlsRef={controlsRef} />
       </Canvas>
+      {captureOpen && capture && (
+        <ViewportCaptureDialog close={() => setCaptureOpen(false)}
+          capture={(options) => onScreenshot(capture(options))} />
+      )}
       {!object.children.length && (
         <div className="empty-scene">
           <Box size={40} />

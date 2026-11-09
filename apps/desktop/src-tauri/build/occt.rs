@@ -5,6 +5,8 @@ pub const LIBRARIES: &[&str] = &[
     "TKXSBase",
     "TKDE",
     "TKMesh",
+    "TKFeat",
+    "TKOffset",
     "TKPrim",
     "TKBO",
     "TKFillet",

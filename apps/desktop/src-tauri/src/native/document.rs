@@ -93,6 +93,12 @@ pub fn build_body_with_assets(
         }
         let get = |id: &str| feature_value(&features, id);
         let value = match &feature.operation {
+            Operation::DatumPlane { .. }
+            | Operation::DatumAxis { .. }
+            | Operation::DatumPoint { .. }
+            | Operation::DatumOnReference { .. } => {
+                return Err(ir_error("INVALID_BODY", &feature.id));
+            }
             Operation::ImportStep { asset_id, sha256 } => {
                 let directory = asset_directory
                     .ok_or_else(|| ir_error("ASSET_MISSING", "STEP asset resolver is required"))?;
@@ -131,6 +137,13 @@ pub fn build_body_with_assets(
             Operation::Sphere { radius } => {
                 FeatureValue::Solid(Solid::sphere(dimension(radius, &parameters)?)?)
             }
+            Operation::Torus {
+                major_radius,
+                minor_radius,
+            } => FeatureValue::Solid(Solid::torus(
+                dimension(major_radius, &parameters)?,
+                dimension(minor_radius, &parameters)?,
+            )?),
             Operation::Cone {
                 bottom_radius,
                 top_radius,
@@ -201,6 +214,47 @@ pub fn build_body_with_assets(
                 )?),
                 _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
             },
+            Operation::ExtrudeFace {
+                body_feature_id,
+                reference,
+                distance,
+            } => match get(body_feature_id)? {
+                FeatureValue::Solid(source) => FeatureValue::Solid(
+                    source.extrude_face(reference, dimension(distance, &parameters)?)?,
+                ),
+                _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
+            },
+            Operation::Shell {
+                body_feature_id,
+                openings,
+                offset,
+            } => match get(body_feature_id)? {
+                FeatureValue::Solid(source) => {
+                    FeatureValue::Solid(source.shell(openings, dimension(offset, &parameters)?)?)
+                }
+                _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
+            },
+            Operation::ExtractSolid {
+                body_feature_id,
+                index,
+                expected_count,
+            } => match get(body_feature_id)? {
+                FeatureValue::Solid(source) => {
+                    FeatureValue::Solid(source.extract_solid(*index, *expected_count)?)
+                }
+                _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
+            },
+            Operation::PatternLinear { .. } | Operation::PatternCircular { .. } => {
+                FeatureValue::Solid(super::pattern::build_pattern(
+                    &feature.operation,
+                    document,
+                    |id| match get(id)? {
+                        FeatureValue::Solid(source) => Ok(source),
+                        _ => Err(ir_error("REFERENCE_TYPE_MISMATCH", id)),
+                    },
+                    |value| dimension(value, &parameters),
+                )?)
+            }
             Operation::Fillet {
                 body_feature_id,
                 radius,
@@ -232,11 +286,29 @@ pub fn build_body_with_assets(
             Operation::FilletReferencedEdge {
                 body_feature_id,
                 reference,
+                additional_references,
                 radius,
             } => match get(body_feature_id)? {
-                FeatureValue::Solid(source) => FeatureValue::Solid(
-                    source.fillet_referenced_edge(reference, dimension(radius, &parameters)?)?,
-                ),
+                FeatureValue::Solid(source) => FeatureValue::Solid(source.blend_referenced_edges(
+                    reference,
+                    additional_references,
+                    dimension(radius, &parameters)?,
+                    false,
+                )?),
+                _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
+            },
+            Operation::ChamferReferencedEdge {
+                body_feature_id,
+                reference,
+                additional_references,
+                distance,
+            } => match get(body_feature_id)? {
+                FeatureValue::Solid(source) => FeatureValue::Solid(source.blend_referenced_edges(
+                    reference,
+                    additional_references,
+                    dimension(distance, &parameters)?,
+                    true,
+                )?),
                 _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
             },
             Operation::Translate {
@@ -322,6 +394,7 @@ mod tests {
     fn fillet_feature_rebuilds_from_its_parameter() {
         use crate::cad_ir::{Body, Feature, Parameter, SCHEMA_VERSION};
         let mut document = Document {
+            groups: Vec::new(),
             schema_version: SCHEMA_VERSION,
             revision_id: "rounded_1".into(),
             parameters: vec![Parameter {
@@ -384,6 +457,7 @@ mod tests {
     #[test]
     fn parameter_edit_rebuilds_native_geometry() {
         let mut document = Document {
+            groups: Vec::new(),
             schema_version: 2,
             revision_id: "revision_1".into(),
             parameters: vec![Parameter {

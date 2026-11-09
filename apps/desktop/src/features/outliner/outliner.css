@@ -47,9 +47,8 @@
   min-width: 24px;
 }
 .outliner .is-selected {
-  background: var(--panel2);
+  background: color-mix(in srgb, var(--custom-selection, var(--panel2)) 18%, var(--panel2));
   color: var(--accent);
-  box-shadow: inset 2px 0 var(--accent);
 }
 .outliner-feature {
   display: flex;

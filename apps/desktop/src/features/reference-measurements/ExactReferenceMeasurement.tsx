@@ -21,7 +21,7 @@ export function ExactReferenceMeasurement({project,bodyId,edge,face,interactive,
   const query=queries.find(query=>query.kind===kind)??queries[0]??{kind:"bodyMetrics" as const};
   const selectionToken=JSON.stringify({edge,face,bodyId});
   const measurement=useExactReferenceMeasurement({project,bodyId,query,selectionToken,interactive:interactive&&hostAvailable&&queries.length>0});
-  const labels:Record<MeasurementQuery["kind"],string>={bodyMetrics:t("Selected body metrics"),edgeLength:t("Selected edge length"),edgeRadius:t("Selected edge radius"),edgeDiameter:t("Selected edge diameter"),faceArea:t("Selected face area"),planarFace:t("Selected planar face")};
+  const labels:Record<MeasurementQuery["kind"],string>={bodyMetrics:t("Selected body metrics"),edgeLength:t("Selected edge length"),edgeRadius:t("Selected edge radius"),edgeDiameter:t("Selected edge diameter"),faceArea:t("Selected face area"),planarFace:t("Selected planar face"),topologySelection:t("Select similar topology")};
   const pending=measurement.phase==="pending",previous=!!measurement.report&&(pending||measurement.phase==="failed");
   const rows=measurement.report?measurementRows(measurement.report.result,project?.units??"mm"):[];
   if(!hostAvailable||!queries.length)return null;

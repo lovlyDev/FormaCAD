@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import type { KeyboardEvent, MouseEvent } from "react";
 import type * as THREE from "three";
 import {
   Box,
@@ -14,8 +15,12 @@ import { bodyLabel } from "../viewer/bodyLabel";
 import {
   readTypedCadDocument,
   featureDependencies,
+  type TypedCadFeature,
 } from "../../lib/typedCadDocument";
 import type { Project } from "../../types";
+import { BodyGroups } from "../body-groups/BodyGroups";
+import type { GroupCommand } from "../body-groups/bodyGroupCommands";
+import { FeatureCommandMenu, type FeatureMenuTarget } from "../activity-log/FeatureCommandMenu";
 import "./outliner.css";
 export function Outliner({
   project,
@@ -30,6 +35,7 @@ export function Outliner({
   onVisibility,
   onLock,
   onEdit,
+  onGroupCommand,
 }: {
   project: Project;
   bodies: THREE.Object3D[];
@@ -43,8 +49,23 @@ export function Outliner({
   onVisibility: (key: string) => void;
   onLock: (key: string) => void;
   onEdit: () => void;
+  onGroupCommand?: (command: GroupCommand) => void;
 }) {
   const [query, setQuery] = useState("");
+  const [menu, setMenu] = useState<FeatureMenuTarget | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
+  const openMenu = (event: MouseEvent<HTMLButtonElement> | KeyboardEvent<HTMLButtonElement>, feature: TypedCadFeature) => {
+    if ("key" in event && event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const anchor = event.currentTarget;
+    const rect = anchor.getBoundingClientRect();
+    setMenu({
+      anchor, feature,
+      x: "clientX" in event ? event.clientX : rect.left,
+      y: "clientY" in event ? event.clientY : rect.bottom,
+    });
+  };
   const document = useMemo(() => readTypedCadDocument(source), [source]);
   const matches = (...values: string[]) =>
     values.some((value) =>
@@ -52,6 +73,7 @@ export function Outliner({
     );
   return (
     <div className="outliner">
+      {menu && <FeatureCommandMenu target={menu} close={closeMenu} />}
       <label className="outliner-search">
         <input
           aria-label={t("Search model tree")}
@@ -60,6 +82,11 @@ export function Outliner({
           onChange={(event) => setQuery(event.target.value)}
         />
       </label>
+      {document && (onGroupCommand || document.groups?.length) ? (
+        <BodyGroups groups={document.groups ?? []} onCommand={onGroupCommand}
+          selectable={bodies.filter((body) => body.visible &&
+            !hidden.includes(body.name) && !locked.includes(body.name)).map((body) => body.name)} />
+      ) : null}
       <div role="tree" aria-label={t("Model tree")}>
         <div
           role="treeitem"
@@ -169,6 +196,8 @@ export function Outliner({
                           key={feature.id}
                           onClick={() => onFeature(feature.id)}
                           onDoubleClick={onEdit}
+                          onContextMenu={(event) => openMenu(event, feature)}
+                          onKeyDown={(event) => openMenu(event, feature)}
                         >
                           <span>{feature.name}</span>
                           <small>{t(feature.operation.type)}</small>
@@ -194,6 +223,8 @@ export function Outliner({
                 key={feature.id}
                 onClick={() => onFeature(feature.id)}
                 onDoubleClick={onEdit}
+                onContextMenu={(event) => openMenu(event, feature)}
+                onKeyDown={(event) => openMenu(event, feature)}
               >
                 {feature.name}
                 <small>{t(feature.operation.type)}</small>

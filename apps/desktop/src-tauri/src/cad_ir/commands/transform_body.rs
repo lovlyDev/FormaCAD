@@ -42,6 +42,7 @@ mod tests {
     use crate::cad_ir::{apply_commands, Body, Dimension, SCHEMA_VERSION};
     fn document() -> Document {
         Document {
+            groups: Vec::new(),
             schema_version: SCHEMA_VERSION,
             revision_id: "before".into(),
             parameters: vec![],

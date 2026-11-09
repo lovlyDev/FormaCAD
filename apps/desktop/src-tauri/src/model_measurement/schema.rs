@@ -6,23 +6,45 @@ pub const MAX_DOCUMENT_BYTES: usize = 60_000;
 pub const MAX_REPORT_BYTES: usize = 64 * 1024;
 pub const MAX_COORDINATE_MM: f64 = 1_000_000_000.;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TopologySelectionMode {
+    SimilarFaces,
+    SimilarEdges,
+    TangentChain,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
 pub enum MeasurementQuery {
     // Empty struct keeps serde's unknown-field check; a unit variant discards
     // its remaining map fields even with deny_unknown_fields on the enum.
     BodyMetrics {},
-    EdgeLength { reference: TopologyReference },
-    EdgeRadius { reference: TopologyReference },
-    EdgeDiameter { reference: TopologyReference },
-    FaceArea { reference: TopologyReference },
-    PlanarFace { reference: TopologyReference },
+    EdgeLength {
+        reference: TopologyReference,
+    },
+    EdgeRadius {
+        reference: TopologyReference,
+    },
+    EdgeDiameter {
+        reference: TopologyReference,
+    },
+    FaceArea {
+        reference: TopologyReference,
+    },
+    PlanarFace {
+        reference: TopologyReference,
+    },
+    TopologySelection {
+        mode: TopologySelectionMode,
+        seed: u32,
+    },
 }
 
 impl MeasurementQuery {
     pub fn reference(&self) -> Option<&TopologyReference> {
         match self {
-            Self::BodyMetrics {} => None,
+            Self::BodyMetrics {} | Self::TopologySelection { .. } => None,
             Self::EdgeLength { reference }
             | Self::EdgeRadius { reference }
             | Self::EdgeDiameter { reference }
@@ -38,9 +60,13 @@ impl MeasurementQuery {
             Self::FaceArea { .. } => 3,
             Self::PlanarFace { .. } => 4,
             Self::EdgeDiameter { .. } => 5,
+            Self::TopologySelection { .. } => 6,
         }
     }
     pub fn valid(&self) -> bool {
+        if let Self::TopologySelection { seed, .. } = self {
+            return (1..=20_000).contains(seed);
+        }
         self.reference().is_none_or(|reference| {
             reference.is_valid()
                 && reference.kind
@@ -49,7 +75,7 @@ impl MeasurementQuery {
                         | Self::EdgeRadius { .. }
                         | Self::EdgeDiameter { .. } => TopologyKind::Edge,
                         Self::FaceArea { .. } | Self::PlanarFace { .. } => TopologyKind::Face,
-                        Self::BodyMetrics {} => return false,
+                        Self::BodyMetrics {} | Self::TopologySelection { .. } => return false,
                     }
         })
     }
@@ -87,12 +113,26 @@ pub enum MeasurementValue {
         origin_mm: [f64; 3],
         normal: [f64; 3],
     },
+    TopologySelection {
+        ordinals: Vec<u32>,
+    },
 }
 
 impl MeasurementValue {
     pub fn valid_for(&self, query: &MeasurementQuery) -> bool {
         let positive = |value: f64| value.is_finite() && value > 0.;
         match (self, query) {
+            (
+                Self::TopologySelection { ordinals },
+                MeasurementQuery::TopologySelection { seed, .. },
+            ) => {
+                ordinals.len() <= 1024
+                    && ordinals.contains(seed)
+                    && ordinals
+                        .iter()
+                        .all(|ordinal| (1..=20_000).contains(ordinal))
+                    && ordinals.windows(2).all(|pair| pair[0] < pair[1])
+            }
             (
                 Self::BodyMetrics {
                     volume_mm3,

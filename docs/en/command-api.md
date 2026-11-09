@@ -12,6 +12,10 @@ Local 1.2.6 lets AI propose a small command list instead of rewriting the comple
 
 `expectedRevision` must match `currentProgram.revisionId`. Only 1–256 known commands and recognized fields are accepted. `commands` excludes `cad`/`program`; unknown commands and extra fields fail. New projects, imported STEP/mesh and missing CAD IR v2 are not command bases: return a supported complete `cad` or clarification with `program:null`. Codex, Claude and Custom CLI share the same parser.
 
+## Body duplication
+
+`duplicate_body` accepts `bodyId`, `newBodyId`, `name` and a three-component `offsetMm` in model coordinates. Use a unique identifier of at most 64 ASCII characters for `newBodyId`. The command derives the cloned feature and parameter IDs from it and checks the complete batch for collisions. The body and its regenerated geometry are saved in the same revision.
+
 ## Coordinate-link commands
 
 | Command | Fields | Result |

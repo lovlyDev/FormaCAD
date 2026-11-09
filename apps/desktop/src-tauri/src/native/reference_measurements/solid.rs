@@ -1,5 +1,8 @@
 use super::{MeasurementQuery, MeasurementValue};
-use crate::native::{ffi, NativeError, Solid};
+use crate::{
+    model_measurement::schema::TopologySelectionMode,
+    native::{ffi, NativeError, Solid},
+};
 
 pub(super) fn error(code: &str, detail: impl Into<String>) -> NativeError {
     NativeError {
@@ -37,6 +40,28 @@ impl Solid {
             return Err(error(
                 "INVALID_TOPOLOGY_REFERENCE",
                 "Invalid measurement query reference",
+            ));
+        }
+        if let MeasurementQuery::TopologySelection { mode, seed } = query {
+            let kind = match mode {
+                TopologySelectionMode::SimilarFaces => 0,
+                TopologySelectionMode::SimilarEdges => 1,
+                TopologySelectionMode::TangentChain => 2,
+            };
+            let result = ffi::smart_select(self.as_ref(), kind, *seed);
+            let value = MeasurementValue::TopologySelection {
+                ordinals: result
+                    .as_ref()
+                    .into_iter()
+                    .flat_map(|values| values.iter().copied())
+                    .collect(),
+            };
+            if value.valid_for(query) {
+                return Ok(value);
+            }
+            return Err(error(
+                "SMART_SELECTION_UNAVAILABLE",
+                "Selection is outside the supported BREP topology",
             ));
         }
         let reference = query.reference();
@@ -95,6 +120,7 @@ impl Solid {
                 origin_mm: vector(result.origin_mm())?,
                 normal: vector(result.normal())?,
             },
+            MeasurementQuery::TopologySelection { .. } => unreachable!("handled above"),
         };
         if !value.valid_for(query) {
             return Err(error(

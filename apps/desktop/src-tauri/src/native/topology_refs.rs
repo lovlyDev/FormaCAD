@@ -1,5 +1,6 @@
 use super::{ffi, NativeError, Solid};
-use crate::cad_ir::{TopologyKind, TopologyReference};
+use crate::cad_ir::TopologyReference;
+use std::fmt::Write;
 
 impl Solid {
     pub fn referenced_cylinder(radius: f64, height: f64, owner: &str) -> Result<Self, NativeError> {
@@ -24,10 +25,17 @@ impl Solid {
         reference: &TopologyReference,
         radius: f64,
     ) -> Result<Self, NativeError> {
-        if !reference.is_valid()
-            || reference.kind != TopologyKind::Edge
-            || !crate::cad_ir::topology::valid_box_edge_key(&reference.role)
-        {
+        self.blend_referenced_edges(reference, &[], radius, false)
+    }
+
+    pub fn blend_referenced_edges(
+        &self,
+        reference: &TopologyReference,
+        additional: &[TopologyReference],
+        size: f64,
+        chamfer: bool,
+    ) -> Result<Self, NativeError> {
+        if !crate::cad_ir::topology_refs::valid_blend_edges(reference, additional) {
             return Err(NativeError {
                 code: "INVALID_TOPOLOGY_REFERENCE".into(),
                 detail: "Invalid bounded edge reference".into(),
@@ -36,12 +44,27 @@ impl Solid {
         cxx::let_cxx_string!(owner = &reference.owner_feature_id);
         cxx::let_cxx_string!(role = &reference.role);
         cxx::let_cxx_string!(path = reference.occurrence_path.join("/"));
-        Self::checked(ffi::fillet_referenced_edge(
+        // Identifier and role validation excludes these packet separators.
+        let mut packet = String::new();
+        for edge in additional {
+            writeln!(
+                packet,
+                "{}\t{}\t{}",
+                edge.owner_feature_id,
+                edge.role,
+                edge.occurrence_path.join("/")
+            )
+            .expect("writing to String cannot fail");
+        }
+        cxx::let_cxx_string!(packet = packet);
+        Self::checked(ffi::blend_referenced_edges(
             self.as_ref(),
             &owner,
             &role,
             &path,
-            radius,
+            &packet,
+            size,
+            chamfer,
         ))
     }
 }

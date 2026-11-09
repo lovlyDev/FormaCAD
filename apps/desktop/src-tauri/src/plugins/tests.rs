@@ -60,6 +60,7 @@ fn install(service: &PluginService, bytes: &[u8]) {
 
 fn empty() -> Document {
     Document {
+        groups: Vec::new(),
         schema_version: SCHEMA_VERSION,
         revision_id: "base".into(),
         parameters: vec![],

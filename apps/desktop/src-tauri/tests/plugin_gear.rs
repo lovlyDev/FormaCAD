@@ -36,6 +36,7 @@ fn installed_example_plugin_builds_an_analytic_gear() {
         )
         .unwrap();
     let base = Document {
+        groups: Vec::new(),
         schema_version: SCHEMA_VERSION,
         revision_id: "base".into(),
         parameters: vec![],

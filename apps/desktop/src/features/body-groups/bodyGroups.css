@@ -1,0 +1,27 @@
+.body-groups {
+  display: grid;
+  gap: 0.375rem;
+  margin-block: 0.375rem;
+}
+
+.body-groups form,
+.body-group-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.body-group-row {
+  grid-template-columns: minmax(0, 1fr) repeat(3, auto);
+}
+
+.body-groups input {
+  min-width: 0;
+}
+
+.body-group-row > .button:first-child {
+  justify-content: start;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

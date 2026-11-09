@@ -89,6 +89,7 @@ pub async fn apply(
         (None, _) => {
             // Empty project: the plan builds the first CAD IR v2 document.
             let base = Document {
+                groups: Vec::new(),
                 schema_version: crate::cad_ir::SCHEMA_VERSION,
                 revision_id: "plugin-base".into(),
                 parameters: vec![],

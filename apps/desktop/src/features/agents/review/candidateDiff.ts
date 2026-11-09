@@ -30,9 +30,11 @@ export function candidateDiff(base: Project, source: string): CadDocumentDiff | 
     ? readTypedCadDocument(program ?? "")
     : { schemaVersion: 2, revisionId: "empty", parameters: [], features: [], bodies: [] };
   if (!before) return null;
+  const groups = changes(before.groups ?? [], after.groups ?? []);
   return {
     fromRevisionId: before.revisionId, toRevisionId: after.revisionId,
     parameters: changes(before.parameters, after.parameters),
     features: changes(before.features, after.features), bodies: changes(before.bodies, after.bodies),
+    ...(groups.length ? { groups } : {}),
   };
 }
