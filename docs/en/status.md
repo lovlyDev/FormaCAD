@@ -2,6 +2,10 @@
 
 [Documentation](index.md) · [Русский](../ru/status.md) · [Roadmap](roadmap.md)
 
+## Beta 1.7.0-beta.1
+
+A private beta for supporters with the M3 modeling tools: torus, datums, extrude face, multi-edge fillet and chamfer, shell, patterns, duplicate, separate and body groups, Boolean operations that keep the tool, smart selection, PNG snapshot, activity log and theme editor. The public channel stays on 1.6.1. Details: [beta 1.7.0-beta.1](../releases/1.7.0-beta.1.md).
+
 ## Changes in 1.6.1
 
 Viewport fixes: Fit model and Home frame the model by its bounding sphere instead of pushing the camera back; the measure panel no longer collapses; the non-working Tools and Item buttons are gone (panels toggle with T and N); the browser right-click menu is disabled outside text fields. Details: [1.6.1 release](../releases/1.6.1.md). Windows x64, Linux x64, macOS ARM and macOS Intel installers: [v1.6.1 release](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.6.1).
