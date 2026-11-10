@@ -1245,7 +1245,6 @@
   "Selected edge length": "Selected edge length",
   "Selected edge radius": "Selected edge radius",
   "Selected face area": "Selected face area",
-  "Selected planar face": "Selected planar face",
   "Exact selection measurements": "Exact selection measurements",
   "Measurement kind": "Measurement kind",
   "Measure selection": "Measure selection",
@@ -1609,5 +1608,6 @@
   "updates.channelStable": "Stable",
   "updates.channelBeta": "Beta (for supporters)",
   "updates.channelStableHint": "Tested versions for everyone.",
-  "updates.channelBetaHint": "New features before the stable release. A beta may have bugs; projects and settings are kept when updating."
+  "updates.channelBetaHint": "New features before the stable release. A beta may have bugs; projects and settings are kept when updating.",
+  "Intersection is empty": "The intersection is empty."
 }

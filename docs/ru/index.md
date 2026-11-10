@@ -67,6 +67,7 @@
 - [Самостоятельное хранилище проектов](project-storage-v2.md)
 
 - [Нативные операции и паритет](modeling-parity.md)
+- [M4 — инструменты моделирования II](modeling-ii.md)
 
 - [Операции поверх импортированного STEP](imported-step-features.md)
 

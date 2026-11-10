@@ -67,6 +67,7 @@ These guides describe the consolidated 1.2.6 candidate and its limits. Final pac
 - [Self-contained project storage](project-storage-v2.md)
 
 - [Native operations and parity](modeling-parity.md)
+- [M4 — modeling tools II](modeling-ii.md)
 
 - [Operations on imported STEP](imported-step-features.md)
 

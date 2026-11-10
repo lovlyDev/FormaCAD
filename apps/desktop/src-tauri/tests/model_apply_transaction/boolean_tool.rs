@@ -49,9 +49,11 @@ async fn boolean_cut_keeps_the_tool_body_and_rolls_back_an_empty_intersection() 
     ]))
     .await
     .unwrap();
-    assert!(apply_with_executable(&state, disjoint, executable())
+    let error = apply_with_executable(&state, disjoint, executable())
         .await
-        .is_err());
+        .err()
+        .expect("empty intersection must fail");
+    assert!(error.to_string().contains("EMPTY_INTERSECTION"), "{error}");
     assert_eq!(snapshot(&state, &baseline.id).await, before);
 
     let request = prepare_commands(json!([draft("cut", "tool_offset"), set_output]))

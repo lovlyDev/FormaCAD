@@ -1245,7 +1245,6 @@
   "Selected edge length": "Длина выбранного ребра",
   "Selected edge radius": "Радиус выбранного ребра",
   "Selected face area": "Площадь выбранной грани",
-  "Selected planar face": "Выбранная плоская грань",
   "Exact selection measurements": "Точные измерения выделения",
   "Measurement kind": "Вид измерения",
   "Measure selection": "Измерить выделение",
@@ -1609,5 +1608,6 @@
   "updates.channelStable": "Стабильный",
   "updates.channelBeta": "Бета (для сторонников)",
   "updates.channelStableHint": "Проверенные версии для всех.",
-  "updates.channelBetaHint": "Новые функции раньше стабильной версии. Бета может содержать ошибки; проекты и настройки сохраняются при обновлении."
+  "updates.channelBetaHint": "Новые функции раньше стабильной версии. Бета может содержать ошибки; проекты и настройки сохраняются при обновлении.",
+  "Intersection is empty": "Пересечение пустое."
 }
