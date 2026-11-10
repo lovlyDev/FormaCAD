@@ -53,3 +53,9 @@ The [report](https://github.com/lovlyDev/FormaCAD/issues/32#issuecomment-6768465
 Other M4 modules have not yet been implemented or checked. Every new geometry operation requires negative cases, BREP validity, measurements, exchange round-trip where applicable, rollback and built-app acceptance.
 
 The PR remains draft until M4 is complete. No version, lockfile, installer or release changes.
+
+## Repeating native split acceptance
+
+The [split-native.mjs](../../scripts/acceptance/split-native.mjs) script runs separately from browser tests that mock IPC. Build the frontend and debug host with native-worker-client and embedded assets (TAURI_CONFIG with build.devUrl=null), plus the native-occt worker. Place both executables together. Use separate empty FORMA_DATA_DIR and WEBVIEW2_USER_DATA_FOLDER directories, OCCT libraries on PATH, and WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9336 --remote-debugging-address=127.0.0.1. Start that isolated application and wait for its dashboard.
+
+From the repository root in PowerShell, set $env:FORMA_NATIVE_ACCEPTANCE='isolated', then run node scripts/acceptance/split-native.mjs http://127.0.0.1:9336 <absolute-path-to-report.json>. The output directory must exist. The script creates fixtures, changes locale/theme and saves a report with screenshots. Never connect it to a user's working profile. The reviewer prepares the empty profiles and separate process; the isolated variable acknowledges that preparation and does not itself verify the process path.
