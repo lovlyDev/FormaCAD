@@ -40,6 +40,7 @@ fn main() {
             .file("../../../cad-core/src/extrude_face.cpp")
             .file("../../../cad-core/src/shell.cpp")
             .file("../../../cad-core/src/pattern.cpp")
+            .file("../../../cad-core/src/split.cpp")
             .file("../../../cad-core/src/separate_solids.cpp")
             .file("../../../cad-core/src/cone.cpp")
             .file("../../../cad-core/src/fillet.cpp")
@@ -66,6 +67,7 @@ fn main() {
         println!("cargo:rerun-if-changed=build/occt.rs");
         println!("cargo:rerun-if-changed=../../../cad-core/src");
         println!("cargo:rerun-if-changed=../../../cad-core/include/forma_core.hpp");
+        println!("cargo:rerun-if-changed=../../../cad-core/include/forma_split.hpp");
         println!("cargo:rerun-if-changed=../../../cad-core/include/forma_datum.hpp");
         println!("cargo:rerun-if-changed=../../../cad-core/include/forma_datum_anchor.hpp");
         println!("cargo:rerun-if-changed=../../../cad-core/include/forma_snap.hpp");

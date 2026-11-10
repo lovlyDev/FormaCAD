@@ -5,6 +5,7 @@ use super::NativeError;
 pub(crate) mod ffi {
     unsafe extern "C++" {
         include!("cad-core/include/forma_core.hpp");
+        include!("cad-core/include/forma_split.hpp");
         include!("cad-core/include/forma_datum.hpp");
         include!("cad-core/include/forma_datum_anchor.hpp");
         include!("cad-core/include/forma_measurement.hpp");
@@ -257,6 +258,17 @@ pub(crate) mod ffi {
             normal_x: f64,
             normal_y: f64,
             normal_z: f64,
+        ) -> UniquePtr<Shape>;
+        #[allow(clippy::too_many_arguments)]
+        fn split_by_plane(
+            source: &Shape,
+            x: f64,
+            y: f64,
+            z: f64,
+            nx: f64,
+            ny: f64,
+            nz: f64,
+            positive: bool,
         ) -> UniquePtr<Shape>;
         fn boolean_union(left: &Shape, right: &Shape) -> UniquePtr<Shape>;
         fn boolean_cut(left: &Shape, right: &Shape) -> UniquePtr<Shape>;

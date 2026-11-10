@@ -79,6 +79,7 @@ impl Document {
                 | Operation::ExtractSolid { .. }
                 | Operation::Rotate { .. }
                 | Operation::Transform { .. }
+                | Operation::SplitPlane { .. }
                 | Operation::Mirror { .. }
                 | Operation::Revolve { .. } => {
                     return Err(app_error(ValidationError::new(

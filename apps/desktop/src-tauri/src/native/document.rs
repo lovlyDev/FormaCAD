@@ -358,6 +358,19 @@ pub fn build_body_with_assets(
                 ),
                 _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
             },
+            Operation::SplitPlane {
+                body_feature_id,
+                plane_origin_mm,
+                plane_normal,
+                side,
+            } => match get(body_feature_id)? {
+                FeatureValue::Solid(source) => FeatureValue::Solid(source.split_by_plane(
+                    *plane_origin_mm,
+                    *plane_normal,
+                    *side,
+                )?),
+                _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
+            },
             Operation::Boolean {
                 left_feature_id,
                 right_feature_id,

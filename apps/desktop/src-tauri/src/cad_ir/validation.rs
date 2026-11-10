@@ -429,6 +429,12 @@ impl Document {
                     body_feature_id,
                     plane_origin_mm,
                     plane_normal,
+                }
+                | Operation::SplitPlane {
+                    body_feature_id,
+                    plane_origin_mm,
+                    plane_normal,
+                    ..
                 } => {
                     reference(body_feature_id, FeatureKind::Solid)?;
                     super::transforms::validate_axis(*plane_origin_mm, *plane_normal, id)?;

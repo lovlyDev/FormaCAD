@@ -75,6 +75,9 @@ impl Operation {
             | Self::Rotate {
                 body_feature_id, ..
             }
+            | Self::SplitPlane {
+                body_feature_id, ..
+            }
             | Self::Mirror {
                 body_feature_id, ..
             } => vec![body_feature_id],
@@ -151,6 +154,9 @@ impl Operation {
                 body_feature_id, ..
             }
             | Self::Rotate {
+                body_feature_id, ..
+            }
+            | Self::SplitPlane {
                 body_feature_id, ..
             }
             | Self::Mirror {

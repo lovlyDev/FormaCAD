@@ -30,5 +30,7 @@ mod pattern;
 mod separate_solids;
 #[path = "model_apply_transaction/shell.rs"]
 mod shell;
+#[path = "model_apply_transaction/split.rs"]
+mod split;
 #[path = "model_apply_transaction/torus.rs"]
 mod torus;

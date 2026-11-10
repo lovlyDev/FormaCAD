@@ -9,6 +9,7 @@ mod groups;
 pub mod pattern;
 pub use groups::BodyGroup;
 pub(crate) mod shell;
+pub mod split;
 pub mod topology_refs;
 mod torus;
 pub use topology_refs::{TopologyKind, TopologyReference};
@@ -184,6 +185,12 @@ pub enum Operation {
         body_feature_id: String,
         reference: TopologyReference,
         distance: Dimension,
+    },
+    SplitPlane {
+        body_feature_id: String,
+        plane_origin_mm: [f64; 3],
+        plane_normal: [f64; 3],
+        side: split::SplitSide,
     },
     Shell {
         body_feature_id: String,

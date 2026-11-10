@@ -43,6 +43,8 @@ mod shell;
 #[cfg(feature = "native-occt")]
 pub mod snapping;
 #[cfg(feature = "native-occt")]
+mod split;
+#[cfg(feature = "native-occt")]
 pub mod step_import;
 #[cfg(feature = "native-occt")]
 mod topology_refs;
