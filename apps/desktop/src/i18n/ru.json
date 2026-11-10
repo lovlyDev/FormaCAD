@@ -1609,5 +1609,21 @@
   "updates.channelBeta": "Бета (для сторонников)",
   "updates.channelStableHint": "Проверенные версии для всех.",
   "updates.channelBetaHint": "Новые функции раньше стабильной версии. Бета может содержать ошибки; проекты и настройки сохраняются при обновлении.",
-  "Intersection is empty": "Пересечение пустое."
+  "Intersection is empty": "Пересечение пустое.",
+  "Split body by plane": "Разделить тело плоскостью",
+  "Positive split half": "Положительная часть разделения",
+  "Negative split half": "Отрицательная часть разделения",
+  "Plane normal axis": "Ось нормали плоскости",
+  "Plane offset (mm)": "Смещение плоскости (мм)",
+  "Split creates two named bodies in one revision.": "Разделение создаёт два именованных тела одной ревизией.",
+  "The original body keeps the positive half. A new body contains the negative half. Tangent and missed planes are rejected.": "Исходное тело сохраняет положительную часть. Новое тело содержит отрицательную. Касание и промах плоскостью отклоняются.",
+  "Plane does not divide the body": "Плоскость не разделяет тело на две объёмные части.",
+  "Split plane is invalid": "Некорректная плоскость разделения.",
+  "Z": "Z",
+  "Choose a body": "Выберите тело",
+  "EMPTY_INTERSECTION": "Пересечение пустое.",
+  "SPLIT_NO_INTERSECTION": "Плоскость не разделяет тело на две объёмные части.",
+  "INVALID_SPLIT_PLANE": "Некорректная плоскость разделения.",
+  "SPLIT_FAILED": "Не удалось разделить тело этой плоскостью.",
+  "SPLIT_VOLUME_MISMATCH": "Объём частей не совпал с исходным. Изменения не сохранены."
 }

@@ -14,6 +14,7 @@ interface Actions {
   duplicateBody?: () => void;
   separateSolids?: () => void;
   booleanOperation?: () => void;
+  splitBody?: () => void;
   palette: () => void;
   settings: (page?: string) => void;
   workspaces: () => void;
@@ -151,6 +152,12 @@ export function applicationMenus(
           shortcut: "P",
           disabled: !actions.separateSolids,
           run: () => actions.separateSolids?.(),
+        },
+        {
+          id: "splitBody",
+          label: t("Split body by plane"),
+          disabled: !actions.splitBody,
+          run: () => actions.splitBody?.(),
         },
         {
           id: "booleanOperation",
