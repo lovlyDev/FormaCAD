@@ -10,7 +10,7 @@ import { Scissors } from "lucide-react";
 import { t } from "../../i18n";
 import { useTheme } from "../../lib/theme";
 import { usePersistentState } from "../../lib/persistence";
-import { Canvas } from "@react-three/fiber";
+import { StableCanvas } from "./StableCanvas";
 import {
   OrbitControls,
   GizmoHelper,
@@ -443,7 +443,7 @@ export default function Viewer({
         )}
       </div>
       <SectionControls section={section} />
-      <Canvas
+      <StableCanvas
         onCreated={({ raycaster }) => {
           raycaster.params.Line = { threshold: 3 };
         }}
@@ -590,7 +590,7 @@ export default function Viewer({
           storageKey={`${viewKey}.motionTime`}
         />
         <Capture onReady={handleCapture} controlsRef={controlsRef} />
-      </Canvas>
+      </StableCanvas>
       {captureOpen && capture && (
         <ViewportCaptureDialog close={() => setCaptureOpen(false)}
           capture={(options) => onScreenshot(capture(options))} />
