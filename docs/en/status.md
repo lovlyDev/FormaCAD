@@ -2,6 +2,10 @@
 
 [Documentation](index.md) · [Русский](../ru/status.md) · [Roadmap](roadmap.md)
 
+## Changes in 1.6.2
+
+Beta update channel: after signing in, supporters and administrators choose the stable or beta channel in the Updates dialog; the account server checks and serves beta builds. Details: [1.6.2 release](../releases/1.6.2.md). Installers: [v1.6.2 release](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.6.2).
+
 ## Changes in 1.6.1
 
 Viewport fixes: Fit model and Home frame the model by its bounding sphere instead of pushing the camera back; the measure panel no longer collapses; the non-working Tools and Item buttons are gone (panels toggle with T and N); the browser right-click menu is disabled outside text fields. Details: [1.6.1 release](../releases/1.6.1.md). Windows x64, Linux x64, macOS ARM and macOS Intel installers: [v1.6.1 release](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.6.1).
