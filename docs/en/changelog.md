@@ -2,11 +2,12 @@
 
 [Documentation](index.md) · [Русский](../ru/changelog.md) · [Status](status.md)
 
-The latest release is 1.6.1. Windows, Linux and macOS installers are built by the Release workflow in GitHub Actions.
+The latest release is 1.6.2. Windows, Linux and macOS installers are built by the Release workflow in GitHub Actions.
 
 | Release | Notes |
 | --- | --- |
 | Private supporter beta: M3 modeling tools | [1.7.0-beta.1](../releases/1.7.0-beta.1.md) |
+| Supporter beta update channel | [1.6.2](../releases/1.6.2.md) |
 | Viewport fixes: fit model, measure panel, right-click menu | [1.6.1](../releases/1.6.1.md) |
 | Blender-style 3D viewport (M2), areas and workspaces (M1), main menu in the top bar | [1.6.0](../releases/1.6.0.md) |
 | Plugin actions in the 3D-view toolbar | [1.5.1](../releases/1.5.1.md) |

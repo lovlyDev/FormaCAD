@@ -4,7 +4,11 @@
 
 ## Beta 1.7.0-beta.1
 
-A private beta for supporters with the M3 modeling tools: torus, datums, extrude face, multi-edge fillet and chamfer, shell, patterns, duplicate, separate and body groups, Boolean operations that keep the tool, smart selection, PNG snapshot, activity log and theme editor. The public channel stays on 1.6.1. Details: [beta 1.7.0-beta.1](../releases/1.7.0-beta.1.md).
+A private beta for supporters with the M3 modeling tools: torus, datums, extrude face, multi-edge fillet and chamfer, shell, patterns, duplicate, separate and body groups, Boolean operations that keep the tool, smart selection, PNG snapshot, activity log and theme editor. The public channel is 1.6.2. Details: [beta 1.7.0-beta.1](../releases/1.7.0-beta.1.md).
+
+## Changes in 1.6.2
+
+Beta update channel: after signing in, supporters and administrators choose the stable or beta channel in the Updates dialog; the account server checks and serves beta builds. Details: [1.6.2 release](../releases/1.6.2.md). Installers: [v1.6.2 release](https://github.com/lovlyDev/FormaCAD/releases/tag/v1.6.2).
 
 ## Changes in 1.6.1
 
