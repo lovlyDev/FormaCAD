@@ -14,7 +14,7 @@ import { chromium,expect as baseExpect } from "@playwright/test";
 const expect=baseExpect.configure({timeout:30000});
 const endpoint=process.argv[2],output=process.argv[3];
 if(process.env.FORMA_NATIVE_ACCEPTANCE!=="isolated"||endpoint!=="http://127.0.0.1:9336"||!output)throw Error("Use the owned M4 loopback endpoint and output path");
-const report={ipcMocked:false,setup:"real native commands with one-use grants",cases:[],errors:[]};
+const report={ipcMocked:false,setup:"real native commands with one-use grants; baseline waits for visible dashboard thumbnail; no failed IPC retries",cases:[],errors:[]};
 let browser,page;
 const invoke=(command,args={})=>page.evaluate(({command,args})=>window.__TAURI_INTERNALS__.invoke(command,args),{command,args});
 const literal=mm=>({kind:"literal",mm});
@@ -24,7 +24,10 @@ async function seed(name,document){ name += " "+randomUUID().slice(0,8);
  await invoke("save_project",{project});
  const id=await invoke("request_permission",{projectId:project.id,action:"modify_project",detail:"Owned M4 acceptance baseline"});
  await invoke("resolve_permission",{id,allow:true});
- return invoke("apply_program",{projectId:project.id,program:JSON.stringify(document),prompt:"M4 acceptance baseline",expectedRevision:null});
+ const created=await invoke("apply_program",{projectId:project.id,program:JSON.stringify(document),prompt:"M4 acceptance baseline",expectedRevision:null});
+ // Wait for the visible result of the background metadata write, without retrying any failed IPC.
+ await expect(page.locator(".project-card").filter({has:page.locator(".project-card-info > button").filter({hasText:created.name})}).locator(".project-art img")).toBeVisible();
+ return created;
 }
 async function home(){if(await page.locator(".viewer-area").count())await page.locator("button.brand").click();await expect(page.locator(".dashboard")).toBeVisible();}
 async function openProject(project){
@@ -32,6 +35,22 @@ async function openProject(project){
  await page.locator(".project-card-info > button").filter({hasText:project.name}).click();
  await expect(page.locator(".viewer-area")).toHaveAttribute("data-scene-phase","ready");
  await expect(page.locator(".viewer-area")).toHaveAttribute("data-displayed-revision",project.currentRevision);
+  const canvas=page.locator(".viewer-area canvas");
+  await canvas.hover();
+  const key=`forma.ui.project.${project.id}.view.main.camera`;
+  const camera=()=>page.evaluate(key=>JSON.parse(localStorage.getItem(key)??"null"),key);
+  await expect.poll(async()=>(await camera())?.position?.length??0).toBe(3);
+  let priorCamera="",stable=0;
+  await expect.poll(async()=>{
+   const current=JSON.stringify(await camera());
+   stable=current===priorCamera?stable+1:0;priorCamera=current;return stable;
+  },{message:"Camera settles before testing wheel zoom"}).toBeGreaterThan(2);
+  const beforeCamera=await camera();
+  await page.mouse.wheel(0,-180);
+  const distance=current=>Math.hypot(...current.position.map((v,i)=>v-current.target[i]));
+  await expect.poll(async()=>distance(beforeCamera)-distance(await camera()),{message:"Wheel zooms the real camera toward its target"}).toBeGreaterThan(.01);
+  report.inputChecks??=[];
+  report.inputChecks.push({projectId:project.id,hover:true,wheelChangesCamera:true});
 }
 async function projectById(id){return (await invoke("list_projects")).find(p=>p.id===id);}
 async function menu(label,ru){await page.getByRole("menuitem",{name:ru?"Инструменты":"Tools",exact:true}).click();await page.getByRole("menuitem",{name:label,exact:true}).click();}
@@ -64,6 +83,7 @@ try{
   await offset.fill("5");
   await expect(dialog.getByText(ru?"Геометрия черновика корректна":"Draft geometry is valid",{exact:true})).toBeVisible();
   await expect(dialog.locator(".model-preview-canvas canvas")).toBeVisible();
+  await dialog.locator(".model-preview-canvas canvas").hover();
   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   await page.bringToFront();
   await expect.poll(async()=>foregroundPixels(await dialog.locator(".model-preview-canvas canvas").screenshot()),{timeout:30000,message:"Real WebGL preview must contain rendered geometry"}).toBeGreaterThan(200);
