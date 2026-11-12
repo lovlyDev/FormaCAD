@@ -40,6 +40,7 @@ export function featureDependencies(feature: TypedCadFeature): string[] {
     case "revolve":
       return typeof op.sketchId === "string" ? [op.sketchId] : [];
     case "hole":
+    case "thickenFace":
     case "extrudeFace":
     case "shell":
     case "patternLinear":
@@ -93,6 +94,7 @@ export function solidFeature(feature: TypedCadFeature): boolean {
     "torus",
     "cone",
     "extrude",
+    "thickenFace",
     "extrudeFace",
     "shell",
     "patternLinear",

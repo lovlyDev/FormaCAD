@@ -1625,5 +1625,15 @@
   "SPLIT_NO_INTERSECTION": "The plane does not divide the body into two solid parts.",
   "INVALID_SPLIT_PLANE": "The split plane is invalid.",
   "SPLIT_FAILED": "The body could not be split by this plane.",
-  "SPLIT_VOLUME_MISMATCH": "The split parts do not preserve the original volume. Changes were not saved."
+  "SPLIT_VOLUME_MISMATCH": "The split parts do not preserve the original volume. Changes were not saved.",
+  "Thicken face": "Thicken face",
+  "Thickened face": "Thickened face",
+  "The original body remains. A new body is created from the selected face.": "The original body remains. A new body is created from the selected face.",
+  "Selected face: {{value0}}": "Selected face: {{value0}}",
+  "Signed thickness (mm)": "Signed thickness (mm)",
+  "Positive thickness follows the selected face normal. Negative thickness reverses it.": "Positive thickness follows the selected face normal. Negative thickness reverses it.",
+  "Face thickening failed": "Could not thicken the face. Check the thickness and source surface.",
+  "Thickness must be finite and nonzero": "Thickness must be finite and nonzero.",
+  "THICKEN_FAILED": "Could not thicken the face. Check the thickness and source surface.",
+  "INVALID_THICKNESS": "Thickness must be finite and nonzero."
 }

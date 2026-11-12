@@ -1625,5 +1625,15 @@
   "SPLIT_NO_INTERSECTION": "Плоскость не разделяет тело на две объёмные части.",
   "INVALID_SPLIT_PLANE": "Некорректная плоскость разделения.",
   "SPLIT_FAILED": "Не удалось разделить тело этой плоскостью.",
-  "SPLIT_VOLUME_MISMATCH": "Объём частей не совпал с исходным. Изменения не сохранены."
+  "SPLIT_VOLUME_MISMATCH": "Объём частей не совпал с исходным. Изменения не сохранены.",
+  "Thicken face": "Утолщить грань",
+  "Thickened face": "Утолщённая грань",
+  "The original body remains. A new body is created from the selected face.": "Исходное тело сохраняется. Из выбранной грани создаётся новое тело.",
+  "Selected face: {{value0}}": "Выбранная грань: {{value0}}",
+  "Signed thickness (mm)": "Толщина со знаком (мм)",
+  "Positive thickness follows the selected face normal. Negative thickness reverses it.": "Положительная толщина направлена по нормали выбранной грани. Отрицательная — в обратную сторону.",
+  "Face thickening failed": "Не удалось утолстить грань. Проверьте толщину и исходную поверхность.",
+  "Thickness must be finite and nonzero": "Толщина должна быть конечной и отличной от нуля.",
+  "THICKEN_FAILED": "Не удалось утолстить грань. Проверьте толщину и исходную поверхность.",
+  "INVALID_THICKNESS": "Толщина должна быть конечной и отличной от нуля."
 }

@@ -15,6 +15,7 @@ interface Actions {
   separateSolids?: () => void;
   booleanOperation?: () => void;
   splitBody?: () => void;
+  thickenFace?: () => void;
   palette: () => void;
   settings: (page?: string) => void;
   workspaces: () => void;
@@ -152,6 +153,12 @@ export function applicationMenus(
           shortcut: "P",
           disabled: !actions.separateSolids,
           run: () => actions.separateSolids?.(),
+        },
+        {
+          id: "thickenFace",
+          label: t("Thicken face"),
+          disabled: !actions.thickenFace,
+          run: () => actions.thickenFace?.(),
         },
         {
           id: "splitBody",

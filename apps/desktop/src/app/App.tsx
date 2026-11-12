@@ -115,6 +115,7 @@ import { captureFaceExtrusion, faceExtrusionTarget } from "../features/face-extr
 import type { FaceSelection } from "../features/viewer/faceSelection";
 import type { EdgeSelection } from "../features/viewer/edgeSelection";
 import { EdgeBlendDialog } from "../features/edge-blend/EdgeBlendDialog";
+import { thickenIntent,type ThickenIntent } from "../features/thicken/thickenCommand";
 import { BodyOperationDialog } from "../features/body-operations/BodyOperationDialog";
 import { booleanBodies } from "../features/boolean-tool/booleanCommand";
 import { edgeBlendTarget } from "../features/edge-blend/edgeBlendCommand";
@@ -173,13 +174,13 @@ export default function App() {
     staleTime: 60000,
   });
   const [modal, setModal] = useState<
-    "new" | "settings" | "export" | "palette" | "parameters" | "torus" | "datum" | "faceExtrusion" | "edgeBlend" | "shell" | "pattern" | "duplicateBody" | "boolean" | "split" | null
+    "new" | "settings" | "export" | "palette" | "parameters" | "torus" | "datum" | "faceExtrusion" | "edgeBlend" | "shell" | "pattern" | "duplicateBody" | "boolean" | "split" | "thicken" | null
   >(null);
   const [torusTarget, setTorusTarget] = useState<{ id: string; revision: string | null } | null>(null);
   const [datumTarget, setDatumTarget] = useState<{ id: string; revision: string | null; kind: DatumKind; sources: DatumSourceOption[] } | null>(null);
   const [faceExtrusion, setFaceExtrusion] = useState<{ projectId: string; selection: FaceSelection; initialMm?: number } | null>(null);
   const [edgeBlend, setEdgeBlend] = useState<{ projectId: string; selection: readonly EdgeSelection[] } | null>(null);
-  const [bodyToolTarget, setBodyToolTarget] = useState<{ projectId: string; revision: string | null; initialTarget: string } | null>(null);
+  const [bodyToolTarget, setBodyToolTarget] = useState<{ projectId: string; revision: string | null; initialTarget: string; thicken?: ThickenIntent } | null>(null);
   const [shellSelection, setShellSelection] = useState<{ projectId: string; selection: FaceSelection } | null>(null);
   const [patternSelection, setPatternSelection] = useState<{ projectId: string; revision: string | null; bodyId: string } | null>(null);
   const [duplicateSelection, setDuplicateSelection] = useState<{ projectId: string; revision: string | null; bodyId: string; spacingMm: number } | null>(null);
@@ -370,6 +371,12 @@ export default function App() {
         setModal("boolean");
       }
     : undefined;
+  const thickenInput = project ? thickenIntent(project,selectedFace) : null;
+  const openThicken = !editingBlocked && !pending && !modal && project && thickenInput && booleanOptions.some(body=>body.id===thickenInput.bodyId)
+    ? () => {
+        setBodyToolTarget({projectId:project.id,revision:project.currentRevision,initialTarget:thickenInput.bodyId,thicken:thickenInput});
+        setModal("thicken");
+      } : undefined;
   const openSplit = !editingBlocked && !pending && !modal && project && booleanOptions.length
     ? () => {
         const initialTarget = booleanOptions.find(body => body.id === selected)?.id ?? (booleanOptions.length === 1 ? booleanOptions[0].id : "");
@@ -1038,6 +1045,7 @@ export default function App() {
               separateSolids: openSeparateSolids,
               booleanOperation: openBoolean,
               splitBody: openSplit,
+              thickenFace: openThicken,
               palette: () => setModal("palette"),
               settings: (page) => {
                 if (page) persist("forma.ui.settingsPage", JSON.stringify(page));
@@ -1715,9 +1723,9 @@ export default function App() {
             }, "modify_project", project.id);
           }} />
       )}
-      {(modal === "boolean" || modal === "split") && bodyToolTarget && project?.id === bodyToolTarget.projectId && (
-        <BodyOperationDialog kind={modal} project={project} bodies={booleanOptions} initialTarget={bodyToolTarget.initialTarget}
-          disabled={editingBlocked || project.currentRevision !== bodyToolTarget.revision || booleanOptions.length < (modal === "split" ? 1 : 2)}
+      {(modal === "boolean" || modal === "split" || modal === "thicken") && bodyToolTarget && project?.id === bodyToolTarget.projectId && (
+        <BodyOperationDialog kind={modal} thicken={bodyToolTarget.thicken} project={project} bodies={booleanOptions} initialTarget={bodyToolTarget.initialTarget}
+          disabled={editingBlocked || project.currentRevision !== bodyToolTarget.revision || booleanOptions.length < (modal === "boolean" ? 2 : 1) || (modal === "thicken" && !booleanOptions.some(body=>body.id===bodyToolTarget.initialTarget))}
           close={() => { setBodyToolTarget(null); setModal(null); }}
           apply={(operation, description) => {
             setBodyToolTarget(null);

@@ -2,7 +2,7 @@
 
 [Documentation](index.md) · [Русский](../ru/modeling-ii.md) · [Plan](../architecture-2.0.md)
 
-Branch task/m4-modeling-tools starts at main 8cb40fd (1.7.0-beta.1), Issue #21. The first implemented module is plane split. This records current progress; it does not declare all of M4 complete.
+Branch task/m4-modeling-tools starts at main 8cb40fd (1.7.0-beta.1), Issue #21. The first implemented modules are plane split and selected-face thickening. This records current progress; it does not declare all of M4 complete.
 
 ## Modules and acceptance
 
@@ -73,3 +73,5 @@ After the hit-testing fix, the built application passed RU/EN × light/dark: 4/4
 Fixture setup explicitly waits for the visible project-card thumbnail, confirming completion of the background metadata write. This does not test immediate read-after-write. Before that wait, two inspect_model reads failed with PROJECT_SNAPSHOT_CHANGED; polling list_projects during thumbnail publication also reproduced “Project storage is locked by another writer”. After thumbnail completion the same project reads successfully: 8000 mm³, 2800 mm². [Observations were handed to the storage owner](https://github.com/lovlyDev/FormaCAD/issues/32#issuecomment-6825300767); causality is not claimed without tracing. No product retries, delays or storage changes were introduced; the native script does not retry failed IPC.
 
 The original local persistence/workspace e2e tests failed 2/2 on hover before the fix and passed 2/2 afterward without test changes. The first full local run separately failed locked-pan EN; isolated interaction repeats passed 8/8, and the next full run passed 71 tests with 89 existing skips. Browser native-fixture skips do not establish OCCT functionality; the built-app native matrix covers that separately.
+
+[Thicken a selected face](thicken.md) — a separate M4 module; native matrix 4/4, original body retained, new body 1600 mm³.
