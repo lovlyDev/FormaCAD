@@ -1635,5 +1635,17 @@
   "Face thickening failed": "Could not thicken the face. Check the thickness and source surface.",
   "Thickness must be finite and nonzero": "Thickness must be finite and nonzero.",
   "THICKEN_FAILED": "Could not thicken the face. Check the thickness and source surface.",
-  "INVALID_THICKNESS": "Thickness must be finite and nonzero."
+  "INVALID_THICKNESS": "Thickness must be finite and nonzero.",
+  "Mirror features": "Mirror features",
+  "Mirrored features": "Mirrored features",
+  "First operation to mirror": "First operation to mirror",
+  "Choose an operation": "Choose an operation",
+  "Choose the first operation. All following operations through the active body feature are mirrored together.": "Choose the first operation. All following operations through the active body feature are mirrored together.",
+  "Source operations remain linked. Mirrored material changes must leave one connected solid.": "Source operations remain linked. Mirrored material changes must leave one connected solid.",
+  "Operations in the mirror range: {{value0}}": "Operations in the mirror range: {{value0}}",
+  "MIRROR_FEATURES_FAILED": "Could not mirror these operations. Check the range and plane.",
+  "MIRROR_FEATURES_NO_EFFECT": "The mirrored changes do not alter this body.",
+  "MIRROR_FEATURES_DISCONNECTED": "Mirrored changes must leave one connected solid.",
+  "MIRROR_FEATURES_REQUIRES_SOLID": "One solid is required before and after the selected range.",
+  "INVALID_FEATURE_MIRROR_PLANE": "The mirror plane must have a finite origin and a nonzero normal."
 }

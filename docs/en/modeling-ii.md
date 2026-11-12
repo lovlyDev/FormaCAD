@@ -2,7 +2,7 @@
 
 [Documentation](index.md) · [Русский](../ru/modeling-ii.md) · [Plan](../architecture-2.0.md)
 
-Branch task/m4-modeling-tools starts at main 8cb40fd (1.7.0-beta.1), Issue #21. The first implemented modules are plane split and selected-face thickening. This records current progress; it does not declare all of M4 complete.
+Branch task/m4-modeling-tools starts at main 8cb40fd (1.7.0-beta.1), Issue #21. The first three implemented modules are plane split, selected-face thickening and feature mirroring. This records current progress; it does not declare all of M4 complete.
 
 ## Modules and acceptance
 
@@ -75,3 +75,5 @@ Fixture setup explicitly waits for the visible project-card thumbnail, confirmin
 The original local persistence/workspace e2e tests failed 2/2 on hover before the fix and passed 2/2 afterward without test changes. The first full local run separately failed locked-pan EN; isolated interaction repeats passed 8/8, and the next full run passed 71 tests with 89 existing skips. Browser native-fixture skips do not establish OCCT functionality; the built-app native matrix covers that separately.
 
 [Thicken a selected face](thicken.md) — a separate M4 module; native matrix 4/4, original body retained, new body 1600 mm³.
+
+[Mirror modeling operations](mirror-features.md) — native acceptance in progress.

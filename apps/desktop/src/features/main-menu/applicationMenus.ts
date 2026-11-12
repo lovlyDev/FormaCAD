@@ -16,6 +16,7 @@ interface Actions {
   booleanOperation?: () => void;
   splitBody?: () => void;
   thickenFace?: () => void;
+  mirrorFeatures?: () => void;
   palette: () => void;
   settings: (page?: string) => void;
   workspaces: () => void;
@@ -153,6 +154,12 @@ export function applicationMenus(
           shortcut: "P",
           disabled: !actions.separateSolids,
           run: () => actions.separateSolids?.(),
+        },
+        {
+          id: "mirrorFeatures",
+          label: t("Mirror features"),
+          disabled: !actions.mirrorFeatures,
+          run: () => actions.mirrorFeatures?.(),
         },
         {
           id: "thickenFace",

@@ -1635,5 +1635,17 @@
   "Face thickening failed": "Не удалось утолстить грань. Проверьте толщину и исходную поверхность.",
   "Thickness must be finite and nonzero": "Толщина должна быть конечной и отличной от нуля.",
   "THICKEN_FAILED": "Не удалось утолстить грань. Проверьте толщину и исходную поверхность.",
-  "INVALID_THICKNESS": "Толщина должна быть конечной и отличной от нуля."
+  "INVALID_THICKNESS": "Толщина должна быть конечной и отличной от нуля.",
+  "Mirror features": "Зеркалировать операции",
+  "Mirrored features": "Зеркальные операции",
+  "First operation to mirror": "Первая операция для зеркалирования",
+  "Choose an operation": "Выберите операцию",
+  "Choose the first operation. All following operations through the active body feature are mirrored together.": "Выберите первую операцию. Все последующие операции до активного источника тела зеркалируются вместе.",
+  "Source operations remain linked. Mirrored material changes must leave one connected solid.": "Связь с исходными операциями сохраняется. После зеркальных изменений материала должен остаться один связный солид.",
+  "Operations in the mirror range: {{value0}}": "Операции в зеркальном диапазоне: {{value0}}",
+  "MIRROR_FEATURES_FAILED": "Не удалось зеркалировать операции. Проверьте диапазон и плоскость.",
+  "MIRROR_FEATURES_NO_EFFECT": "Зеркальные изменения не меняют это тело.",
+  "MIRROR_FEATURES_DISCONNECTED": "После зеркалирования должен остаться один связный солид.",
+  "MIRROR_FEATURES_REQUIRES_SOLID": "До и после выбранного диапазона требуется один солид.",
+  "INVALID_FEATURE_MIRROR_PLANE": "У плоскости зеркалирования должны быть конечная точка и ненулевая нормаль."
 }

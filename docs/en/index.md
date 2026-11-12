@@ -69,6 +69,7 @@ These guides describe the consolidated 1.2.6 candidate and its limits. Final pac
 - [Native operations and parity](modeling-parity.md)
 - [M4 — modeling tools II](modeling-ii.md)
 - [Thicken a selected face](thicken.md)
+- [Mirror modeling operations](mirror-features.md)
 
 - [Operations on imported STEP](imported-step-features.md)
 

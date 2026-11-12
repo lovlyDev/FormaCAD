@@ -69,6 +69,7 @@
 - [Нативные операции и паритет](modeling-parity.md)
 - [M4 — инструменты моделирования II](modeling-ii.md)
 - [Утолщение выбранной грани](thicken.md)
+- [Зеркалирование операций](mirror-features.md)
 
 - [Операции поверх импортированного STEP](imported-step-features.md)
 

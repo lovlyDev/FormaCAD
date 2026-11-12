@@ -115,6 +115,7 @@ import { captureFaceExtrusion, faceExtrusionTarget } from "../features/face-extr
 import type { FaceSelection } from "../features/viewer/faceSelection";
 import type { EdgeSelection } from "../features/viewer/edgeSelection";
 import { EdgeBlendDialog } from "../features/edge-blend/EdgeBlendDialog";
+import { mirrorBodies } from "../features/mirror-features/mirrorFeaturesCommand";
 import { thickenIntent,type ThickenIntent } from "../features/thicken/thickenCommand";
 import { BodyOperationDialog } from "../features/body-operations/BodyOperationDialog";
 import { booleanBodies } from "../features/boolean-tool/booleanCommand";
@@ -174,7 +175,7 @@ export default function App() {
     staleTime: 60000,
   });
   const [modal, setModal] = useState<
-    "new" | "settings" | "export" | "palette" | "parameters" | "torus" | "datum" | "faceExtrusion" | "edgeBlend" | "shell" | "pattern" | "duplicateBody" | "boolean" | "split" | "thicken" | null
+    "new" | "settings" | "export" | "palette" | "parameters" | "torus" | "datum" | "faceExtrusion" | "edgeBlend" | "shell" | "pattern" | "duplicateBody" | "boolean" | "split" | "thicken" | "mirrorFeatures" | null
   >(null);
   const [torusTarget, setTorusTarget] = useState<{ id: string; revision: string | null } | null>(null);
   const [datumTarget, setDatumTarget] = useState<{ id: string; revision: string | null; kind: DatumKind; sources: DatumSourceOption[] } | null>(null);
@@ -371,6 +372,12 @@ export default function App() {
         setModal("boolean");
       }
     : undefined;
+  const mirrorOptions = project ? mirrorBodies(project).filter(body=>booleanOptions.some(eligible=>eligible.id===body.id)) : [];
+  const openMirrorFeatures = !editingBlocked && !pending && !modal && project && mirrorOptions.length
+    ? () => {
+        const initialTarget=mirrorOptions.find(body=>body.id===selected)?.id ?? (mirrorOptions.length===1?mirrorOptions[0].id:"");
+        setBodyToolTarget({projectId:project.id,revision:project.currentRevision,initialTarget});setModal("mirrorFeatures");
+      } : undefined;
   const thickenInput = project ? thickenIntent(project,selectedFace) : null;
   const openThicken = !editingBlocked && !pending && !modal && project && thickenInput && booleanOptions.some(body=>body.id===thickenInput.bodyId)
     ? () => {
@@ -1046,6 +1053,7 @@ export default function App() {
               booleanOperation: openBoolean,
               splitBody: openSplit,
               thickenFace: openThicken,
+              mirrorFeatures: openMirrorFeatures,
               palette: () => setModal("palette"),
               settings: (page) => {
                 if (page) persist("forma.ui.settingsPage", JSON.stringify(page));
@@ -1723,8 +1731,8 @@ export default function App() {
             }, "modify_project", project.id);
           }} />
       )}
-      {(modal === "boolean" || modal === "split" || modal === "thicken") && bodyToolTarget && project?.id === bodyToolTarget.projectId && (
-        <BodyOperationDialog kind={modal} thicken={bodyToolTarget.thicken} project={project} bodies={booleanOptions} initialTarget={bodyToolTarget.initialTarget}
+      {(modal === "boolean" || modal === "split" || modal === "thicken" || modal === "mirrorFeatures") && bodyToolTarget && project?.id === bodyToolTarget.projectId && (
+        <BodyOperationDialog kind={modal} thicken={bodyToolTarget.thicken} project={project} bodies={modal === "mirrorFeatures" ? mirrorOptions : booleanOptions} initialTarget={bodyToolTarget.initialTarget}
           disabled={editingBlocked || project.currentRevision !== bodyToolTarget.revision || booleanOptions.length < (modal === "boolean" ? 2 : 1) || (modal === "thicken" && !booleanOptions.some(body=>body.id===bodyToolTarget.initialTarget))}
           close={() => { setBodyToolTarget(null); setModal(null); }}
           apply={(operation, description) => {

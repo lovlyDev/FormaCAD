@@ -57,6 +57,8 @@ export function featureDependencies(feature: TypedCadFeature): string[] {
     case "splitPlane":
     case "mirror":
       return typeof op.bodyFeatureId === "string" ? [op.bodyFeatureId] : [];
+    case "mirrorFeatures":
+      return [op.bodyFeatureId,op.baseFeatureId,...(Array.isArray(op.featureIds)?op.featureIds:[])].filter((id):id is string=>typeof id==="string");
     case "boolean":
       return [op.leftFeatureId, op.rightFeatureId].filter(
         (value): value is string => typeof value === "string",
@@ -81,6 +83,7 @@ export function canSuppressFeature(feature: TypedCadFeature): boolean {
     "translate",
     "transform",
     "rotate",
+    "mirrorFeatures",
     "splitPlane",
     "mirror",
   ].includes(feature.operation.type);
@@ -109,6 +112,7 @@ export function solidFeature(feature: TypedCadFeature): boolean {
     "translate",
     "transform",
     "rotate",
+    "mirrorFeatures",
     "splitPlane",
     "mirror",
     "boolean",
