@@ -69,6 +69,7 @@ private:
   friend std::unique_ptr<Shape> fillet_edge(const Shape&, const std::string&, double) noexcept;
   friend std::unique_ptr<Shape> chamfer_all_edges(const Shape&, double) noexcept;
   friend std::unique_ptr<Shape> shell(const Shape&, const std::string&, const std::string&, const std::string&, double) noexcept;
+  friend std::unique_ptr<Shape> mirror_features(const Shape&, const Shape&, bool, double, double, double, double, double, double) noexcept;
   friend std::unique_ptr<Shape> thicken_face(const Shape&, const std::string&, const std::string&, const std::string&, double) noexcept;
   friend std::unique_ptr<Shape> split_by_plane(const Shape&, double, double, double, double, double, double, bool) noexcept;
   friend std::unique_ptr<Shape> extract_solid(const Shape&, int, int) noexcept;

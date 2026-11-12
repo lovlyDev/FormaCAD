@@ -63,6 +63,7 @@ impl Document {
                 | Operation::Torus { .. }
                 | Operation::ExtrudeFace { .. }
                 | Operation::ThickenFace { .. }
+                | Operation::MirrorFeatures { .. }
                 | Operation::DatumPlane { .. }
                 | Operation::DatumAxis { .. }
                 | Operation::DatumPoint { .. }

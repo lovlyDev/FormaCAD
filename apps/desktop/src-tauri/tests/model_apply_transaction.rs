@@ -24,6 +24,8 @@ mod groups;
 mod inputs;
 #[path = "model_apply_transaction/lifecycle.rs"]
 mod lifecycle;
+#[path = "model_apply_transaction/mirror_features.rs"]
+mod mirror_features;
 #[path = "model_apply_transaction/pattern.rs"]
 mod pattern;
 #[path = "model_apply_transaction/separate_solids.rs"]

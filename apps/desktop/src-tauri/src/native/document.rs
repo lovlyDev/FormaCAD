@@ -224,6 +224,27 @@ pub fn build_body_with_assets(
                 ),
                 _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
             },
+            Operation::MirrorFeatures {
+                body_feature_id,
+                base_feature_id,
+                plane_origin_mm,
+                plane_normal,
+                ..
+            } => match get(body_feature_id)? {
+                FeatureValue::Solid(source) => {
+                    let before = match base_feature_id.as_ref().map(|id| get(id)).transpose()? {
+                        Some(FeatureValue::Solid(base)) => Some(base),
+                        None => None,
+                        _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
+                    };
+                    FeatureValue::Solid(source.mirror_features(
+                        before,
+                        *plane_origin_mm,
+                        *plane_normal,
+                    )?)
+                }
+                _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
+            },
             Operation::ThickenFace {
                 body_feature_id,
                 reference,

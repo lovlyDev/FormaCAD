@@ -430,6 +430,34 @@ impl Document {
                     }
                     FeatureKind::Solid
                 }
+                Operation::MirrorFeatures {
+                    body_feature_id,
+                    base_feature_id,
+                    feature_ids,
+                    plane_origin_mm,
+                    plane_normal,
+                } => {
+                    reference(body_feature_id, FeatureKind::Solid)?;
+                    if let Some(base) = base_feature_id {
+                        reference(base, FeatureKind::Solid)?;
+                    }
+                    for selected in feature_ids {
+                        reference(selected, FeatureKind::Solid)?;
+                    }
+                    super::transforms::validate_axis(*plane_origin_mm, *plane_normal, id)?;
+                    if !super::mirror_features::valid_range(
+                        &self.features,
+                        base_feature_id.as_deref(),
+                        body_feature_id,
+                        feature_ids,
+                    ) {
+                        return Err(ValidationError::new(
+                            ErrorCode::InvalidValue,
+                            Some(id.to_owned()),
+                        ));
+                    }
+                    FeatureKind::Solid
+                }
                 Operation::Mirror {
                     body_feature_id,
                     plane_origin_mm,

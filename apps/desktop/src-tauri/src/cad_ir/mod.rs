@@ -8,6 +8,7 @@ pub mod datum_anchor;
 mod groups;
 pub mod pattern;
 pub use groups::BodyGroup;
+pub(crate) mod mirror_features;
 pub(crate) mod shell;
 pub mod split;
 pub mod topology_refs;
@@ -185,6 +186,13 @@ pub enum Operation {
         body_feature_id: String,
         reference: TopologyReference,
         distance: Dimension,
+    },
+    MirrorFeatures {
+        body_feature_id: String,
+        base_feature_id: Option<String>,
+        feature_ids: Vec<String>,
+        plane_origin_mm: [f64; 3],
+        plane_normal: [f64; 3],
     },
     ThickenFace {
         body_feature_id: String,

@@ -29,6 +29,8 @@ mod hole;
 pub mod inspection;
 #[cfg(feature = "native-occt")]
 pub mod job;
+#[cfg(feature = "native-occt")]
+mod mirror_features;
 pub mod pair_measurements;
 #[cfg(feature = "native-occt")]
 mod pattern;

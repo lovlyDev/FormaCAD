@@ -58,6 +58,7 @@ add_library(forma_cad_core STATIC
   src/pattern.cpp
   src/split.cpp
   src/thicken.cpp
+  src/mirror_features.cpp
   src/separate_solids.cpp
   src/cone.cpp
   src/fillet.cpp
@@ -77,6 +78,12 @@ target_link_libraries(forma_cad_core PUBLIC ${FORMA_OCCT_LIBRARIES})
 
 include(CTest)
 if(BUILD_TESTING)
+  add_executable(forma_mirror_features_test tests/mirror_features_test.cpp)
+  target_link_libraries(forma_mirror_features_test PRIVATE forma_cad_core)
+  add_test(NAME forma_mirror_features_test COMMAND forma_mirror_features_test)
+  if(WIN32)
+    set_tests_properties(forma_mirror_features_test PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OpenCASCADE_BINARY_DIR}")
+  endif()
   add_executable(forma_thicken_test tests/thicken_test.cpp)
   target_link_libraries(forma_thicken_test PRIVATE forma_cad_core)
   target_include_directories(forma_thicken_test PRIVATE ${OpenCASCADE_INCLUDE_DIR})

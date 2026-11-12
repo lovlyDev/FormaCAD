@@ -7,6 +7,7 @@ pub(crate) mod ffi {
         include!("cad-core/include/forma_core.hpp");
         include!("cad-core/include/forma_split.hpp");
         include!("cad-core/include/forma_thicken.hpp");
+        include!("cad-core/include/forma_mirror_features.hpp");
         include!("cad-core/include/forma_datum.hpp");
         include!("cad-core/include/forma_datum_anchor.hpp");
         include!("cad-core/include/forma_measurement.hpp");
@@ -146,6 +147,18 @@ pub(crate) mod ffi {
             role: &CxxString,
             occurrence: &CxxString,
             distance_mm: f64,
+        ) -> UniquePtr<Shape>;
+        #[allow(clippy::too_many_arguments)]
+        fn mirror_features(
+            after: &Shape,
+            before: &Shape,
+            has_base: bool,
+            ox: f64,
+            oy: f64,
+            oz: f64,
+            nx: f64,
+            ny: f64,
+            nz: f64,
         ) -> UniquePtr<Shape>;
         fn thicken_face(
             source: &Shape,

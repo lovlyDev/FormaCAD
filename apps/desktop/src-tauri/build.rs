@@ -42,6 +42,7 @@ fn main() {
             .file("../../../cad-core/src/pattern.cpp")
             .file("../../../cad-core/src/split.cpp")
             .file("../../../cad-core/src/thicken.cpp")
+            .file("../../../cad-core/src/mirror_features.cpp")
             .file("../../../cad-core/src/separate_solids.cpp")
             .file("../../../cad-core/src/cone.cpp")
             .file("../../../cad-core/src/fillet.cpp")
@@ -70,6 +71,7 @@ fn main() {
         println!("cargo:rerun-if-changed=../../../cad-core/include/forma_core.hpp");
         println!("cargo:rerun-if-changed=../../../cad-core/include/forma_split.hpp");
         println!("cargo:rerun-if-changed=../../../cad-core/include/forma_thicken.hpp");
+        println!("cargo:rerun-if-changed=../../../cad-core/include/forma_mirror_features.hpp");
         println!("cargo:rerun-if-changed=../../../cad-core/include/forma_datum.hpp");
         println!("cargo:rerun-if-changed=../../../cad-core/include/forma_datum_anchor.hpp");
         println!("cargo:rerun-if-changed=../../../cad-core/include/forma_snap.hpp");

@@ -14,6 +14,17 @@ impl Operation {
                 }
             },
             Self::Extrude { sketch_id, .. } | Self::Revolve { sketch_id, .. } => vec![sketch_id],
+            Self::MirrorFeatures {
+                body_feature_id,
+                base_feature_id,
+                feature_ids,
+                ..
+            } => {
+                let mut result = vec![body_feature_id.as_str()];
+                result.extend(base_feature_id.iter().map(String::as_str));
+                result.extend(feature_ids.iter().map(String::as_str));
+                result
+            }
             Self::ExtrudeFace {
                 body_feature_id,
                 reference,
@@ -122,6 +133,9 @@ impl Operation {
     /// Generators and multi-input booleans cannot be suppressed safely.
     pub fn suppression_source(&self) -> Option<&str> {
         match self {
+            Self::MirrorFeatures {
+                body_feature_id, ..
+            } => Some(body_feature_id),
             Self::ExtrudeFace {
                 body_feature_id, ..
             }
