@@ -309,6 +309,11 @@ impl Document {
                     body_feature_id,
                     reference: topology,
                     distance,
+                }
+                | Operation::ThickenFace {
+                    body_feature_id,
+                    reference: topology,
+                    offset: distance,
                 } => {
                     reference(body_feature_id, FeatureKind::Solid)?;
                     let distance = resolve_dimension(distance, &parameters, id)?;

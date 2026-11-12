@@ -18,6 +18,11 @@ impl Operation {
                 body_feature_id,
                 reference,
                 ..
+            }
+            | Self::ThickenFace {
+                body_feature_id,
+                reference,
+                ..
             } => {
                 let mut result = vec![
                     body_feature_id.as_str(),

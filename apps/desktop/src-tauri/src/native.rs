@@ -47,6 +47,8 @@ mod split;
 #[cfg(feature = "native-occt")]
 pub mod step_import;
 #[cfg(feature = "native-occt")]
+mod thicken;
+#[cfg(feature = "native-occt")]
 mod topology_refs;
 #[cfg(feature = "native-occt")]
 mod torus;

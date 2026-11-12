@@ -186,6 +186,11 @@ pub enum Operation {
         reference: TopologyReference,
         distance: Dimension,
     },
+    ThickenFace {
+        body_feature_id: String,
+        reference: TopologyReference,
+        offset: Dimension,
+    },
     SplitPlane {
         body_feature_id: String,
         plane_origin_mm: [f64; 3],

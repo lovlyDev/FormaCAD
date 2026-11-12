@@ -62,6 +62,7 @@ impl Document {
                 | Operation::Sphere { .. }
                 | Operation::Torus { .. }
                 | Operation::ExtrudeFace { .. }
+                | Operation::ThickenFace { .. }
                 | Operation::DatumPlane { .. }
                 | Operation::DatumAxis { .. }
                 | Operation::DatumPoint { .. }

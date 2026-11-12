@@ -6,6 +6,7 @@ pub(crate) mod ffi {
     unsafe extern "C++" {
         include!("cad-core/include/forma_core.hpp");
         include!("cad-core/include/forma_split.hpp");
+        include!("cad-core/include/forma_thicken.hpp");
         include!("cad-core/include/forma_datum.hpp");
         include!("cad-core/include/forma_datum_anchor.hpp");
         include!("cad-core/include/forma_measurement.hpp");
@@ -145,6 +146,13 @@ pub(crate) mod ffi {
             role: &CxxString,
             occurrence: &CxxString,
             distance_mm: f64,
+        ) -> UniquePtr<Shape>;
+        fn thicken_face(
+            source: &Shape,
+            owner: &CxxString,
+            role: &CxxString,
+            occurrence: &CxxString,
+            offset_mm: f64,
         ) -> UniquePtr<Shape>;
         fn shell(
             source: &Shape,

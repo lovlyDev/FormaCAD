@@ -32,5 +32,7 @@ mod separate_solids;
 mod shell;
 #[path = "model_apply_transaction/split.rs"]
 mod split;
+#[path = "model_apply_transaction/thicken.rs"]
+mod thicken;
 #[path = "model_apply_transaction/torus.rs"]
 mod torus;

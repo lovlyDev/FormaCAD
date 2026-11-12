@@ -224,6 +224,16 @@ pub fn build_body_with_assets(
                 ),
                 _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
             },
+            Operation::ThickenFace {
+                body_feature_id,
+                reference,
+                offset,
+            } => match get(body_feature_id)? {
+                FeatureValue::Solid(source) => FeatureValue::Solid(
+                    source.thicken_face(reference, dimension(offset, &parameters)?)?,
+                ),
+                _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
+            },
             Operation::Shell {
                 body_feature_id,
                 openings,
