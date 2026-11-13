@@ -29,6 +29,10 @@ mod hole;
 pub mod inspection;
 #[cfg(feature = "native-occt")]
 pub mod job;
+#[cfg(feature = "native-occt")]
+mod mirror_features;
+#[cfg(feature = "native-occt")]
+mod offset_profile;
 pub mod pair_measurements;
 #[cfg(feature = "native-occt")]
 mod pattern;
@@ -43,13 +47,19 @@ mod shell;
 #[cfg(feature = "native-occt")]
 pub mod snapping;
 #[cfg(feature = "native-occt")]
+mod split;
+#[cfg(feature = "native-occt")]
 pub mod step_import;
+#[cfg(feature = "native-occt")]
+mod thicken;
 #[cfg(feature = "native-occt")]
 mod topology_refs;
 #[cfg(feature = "native-occt")]
 mod torus;
 #[cfg(feature = "native-occt")]
 mod transforms;
+#[cfg(feature = "native-occt")]
+mod variable_fillet;
 pub mod worker;
 #[cfg(feature = "native-occt")]
 pub use document::{build_body, build_body_with_assets};

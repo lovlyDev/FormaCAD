@@ -67,6 +67,9 @@
 - [Самостоятельное хранилище проектов](project-storage-v2.md)
 
 - [Нативные операции и паритет](modeling-parity.md)
+- [M4 — инструменты моделирования II](modeling-ii.md)
+- [Утолщение выбранной грани](thicken.md)
+- [Зеркалирование операций](mirror-features.md)
 
 - [Операции поверх импортированного STEP](imported-step-features.md)
 
@@ -85,3 +88,7 @@
 - [Промпт AI для работы по очереди](collaboration-ai-prompt.md).
 - [Области и редакторы](workspace-areas.md): вкладки проектов и пространств, split/join, сохранение viewport, контекстные свойства и навигация.
 - [Подготовка переноса приёмов Blender](blender-parity.md): исследование, локальные доказательства, проверки и ограничения; [тематические заметки](../parity/blender/README.md) и [аудит готовности 2.0](../parity/blender/readiness.md).
+
+- [Смещение профиля](offset-profile.md)
+
+- [Скругление переменного радиуса](variable-fillet.md)

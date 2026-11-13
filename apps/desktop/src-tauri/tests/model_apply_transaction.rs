@@ -24,11 +24,22 @@ mod groups;
 mod inputs;
 #[path = "model_apply_transaction/lifecycle.rs"]
 mod lifecycle;
+#[path = "model_apply_transaction/mirror_features.rs"]
+mod mirror_features;
+#[path = "model_apply_transaction/offset_profile.rs"]
+mod offset_profile;
 #[path = "model_apply_transaction/pattern.rs"]
 mod pattern;
 #[path = "model_apply_transaction/separate_solids.rs"]
 mod separate_solids;
 #[path = "model_apply_transaction/shell.rs"]
 mod shell;
+#[path = "model_apply_transaction/split.rs"]
+mod split;
+#[path = "model_apply_transaction/thicken.rs"]
+mod thicken;
 #[path = "model_apply_transaction/torus.rs"]
 mod torus;
+
+#[path = "model_apply_transaction/variable_fillet.rs"]
+mod variable_fillet;

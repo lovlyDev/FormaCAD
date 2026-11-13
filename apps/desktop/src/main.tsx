@@ -9,13 +9,14 @@ import { getLocale, setLocale } from "./i18n";
 import { applyTheme } from "./lib/theme";
 import { restorePreferences, persist } from "./lib/persistence";
 import { suppressBrowserContextMenu } from "./lib/browserContextMenu";
+import {isTauri} from "@tauri-apps/api/core";
+import {startupProjectRoute} from "./features/project-navigation/startupRoute";
 async function start() {
 await restorePreferences().catch(console.error);
 setLocale(localStorage.getItem("forma.locale") === "en" ? "en" : "ru");
-if (!location.hash || location.hash === "#/") {
-  const saved = localStorage.getItem("forma.ui.route");
-  if (saved && /^#\/project\/[a-zA-Z0-9-]+$/.test(saved)) location.hash = saved;
-}
+const restoredRoute=startupProjectRoute(location.hash,localStorage.getItem("forma.ui.route"),isTauri());
+if(restoredRoute)location.hash=restoredRoute;
+persist("forma.ui.route",location.hash||"#/");
 window.addEventListener("hashchange", () => persist("forma.ui.route", location.hash));
 document.documentElement.lang = getLocale();
 applyTheme(localStorage.getItem("forma.theme") ?? "dark");

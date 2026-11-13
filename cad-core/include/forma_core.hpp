@@ -15,6 +15,8 @@ class TopoDS_Shape;
 
 namespace forma {
 
+class EdgeEndpoints;
+
 enum class BooleanKind;
 
 // No OCCT exception or raw TopoDS_Shape crosses the application boundary.
@@ -41,6 +43,8 @@ public:
 
 private:
   bool update_bounds();
+  friend std::unique_ptr<EdgeEndpoints> variable_fillet_endpoints(const Shape&, const std::string&, const std::string&, const std::string&) noexcept;
+  friend std::unique_ptr<Shape> variable_fillet(const Shape&, const std::string&, const std::string&, const std::string&, double, double) noexcept;
   friend std::unique_ptr<Shape> failure(const char*, const char*) noexcept;
   friend std::unique_ptr<Shape> checked(TopoDS_Shape) noexcept;
   friend bool datum_anchor(const Shape&, int, const std::string&, const std::string&,
@@ -69,6 +73,9 @@ private:
   friend std::unique_ptr<Shape> fillet_edge(const Shape&, const std::string&, double) noexcept;
   friend std::unique_ptr<Shape> chamfer_all_edges(const Shape&, double) noexcept;
   friend std::unique_ptr<Shape> shell(const Shape&, const std::string&, const std::string&, const std::string&, double) noexcept;
+  friend std::unique_ptr<Shape> mirror_features(const Shape&, const Shape&, bool, double, double, double, double, double, double) noexcept;
+  friend std::unique_ptr<Shape> thicken_face(const Shape&, const std::string&, const std::string&, const std::string&, double) noexcept;
+  friend std::unique_ptr<Shape> split_by_plane(const Shape&, double, double, double, double, double, double, bool) noexcept;
   friend std::unique_ptr<Shape> extract_solid(const Shape&, int, int) noexcept;
   friend std::unique_ptr<Shape> pattern_linear(const Shape&, int, double, double, double, int, double, double, double) noexcept;
   friend std::unique_ptr<Shape> pattern_circular(const Shape&, int, double, double, double, double, double, double, double) noexcept;

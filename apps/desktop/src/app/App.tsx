@@ -115,7 +115,11 @@ import { captureFaceExtrusion, faceExtrusionTarget } from "../features/face-extr
 import type { FaceSelection } from "../features/viewer/faceSelection";
 import type { EdgeSelection } from "../features/viewer/edgeSelection";
 import { EdgeBlendDialog } from "../features/edge-blend/EdgeBlendDialog";
-import { BooleanDialog } from "../features/boolean-tool/BooleanDialog";
+import { useProjectRoute } from "../features/project-navigation/useProjectRoute";
+import { offsetProfileBodies } from "../features/offset-profile/offsetProfileCommand";
+import { mirrorBodies } from "../features/mirror-features/mirrorFeaturesCommand";
+import { thickenIntent,type ThickenIntent } from "../features/thicken/thickenCommand";
+import { BodyOperationDialog } from "../features/body-operations/BodyOperationDialog";
 import { booleanBodies } from "../features/boolean-tool/booleanCommand";
 import { edgeBlendTarget } from "../features/edge-blend/edgeBlendCommand";
 import { ShellDialog } from "../features/shell/ShellDialog";
@@ -173,13 +177,13 @@ export default function App() {
     staleTime: 60000,
   });
   const [modal, setModal] = useState<
-    "new" | "settings" | "export" | "palette" | "parameters" | "torus" | "datum" | "faceExtrusion" | "edgeBlend" | "shell" | "pattern" | "duplicateBody" | "boolean" | null
+    "new" | "settings" | "export" | "palette" | "parameters" | "torus" | "datum" | "faceExtrusion" | "edgeBlend" | "shell" | "pattern" | "duplicateBody" | "boolean" | "split" | "thicken" | "mirrorFeatures" | "offsetProfile" | null
   >(null);
   const [torusTarget, setTorusTarget] = useState<{ id: string; revision: string | null } | null>(null);
   const [datumTarget, setDatumTarget] = useState<{ id: string; revision: string | null; kind: DatumKind; sources: DatumSourceOption[] } | null>(null);
   const [faceExtrusion, setFaceExtrusion] = useState<{ projectId: string; selection: FaceSelection; initialMm?: number } | null>(null);
   const [edgeBlend, setEdgeBlend] = useState<{ projectId: string; selection: readonly EdgeSelection[] } | null>(null);
-  const [booleanTarget, setBooleanTarget] = useState<{ projectId: string; revision: string | null; initialTarget: string } | null>(null);
+  const [bodyToolTarget, setBodyToolTarget] = useState<{ projectId: string; revision: string | null; initialTarget: string; thicken?: ThickenIntent } | null>(null);
   const [shellSelection, setShellSelection] = useState<{ projectId: string; selection: FaceSelection } | null>(null);
   const [patternSelection, setPatternSelection] = useState<{ projectId: string; revision: string | null; bodyId: string } | null>(null);
   const [duplicateSelection, setDuplicateSelection] = useState<{ projectId: string; revision: string | null; bodyId: string; spacingMm: number } | null>(null);
@@ -366,10 +370,33 @@ export default function App() {
   const openBoolean = !editingBlocked && !pending && !modal && project && booleanOptions.length >= 2
     ? () => {
         const initialTarget = booleanOptions.find((body) => body.id === selected)?.id ?? booleanOptions[0].id;
-        setBooleanTarget({ projectId: project.id, revision: project.currentRevision, initialTarget });
+        setBodyToolTarget({ projectId: project.id, revision: project.currentRevision, initialTarget });
         setModal("boolean");
       }
     : undefined;
+  const offsetOptions=project?offsetProfileBodies(project).filter(body=>booleanOptions.some(eligible=>eligible.id===body.id)):[];
+  const openOffsetProfile=!editingBlocked&&!pending&&!modal&&project&&offsetOptions.length?()=>{
+    const initialTarget=offsetOptions.find(body=>body.id===selected)?.id??(offsetOptions.length===1?offsetOptions[0].id:"");
+    setBodyToolTarget({projectId:project.id,revision:project.currentRevision,initialTarget});setModal("offsetProfile");
+  }:undefined;
+  const mirrorOptions = project ? mirrorBodies(project).filter(body=>booleanOptions.some(eligible=>eligible.id===body.id)) : [];
+  const openMirrorFeatures = !editingBlocked && !pending && !modal && project && mirrorOptions.length
+    ? () => {
+        const initialTarget=mirrorOptions.find(body=>body.id===selected)?.id ?? (mirrorOptions.length===1?mirrorOptions[0].id:"");
+        setBodyToolTarget({projectId:project.id,revision:project.currentRevision,initialTarget});setModal("mirrorFeatures");
+      } : undefined;
+  const thickenInput = project ? thickenIntent(project,selectedFace) : null;
+  const openThicken = !editingBlocked && !pending && !modal && project && thickenInput && booleanOptions.some(body=>body.id===thickenInput.bodyId)
+    ? () => {
+        setBodyToolTarget({projectId:project.id,revision:project.currentRevision,initialTarget:thickenInput.bodyId,thicken:thickenInput});
+        setModal("thicken");
+      } : undefined;
+  const openSplit = !editingBlocked && !pending && !modal && project && booleanOptions.length
+    ? () => {
+        const initialTarget = booleanOptions.find(body => body.id === selected)?.id ?? (booleanOptions.length === 1 ? booleanOptions[0].id : "");
+        setBodyToolTarget({projectId:project.id,revision:project.currentRevision,initialTarget});
+        setModal("split");
+      } : undefined;
   useEffect(() => {
     bodies.forEach((body, index) => {
       body.userData.formaSelectionLocked = lockedBodies.includes(
@@ -482,18 +509,7 @@ export default function App() {
     },
     [before],
   );
-  useEffect(() => {
-    const activeProject = useWorkspace.getState().project;
-    if (!projectId) {
-      if (activeProject) setProject(null);
-      return;
-    }
-    if (projects.data && activeProject?.id !== projectId) {
-      const p = projects.data.find((p) => p.id === projectId);
-      if (p) setProject(p);
-      else nav("/");
-    }
-  }, [projectId, projects.data, setProject, nav]);
+  useProjectRoute(projects.data);
   useEffect(() => {
     if (notice) {
       const t = setTimeout(() => setNotice(""), 5000);
@@ -1031,6 +1047,10 @@ export default function App() {
               duplicateBody: openDuplicateBody,
               separateSolids: openSeparateSolids,
               booleanOperation: openBoolean,
+              splitBody: openSplit,
+              thickenFace: openThicken,
+              mirrorFeatures: openMirrorFeatures,
+              offsetProfile: openOffsetProfile,
               palette: () => setModal("palette"),
               settings: (page) => {
                 if (page) persist("forma.ui.settingsPage", JSON.stringify(page));
@@ -1708,14 +1728,14 @@ export default function App() {
             }, "modify_project", project.id);
           }} />
       )}
-      {modal === "boolean" && booleanTarget && project?.id === booleanTarget.projectId && (
-        <BooleanDialog project={project} bodies={booleanOptions} initialTarget={booleanTarget.initialTarget}
-          disabled={editingBlocked || project.currentRevision !== booleanTarget.revision || booleanOptions.length < 2}
-          close={() => { setBooleanTarget(null); setModal(null); }}
-          apply={(operation) => {
-            setBooleanTarget(null);
+      {(modal === "boolean" || modal === "split" || modal === "thicken" || modal === "mirrorFeatures" || modal === "offsetProfile") && bodyToolTarget && project?.id === bodyToolTarget.projectId && (
+        <BodyOperationDialog kind={modal} thicken={bodyToolTarget.thicken} project={project} bodies={modal === "mirrorFeatures" ? mirrorOptions : modal === "offsetProfile" ? offsetOptions : booleanOptions} initialTarget={bodyToolTarget.initialTarget}
+          disabled={editingBlocked || project.currentRevision !== bodyToolTarget.revision || booleanOptions.length < (modal === "boolean" ? 2 : 1) || (modal === "thicken" && !booleanOptions.some(body=>body.id===bodyToolTarget.initialTarget))}
+          close={() => { setBodyToolTarget(null); setModal(null); }}
+          apply={(operation, description) => {
+            setBodyToolTarget(null);
             setModal(null);
-            void ask(operation.captured.prompt, t("The target body changes. The tool body remains available separately."),
+            void ask(operation.captured.prompt, t(description),
               project.name, async () => {
                 setBusy(true, t("Построение геометрии"));
                 try {

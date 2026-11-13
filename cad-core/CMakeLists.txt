@@ -56,6 +56,11 @@ add_library(forma_cad_core STATIC
   src/extrude_face.cpp
   src/shell.cpp
   src/pattern.cpp
+  src/split.cpp
+  src/thicken.cpp
+  src/mirror_features.cpp
+  src/offset_profile.cpp
+  src/variable_fillet.cpp
   src/separate_solids.cpp
   src/cone.cpp
   src/fillet.cpp
@@ -75,6 +80,37 @@ target_link_libraries(forma_cad_core PUBLIC ${FORMA_OCCT_LIBRARIES})
 
 include(CTest)
 if(BUILD_TESTING)
+  add_executable(forma_variable_fillet_test tests/variable_fillet_test.cpp)
+  target_link_libraries(forma_variable_fillet_test PRIVATE forma_cad_core)
+  add_test(NAME forma_variable_fillet_test COMMAND forma_variable_fillet_test)
+  if(WIN32)
+    set_tests_properties(forma_variable_fillet_test PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OpenCASCADE_BINARY_DIR}")
+  endif()
+  add_executable(forma_offset_profile_test tests/offset_profile_test.cpp)
+  target_link_libraries(forma_offset_profile_test PRIVATE forma_cad_core)
+  add_test(NAME forma_offset_profile_test COMMAND forma_offset_profile_test)
+  if(WIN32)
+    set_tests_properties(forma_offset_profile_test PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OpenCASCADE_BINARY_DIR}")
+  endif()
+  add_executable(forma_mirror_features_test tests/mirror_features_test.cpp)
+  target_link_libraries(forma_mirror_features_test PRIVATE forma_cad_core)
+  add_test(NAME forma_mirror_features_test COMMAND forma_mirror_features_test)
+  if(WIN32)
+    set_tests_properties(forma_mirror_features_test PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OpenCASCADE_BINARY_DIR}")
+  endif()
+  add_executable(forma_thicken_test tests/thicken_test.cpp)
+  target_link_libraries(forma_thicken_test PRIVATE forma_cad_core)
+  target_include_directories(forma_thicken_test PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+  add_test(NAME forma_thicken_test COMMAND forma_thicken_test)
+  if(WIN32)
+    set_tests_properties(forma_thicken_test PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OpenCASCADE_BINARY_DIR}")
+  endif()
+  add_executable(forma_split_test tests/split_test.cpp)
+  target_link_libraries(forma_split_test PRIVATE forma_cad_core)
+  add_test(NAME forma_split_test COMMAND forma_split_test)
+  if(WIN32)
+    set_tests_properties(forma_split_test PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OpenCASCADE_BINARY_DIR}")
+  endif()
   add_executable(forma_pattern_test tests/pattern_test.cpp)
   target_link_libraries(forma_pattern_test PRIVATE forma_cad_core)
   add_test(NAME forma_pattern_test COMMAND forma_pattern_test)
@@ -223,6 +259,7 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING)
+
   add_executable(forma_profile_test tests/profile_test.cpp)
   add_executable(forma_section_test tests/section_test.cpp)
   target_link_libraries(forma_section_test PRIVATE forma_cad_core)

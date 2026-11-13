@@ -67,6 +67,9 @@ These guides describe the consolidated 1.2.6 candidate and its limits. Final pac
 - [Self-contained project storage](project-storage-v2.md)
 
 - [Native operations and parity](modeling-parity.md)
+- [M4 — modeling tools II](modeling-ii.md)
+- [Thicken a selected face](thicken.md)
+- [Mirror modeling operations](mirror-features.md)
 
 - [Operations on imported STEP](imported-step-features.md)
 
@@ -85,3 +88,7 @@ These guides describe the consolidated 1.2.6 candidate and its limits. Final pac
 - [AI prompt for alternating development](collaboration-ai-prompt.md).
 - [Workspace areas and editors](workspace-areas.md): project/workspace tabs, split/join, stable viewport, contextual properties and navigation settings.
 - [Preparing Blender workflow adaptations](blender-parity.md): research method, local evidence, checks and limitations; [topic notes](../parity/blender/README.md) and [2.0 gap inventory](../parity/blender/readiness.md).
+
+- [Offset profile](offset-profile.md)
+
+- [Variable radius fillet](variable-fillet.md)

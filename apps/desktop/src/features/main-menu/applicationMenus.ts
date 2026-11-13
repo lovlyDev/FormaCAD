@@ -14,6 +14,10 @@ interface Actions {
   duplicateBody?: () => void;
   separateSolids?: () => void;
   booleanOperation?: () => void;
+  splitBody?: () => void;
+  thickenFace?: () => void;
+  mirrorFeatures?: () => void;
+  offsetProfile?: () => void;
   palette: () => void;
   settings: (page?: string) => void;
   workspaces: () => void;
@@ -151,6 +155,30 @@ export function applicationMenus(
           shortcut: "P",
           disabled: !actions.separateSolids,
           run: () => actions.separateSolids?.(),
+        },
+        {
+          id: "offsetProfile",
+          label: t("Offset profile"),
+          disabled: !actions.offsetProfile,
+          run: () => actions.offsetProfile?.(),
+        },
+        {
+          id: "mirrorFeatures",
+          label: t("Mirror features"),
+          disabled: !actions.mirrorFeatures,
+          run: () => actions.mirrorFeatures?.(),
+        },
+        {
+          id: "thickenFace",
+          label: t("Thicken face"),
+          disabled: !actions.thickenFace,
+          run: () => actions.thickenFace?.(),
+        },
+        {
+          id: "splitBody",
+          label: t("Split body by plane"),
+          disabled: !actions.splitBody,
+          run: () => actions.splitBody?.(),
         },
         {
           id: "booleanOperation",

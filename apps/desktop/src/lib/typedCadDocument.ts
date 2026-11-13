@@ -36,10 +36,12 @@ export function readTypedCadDocument(source: string): TypedCadDocument | null {
 export function featureDependencies(feature: TypedCadFeature): string[] {
   const op = feature.operation;
   switch (op.type) {
+    case "offsetProfile":
     case "extrude":
     case "revolve":
       return typeof op.sketchId === "string" ? [op.sketchId] : [];
     case "hole":
+    case "thickenFace":
     case "extrudeFace":
     case "shell":
     case "patternLinear":
@@ -48,13 +50,17 @@ export function featureDependencies(feature: TypedCadFeature): string[] {
     case "fillet":
     case "filletEdge":
     case "filletReferencedEdge":
+    case "variableFillet":
     case "chamfer":
     case "chamferReferencedEdge":
     case "translate":
     case "transform":
     case "rotate":
+    case "splitPlane":
     case "mirror":
       return typeof op.bodyFeatureId === "string" ? [op.bodyFeatureId] : [];
+    case "mirrorFeatures":
+      return [op.bodyFeatureId,op.baseFeatureId,...(Array.isArray(op.featureIds)?op.featureIds:[])].filter((id):id is string=>typeof id==="string");
     case "boolean":
       return [op.leftFeatureId, op.rightFeatureId].filter(
         (value): value is string => typeof value === "string",
@@ -74,11 +80,14 @@ export function canSuppressFeature(feature: TypedCadFeature): boolean {
     "fillet",
     "filletEdge",
     "filletReferencedEdge",
+    "variableFillet",
     "chamfer",
     "chamferReferencedEdge",
     "translate",
     "transform",
     "rotate",
+    "mirrorFeatures",
+    "splitPlane",
     "mirror",
   ].includes(feature.operation.type);
 }
@@ -91,6 +100,7 @@ export function solidFeature(feature: TypedCadFeature): boolean {
     "torus",
     "cone",
     "extrude",
+    "thickenFace",
     "extrudeFace",
     "shell",
     "patternLinear",
@@ -100,11 +110,14 @@ export function solidFeature(feature: TypedCadFeature): boolean {
     "fillet",
     "filletEdge",
     "filletReferencedEdge",
+    "variableFillet",
     "chamfer",
     "chamferReferencedEdge",
     "translate",
     "transform",
     "rotate",
+    "mirrorFeatures",
+    "splitPlane",
     "mirror",
     "boolean",
   ].includes(feature.operation.type);

@@ -62,6 +62,10 @@ impl Document {
                 | Operation::Sphere { .. }
                 | Operation::Torus { .. }
                 | Operation::ExtrudeFace { .. }
+                | Operation::ThickenFace { .. }
+                | Operation::MirrorFeatures { .. }
+                | Operation::OffsetProfile { .. }
+                | Operation::VariableFillet { .. }
                 | Operation::DatumPlane { .. }
                 | Operation::DatumAxis { .. }
                 | Operation::DatumPoint { .. }
@@ -79,6 +83,7 @@ impl Document {
                 | Operation::ExtractSolid { .. }
                 | Operation::Rotate { .. }
                 | Operation::Transform { .. }
+                | Operation::SplitPlane { .. }
                 | Operation::Mirror { .. }
                 | Operation::Revolve { .. } => {
                     return Err(app_error(ValidationError::new(
