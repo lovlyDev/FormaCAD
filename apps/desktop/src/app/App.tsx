@@ -115,6 +115,7 @@ import { captureFaceExtrusion, faceExtrusionTarget } from "../features/face-extr
 import type { FaceSelection } from "../features/viewer/faceSelection";
 import type { EdgeSelection } from "../features/viewer/edgeSelection";
 import { EdgeBlendDialog } from "../features/edge-blend/EdgeBlendDialog";
+import { useProjectRoute } from "../features/project-navigation/useProjectRoute";
 import { mirrorBodies } from "../features/mirror-features/mirrorFeaturesCommand";
 import { thickenIntent,type ThickenIntent } from "../features/thicken/thickenCommand";
 import { BodyOperationDialog } from "../features/body-operations/BodyOperationDialog";
@@ -502,18 +503,7 @@ export default function App() {
     },
     [before],
   );
-  useEffect(() => {
-    const activeProject = useWorkspace.getState().project;
-    if (!projectId) {
-      if (activeProject) setProject(null);
-      return;
-    }
-    if (projects.data && activeProject?.id !== projectId) {
-      const p = projects.data.find((p) => p.id === projectId);
-      if (p) setProject(p);
-      else nav("/");
-    }
-  }, [projectId, projects.data, setProject, nav]);
+  useProjectRoute(projects.data);
   useEffect(() => {
     if (notice) {
       const t = setTimeout(() => setNotice(""), 5000);
