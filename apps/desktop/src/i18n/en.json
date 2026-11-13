@@ -1663,5 +1663,19 @@
   "PROFILE_OFFSET_FAILED": "Profile offset failed. Check the geometry and reduce the offset.",
   "PROFILE_EXTRUSION_FAILED": "Planar profile extrusion failed.",
   "PROFILE_REVOLUTION_FAILED": "Planar profile revolution failed.",
-  "Offset the extrusion profile. The source profile stays linked and the distance expression is retained.": "Offset the extrusion profile. The source profile stays linked and the distance expression is retained."
+  "Offset the extrusion profile. The source profile stays linked and the distance expression is retained.": "Offset the extrusion profile. The source profile stays linked and the distance expression is retained.",
+  "Variable radius fillet": "Variable radius fillet",
+  "Radii follow the exact BREP endpoints. Only one open edge is processed.": "Radii follow the exact BREP endpoints. Only one open edge is processed.",
+  "Select exactly one open edge for variable fillet.": "Select exactly one open edge for variable fillet.",
+  "Reading exact edge endpoints…": "Reading exact edge endpoints…",
+  "Start endpoint (CAD X, Y, Z), mm": "Start endpoint (CAD X, Y, Z), mm",
+  "End endpoint (CAD X, Y, Z), mm": "End endpoint (CAD X, Y, Z), mm",
+  "Start radius (mm)": "Start radius (mm)",
+  "End radius (mm)": "End radius (mm)",
+  "The rolling-ball radius varies linearly along the edge spine. Closed edges and expanded tangent chains are rejected.": "The rolling-ball radius varies linearly along the edge spine. Closed edges and expanded tangent chains are rejected.",
+  "Swap endpoint radii": "Swap endpoint radii",
+  "Constant radius or chamfer": "Constant radius or chamfer",
+  "VARIABLE_FILLET_FAILED": "Could not build the variable fillet. Reduce the radii and check the selected edge.",
+  "VARIABLE_FILLET_CLOSED_EDGE": "Variable fillet needs two distinct endpoints. Closed edges are not supported.",
+  "VARIABLE_FILLET_CHAIN_UNSUPPORTED": "This edge expands into a tangent chain. Select one open edge without that expansion."
 }

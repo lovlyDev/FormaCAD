@@ -1663,5 +1663,19 @@
   "PROFILE_OFFSET_FAILED": "Не удалось сместить профиль. Проверьте геометрию и уменьшите смещение.",
   "PROFILE_EXTRUSION_FAILED": "Не удалось вытянуть плоский профиль.",
   "PROFILE_REVOLUTION_FAILED": "Не удалось выполнить вращение плоского профиля.",
-  "Offset the extrusion profile. The source profile stays linked and the distance expression is retained.": "Сместите профиль вытягивания. Исходный профиль остаётся зависимостью, выражение длины сохраняется."
+  "Offset the extrusion profile. The source profile stays linked and the distance expression is retained.": "Сместите профиль вытягивания. Исходный профиль остаётся зависимостью, выражение длины сохраняется.",
+  "Variable radius fillet": "Скругление переменного радиуса",
+  "Radii follow the exact BREP endpoints. Only one open edge is processed.": "Радиусы привязаны к точным концам BREP-ребра. Обрабатывается одно открытое ребро.",
+  "Select exactly one open edge for variable fillet.": "Для переменного скругления выберите ровно одно открытое ребро.",
+  "Reading exact edge endpoints…": "Чтение точных концов ребра…",
+  "Start endpoint (CAD X, Y, Z), mm": "Начало ребра (CAD X, Y, Z), мм",
+  "End endpoint (CAD X, Y, Z), mm": "Конец ребра (CAD X, Y, Z), мм",
+  "Start radius (mm)": "Радиус в начале (мм)",
+  "End radius (mm)": "Радиус в конце (мм)",
+  "The rolling-ball radius varies linearly along the edge spine. Closed edges and expanded tangent chains are rejected.": "Радиус катящегося шара линейно меняется вдоль направляющей ребра. Замкнутые рёбра и расширенные касательные цепочки отклоняются.",
+  "Swap endpoint radii": "Поменять радиусы местами",
+  "Constant radius or chamfer": "Постоянный радиус или фаска",
+  "VARIABLE_FILLET_FAILED": "Не удалось построить переменное скругление. Уменьшите радиусы и проверьте выбранное ребро.",
+  "VARIABLE_FILLET_CLOSED_EDGE": "Переменное скругление требует ребра с двумя различными концами. Замкнутое ребро не поддерживается.",
+  "VARIABLE_FILLET_CHAIN_UNSUPPORTED": "Это ребро расширяется в касательную цепочку. Выберите одно открытое ребро без такого расширения."
 }
