@@ -13,7 +13,9 @@ impl Operation {
                     result
                 }
             },
-            Self::Extrude { sketch_id, .. } | Self::Revolve { sketch_id, .. } => vec![sketch_id],
+            Self::Extrude { sketch_id, .. }
+            | Self::Revolve { sketch_id, .. }
+            | Self::OffsetProfile { sketch_id, .. } => vec![sketch_id],
             Self::MirrorFeatures {
                 body_feature_id,
                 base_feature_id,

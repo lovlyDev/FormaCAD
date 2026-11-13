@@ -9,6 +9,7 @@ enum FeatureValue {
     Rectangle(f64, f64),
     Circle(f64),
     Solid(Solid),
+    Profile(super::offset_profile::Profile),
     Alias(String),
 }
 
@@ -153,11 +154,38 @@ pub fn build_body_with_assets(
                 dimension(top_radius, &parameters)?,
                 dimension(height, &parameters)?,
             )?),
+            Operation::OffsetProfile {
+                sketch_id,
+                offset,
+                join,
+            } => {
+                use super::offset_profile::Profile;
+                let distance = dimension(offset, &parameters)?;
+                let source = match get(sketch_id)? {
+                    FeatureValue::Rectangle(w, d) => {
+                        Profile::rectangle(*w, *d)?.offset(distance, *join)?
+                    }
+                    FeatureValue::Circle(r) => Profile::circle(*r)?.offset(distance, *join)?,
+                    FeatureValue::Sketch(sketch) => {
+                        Profile::sketch(sketch)?.offset(distance, *join)?
+                    }
+                    FeatureValue::Profile(profile) => profile.offset(distance, *join)?,
+                    _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", sketch_id)),
+                };
+                FeatureValue::Profile(source)
+            }
             Operation::Extrude {
                 sketch_id,
                 distance,
             } => {
                 let height = dimension(distance, &parameters)?;
+                if let FeatureValue::Profile(profile) = get(sketch_id)? {
+                    features.insert(
+                        feature.id.as_str(),
+                        FeatureValue::Solid(profile.extrude(height)?),
+                    );
+                    continue;
+                }
                 let solid = match get(sketch_id)? {
                     FeatureValue::Rectangle(width, depth) => {
                         if height > 0.0 {
@@ -174,7 +202,7 @@ pub fn build_body_with_assets(
                         }
                     }
                     FeatureValue::Sketch(sketch) => Solid::polygon_prism(sketch, height)?,
-                    FeatureValue::Solid(_) | FeatureValue::Alias(_) => {
+                    FeatureValue::Solid(_) | FeatureValue::Alias(_) | FeatureValue::Profile(_) => {
                         return Err(ir_error("REFERENCE_TYPE_MISMATCH", sketch_id));
                     }
                 };
@@ -190,6 +218,11 @@ pub fn build_body_with_assets(
                 axis_direction,
                 angle_deg,
             } => match get(sketch_id)? {
+                FeatureValue::Profile(profile) => FeatureValue::Solid(profile.revolve(
+                    *axis_origin_mm,
+                    *axis_direction,
+                    *angle_deg,
+                )?),
                 FeatureValue::Sketch(sketch) => FeatureValue::Solid(Solid::revolved_profile(
                     sketch,
                     *axis_origin_mm,

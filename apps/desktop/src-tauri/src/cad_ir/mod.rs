@@ -9,6 +9,7 @@ mod groups;
 pub mod pattern;
 pub use groups::BodyGroup;
 pub(crate) mod mirror_features;
+pub mod offset_profile;
 pub(crate) mod shell;
 pub mod split;
 pub mod topology_refs;
@@ -186,6 +187,11 @@ pub enum Operation {
         body_feature_id: String,
         reference: TopologyReference,
         distance: Dimension,
+    },
+    OffsetProfile {
+        sketch_id: String,
+        offset: Dimension,
+        join: offset_profile::ProfileJoin,
     },
     MirrorFeatures {
         body_feature_id: String,

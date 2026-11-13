@@ -200,6 +200,13 @@ impl Document {
                     check_dimension(height, &parameters, false, id)?;
                     FeatureKind::Solid
                 }
+                Operation::OffsetProfile {
+                    sketch_id, offset, ..
+                } => {
+                    reference(sketch_id, FeatureKind::Sketch)?;
+                    check_dimension(offset, &parameters, true, id)?;
+                    FeatureKind::ProfileSketch
+                }
                 Operation::Extrude {
                     sketch_id,
                     distance,

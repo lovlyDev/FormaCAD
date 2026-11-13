@@ -64,6 +64,7 @@ impl Document {
                 | Operation::ExtrudeFace { .. }
                 | Operation::ThickenFace { .. }
                 | Operation::MirrorFeatures { .. }
+                | Operation::OffsetProfile { .. }
                 | Operation::DatumPlane { .. }
                 | Operation::DatumAxis { .. }
                 | Operation::DatumPoint { .. }

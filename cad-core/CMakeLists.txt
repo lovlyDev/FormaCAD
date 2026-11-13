@@ -59,6 +59,7 @@ add_library(forma_cad_core STATIC
   src/split.cpp
   src/thicken.cpp
   src/mirror_features.cpp
+  src/offset_profile.cpp
   src/separate_solids.cpp
   src/cone.cpp
   src/fillet.cpp
@@ -78,6 +79,12 @@ target_link_libraries(forma_cad_core PUBLIC ${FORMA_OCCT_LIBRARIES})
 
 include(CTest)
 if(BUILD_TESTING)
+  add_executable(forma_offset_profile_test tests/offset_profile_test.cpp)
+  target_link_libraries(forma_offset_profile_test PRIVATE forma_cad_core)
+  add_test(NAME forma_offset_profile_test COMMAND forma_offset_profile_test)
+  if(WIN32)
+    set_tests_properties(forma_offset_profile_test PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OpenCASCADE_BINARY_DIR}")
+  endif()
   add_executable(forma_mirror_features_test tests/mirror_features_test.cpp)
   target_link_libraries(forma_mirror_features_test PRIVATE forma_cad_core)
   add_test(NAME forma_mirror_features_test COMMAND forma_mirror_features_test)

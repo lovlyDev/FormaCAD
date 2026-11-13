@@ -16,7 +16,7 @@ fn main() {
                 .expect("FORMA_OCCT_ROOT must point to an installed OCCT triplet"),
         );
         let (includes, libraries) = occt::directories(&root);
-        cxx_build::bridge("src/native/kernel.rs")
+        cxx_build::bridges(["src/native/kernel.rs", "src/native/offset_profile.rs"])
             .file("../../../cad-core/src/shape.cpp")
             .file("../../../cad-core/src/measurements.cpp")
             .file("../../../cad-core/src/face_measurements.cpp")
@@ -43,6 +43,7 @@ fn main() {
             .file("../../../cad-core/src/split.cpp")
             .file("../../../cad-core/src/thicken.cpp")
             .file("../../../cad-core/src/mirror_features.cpp")
+            .file("../../../cad-core/src/offset_profile.cpp")
             .file("../../../cad-core/src/separate_solids.cpp")
             .file("../../../cad-core/src/cone.cpp")
             .file("../../../cad-core/src/fillet.cpp")
@@ -66,6 +67,8 @@ fn main() {
             .compile("forma_native_bridge");
         occt::link(&libraries);
         println!("cargo:rerun-if-changed=src/native/kernel.rs");
+        println!("cargo:rerun-if-changed=src/native/offset_profile.rs");
+        println!("cargo:rerun-if-changed=../../../cad-core/include/forma_offset_profile.hpp");
         println!("cargo:rerun-if-changed=build/occt.rs");
         println!("cargo:rerun-if-changed=../../../cad-core/src");
         println!("cargo:rerun-if-changed=../../../cad-core/include/forma_core.hpp");

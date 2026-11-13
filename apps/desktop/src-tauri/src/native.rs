@@ -31,6 +31,8 @@ pub mod inspection;
 pub mod job;
 #[cfg(feature = "native-occt")]
 mod mirror_features;
+#[cfg(feature = "native-occt")]
+mod offset_profile;
 pub mod pair_measurements;
 #[cfg(feature = "native-occt")]
 mod pattern;
