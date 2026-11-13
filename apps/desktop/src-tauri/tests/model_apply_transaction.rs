@@ -40,3 +40,6 @@ mod split;
 mod thicken;
 #[path = "model_apply_transaction/torus.rs"]
 mod torus;
+
+#[path = "model_apply_transaction/variable_fillet.rs"]
+mod variable_fillet;

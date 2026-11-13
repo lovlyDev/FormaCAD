@@ -90,3 +90,5 @@
 - [Подготовка переноса приёмов Blender](blender-parity.md): исследование, локальные доказательства, проверки и ограничения; [тематические заметки](../parity/blender/README.md) и [аудит готовности 2.0](../parity/blender/readiness.md).
 
 - [Смещение профиля](offset-profile.md)
+
+- [Скругление переменного радиуса](variable-fillet.md)

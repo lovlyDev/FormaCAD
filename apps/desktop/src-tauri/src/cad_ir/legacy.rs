@@ -65,6 +65,7 @@ impl Document {
                 | Operation::ThickenFace { .. }
                 | Operation::MirrorFeatures { .. }
                 | Operation::OffsetProfile { .. }
+                | Operation::VariableFillet { .. }
                 | Operation::DatumPlane { .. }
                 | Operation::DatumAxis { .. }
                 | Operation::DatumPoint { .. }

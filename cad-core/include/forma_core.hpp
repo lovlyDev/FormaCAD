@@ -15,6 +15,8 @@ class TopoDS_Shape;
 
 namespace forma {
 
+class EdgeEndpoints;
+
 enum class BooleanKind;
 
 // No OCCT exception or raw TopoDS_Shape crosses the application boundary.
@@ -41,6 +43,8 @@ public:
 
 private:
   bool update_bounds();
+  friend std::unique_ptr<EdgeEndpoints> variable_fillet_endpoints(const Shape&, const std::string&, const std::string&, const std::string&) noexcept;
+  friend std::unique_ptr<Shape> variable_fillet(const Shape&, const std::string&, const std::string&, const std::string&, double, double) noexcept;
   friend std::unique_ptr<Shape> failure(const char*, const char*) noexcept;
   friend std::unique_ptr<Shape> checked(TopoDS_Shape) noexcept;
   friend bool datum_anchor(const Shape&, int, const std::string&, const std::string&,

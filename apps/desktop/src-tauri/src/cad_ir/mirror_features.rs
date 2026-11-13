@@ -21,6 +21,9 @@ pub(crate) fn input(operation: &Operation) -> Input<'_> {
         | Operation::FilletEdge {
             body_feature_id, ..
         }
+        | Operation::VariableFillet {
+            body_feature_id, ..
+        }
         | Operation::FilletReferencedEdge {
             body_feature_id, ..
         }

@@ -58,6 +58,8 @@ mod topology_refs;
 mod torus;
 #[cfg(feature = "native-occt")]
 mod transforms;
+#[cfg(feature = "native-occt")]
+mod variable_fillet;
 pub mod worker;
 #[cfg(feature = "native-occt")]
 pub use document::{build_body, build_body_with_assets};

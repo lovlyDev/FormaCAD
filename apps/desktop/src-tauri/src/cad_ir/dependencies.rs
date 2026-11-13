@@ -32,6 +32,11 @@ impl Operation {
                 reference,
                 ..
             }
+            | Self::VariableFillet {
+                body_feature_id,
+                reference,
+                ..
+            }
             | Self::ThickenFace {
                 body_feature_id,
                 reference,
@@ -135,6 +140,9 @@ impl Operation {
     /// Generators and multi-input booleans cannot be suppressed safely.
     pub fn suppression_source(&self) -> Option<&str> {
         match self {
+            Self::VariableFillet {
+                body_feature_id, ..
+            } => Some(body_feature_id),
             Self::MirrorFeatures {
                 body_feature_id, ..
             } => Some(body_feature_id),

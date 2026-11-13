@@ -14,6 +14,7 @@ pub(crate) mod shell;
 pub mod split;
 pub mod topology_refs;
 mod torus;
+mod variable_fillet;
 pub use topology_refs::{TopologyKind, TopologyReference};
 
 pub const SCHEMA_VERSION: u32 = 2;
@@ -259,6 +260,12 @@ pub enum Operation {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         additional_references: Vec<TopologyReference>,
         radius: Dimension,
+    },
+    VariableFillet {
+        body_feature_id: String,
+        reference: TopologyReference,
+        radius_start: Dimension,
+        radius_end: Dimension,
     },
     Chamfer {
         body_feature_id: String,

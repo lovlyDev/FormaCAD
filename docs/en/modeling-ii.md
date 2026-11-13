@@ -2,7 +2,7 @@
 
 [Documentation](index.md) · [Русский](../ru/modeling-ii.md) · [Plan](../architecture-2.0.md)
 
-Branch task/m4-modeling-tools starts at main 8cb40fd (1.7.0-beta.1), Issue #21. This turn adds offset-profile on top of split and mirror-features. The previously added ThickenFace remains in the branch; renewed acceptance of thicken is next. This records current progress; it does not declare all of M4 complete.
+Branch task/m4-modeling-tools starts at main 8cb40fd (1.7.0-beta.1), Issue #21. This turn adds offset-profile on top of split and mirror-features. Renewed ThickenFace acceptance is complete, including fractional thickness and green CI. This records current progress; it does not declare all of M4 complete.
 
 ## Modules and acceptance
 
@@ -81,3 +81,7 @@ The original local persistence/workspace e2e tests failed 2/2 on hover before th
 ## Offset profile
 
 [Offset profile](offset-profile.md) — a separate exact extrusion-profile offset module. BREP, STEP, staged rollback and the built app in RU/EN × dark/light passed (4/4); measurements are recorded in its guide.
+
+## Variable radius
+
+The [guide](variable-fillet.md) covers the separate C++/Rust/UI modules, explicit endpoint radius binding and limits. Validation is in progress; this does not declare all M4 complete.

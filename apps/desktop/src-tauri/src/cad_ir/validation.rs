@@ -284,6 +284,27 @@ impl Document {
                     check_dimension(distance, &parameters, false, id)?;
                     FeatureKind::Solid
                 }
+                Operation::VariableFillet {
+                    body_feature_id,
+                    reference: topology,
+                    radius_start,
+                    radius_end,
+                } => {
+                    reference(body_feature_id, FeatureKind::Solid)?;
+                    check_dimension(radius_start, &parameters, false, id)?;
+                    check_dimension(radius_end, &parameters, false, id)?;
+                    if !topology.is_valid() || topology.kind != TopologyKind::Edge {
+                        return Err(ValidationError::new(
+                            ErrorCode::InvalidValue,
+                            Some(id.to_owned()),
+                        ));
+                    }
+                    reference(&topology.owner_feature_id, FeatureKind::Solid)?;
+                    for occurrence in &topology.occurrence_path {
+                        reference(occurrence, FeatureKind::Solid)?;
+                    }
+                    FeatureKind::Solid
+                }
                 Operation::FilletReferencedEdge {
                     body_feature_id,
                     reference: topology,

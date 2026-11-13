@@ -347,6 +347,19 @@ pub fn build_body_with_assets(
                 ),
                 _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
             },
+            Operation::VariableFillet {
+                body_feature_id,
+                reference,
+                radius_start,
+                radius_end,
+            } => match get(body_feature_id)? {
+                FeatureValue::Solid(source) => FeatureValue::Solid(source.variable_fillet(
+                    reference,
+                    dimension(radius_start, &parameters)?,
+                    dimension(radius_end, &parameters)?,
+                )?),
+                _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
+            },
             Operation::FilletReferencedEdge {
                 body_feature_id,
                 reference,

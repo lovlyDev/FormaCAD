@@ -90,3 +90,5 @@ These guides describe the consolidated 1.2.6 candidate and its limits. Final pac
 - [Preparing Blender workflow adaptations](blender-parity.md): research method, local evidence, checks and limitations; [topic notes](../parity/blender/README.md) and [2.0 gap inventory](../parity/blender/readiness.md).
 
 - [Offset profile](offset-profile.md)
+
+- [Variable radius fillet](variable-fillet.md)
