@@ -69,7 +69,7 @@ try{
  page.on("pageerror",error=>report.errors.push({message:error.message,stack:error.stack}));
  await expect(page.locator(".dashboard")).toBeVisible();
  for(const locale of ["ru","en"])for(const theme of ["dark","light"]){
-  const ru=locale==="ru",offset=locale==="en"&&theme==="light"?-2:2,item={locale,theme,offsetMm:offset};report.cases.push(item);
+  const ru=locale==="ru",offset=locale==="en"&&theme==="light"?-1.25:2,item={locale,theme,offsetMm:offset};report.cases.push(item);
   await home();
   const preferences=await invoke("get_ui_preferences");
   await invoke("set_ui_preferences",{value:{...preferences,"forma.locale":locale,"forma.theme":theme}});
@@ -88,6 +88,7 @@ try{
   item.cancelDidNotCommit=true;
   await pickUpperFace(baseline,ru);dialog=await openThicken(ru);
   await dialog.getByLabel(label,{exact:true}).fill(String(offset));
+  expect(await dialog.getByLabel(label,{exact:true}).evaluate(input=>input.validity.valid)).toBe(true);
   await expect(dialog.getByText(ru?"Геометрия черновика корректна":"Draft geometry is valid",{exact:true})).toBeVisible();
   await expect(dialog.getByRole("button",{name:build,exact:true})).toBeEnabled();
   const preview=dialog.locator(".model-preview-canvas canvas");await preview.hover();await page.bringToFront();
@@ -103,11 +104,11 @@ try{
   item.plate=await invoke("measure_model_reference",{projectId:committed.id,expectedRevision:committed.currentRevision,bodyId:plate.id,query:{kind:"bodyMetrics"}});
   item.original=await invoke("measure_model_reference",{projectId:committed.id,expectedRevision:committed.currentRevision,bodyId:"body",query:{kind:"bodyMetrics"}});
   item.totals=await invoke("inspect_model",{projectId:committed.id,revisionId:committed.currentRevision});
-  expect(item.plate.result.volumeMm3).toBeCloseTo(1600,5);expect(item.plate.result.areaMm2).toBeCloseTo(1840,5);
+  expect(item.plate.result.volumeMm3).toBeCloseTo(800*Math.abs(offset),5);expect(item.plate.result.areaMm2).toBeCloseTo(1600+120*Math.abs(offset),5);
   expect(item.plate.result.faceCount).toBe(6);expect(item.original.result.volumeMm3).toBeCloseTo(8000,5);
-  expect(item.totals.volumeMm3).toBeCloseTo(9600,5);expect(item.totals.areaMm2).toBeCloseTo(4640,5);expect(item.totals.faceCount).toBe(12);
+  expect(item.totals.volumeMm3).toBeCloseTo(8000+800*Math.abs(offset),5);expect(item.totals.areaMm2).toBeCloseTo(4400+120*Math.abs(offset),5);expect(item.totals.faceCount).toBe(12);
   item.revisionsAdded=1;item.history={};
-  for(const [direction,index,bodyCount,volume] of [["undo",0,1,8000],["redo",1,2,9600]]){
+  for(const [direction,index,bodyCount,volume] of [["undo",0,1,8000],["redo",1,2,8000+800*Math.abs(offset)]]){
    const previous=(await projectById(baseline.id)).currentRevision;
    await page.locator(".model-history-controls button").nth(index).click();await approve(ru);
    await expect(page.locator(".viewer-area")).not.toHaveAttribute("data-displayed-revision",previous);
