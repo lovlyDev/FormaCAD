@@ -36,6 +36,7 @@ export function readTypedCadDocument(source: string): TypedCadDocument | null {
 export function featureDependencies(feature: TypedCadFeature): string[] {
   const op = feature.operation;
   switch (op.type) {
+    case "offsetProfile":
     case "extrude":
     case "revolve":
       return typeof op.sketchId === "string" ? [op.sketchId] : [];

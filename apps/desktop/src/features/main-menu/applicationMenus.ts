@@ -17,6 +17,7 @@ interface Actions {
   splitBody?: () => void;
   thickenFace?: () => void;
   mirrorFeatures?: () => void;
+  offsetProfile?: () => void;
   palette: () => void;
   settings: (page?: string) => void;
   workspaces: () => void;
@@ -154,6 +155,12 @@ export function applicationMenus(
           shortcut: "P",
           disabled: !actions.separateSolids,
           run: () => actions.separateSolids?.(),
+        },
+        {
+          id: "offsetProfile",
+          label: t("Offset profile"),
+          disabled: !actions.offsetProfile,
+          run: () => actions.offsetProfile?.(),
         },
         {
           id: "mirrorFeatures",

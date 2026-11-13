@@ -1647,5 +1647,21 @@
   "MIRROR_FEATURES_NO_EFFECT": "Зеркальные изменения не меняют это тело.",
   "MIRROR_FEATURES_DISCONNECTED": "После зеркалирования должен остаться один связный солид.",
   "MIRROR_FEATURES_REQUIRES_SOLID": "До и после выбранного диапазона требуется один солид.",
-  "INVALID_FEATURE_MIRROR_PLANE": "У плоскости зеркалирования должны быть конечная точка и ненулевая нормаль."
+  "INVALID_FEATURE_MIRROR_PLANE": "У плоскости зеркалирования должны быть конечная точка и ненулевая нормаль.",
+  "Offset profile": "Сместить профиль",
+  "Offset extrusion": "Вытягивание смещённого профиля",
+  "Source profile: {{value0}}": "Исходный профиль: {{value0}}",
+  "Profile offset (mm)": "Смещение профиля (мм)",
+  "Corner join": "Соединение углов",
+  "Intersect extended edges": "Пересечение продолженных рёбер",
+  "Round outer corners": "Скругление внешних углов",
+  "Positive offset expands material; negative offset contracts it. Contours cannot disappear or overlap.": "Положительное смещение расширяет материал, отрицательное — сужает. Контуры не могут исчезать или пересекаться.",
+  "Enter a finite nonzero offset between −10000 and 10000 mm.": "Введите конечное ненулевое смещение от −10000 до 10000 мм.",
+  "INVALID_PROFILE": "Плоский профиль недействителен. Проверьте замкнутость контуров.",
+  "INVALID_PROFILE_OFFSET": "Смещение профиля должно быть конечным и ненулевым.",
+  "PROFILE_OFFSET_TOPOLOGY_CHANGED": "Смещение разрушает контур или отверстие. Уменьшите величину смещения.",
+  "PROFILE_OFFSET_FAILED": "Не удалось сместить профиль. Проверьте геометрию и уменьшите смещение.",
+  "PROFILE_EXTRUSION_FAILED": "Не удалось вытянуть плоский профиль.",
+  "PROFILE_REVOLUTION_FAILED": "Не удалось выполнить вращение плоского профиля.",
+  "Offset the extrusion profile. The source profile stays linked and the distance expression is retained.": "Сместите профиль вытягивания. Исходный профиль остаётся зависимостью, выражение длины сохраняется."
 }

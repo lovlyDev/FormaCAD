@@ -1647,5 +1647,21 @@
   "MIRROR_FEATURES_NO_EFFECT": "The mirrored changes do not alter this body.",
   "MIRROR_FEATURES_DISCONNECTED": "Mirrored changes must leave one connected solid.",
   "MIRROR_FEATURES_REQUIRES_SOLID": "One solid is required before and after the selected range.",
-  "INVALID_FEATURE_MIRROR_PLANE": "The mirror plane must have a finite origin and a nonzero normal."
+  "INVALID_FEATURE_MIRROR_PLANE": "The mirror plane must have a finite origin and a nonzero normal.",
+  "Offset profile": "Offset profile",
+  "Offset extrusion": "Offset extrusion",
+  "Source profile: {{value0}}": "Source profile: {{value0}}",
+  "Profile offset (mm)": "Profile offset (mm)",
+  "Corner join": "Corner join",
+  "Intersect extended edges": "Intersect extended edges",
+  "Round outer corners": "Round outer corners",
+  "Positive offset expands material; negative offset contracts it. Contours cannot disappear or overlap.": "Positive offset expands material; negative offset contracts it. Contours cannot disappear or overlap.",
+  "Enter a finite nonzero offset between −10000 and 10000 mm.": "Enter a finite nonzero offset between −10000 and 10000 mm.",
+  "INVALID_PROFILE": "The planar profile is invalid. Check that its contours are closed.",
+  "INVALID_PROFILE_OFFSET": "The profile offset must be finite and nonzero.",
+  "PROFILE_OFFSET_TOPOLOGY_CHANGED": "The offset destroys a contour or hole. Reduce the offset magnitude.",
+  "PROFILE_OFFSET_FAILED": "Profile offset failed. Check the geometry and reduce the offset.",
+  "PROFILE_EXTRUSION_FAILED": "Planar profile extrusion failed.",
+  "PROFILE_REVOLUTION_FAILED": "Planar profile revolution failed.",
+  "Offset the extrusion profile. The source profile stays linked and the distance expression is retained.": "Offset the extrusion profile. The source profile stays linked and the distance expression is retained."
 }

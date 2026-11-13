@@ -2,7 +2,7 @@
 
 [Documentation](index.md) · [Русский](../ru/modeling-ii.md) · [Plan](../architecture-2.0.md)
 
-Branch task/m4-modeling-tools starts at main 8cb40fd (1.7.0-beta.1), Issue #21. The first three implemented modules are plane split, selected-face thickening and feature mirroring. This records current progress; it does not declare all of M4 complete.
+Branch task/m4-modeling-tools starts at main 8cb40fd (1.7.0-beta.1), Issue #21. This turn adds offset-profile on top of split and mirror-features. The previously added ThickenFace remains in the branch; renewed acceptance of thicken is next. This records current progress; it does not declare all of M4 complete.
 
 ## Modules and acceptance
 
@@ -77,3 +77,7 @@ The original local persistence/workspace e2e tests failed 2/2 on hover before th
 [Thicken a selected face](thicken.md) — a separate M4 module; native matrix 4/4, original body retained, new body 1600 mm³.
 
 [Mirror modeling operations](mirror-features.md) — native acceptance in progress.
+
+## Offset profile
+
+[Offset profile](offset-profile.md) — a separate exact extrusion-profile offset module. BREP, STEP, staged rollback and the built app in RU/EN × dark/light passed (4/4); measurements are recorded in its guide.
