@@ -115,6 +115,10 @@ import { captureFaceExtrusion, faceExtrusionTarget } from "../features/face-extr
 import type { FaceSelection } from "../features/viewer/faceSelection";
 import type { EdgeSelection } from "../features/viewer/edgeSelection";
 import { EdgeBlendDialog } from "../features/edge-blend/EdgeBlendDialog";
+import { useIgesImport } from "../features/iges/useIgesImport";
+import { IgesImportDialog } from "../features/iges/IgesImportDialog";
+import { IgesExportReportDialog } from "../features/iges/IgesExportReportDialog";
+import { exportIges, type IgesExportReceipt } from "../features/iges/igesApi";
 import { useProjectRoute } from "../features/project-navigation/useProjectRoute";
 import { offsetProfileBodies } from "../features/offset-profile/offsetProfileCommand";
 import { mirrorBodies } from "../features/mirror-features/mirrorFeaturesCommand";
@@ -177,7 +181,7 @@ export default function App() {
     staleTime: 60000,
   });
   const [modal, setModal] = useState<
-    "new" | "settings" | "export" | "palette" | "parameters" | "torus" | "datum" | "faceExtrusion" | "edgeBlend" | "shell" | "pattern" | "duplicateBody" | "boolean" | "split" | "thicken" | "mirrorFeatures" | "offsetProfile" | null
+    "new" | "settings" | "export" | "palette" | "parameters" | "torus" | "datum" | "faceExtrusion" | "edgeBlend" | "shell" | "pattern" | "duplicateBody" | "boolean" | "split" | "thicken" | "mirrorFeatures" | "offsetProfile" | "igesImport" | "igesReport" | null
   >(null);
   const [torusTarget, setTorusTarget] = useState<{ id: string; revision: string | null } | null>(null);
   const [datumTarget, setDatumTarget] = useState<{ id: string; revision: string | null; kind: DatumKind; sources: DatumSourceOption[] } | null>(null);
@@ -207,6 +211,10 @@ export default function App() {
     [],
   );
   const [notice, setNotice] = useState("");
+  const [igesExportResult,setIgesExportResult]=useState<IgesExportReceipt|null>(null);
+  const igesImport=useIgesImport({project,routeProjectId:projectId??null,blocked:busy,onError:setError,
+    onNew:()=>{setAttachments([]);setModal("new");},onOpen:()=>setModal("igesImport"),
+    onClose:()=>setModal(current=>current==="igesImport"?null:current)});
   const plugins = usePlugins(modal === "palette");
   const [liveEvents, setLiveEvents] = useState<
     { kind: string; text: string; createdAt: string }[]
@@ -666,6 +674,8 @@ export default function App() {
   async function importFiles(files: FileList | null, expectedProjectId?: string) {
     if (!files?.length) return;
     try {
+      if(expectedProjectId && useWorkspace.getState().project?.id!==expectedProjectId)return;
+      if(igesImport.intercept(files))return;
       const importedFiles = await Promise.all(Array.from(files).map(readFile));
       if (expectedProjectId && useWorkspace.getState().project?.id !== expectedProjectId) return;
       if (!project) {
@@ -1478,7 +1488,7 @@ export default function App() {
         type="file"
         multiple
         hidden
-        accept=".stl,.obj,.glb,.3mf,.step,.stp,.dxf,.png,.jpg,.jpeg,.webp,.pdf"
+        accept=".stl,.obj,.glb,.3mf,.step,.stp,.igs,.iges,.dxf,.png,.jpg,.jpeg,.webp,.pdf"
         onChange={(e) => void importFiles(e.target.files)}
       />
       {error && (
@@ -1632,9 +1642,10 @@ export default function App() {
         </form>
       </Modal>
       <NewProjectDialog
-        importNames={attachments.map((file) => file.name)}
+        reviewIges={!!igesImport.pendingName}
+        importNames={igesImport.pendingName?[igesImport.pendingName]:attachments.map((file) => file.name)}
         open={modal === "new"}
-        close={() => setModal(null)}
+        close={() => {igesImport.cancelPending();setModal(null);}}
         onCreate={async (p) => {
           try {
             if (attachments.length)
@@ -1644,6 +1655,7 @@ export default function App() {
             setModal(null);
             setAttachments([]);
             refresh();
+            if(igesImport.startCreated(saved))return;
             const step =
               native && attachments.find((f) => /\.st(e)?p$/i.test(f.name));
             if (step) await importStepIntoScene(saved, step.name);
@@ -1652,6 +1664,17 @@ export default function App() {
           }
         }}
       />
+      {modal==="igesImport" && igesImport.intent && project?.id===igesImport.intent.project.id && project.currentRevision===igesImport.intent.project.currentRevision &&
+        <IgesImportDialog key={igesImport.intent.id} project={igesImport.intent.project} file={igesImport.intent.file}
+          disabled={editingBlocked} close={igesImport.close} apply={edit=>{
+            igesImport.close();
+            void ask(edit.captured.prompt,t("Import replaces the current model in a new revision. Earlier revisions remain available."),project.name,async()=>{
+              setBusy(true,t("Importing IGES…"));
+              try {await applyModel(edit.captured,{invoke:edit.invoke});} finally {setBusy(false);}
+            },"convert_file",project.id);
+          }}/>
+      }
+      {modal==="igesReport" && igesExportResult && <IgesExportReportDialog receipt={igesExportResult} close={()=>{setIgesExportResult(null);setModal(null);}}/>}
       <SettingsDialog
         open={modal === "settings"}
         close={() => setModal(null)}
@@ -1913,7 +1936,19 @@ export default function App() {
             async () => {
               if (!project) return;
               const name = `${project.name.replace(/[^\p{L}\p{N}_-]/gu, "-")}-r${project.revisions.length}.${format}`;
-              if (format === "step") {
+              if(format==="iges"){
+                setBusy(true,t("Exporting IGES…"));
+                try {
+                  const receipt=await exportIges(project,bodyId);
+                  if(!receipt){setNotice(t("Export cancelled"));return;}
+                  setIgesExportResult(receipt);setModal("igesReport");setNotice(t("IGES export verified"));
+                  if(projectAccess.writable){
+                    try {await update({...project,exports:[...project.exports,{name,createdAt:stamp()}]});}
+                    catch(cause){setError(`${t("IGES was saved, but export history could not be updated.")}\n${errorText(cause)}`);}
+                  }
+                } finally {setBusy(false);}
+                return;
+              } else if (format === "step") {
                 if (revision?.source && !/\.st(e)?p$/i.test(revision.source))
                   throw new Error(
                     t("STEP export of imported meshes is not supported."),

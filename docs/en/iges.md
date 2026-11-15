@@ -43,4 +43,17 @@ $env:FORMA_NATIVE_ACCEPTANCE='isolated'
 node scripts/acceptance/iges-native.mjs http://127.0.0.1:9336 <runtime>/iges-report.json
 ```
 
-Native acceptance and CI results are recorded in PR #50. This module does not declare all M4 complete; no installer or release is produced by this task.
+Built-app acceptance passed 4/4 without IPC replacement or unhandled JavaScript errors. Each locale/theme combination checks an existing-project replacement and a Home-created project's first revision.
+
+| Case | Volume mm³ | Area mm² | Solids | Faces / edges |
+|---|---:|---:|---:|---:|
+| RU dark: box | 8000 | 2800 | 1 | 6 / 12 |
+| RU light: explicitly selected box from two bodies | 8000 | 2800 | 1 | 6 / 12 |
+| EN dark: complete box + cylinder | 8282.743338823288 | 3045.0442269800155 | 2 | 9 / 15 |
+| EN light: variable fillet 1.25 → 3.5 mm | 7986.765923896678 | 2786.9327101416566 | 1 | 7 / 15 |
+
+The selected-body case restores the original compound volume `8282.743338823288` on undo and `8000` on redo. All cases check malformed-input refusal, import cancellation, original IGES hash, one new revision, retained earlier programs, exact imported-body measurements and theme changes retaining the same canvas, camera and revision. Home project-creation cancellation leaves the project list unchanged after thumbnail work settles. Native save cancellation is additionally checked in RU dark. Eight import/export screenshots were visually inspected in both themes and languages.
+
+Detailed check results and CI are recorded in PR #50. This module does not declare all M4 complete; no installer or release is produced by this task.
+
+Windows CI additionally runs `cargo test --features native-occt -j 2 --test model_apply_transaction iges::` with the workflow's manifest/target/locked arguments, exercising the real worker and staged import rather than only validating the report schema.

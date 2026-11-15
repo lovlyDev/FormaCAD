@@ -92,3 +92,5 @@
 - [Смещение профиля](offset-profile.md)
 
 - [Скругление переменного радиуса](variable-fillet.md)
+
+- [Обмен IGES](iges.md)

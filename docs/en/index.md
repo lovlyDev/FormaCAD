@@ -92,3 +92,5 @@ These guides describe the consolidated 1.2.6 candidate and its limits. Final pac
 - [Offset profile](offset-profile.md)
 
 - [Variable radius fillet](variable-fillet.md)
+
+- [IGES exchange](iges.md)

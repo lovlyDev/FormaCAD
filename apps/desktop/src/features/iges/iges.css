@@ -1,0 +1,6 @@
+.iges-exchange-table { width:100%; border-collapse:collapse; color:var(--text); font-size:11px; }
+.iges-exchange-table caption { text-align:left; padding:8px 0; font-weight:600; }
+.iges-exchange-table th,.iges-exchange-table td { padding:7px 6px; border-bottom:1px solid var(--line); }
+.iges-exchange-table th { text-align:left; font-weight:500; }
+.iges-exchange-table td { text-align:right; font-variant-numeric:tabular-nums; }
+.iges-exchange-path { overflow-wrap:anywhere; color:var(--muted); font-size:11px; }

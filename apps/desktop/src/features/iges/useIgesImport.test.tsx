@@ -1,0 +1,47 @@
+import { act, cleanup, renderHook } from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
+import type { Project } from "../../types";
+vi.mock("../../lib/api", () => ({ native: true }));
+import { useIgesImport } from "./useIgesImport";
+import { useIgesImportState } from "./igesImportState";
+afterEach(()=>{cleanup();useIgesImportState.setState({pending:null,intent:null});});
+const file = () => new File(["IGES"], "part.iges");
+const files = (...items: File[]) => items as unknown as FileList;
+it("rejects a mixed batch and cancels a stale target when the active project changes", () => {
+  const callbacks = { onNew: vi.fn(), onOpen: vi.fn(), onClose: vi.fn(), onError: vi.fn() };
+  const project = { id: "first", currentRevision: "base" } as Project;
+  const { result, rerender } = renderHook(({ project }) => useIgesImport({ project, routeProjectId:project?.id??null, blocked: false, ...callbacks }), { initialProps: { project } });
+  act(() => { result.current.intercept(files(file(), new File(["mesh"], "other.stl"))); });
+  expect(callbacks.onError).toHaveBeenCalledOnce(); expect(result.current.intent).toBeNull();
+  act(() => { result.current.intercept(files(file())); }); expect(result.current.intent?.project.id).toBe("first");
+  rerender({ project: { id: "second", currentRevision: "other" } as Project });
+  expect(result.current.intent).toBeNull(); expect(callbacks.onClose).toHaveBeenCalledOnce();
+});
+it("retains the explicit file handoff when Home unmounts for the new project route", () => {
+  const callbacks = { onNew: vi.fn(), onOpen: vi.fn(), onClose: vi.fn(), onError: vi.fn() };
+  const home=renderHook(()=>useIgesImport({project:null,routeProjectId:null,blocked:false,...callbacks}));
+  const source=file();act(()=>{home.result.current.intercept(files(source));});
+  const completeCreation=home.result.current.startCreated;
+  home.unmount();
+  const project={id:"new-route",currentRevision:null} as Project;
+  const next=renderHook(({active,route}:{active:Project|null;route:string|null})=>useIgesImport({project:active,routeProjectId:route,blocked:false,...callbacks}),{initialProps:{active:null as Project|null,route:null as string|null}});
+  act(()=>{expect(completeCreation(project)).toBe(true);});
+  expect(next.result.current.intent?.awaitingRoute).toBe(true);expect(callbacks.onOpen).not.toHaveBeenCalled();
+  next.rerender({active:null,route:project.id});
+  expect(callbacks.onOpen).not.toHaveBeenCalled();
+  next.rerender({active:project,route:project.id});
+  expect(next.result.current.intent?.file).toBe(source);
+  expect(next.result.current.intent?.project.id).toBe(project.id);
+  expect(callbacks.onOpen).toHaveBeenCalledOnce();
+});
+it("carries a home import only to the explicitly created project and discards canceled inputs", () => {
+  const callbacks = { onNew: vi.fn(), onOpen: vi.fn(), onClose: vi.fn(), onError: vi.fn() };
+  const { result, rerender } = renderHook(({ project }: { project: Project | null }) => useIgesImport({ project, routeProjectId:project?.id??null, blocked: false, ...callbacks }), { initialProps: { project: null as Project | null } });
+  act(() => { result.current.intercept(files(file())); }); expect(callbacks.onNew).toHaveBeenCalledOnce();
+  act(() => { result.current.cancelPending(); });
+  const project = { id: "created", currentRevision: null } as Project;
+  rerender({ project }); act(() => { expect(result.current.startCreated(project)).toBe(false); });
+  rerender({ project: null }); act(() => { result.current.intercept(files(file())); });
+  rerender({ project }); act(() => { expect(result.current.startCreated(project)).toBe(true); });
+  expect(result.current.intent?.project.id).toBe("created"); expect(callbacks.onOpen).toHaveBeenCalledOnce();
+});

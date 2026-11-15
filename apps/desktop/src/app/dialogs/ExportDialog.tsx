@@ -37,6 +37,7 @@ export function ExportDialog({
           <option value="step" disabled={!native}>
             {t("STEP — solid CAD (desktop)")}
           </option>
+          <option value="iges" disabled={!native}>{t("IGES — exact BREP solids (desktop)")}</option>
         </Select>
       </label>
       {bodies.length > 1 && (
@@ -58,7 +59,7 @@ export function ExportDialog({
         <span>
           {t("Geometry")}
           <strong>
-            {format === "step" ? t("Exact solid") : t("Current mesh")}
+            {format === "step" || format === "iges" ? t("Exact solid") : t("Current mesh")}
           </strong>
         </span>
       </div>

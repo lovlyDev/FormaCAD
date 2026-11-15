@@ -2,7 +2,7 @@
 
 [Documentation](index.md) · [Русский](../ru/modeling-ii.md) · [Plan](../architecture-2.0.md)
 
-Branch task/m4-modeling-tools starts at main 8cb40fd (1.7.0-beta.1), Issue #21. This turn adds offset-profile on top of split and mirror-features. Renewed ThickenFace acceptance is complete, including fractional thickness and green CI. This records current progress; it does not declare all of M4 complete.
+Branch task/m4-modeling-tools starts at main 8cb40fd (1.7.0-beta.1), Issue #21. Split, mirror-features, offset-profile, thicken and variable-fillet are implemented. IGES import/export passed built-app acceptance in RU/EN and both themes; CI results are recorded in PR #50. This records current progress; it does not declare all of M4 complete.
 
 ## Modules and acceptance
 
@@ -20,7 +20,7 @@ Route: features/split → apply_ir_commands → staged clone guarded by expected
 
 The command batch adds two SplitPlane features, replaces the original body's source and adds the second body atomically. Data uses the existing project CAD document format without a storage migration. Failed validation never publishes staged state. Empty numbers, nonfinite coordinates, a zero normal, tangent and missed planes are rejected. Errors are translated while retaining technical codes.
 
-Limits: the UI uses world-axis planes; the API accepts arbitrary nonzero normals. Face-attached planes are not implemented here. A part may contain several solids when the input is disconnected. Automatic rebinding of old topology references is not promised. IGES acceptance belongs to its own upcoming module.
+Limits: the UI uses world-axis planes; the API accepts arbitrary nonzero normals. Face-attached planes are not implemented here. A part may contain several solids when the input is disconnected. Automatic rebinding of old topology references is not promised. IGES exchange has its own [module](iges.md).
 
 ### Geometry and real native acceptance
 
@@ -50,7 +50,7 @@ The [report](https://github.com/lovlyDev/FormaCAD/issues/32#issuecomment-6768465
 
 ## Remaining acceptance
 
-Other M4 modules have not yet been implemented or checked. Every new geometry operation requires negative cases, BREP validity, measurements, exchange round-trip where applicable, rollback and built-app acceptance.
+Appearance/PBR/glTF, geometry-table, smart-selection, history-timeline and saved-views remain pending. Every new geometry operation requires negative cases, BREP validity, measurements, exchange round-trip where applicable, rollback and built-app acceptance.
 
 The PR remains draft until M4 is complete. No version, lockfile, installer or release changes.
 
@@ -84,4 +84,8 @@ The original local persistence/workspace e2e tests failed 2/2 on hover before th
 
 ## Variable radius
 
-The [guide](variable-fillet.md) covers the separate C++/Rust/UI modules, explicit endpoint radius binding and limits. Validation is in progress; this does not declare all M4 complete.
+The [guide](variable-fillet.md) covers the separate C++/Rust/UI modules, explicit endpoint radius binding and limits. Native RU/EN × both-theme acceptance and CI for both commits passed. This does not declare all M4 complete.
+
+## IGES
+
+The [exchange guide](iges.md) describes explicit revision-based import, exact export, limits and round-trip validation. Built-app acceptance passed 4/4: existing-project replacement and a new project's first revision, the real Windows save dialog, measurements, rollback and undo/redo. The remaining M4 modules are still pending.

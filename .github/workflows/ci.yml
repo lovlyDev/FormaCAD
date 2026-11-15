@@ -114,7 +114,9 @@ jobs:
           . .\scripts\windows-env.ps1
           $env:FORMA_OCCT_ROOT = (Resolve-Path '.local\occt-build').Path
           $env:PATH = "$(Join-Path $env:FORMA_OCCT_ROOT 'win64/vc14/bin');$env:PATH"
-          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --target '${{ matrix.target }}' --features native-occt --lib --test native_worker
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --target '${{ matrix.target }}' --features native-occt -j 2 --lib --test native_worker
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --target '${{ matrix.target }}' --features native-occt -j 2 --test model_apply_transaction iges::
   windows-sdk-probe:
     if: github.event_name == 'workflow_dispatch' && inputs.windowsSdkProbe
     runs-on: windows-2022
