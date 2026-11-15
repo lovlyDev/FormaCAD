@@ -64,6 +64,18 @@ impl Solid {
                 "Selection is outside the supported BREP topology",
             ));
         }
+        if let MeasurementQuery::EdgeEndpoints { reference } = query {
+            let (start_mm, end_mm) = self.variable_fillet_endpoints(reference)?;
+            let value = MeasurementValue::EdgeEndpoints { start_mm, end_mm };
+            return if value.valid_for(query) {
+                Ok(value)
+            } else {
+                Err(error(
+                    "MEASUREMENT_INVALID_RESULT",
+                    "Invalid exact edge endpoints",
+                ))
+            };
+        }
         let reference = query.reference();
         cxx::let_cxx_string!(owner = reference.map_or("", |r| r.owner_feature_id.as_str()));
         cxx::let_cxx_string!(role = reference.map_or("", |r| r.role.as_str()));
@@ -120,7 +132,9 @@ impl Solid {
                 origin_mm: vector(result.origin_mm())?,
                 normal: vector(result.normal())?,
             },
-            MeasurementQuery::TopologySelection { .. } => unreachable!("handled above"),
+            MeasurementQuery::TopologySelection { .. } | MeasurementQuery::EdgeEndpoints { .. } => {
+                unreachable!("handled above")
+            }
         };
         if !value.valid_for(query) {
             return Err(error(

@@ -200,6 +200,13 @@ impl Document {
                     check_dimension(height, &parameters, false, id)?;
                     FeatureKind::Solid
                 }
+                Operation::OffsetProfile {
+                    sketch_id, offset, ..
+                } => {
+                    reference(sketch_id, FeatureKind::Sketch)?;
+                    check_dimension(offset, &parameters, true, id)?;
+                    FeatureKind::ProfileSketch
+                }
                 Operation::Extrude {
                     sketch_id,
                     distance,
@@ -277,6 +284,27 @@ impl Document {
                     check_dimension(distance, &parameters, false, id)?;
                     FeatureKind::Solid
                 }
+                Operation::VariableFillet {
+                    body_feature_id,
+                    reference: topology,
+                    radius_start,
+                    radius_end,
+                } => {
+                    reference(body_feature_id, FeatureKind::Solid)?;
+                    check_dimension(radius_start, &parameters, false, id)?;
+                    check_dimension(radius_end, &parameters, false, id)?;
+                    if !topology.is_valid() || topology.kind != TopologyKind::Edge {
+                        return Err(ValidationError::new(
+                            ErrorCode::InvalidValue,
+                            Some(id.to_owned()),
+                        ));
+                    }
+                    reference(&topology.owner_feature_id, FeatureKind::Solid)?;
+                    for occurrence in &topology.occurrence_path {
+                        reference(occurrence, FeatureKind::Solid)?;
+                    }
+                    FeatureKind::Solid
+                }
                 Operation::FilletReferencedEdge {
                     body_feature_id,
                     reference: topology,
@@ -309,6 +337,11 @@ impl Document {
                     body_feature_id,
                     reference: topology,
                     distance,
+                }
+                | Operation::ThickenFace {
+                    body_feature_id,
+                    reference: topology,
+                    offset: distance,
                 } => {
                     reference(body_feature_id, FeatureKind::Solid)?;
                     let distance = resolve_dimension(distance, &parameters, id)?;
@@ -425,10 +458,44 @@ impl Document {
                     }
                     FeatureKind::Solid
                 }
+                Operation::MirrorFeatures {
+                    body_feature_id,
+                    base_feature_id,
+                    feature_ids,
+                    plane_origin_mm,
+                    plane_normal,
+                } => {
+                    reference(body_feature_id, FeatureKind::Solid)?;
+                    if let Some(base) = base_feature_id {
+                        reference(base, FeatureKind::Solid)?;
+                    }
+                    for selected in feature_ids {
+                        reference(selected, FeatureKind::Solid)?;
+                    }
+                    super::transforms::validate_axis(*plane_origin_mm, *plane_normal, id)?;
+                    if !super::mirror_features::valid_range(
+                        &self.features,
+                        base_feature_id.as_deref(),
+                        body_feature_id,
+                        feature_ids,
+                    ) {
+                        return Err(ValidationError::new(
+                            ErrorCode::InvalidValue,
+                            Some(id.to_owned()),
+                        ));
+                    }
+                    FeatureKind::Solid
+                }
                 Operation::Mirror {
                     body_feature_id,
                     plane_origin_mm,
                     plane_normal,
+                }
+                | Operation::SplitPlane {
+                    body_feature_id,
+                    plane_origin_mm,
+                    plane_normal,
+                    ..
                 } => {
                     reference(body_feature_id, FeatureKind::Solid)?;
                     super::transforms::validate_axis(*plane_origin_mm, *plane_normal, id)?;

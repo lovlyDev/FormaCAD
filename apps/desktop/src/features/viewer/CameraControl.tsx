@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { persist, readState } from "../../lib/persistence";
 import { standardView, standardViewPose } from "./view-commands/standardViews";
 import { finiteBox, fitBoxPose } from "../model-preview/cameraFit";
+import { fitOrthographicBox } from "./fitOrthographicBox";
 
 /** Framed while the model has no geometry yet: a 100 mm cube on the origin. */
 const EMPTY_FRAME = new THREE.Box3(new THREE.Vector3(-50, -50, -50), new THREE.Vector3(50, 50, 50));
@@ -59,14 +60,14 @@ export function CameraControl({
       object.updateWorldMatrix(true, true);
       const measured = previous && previous.fit !== fit && fitBox ? fitBox.clone() : new THREE.Box3().setFromObject(object);
       const box = finiteBox(measured) ? measured : EMPTY_FRAME.clone();
-      const framing = api.current.refresh(box).clip();
+      api.current.refresh(box).clip();
       const pose = camera instanceof THREE.PerspectiveCamera ? fitBoxPose(camera, controls.target, box) : null;
       if (pose) {
         camera.position.copy(pose.position);
         controls.target.copy(pose.target);
         camera.lookAt(pose.target);
         controls.update();
-      } else framing.fit();
+      } else if (camera instanceof THREE.OrthographicCamera) fitOrthographicBox(camera, controls, box);
     }
     if (previous && previous.reset === reset) return;
     const framing = api.current.refresh(object).clip();
@@ -74,10 +75,15 @@ export function CameraControl({
     const distance = Math.max(camera.position.distanceTo(center), 1);
     const pose = standardViewPose(standardView(preset), center, distance);
     if (!pose) return;
-    framing
-      .moveTo(pose.position)
-      .lookAt({ target: center, up: pose.up.toArray() });
-    if (camera instanceof THREE.OrthographicCamera) framing.fit();
+    camera.position.copy(pose.position);
+    camera.up.copy(pose.up);
+    controls.target.copy(center);
+    camera.lookAt(center);
+    controls.update();
+    if (camera instanceof THREE.OrthographicCamera) {
+      const measured = new THREE.Box3().setFromObject(object);
+      fitOrthographicBox(camera, controls, finiteBox(measured) ? measured : EMPTY_FRAME);
+    }
   }, [preset, object, reset, camera, controlsRef, fit, fitBox, storageKey]);
   useFrame(() => {
     const controls = controlsRef.current;

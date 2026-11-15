@@ -21,3 +21,9 @@ Projects and preferences live under the application data directory with a stable
 ## Pure reads for copying and exporting
 
 Copying a current managed project and exporting `.cadpack` use a [shared project/history snapshot](project-snapshots.md) from one SQL snapshot, with folder-generation checks and a recheck after attachment reads before publication. These operations do not implicitly recover the source. Reopen a project that requires recovery, then retry. Measurements retain their compatible error codes. Saving a new copy inserts a new project into shared SQLite; the source project remains unchanged, but the complete database file need not remain byte-identical. This changes the managed backend, not external-folder in-place opening or editable-history conversion of a genuine 1.1 project.
+
+## Direct links and stale project lists
+
+When opening a project ID, absence from the UI cache does not prove deletion. The UI reads the current list once and returns home only after confirmed absence. A read error stays visible, with no hidden IPC retry or redirect. A delayed response never adopts a different project after navigation. This changes routing and UI caching; project formats, storage schema and writer locks are unchanged. Tests cover a stale empty cache, navigation during a read and a rejected read.
+
+Explicit web `/` URLs and `#/` routes open the dashboard; a saved project never overrides them. Desktop cold startup without an explicit route restores the saved project. Reloading a URL containing a project ID keeps that ID. Startup immediately persists the current route, so dashboard navigation does not reopen a stale project on the next reload.

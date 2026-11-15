@@ -109,7 +109,12 @@ fn remap_operation(
                 match key.as_str() {
                     "bodyFeatureId" | "leftFeatureId" | "rightFeatureId" | "sketchId"
                     | "ownerFeatureId" | "featureId" => feature_id(field)?,
-                    "occurrencePath" => {
+                    "baseFeatureId" => {
+                        if !field.is_null() {
+                            feature_id(field)?;
+                        }
+                    }
+                    "occurrencePath" | "featureIds" => {
                         let path = field.as_array_mut().ok_or_else(|| {
                             ValidationError::new(ErrorCode::InvalidDocument, None)
                         })?;

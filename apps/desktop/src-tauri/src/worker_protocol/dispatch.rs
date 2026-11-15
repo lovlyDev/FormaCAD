@@ -16,6 +16,12 @@ pub(super) fn handle(input: &[u8], cwd: &Path) -> Response {
             "Unsupported CAD worker request",
         );
     }
+    if matches!(
+        request.operation.as_deref(),
+        Some("iges_import" | "iges_export")
+    ) {
+        return super::iges::handle(request, cwd);
+    }
     if request.operation.as_deref() == Some("snap_query") {
         return super::snap::handle(request, cwd);
     }

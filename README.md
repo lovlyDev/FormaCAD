@@ -87,7 +87,7 @@ Local Sketcher: [holes and contours](docs/en/sketch-profiles.md), [editing and c
 
 [Operation-owned topology references](docs/en/topology-references.md): exact references for supported box edges through rigid transforms.
 
-[Model history, storage and native operations](docs/en/project-history.md) · [Storage](docs/en/project-storage-v2.md) · [Parity](docs/en/modeling-parity.md)
+[Model history, storage and native operations](docs/en/project-history.md) · [Storage](docs/en/project-storage-v2.md) · [Parity](docs/en/modeling-parity.md) · [M4 modeling tools](docs/en/modeling-ii.md)
 
 [Project access](docs/en/project-access.md) · [Operations on STEP](docs/en/imported-step-features.md)
 

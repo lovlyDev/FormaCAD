@@ -85,6 +85,8 @@ Menu items are chosen by click or number; Esc closes the menu.
 
 ## Verification
 
+Initial framing, projection changes and fit commands apply camera position and orthographic zoom synchronously. No queued fit changes the zoom on later frames after panning starts. Orthographic framing considers all eight bounding-box corners in camera coordinates and preserves the viewing direction. A focused test covers an off-origin model in wide and narrow viewports; the unchanged right-button e2e checks preserved zoom and orientation.
+
 - C++ (CTest 17/17): vertex `xmax:ymin:zmax` follows rotation, translation and reflection exactly; an edge role is not accepted as a vertex; a vertex query with a ray is rejected.
 - Rust: `snap_worker` (2, including vertex `(0, 5, 5)` after a translation), `transform_worker` (2), `snap_host` (2: face point `(3, 4, 10)` with normal `+Z`, edge midpoint `(0, −10, 10)` and vertex `(20, −10, 10)` on the committed model with the project unchanged; rejection of a stale revision, unknown body and zero ray).
 - TS: CAD↔render basis (Y/Z moves and rotation about an offset pivot), pointer sampling, modal keys with a Russian layout, increment snapping, F9 fields (10 → 20 mm without accumulation), box projection, exact snap adapter.

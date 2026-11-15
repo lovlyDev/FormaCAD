@@ -9,6 +9,7 @@ enum FeatureValue {
     Rectangle(f64, f64),
     Circle(f64),
     Solid(Solid),
+    Profile(super::offset_profile::Profile),
     Alias(String),
 }
 
@@ -153,11 +154,38 @@ pub fn build_body_with_assets(
                 dimension(top_radius, &parameters)?,
                 dimension(height, &parameters)?,
             )?),
+            Operation::OffsetProfile {
+                sketch_id,
+                offset,
+                join,
+            } => {
+                use super::offset_profile::Profile;
+                let distance = dimension(offset, &parameters)?;
+                let source = match get(sketch_id)? {
+                    FeatureValue::Rectangle(w, d) => {
+                        Profile::rectangle(*w, *d)?.offset(distance, *join)?
+                    }
+                    FeatureValue::Circle(r) => Profile::circle(*r)?.offset(distance, *join)?,
+                    FeatureValue::Sketch(sketch) => {
+                        Profile::sketch(sketch)?.offset(distance, *join)?
+                    }
+                    FeatureValue::Profile(profile) => profile.offset(distance, *join)?,
+                    _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", sketch_id)),
+                };
+                FeatureValue::Profile(source)
+            }
             Operation::Extrude {
                 sketch_id,
                 distance,
             } => {
                 let height = dimension(distance, &parameters)?;
+                if let FeatureValue::Profile(profile) = get(sketch_id)? {
+                    features.insert(
+                        feature.id.as_str(),
+                        FeatureValue::Solid(profile.extrude(height)?),
+                    );
+                    continue;
+                }
                 let solid = match get(sketch_id)? {
                     FeatureValue::Rectangle(width, depth) => {
                         if height > 0.0 {
@@ -174,7 +202,7 @@ pub fn build_body_with_assets(
                         }
                     }
                     FeatureValue::Sketch(sketch) => Solid::polygon_prism(sketch, height)?,
-                    FeatureValue::Solid(_) | FeatureValue::Alias(_) => {
+                    FeatureValue::Solid(_) | FeatureValue::Alias(_) | FeatureValue::Profile(_) => {
                         return Err(ir_error("REFERENCE_TYPE_MISMATCH", sketch_id));
                     }
                 };
@@ -190,6 +218,11 @@ pub fn build_body_with_assets(
                 axis_direction,
                 angle_deg,
             } => match get(sketch_id)? {
+                FeatureValue::Profile(profile) => FeatureValue::Solid(profile.revolve(
+                    *axis_origin_mm,
+                    *axis_direction,
+                    *angle_deg,
+                )?),
                 FeatureValue::Sketch(sketch) => FeatureValue::Solid(Solid::revolved_profile(
                     sketch,
                     *axis_origin_mm,
@@ -221,6 +254,37 @@ pub fn build_body_with_assets(
             } => match get(body_feature_id)? {
                 FeatureValue::Solid(source) => FeatureValue::Solid(
                     source.extrude_face(reference, dimension(distance, &parameters)?)?,
+                ),
+                _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
+            },
+            Operation::MirrorFeatures {
+                body_feature_id,
+                base_feature_id,
+                plane_origin_mm,
+                plane_normal,
+                ..
+            } => match get(body_feature_id)? {
+                FeatureValue::Solid(source) => {
+                    let before = match base_feature_id.as_ref().map(|id| get(id)).transpose()? {
+                        Some(FeatureValue::Solid(base)) => Some(base),
+                        None => None,
+                        _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
+                    };
+                    FeatureValue::Solid(source.mirror_features(
+                        before,
+                        *plane_origin_mm,
+                        *plane_normal,
+                    )?)
+                }
+                _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
+            },
+            Operation::ThickenFace {
+                body_feature_id,
+                reference,
+                offset,
+            } => match get(body_feature_id)? {
+                FeatureValue::Solid(source) => FeatureValue::Solid(
+                    source.thicken_face(reference, dimension(offset, &parameters)?)?,
                 ),
                 _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
             },
@@ -281,6 +345,19 @@ pub fn build_body_with_assets(
                 FeatureValue::Solid(source) => FeatureValue::Solid(
                     source.chamfer_all_edges(dimension(distance, &parameters)?)?,
                 ),
+                _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
+            },
+            Operation::VariableFillet {
+                body_feature_id,
+                reference,
+                radius_start,
+                radius_end,
+            } => match get(body_feature_id)? {
+                FeatureValue::Solid(source) => FeatureValue::Solid(source.variable_fillet(
+                    reference,
+                    dimension(radius_start, &parameters)?,
+                    dimension(radius_end, &parameters)?,
+                )?),
                 _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
             },
             Operation::FilletReferencedEdge {
@@ -356,6 +433,19 @@ pub fn build_body_with_assets(
                         .mirrored(*plane_origin_mm, *plane_normal)?
                         .with_topology_occurrence(&feature.id)?,
                 ),
+                _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
+            },
+            Operation::SplitPlane {
+                body_feature_id,
+                plane_origin_mm,
+                plane_normal,
+                side,
+            } => match get(body_feature_id)? {
+                FeatureValue::Solid(source) => FeatureValue::Solid(source.split_by_plane(
+                    *plane_origin_mm,
+                    *plane_normal,
+                    *side,
+                )?),
                 _ => return Err(ir_error("REFERENCE_TYPE_MISMATCH", body_feature_id)),
             },
             Operation::Boolean {

@@ -27,7 +27,13 @@ int main() {
     require(std::abs(fused->volume_mm3() - 8500.) < 1e-6, "union volume");
     require(std::abs(common->volume_mm3() - 500.) < 1e-6, "intersection volume");
     const auto far_tool = forma::translate(*offset_tool, 100., 0., 0.);
-    require(!forma::boolean_intersect(*body, *far_tool)->ok(), "disjoint intersection produced a solid");
+    const auto empty = forma::boolean_intersect(*body, *far_tool);
+    require(!empty->ok() && empty->error_code() == "EMPTY_INTERSECTION", "disjoint intersection must explain empty result");
+    const auto touching_tool = forma::translate(*tool_box, 25., 0., 0.);
+    const auto touching = forma::boolean_intersect(*body, *touching_tool);
+    require(!touching->ok() && touching->error_code() == "EMPTY_INTERSECTION", "face-only contact has no solid intersection");
+    const auto identity = forma::boolean_intersect(*body, *body);
+    require(identity->ok() && std::abs(identity->volume_mm3() - 8000.) < 1e-6, "valid common must stay valid");
     const auto reused = forma::translate(*offset_tool, 1., 0., 0.);
     require(reused->ok() && std::abs(reused->volume_mm3() - 1000.) < 1e-6, "tool no longer rebuilds");
   });

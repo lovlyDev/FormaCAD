@@ -10,7 +10,7 @@ use std::{
     sync::{atomic::AtomicBool, Arc},
 };
 
-pub(super) struct GeneratedModel {
+pub(crate) struct GeneratedModel {
     pub geometry: Option<(Vec<u8>, Vec<u8>)>,
     pub program_base: Option<String>,
 }

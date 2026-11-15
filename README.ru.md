@@ -85,7 +85,7 @@ FormaCAD — свободная программа под лицензией [GN
 
 [Проверенный выбор CAD-геометрии для AI](docs/ru/ai-selection-context.md).
 
-[История модели, хранилище и нативные операции](docs/ru/project-history.md) · [Хранилище](docs/ru/project-storage-v2.md) · [Паритет](docs/ru/modeling-parity.md)
+[История модели, хранилище и нативные операции](docs/ru/project-history.md) · [Хранилище](docs/ru/project-storage-v2.md) · [Паритет](docs/ru/modeling-parity.md) · [Инструменты M4](docs/ru/modeling-ii.md)
 
 [Доступ к проекту](docs/ru/project-access.md) · [Операции поверх STEP](docs/ru/imported-step-features.md)
 

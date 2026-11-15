@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 pub const LIBRARIES: &[&str] = &[
+    "TKDEIGES",
     "TKDESTEP",
     "TKXSBase",
     "TKDE",

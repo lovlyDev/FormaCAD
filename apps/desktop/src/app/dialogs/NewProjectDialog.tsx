@@ -9,8 +9,10 @@ export function NewProjectDialog({
   close,
   onCreate,
   importNames = [],
+  reviewIges = false,
 }: {
   importNames?: string[];
+  reviewIges?: boolean;
   open: boolean;
   close: () => void;
   onCreate: (p: Project) => Promise<void>;
@@ -24,7 +26,7 @@ export function NewProjectDialog({
       open={open}
       onClose={close}
       title={importNames.length ? t("Create a project from selected files") : t("Make room for an idea")}
-      description={importNames.length ? t("Selected models will be imported. STEP files need local conversion before they appear in the scene.") : t("Start with an empty workspace.")}
+      description={reviewIges ? t("Create the project, then review IGES before importing. Geometry is saved only after confirmation.") : importNames.length ? t("Selected models will be imported. STEP files need local conversion before they appear in the scene.") : t("Start with an empty workspace.")}
     >
       {importNames.length > 0 && <ul className="import-file-list">{importNames.map(name => <li key={name}><FileBox size={15}/><span>{name}</span></li>)}</ul>}
       <form

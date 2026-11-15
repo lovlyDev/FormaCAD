@@ -4,7 +4,7 @@ use crate::{
     models::{Project, ProjectFile, Revision},
 };
 use std::sync::atomic::{AtomicBool, Ordering};
-pub(super) struct CommitMetadata {
+pub(crate) struct CommitMetadata {
     pub job: String,
     pub program: String,
     pub prompt: String,
@@ -27,7 +27,7 @@ pub(super) fn program_for_revision(
 }
 
 /// Called only under the host write lock after expected-head validation.
-pub(super) async fn commit(
+pub(crate) async fn commit(
     state: &AppState,
     mut project: Project,
     model: GeneratedModel,

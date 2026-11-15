@@ -14,6 +14,7 @@ export interface MeasurementRow {label:string;value:string}
 export function measurementRows(result:MeasurementValue,unit:DisplayUnit):MeasurementRow[]{
   switch(result.kind){
     case "topologySelection":return [];
+    case "edgeEndpoints":return [];
     case "edgeLength":return[{label:t("Exact selected edge length"),value:formatMeasurement(result.lengthMm,1,unit)}];
     case "edgeRadius":return[{label:t("Exact selected edge radius"),value:formatMeasurement(result.radiusMm,1,unit)}];
     case "edgeDiameter":return[{label:t("Exact selected edge diameter"),value:formatMeasurement(result.diameterMm,1,unit)}];

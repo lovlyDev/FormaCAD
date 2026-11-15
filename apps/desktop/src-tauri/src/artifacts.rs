@@ -69,7 +69,8 @@ fn extension(name: &str) -> Result<String> {
         .unwrap_or("")
         .to_ascii_lowercase();
     if ![
-        "step", "stp", "stl", "obj", "glb", "3mf", "dxf", "png", "jpg", "jpeg", "webp", "pdf",
+        "step", "stp", "igs", "iges", "stl", "obj", "glb", "3mf", "dxf", "png", "jpg", "jpeg",
+        "webp", "pdf",
     ]
     .contains(&ext.as_str())
     {

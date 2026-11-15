@@ -8,9 +8,13 @@ pub mod datum_anchor;
 mod groups;
 pub mod pattern;
 pub use groups::BodyGroup;
+pub(crate) mod mirror_features;
+pub mod offset_profile;
 pub(crate) mod shell;
+pub mod split;
 pub mod topology_refs;
 mod torus;
+mod variable_fillet;
 pub use topology_refs::{TopologyKind, TopologyReference};
 
 pub const SCHEMA_VERSION: u32 = 2;
@@ -185,6 +189,29 @@ pub enum Operation {
         reference: TopologyReference,
         distance: Dimension,
     },
+    OffsetProfile {
+        sketch_id: String,
+        offset: Dimension,
+        join: offset_profile::ProfileJoin,
+    },
+    MirrorFeatures {
+        body_feature_id: String,
+        base_feature_id: Option<String>,
+        feature_ids: Vec<String>,
+        plane_origin_mm: [f64; 3],
+        plane_normal: [f64; 3],
+    },
+    ThickenFace {
+        body_feature_id: String,
+        reference: TopologyReference,
+        offset: Dimension,
+    },
+    SplitPlane {
+        body_feature_id: String,
+        plane_origin_mm: [f64; 3],
+        plane_normal: [f64; 3],
+        side: split::SplitSide,
+    },
     Shell {
         body_feature_id: String,
         openings: Vec<TopologyReference>,
@@ -233,6 +260,12 @@ pub enum Operation {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         additional_references: Vec<TopologyReference>,
         radius: Dimension,
+    },
+    VariableFillet {
+        body_feature_id: String,
+        reference: TopologyReference,
+        radius_start: Dimension,
+        radius_end: Dimension,
     },
     Chamfer {
         body_feature_id: String,

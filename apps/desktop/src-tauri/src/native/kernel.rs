@@ -5,6 +5,9 @@ use super::NativeError;
 pub(crate) mod ffi {
     unsafe extern "C++" {
         include!("cad-core/include/forma_core.hpp");
+        include!("cad-core/include/forma_split.hpp");
+        include!("cad-core/include/forma_thicken.hpp");
+        include!("cad-core/include/forma_mirror_features.hpp");
         include!("cad-core/include/forma_datum.hpp");
         include!("cad-core/include/forma_datum_anchor.hpp");
         include!("cad-core/include/forma_measurement.hpp");
@@ -145,6 +148,25 @@ pub(crate) mod ffi {
             occurrence: &CxxString,
             distance_mm: f64,
         ) -> UniquePtr<Shape>;
+        #[allow(clippy::too_many_arguments)]
+        fn mirror_features(
+            after: &Shape,
+            before: &Shape,
+            has_base: bool,
+            ox: f64,
+            oy: f64,
+            oz: f64,
+            nx: f64,
+            ny: f64,
+            nz: f64,
+        ) -> UniquePtr<Shape>;
+        fn thicken_face(
+            source: &Shape,
+            owner: &CxxString,
+            role: &CxxString,
+            occurrence: &CxxString,
+            offset_mm: f64,
+        ) -> UniquePtr<Shape>;
         fn shell(
             source: &Shape,
             owner: &CxxString,
@@ -258,6 +280,17 @@ pub(crate) mod ffi {
             normal_y: f64,
             normal_z: f64,
         ) -> UniquePtr<Shape>;
+        #[allow(clippy::too_many_arguments)]
+        fn split_by_plane(
+            source: &Shape,
+            x: f64,
+            y: f64,
+            z: f64,
+            nx: f64,
+            ny: f64,
+            nz: f64,
+            positive: bool,
+        ) -> UniquePtr<Shape>;
         fn boolean_union(left: &Shape, right: &Shape) -> UniquePtr<Shape>;
         fn boolean_cut(left: &Shape, right: &Shape) -> UniquePtr<Shape>;
         fn boolean_intersect(left: &Shape, right: &Shape) -> UniquePtr<Shape>;
@@ -270,6 +303,7 @@ pub(crate) mod ffi {
         fn surface_area_mm2(self: &Shape) -> f64;
         fn face_count(self: &Shape) -> i32;
         fn edge_count(self: &Shape) -> i32;
+        fn solid_count(self: &Shape) -> i32;
         fn extent_x_mm(self: &Shape) -> f64;
         fn extent_y_mm(self: &Shape) -> f64;
         fn extent_z_mm(self: &Shape) -> f64;
@@ -398,6 +432,9 @@ impl Solid {
 
     pub fn face_count(&self) -> i32 {
         self.as_ref().face_count()
+    }
+    pub fn solid_count(&self) -> i32 {
+        self.as_ref().solid_count()
     }
 
     pub fn edge_count(&self) -> i32 {

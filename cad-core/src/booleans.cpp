@@ -5,6 +5,8 @@
 #include <BRepAlgoAPI_Fuse.hxx>
 #include <NCollection_List.hxx>
 #include <Standard_Failure.hxx>
+#include <TopExp_Explorer.hxx>
+#include <type_traits>
 
 namespace forma {
 
@@ -23,6 +25,11 @@ std::unique_ptr<Shape> apply(const TopoDS_Shape& left, const TopoDS_Shape& right
   operation.SetNonDestructive(true);
   operation.Build();
   if (!operation.IsDone()) return failure("BOOLEAN_FAILED", detail);
+  if constexpr (std::is_same_v<Operation, BRepAlgoAPI_Common>) {
+    // A face/edge contact is also empty for a solid intersection.
+    if (operation.Shape().IsNull() || !TopExp_Explorer(operation.Shape(), TopAbs_SOLID).More())
+      return failure("EMPTY_INTERSECTION", "Intersection is empty");
+  }
   return checked(operation.Shape());
 }
 }

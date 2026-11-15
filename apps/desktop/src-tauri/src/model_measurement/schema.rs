@@ -29,6 +29,9 @@ pub enum MeasurementQuery {
     EdgeDiameter {
         reference: TopologyReference,
     },
+    EdgeEndpoints {
+        reference: TopologyReference,
+    },
     FaceArea {
         reference: TopologyReference,
     },
@@ -48,6 +51,7 @@ impl MeasurementQuery {
             Self::EdgeLength { reference }
             | Self::EdgeRadius { reference }
             | Self::EdgeDiameter { reference }
+            | Self::EdgeEndpoints { reference }
             | Self::FaceArea { reference }
             | Self::PlanarFace { reference } => Some(reference),
         }
@@ -61,6 +65,7 @@ impl MeasurementQuery {
             Self::PlanarFace { .. } => 4,
             Self::EdgeDiameter { .. } => 5,
             Self::TopologySelection { .. } => 6,
+            Self::EdgeEndpoints { .. } => 7,
         }
     }
     pub fn valid(&self) -> bool {
@@ -74,6 +79,7 @@ impl MeasurementQuery {
                         Self::EdgeLength { .. }
                         | Self::EdgeRadius { .. }
                         | Self::EdgeDiameter { .. } => TopologyKind::Edge,
+                        Self::EdgeEndpoints { .. } => TopologyKind::Edge,
                         Self::FaceArea { .. } | Self::PlanarFace { .. } => TopologyKind::Face,
                         Self::BodyMetrics {} | Self::TopologySelection { .. } => return false,
                     }
@@ -105,6 +111,10 @@ pub enum MeasurementValue {
     EdgeDiameter {
         diameter_mm: f64,
     },
+    EdgeEndpoints {
+        start_mm: [f64; 3],
+        end_mm: [f64; 3],
+    },
     FaceArea {
         area_mm2: f64,
     },
@@ -122,6 +132,18 @@ impl MeasurementValue {
     pub fn valid_for(&self, query: &MeasurementQuery) -> bool {
         let positive = |value: f64| value.is_finite() && value > 0.;
         match (self, query) {
+            (Self::EdgeEndpoints { start_mm, end_mm }, MeasurementQuery::EdgeEndpoints { .. }) => {
+                start_mm
+                    .iter()
+                    .chain(end_mm)
+                    .all(|v| v.is_finite() && v.abs() <= MAX_COORDINATE_MM)
+                    && start_mm
+                        .iter()
+                        .zip(end_mm)
+                        .map(|(a, b)| (a - b).powi(2))
+                        .sum::<f64>()
+                        > 1e-14
+            }
             (
                 Self::TopologySelection { ordinals },
                 MeasurementQuery::TopologySelection { seed, .. },
