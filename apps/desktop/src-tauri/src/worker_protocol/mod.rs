@@ -2,6 +2,7 @@
 mod datum;
 mod dispatch;
 mod face_section;
+mod iges;
 mod measurement;
 mod pair_measurement;
 mod schema;

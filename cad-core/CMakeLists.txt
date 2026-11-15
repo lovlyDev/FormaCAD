@@ -27,7 +27,7 @@ else()
 endif()
 
 set(FORMA_OCCT_LIBRARIES
-  TKDESTEP TKXSBase TKDE TKMesh TKFeat TKOffset TKPrim TKBO TKFillet TKShHealing TKBool TKTopAlgo TKGeomAlgo
+  TKDEIGES TKDESTEP TKXSBase TKDE TKMesh TKFeat TKOffset TKPrim TKBO TKFillet TKShHealing TKBool TKTopAlgo TKGeomAlgo
   TKBRep TKGeomBase TKG3d TKG2d TKMath TKernel)
 
 add_library(forma_cad_core STATIC
@@ -61,6 +61,7 @@ add_library(forma_cad_core STATIC
   src/mirror_features.cpp
   src/offset_profile.cpp
   src/variable_fillet.cpp
+  src/iges.cpp
   src/separate_solids.cpp
   src/cone.cpp
   src/fillet.cpp
@@ -80,6 +81,13 @@ target_link_libraries(forma_cad_core PUBLIC ${FORMA_OCCT_LIBRARIES})
 
 include(CTest)
 if(BUILD_TESTING)
+  add_executable(forma_iges_test tests/iges_test.cpp)
+  target_link_libraries(forma_iges_test PRIVATE forma_cad_core)
+  target_include_directories(forma_iges_test PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+  add_test(NAME forma_iges_test COMMAND forma_iges_test)
+  if(WIN32)
+    set_tests_properties(forma_iges_test PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OpenCASCADE_BINARY_DIR}")
+  endif()
   add_executable(forma_variable_fillet_test tests/variable_fillet_test.cpp)
   target_link_libraries(forma_variable_fillet_test PRIVATE forma_cad_core)
   add_test(NAME forma_variable_fillet_test COMMAND forma_variable_fillet_test)

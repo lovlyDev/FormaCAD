@@ -20,6 +20,8 @@ mod fixture;
 mod geometry;
 #[path = "model_apply_transaction/groups.rs"]
 mod groups;
+#[path = "model_apply_transaction/iges.rs"]
+mod iges;
 #[path = "model_apply_transaction/inputs.rs"]
 mod inputs;
 #[path = "model_apply_transaction/lifecycle.rs"]

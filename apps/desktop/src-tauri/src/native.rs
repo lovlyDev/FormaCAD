@@ -26,6 +26,7 @@ pub mod glb_merge;
 pub mod health;
 #[cfg(feature = "native-occt")]
 mod hole;
+pub mod iges;
 pub mod inspection;
 #[cfg(feature = "native-occt")]
 pub mod job;

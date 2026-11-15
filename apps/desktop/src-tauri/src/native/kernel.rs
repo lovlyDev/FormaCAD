@@ -303,6 +303,7 @@ pub(crate) mod ffi {
         fn surface_area_mm2(self: &Shape) -> f64;
         fn face_count(self: &Shape) -> i32;
         fn edge_count(self: &Shape) -> i32;
+        fn solid_count(self: &Shape) -> i32;
         fn extent_x_mm(self: &Shape) -> f64;
         fn extent_y_mm(self: &Shape) -> f64;
         fn extent_z_mm(self: &Shape) -> f64;
@@ -431,6 +432,9 @@ impl Solid {
 
     pub fn face_count(&self) -> i32 {
         self.as_ref().face_count()
+    }
+    pub fn solid_count(&self) -> i32 {
+        self.as_ref().solid_count()
     }
 
     pub fn edge_count(&self) -> i32 {

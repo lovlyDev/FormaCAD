@@ -20,6 +20,7 @@ fn main() {
             "src/native/kernel.rs",
             "src/native/offset_profile.rs",
             "src/native/variable_fillet.rs",
+            "src/native/iges/bridge.rs",
         ])
         .file("../../../cad-core/src/shape.cpp")
         .file("../../../cad-core/src/measurements.cpp")
@@ -49,6 +50,7 @@ fn main() {
         .file("../../../cad-core/src/mirror_features.cpp")
         .file("../../../cad-core/src/offset_profile.cpp")
         .file("../../../cad-core/src/variable_fillet.cpp")
+        .file("../../../cad-core/src/iges.cpp")
         .file("../../../cad-core/src/separate_solids.cpp")
         .file("../../../cad-core/src/cone.cpp")
         .file("../../../cad-core/src/fillet.cpp")
@@ -74,6 +76,8 @@ fn main() {
         println!("cargo:rerun-if-changed=src/native/kernel.rs");
         println!("cargo:rerun-if-changed=src/native/offset_profile.rs");
         println!("cargo:rerun-if-changed=src/native/variable_fillet.rs");
+        println!("cargo:rerun-if-changed=src/native/iges/bridge.rs");
+        println!("cargo:rerun-if-changed=../../../cad-core/include/forma_iges.hpp");
         println!("cargo:rerun-if-changed=../../../cad-core/include/forma_variable_fillet.hpp");
         println!("cargo:rerun-if-changed=../../../cad-core/include/forma_offset_profile.hpp");
         println!("cargo:rerun-if-changed=build/occt.rs");

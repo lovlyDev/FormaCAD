@@ -12,6 +12,7 @@ pub mod conversion;
 pub mod core;
 mod export_destination;
 pub mod files;
+pub mod iges;
 mod job;
 pub mod model_face_section;
 pub mod model_inspection;
@@ -144,6 +145,9 @@ pub fn run() {
             cad_ir::history::compare_ir_revisions,
             model_inspection::inspect_model,
             conversion::convert_step,
+            iges::preview_iges_import,
+            iges::import_iges,
+            iges::export_iges,
             updates::update_support,
             beta_update::beta_update_check,
             updates::get_ui_preferences,
