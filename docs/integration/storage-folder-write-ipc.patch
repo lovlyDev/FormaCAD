@@ -1,0 +1,563 @@
+diff --git a/apps/desktop/src-tauri/src/modeling.rs b/apps/desktop/src-tauri/src/modeling.rs
+--- a/apps/desktop/src-tauri/src/modeling.rs
++++ b/apps/desktop/src-tauri/src/modeling.rs
+@@ -1,6 +1,10 @@
+ use crate::{
+-    core::{AppState, Result},
++    core::{AppError, AppState, Result},
+     models::Project,
++    project_repository::window_sources::{
++        write_ipc::{self, Command as FolderCommand, FolderWriteRequest, WriteReply},
++        WindowSources,
++    },
+ };
+ use tauri::{Emitter, State};
+ pub mod amend_transform;
+@@ -25,30 +29,77 @@ fn publish(outcome: apply::ApplyOutcome, app: &tauri::AppHandle) -> Project {
+ }
+ 
+ #[tauri::command]
++#[allow(clippy::too_many_arguments)]
+ pub async fn apply_program(
+     project_id: String,
+-    program: String,
+-    prompt: String,
++    program: Option<String>,
++    prompt: Option<String>,
+     expected_revision: Option<String>,
+     review_plan: Option<crate::agents::review_plan::ReviewPlan>,
++    folder_write: Option<FolderWriteRequest>,
++    window: tauri::WebviewWindow,
++    sources: State<'_, WindowSources>,
+     state: State<'_, AppState>,
+     app: tauri::AppHandle,
+-) -> Result<Project> {
++) -> Result<WriteReply> {
++    if let Some(request) = folder_write {
++        return write_ipc::execute(
++            &sources,
++            &state,
++            window.label(),
++            &project_id,
++            request,
++            FolderCommand::Program,
++            program.is_some()
++                || prompt.is_some()
++                || expected_revision.is_some()
++                || review_plan.is_some(),
++        )
++        .await;
++    }
++    let (Some(program), Some(prompt)) = (program, prompt) else {
++        return Err(missing_payload());
++    };
+     let mut request = apply::ApplyRequest::new(project_id, program, prompt, expected_revision);
+     request.review_plan = review_plan;
+-    Ok(publish(apply::apply(&state, request).await?, &app))
++    Ok(publish(apply::apply(&state, request).await?, &app).into())
+ }
+ 
+ #[tauri::command]
++#[allow(clippy::too_many_arguments)]
+ pub async fn apply_ir_commands(
+     project_id: String,
+-    commands: Vec<crate::cad_ir::Command>,
+-    prompt: String,
+-    expected_revision: String,
++    commands: Option<Vec<crate::cad_ir::Command>>,
++    prompt: Option<String>,
++    expected_revision: Option<String>,
++    folder_write: Option<FolderWriteRequest>,
++    window: tauri::WebviewWindow,
++    sources: State<'_, WindowSources>,
+     state: State<'_, AppState>,
+     app: tauri::AppHandle,
+-) -> Result<Project> {
++) -> Result<WriteReply> {
++    if let Some(request) = folder_write {
++        return write_ipc::execute(
++            &sources,
++            &state,
++            window.label(),
++            &project_id,
++            request,
++            FolderCommand::Commands,
++            commands.is_some() || prompt.is_some() || expected_revision.is_some(),
++        )
++        .await;
++    }
++    let (Some(commands), Some(prompt), Some(expected_revision)) =
++        (commands, prompt, expected_revision)
++    else {
++        return Err(missing_payload());
++    };
+     let request =
+         commands::prepare(&state, project_id, commands, prompt, expected_revision).await?;
+-    Ok(publish(apply::apply(&state, request).await?, &app))
++    Ok(publish(apply::apply(&state, request).await?, &app).into())
++}
++
++fn missing_payload() -> AppError {
++    AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into())
+ }
+diff --git a/apps/desktop/src-tauri/src/project_history/mod.rs b/apps/desktop/src-tauri/src/project_history/mod.rs
+--- a/apps/desktop/src-tauri/src/project_history/mod.rs
++++ b/apps/desktop/src-tauri/src/project_history/mod.rs
+@@ -21,6 +21,10 @@ pub(crate) use state::{prepare_amend, AmendCapture};
+ use crate::{
+     core::{AppError, AppState, Result},
+     models::Project,
++    project_repository::window_sources::{
++        write_ipc::{self, Command as FolderCommand, FolderWriteRequest, WriteReply},
++        WindowSources,
++    },
+ };
+ use serde::Serialize;
+ use tauri::State;
+@@ -78,9 +82,24 @@ pub async fn apply_history(
+ pub async fn undo_model(
+     project_id: String,
+     expected_revision: Option<String>,
++    folder_write: Option<FolderWriteRequest>,
++    window: tauri::WebviewWindow,
++    sources: State<'_, WindowSources>,
+     state: State<'_, AppState>,
+     app: tauri::AppHandle,
+-) -> Result<Project> {
++) -> Result<WriteReply> {
++    if let Some(request) = folder_write {
++        return write_ipc::execute(
++            &sources,
++            &state,
++            window.label(),
++            &project_id,
++            request,
++            FolderCommand::History(Direction::Undo),
++            expected_revision.is_some(),
++        )
++        .await;
++    }
+     apply_history(
+         &state,
+         &project_id,
+@@ -89,15 +108,31 @@ pub async fn undo_model(
+         Some(&app),
+     )
+     .await
++    .map(WriteReply::from)
+ }
+ 
+ #[tauri::command]
+ pub async fn redo_model(
+     project_id: String,
+     expected_revision: Option<String>,
++    folder_write: Option<FolderWriteRequest>,
++    window: tauri::WebviewWindow,
++    sources: State<'_, WindowSources>,
+     state: State<'_, AppState>,
+     app: tauri::AppHandle,
+-) -> Result<Project> {
++) -> Result<WriteReply> {
++    if let Some(request) = folder_write {
++        return write_ipc::execute(
++            &sources,
++            &state,
++            window.label(),
++            &project_id,
++            request,
++            FolderCommand::History(Direction::Redo),
++            expected_revision.is_some(),
++        )
++        .await;
++    }
+     apply_history(
+         &state,
+         &project_id,
+@@ -106,4 +141,5 @@ pub async fn redo_model(
+         Some(&app),
+     )
+     .await
++    .map(WriteReply::from)
+ }
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/mod.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/mod.rs
+--- a/apps/desktop/src-tauri/src/project_repository/window_sources/mod.rs
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/mod.rs
+@@ -14,6 +14,7 @@ pub mod ipc;
+     )
+ ))]
+ pub mod operation;
++pub mod write_ipc;
+ 
+ #[cfg(any(
+     windows,
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/write_ipc.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/write_ipc.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/write_ipc.rs
+@@ -0,0 +1,125 @@
++//! Transport bridge for the existing model and history write commands.
++use super::WindowSources;
++use crate::{
++    core::{AppError, AppState, Result},
++    models::Project,
++};
++
++#[derive(serde::Deserialize)]
++#[serde(rename_all = "camelCase", deny_unknown_fields)]
++pub struct FolderWriteRequest {
++    source_id: String,
++    expected_commit_id: String,
++    approval_id: String,
++}
++
++/// Selected by the command handler. The renderer cannot change which
++/// operation an IPC endpoint is allowed to execute.
++#[derive(Clone, Copy)]
++pub enum Command {
++    Program,
++    Commands,
++    History(crate::project_history::Direction),
++}
++
++/// Managed callers continue to receive the bare Project object.
++#[derive(serde::Serialize)]
++#[serde(untagged)]
++pub enum WriteReply {
++    Managed(Box<Project>),
++    #[cfg(any(
++        windows,
++        all(
++            target_os = "linux",
++            any(target_arch = "x86_64", target_arch = "aarch64")
++        )
++    ))]
++    Folder(super::approval::FolderWriteReply),
++}
++
++impl From<Project> for WriteReply {
++    fn from(project: Project) -> Self {
++        Self::Managed(Box::new(project))
++    }
++}
++
++impl FolderWriteRequest {
++    fn validate(&self, project_id: &str, has_managed_payload: bool) -> Result<()> {
++        if has_managed_payload
++            || [
++                project_id,
++                &self.source_id,
++                &self.expected_commit_id,
++                &self.approval_id,
++            ]
++            .into_iter()
++            .any(|id| crate::security::valid_id(id).is_err())
++        {
++            return Err(AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into()));
++        }
++        Ok(())
++    }
++}
++
++pub async fn execute(
++    sources: &WindowSources,
++    state: &AppState,
++    window: &str,
++    project_id: &str,
++    request: FolderWriteRequest,
++    command: Command,
++    has_managed_payload: bool,
++) -> Result<WriteReply> {
++    request.validate(project_id, has_managed_payload)?;
++    #[cfg(any(
++        windows,
++        all(
++            target_os = "linux",
++            any(target_arch = "x86_64", target_arch = "aarch64")
++        )
++    ))]
++    {
++        use super::approval::{ApprovalSource, WriteCommand};
++        use crate::project_repository::sqlite_folder::api::ModelRuntime;
++        let command = match command {
++            Command::Program => WriteCommand::Program,
++            Command::Commands => WriteCommand::Commands,
++            Command::History(direction) => WriteCommand::History(direction),
++        };
++        let source = ApprovalSource {
++            window,
++            source_id: &request.source_id,
++            project_id,
++            commit_id: &request.expected_commit_id,
++        };
++        sources
++            .execute_write(
++                &request.approval_id,
++                source,
++                command,
++                ModelRuntime {
++                    tasks: &state.tasks,
++                    gate: &state.cad_tasks,
++                    runtime_root: &state.root,
++                    transient_root: &state.root,
++                    executable: None,
++                },
++            )
++            .await
++            .map(WriteReply::Folder)
++    }
++    #[cfg(not(any(
++        windows,
++        all(
++            target_os = "linux",
++            any(target_arch = "x86_64", target_arch = "aarch64")
++        )
++    )))]
++    {
++        let _ = (sources, state, window, command);
++        Err(AppError::Invalid("PROJECT_FOLDER_UNSUPPORTED".into()))
++    }
++}
++
++#[cfg(test)]
++mod tests;
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/write_ipc/tests.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/write_ipc/tests.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/write_ipc/tests.rs
+@@ -0,0 +1,51 @@
++use super::*;
++use serde_json::{json, Value};
++
++fn request() -> Value {
++    json!({
++        "sourceId": uuid::Uuid::new_v4().to_string(),
++        "expectedCommitId": uuid::Uuid::new_v4().to_string(),
++        "approvalId": uuid::Uuid::new_v4().to_string()
++    })
++}
++
++#[test]
++fn folder_write_requires_all_selectors_and_excludes_managed_payload() {
++    let project_id = uuid::Uuid::new_v4().to_string();
++    let valid = request();
++    let decoded: FolderWriteRequest = serde_json::from_value(valid.clone()).unwrap();
++    assert!(decoded.validate(&project_id, false).is_ok());
++    assert!(decoded.validate(&project_id, true).is_err());
++    assert!(decoded.validate("invalid project", false).is_err());
++
++    for key in ["sourceId", "expectedCommitId", "approvalId"] {
++        let mut missing = valid.clone();
++        missing.as_object_mut().unwrap().remove(key);
++        assert!(serde_json::from_value::<FolderWriteRequest>(missing).is_err());
++
++        let mut invalid = valid.clone();
++        invalid[key] = json!("not an ID");
++        let decoded: FolderWriteRequest = serde_json::from_value(invalid).unwrap();
++        assert!(decoded.validate(&project_id, false).is_err());
++    }
++
++    let mut replacement = valid;
++    replacement["program"] = json!("replacement program");
++    assert!(serde_json::from_value::<FolderWriteRequest>(replacement).is_err());
++}
++
++#[test]
++fn managed_reply_keeps_the_existing_project_json_shape() {
++    let project: Project = serde_json::from_value(json!({
++        "schemaVersion": 1, "id": uuid::Uuid::new_v4().to_string(),
++        "name": "Managed", "units": "mm", "agent": "codex", "pinned": false,
++        "createdAt": "2026-11-20T00:00:00Z", "updatedAt": "2026-11-20T00:00:00Z",
++        "currentRevision": null, "messages": [], "exports": [], "files": [], "revisions": []
++    }))
++    .unwrap();
++    let expected = serde_json::to_value(&project).unwrap();
++    assert_eq!(
++        serde_json::to_value(WriteReply::from(project)).unwrap(),
++        expected
++    );
++}
+diff --git a/apps/desktop/src/features/project-sources/writeApi.ts b/apps/desktop/src/features/project-sources/writeApi.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/writeApi.ts
+@@ -0,0 +1,78 @@
++import { invoke, isTauri } from "@tauri-apps/api/core";
++import { z } from "zod";
++import type { Project } from "../../types";
++import {
++  capturePermissionContext,
++  type FolderPermissionTicket,
++} from "./permissionContract";
++
++const commands = {
++  program: "apply_program",
++  commands: "apply_ir_commands",
++  undo: "undo_model",
++  redo: "redo_model",
++} as const;
++
++export type FolderWriteCommand = keyof typeof commands;
++
++const id = z.string().uuid();
++const envelope = { sourceId: id, projectId: id, baseCommitId: id };
++// The host validates persisted Project data. Check the outer shape and identity
++// here without parsing or copying the full history and attachment payload.
++const list = z.custom<unknown[]>(Array.isArray);
++const projectShape = z.object({
++  schemaVersion: z.literal(1),
++  id,
++  name: z.string(),
++  units: z.enum(["mm", "cm", "inch"]),
++  agent: z.enum(["codex", "claude", "custom"]),
++  pinned: z.boolean(),
++  createdAt: z.string(),
++  updatedAt: z.string(),
++  currentRevision: z.string().nullable(),
++  revisions: list,
++  messages: list,
++  files: list,
++  exports: list,
++});
++const project = z.custom<Project>((value) => projectShape.safeParse(value).success);
++const reply = z.discriminatedUnion("status", [
++  z.strictObject({ ...envelope, status: z.literal("noOp"), project }),
++  z.strictObject({ ...envelope, status: z.literal("committed"), commitId: id, project }),
++  z.strictObject({ ...envelope, status: z.literal("rejectedBefore"), error: z.string() }),
++  z.strictObject({ ...envelope, status: z.literal("indeterminate"), commitId: id, error: z.string() }),
++]);
++
++export type FolderWriteResult = z.infer<typeof reply>;
++
++export async function executeFolderWrite(
++  ticket: FolderPermissionTicket,
++  command: FolderWriteCommand,
++): Promise<FolderWriteResult> {
++  if (!isTauri()) throw new Error("PROJECT_FOLDER_UNSUPPORTED");
++  const { projectId, source } = capturePermissionContext(ticket);
++  const approvalId = ticket.id;
++  if (![projectId, source.sourceId, source.commitId, approvalId].every((value) => id.safeParse(value).success)) {
++    throw new Error("PROJECT_SNAPSHOT_CHANGED");
++  }
++  const result = reply.safeParse(await invoke<unknown>(commands[command], {
++    projectId,
++    folderWrite: {
++      sourceId: source.sourceId,
++      expectedCommitId: source.commitId,
++      approvalId,
++    },
++  }));
++  if (!result.success) throw new Error("PROJECT_SNAPSHOT_CHANGED");
++  const value = result.data;
++  if (
++    value.projectId !== projectId
++    || value.sourceId !== source.sourceId
++    || value.baseCommitId !== source.commitId
++    || ("project" in value && value.project.id !== projectId)
++    || ("commitId" in value && value.commitId === source.commitId)
++  ) {
++    throw new Error("PROJECT_SNAPSHOT_CHANGED");
++  }
++  return value;
++}
+diff --git a/apps/desktop/src/features/project-sources/writeApi.test.ts b/apps/desktop/src/features/project-sources/writeApi.test.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/writeApi.test.ts
+@@ -0,0 +1,83 @@
++import { afterEach, expect, it, vi } from "vitest";
++import { executeFolderWrite } from "./writeApi";
++
++const mocks = vi.hoisted(() => ({ invoke: vi.fn(), isTauri: vi.fn(() => true) }));
++vi.mock("@tauri-apps/api/core", () => mocks);
++afterEach(() => {
++  mocks.invoke.mockReset();
++  mocks.isTauri.mockReset().mockReturnValue(true);
++});
++
++const projectId = "9ef4f985-695a-4a73-b8de-b10468bfc450";
++const sourceId = "340f0083-c50f-4e15-b633-5cc4753ffb5c";
++const baseCommitId = "78b94346-f162-44e8-85c6-9cb64b8be739";
++const commitId = "7c6c3844-bdbe-4132-91ff-8e52a46a97ec";
++const approvalId = "0fdca3bb-60ac-4014-99e9-28b8306687c7";
++const envelope = { projectId, sourceId, baseCommitId };
++const project = {
++  schemaVersion: 1, id: projectId, name: "Original", currentRevision: null,
++  units: "mm", agent: "codex", pinned: false,
++  createdAt: "2026-11-20T00:00:00Z", updatedAt: "2026-11-20T00:00:00Z",
++  revisions: [], messages: [], files: [], exports: [],
++};
++const ticket = () => ({
++  id: approvalId,
++  requiresConfirmation: true,
++  projectId,
++  source: { sourceId, commitId: baseCommitId, taskScopeId: sourceId },
++});
++
++it.each([
++  ["program", "apply_program"],
++  ["commands", "apply_ir_commands"],
++  ["undo", "undo_model"],
++  ["redo", "redo_model"],
++] as const)("executes %s with the retained approval and no new payload", async (command, ipc) => {
++  mocks.invoke.mockResolvedValue({ ...envelope, status: "committed", commitId, project });
++  expect(await executeFolderWrite(ticket(), command)).toEqual({
++    ...envelope, status: "committed", commitId, project,
++  });
++  expect(mocks.invoke).toHaveBeenCalledExactlyOnceWith(ipc, {
++    projectId, folderWrite: { sourceId, expectedCommitId: baseCommitId, approvalId },
++  });
++});
++
++it.each([
++  { ...envelope, status: "noOp", project },
++  { ...envelope, status: "rejectedBefore", error: "PROJECT_SNAPSHOT_CHANGED" },
++  { ...envelope, status: "indeterminate", commitId, error: "PROJECT_SNAPSHOT_CHANGED" },
++])("preserves the host's $status result without retrying", async (response) => {
++  mocks.invoke.mockResolvedValue(response);
++  expect(await executeFolderWrite(ticket(), "program")).toEqual(response);
++  expect(mocks.invoke).toHaveBeenCalledTimes(1);
++});
++
++it.each([
++  project,
++  { ...envelope, sourceId: commitId, status: "noOp", project },
++  { ...envelope, baseCommitId: commitId, status: "noOp", project },
++  { ...envelope, status: "committed", commitId: baseCommitId, project },
++  { ...envelope, status: "committed", commitId, project: { ...project, id: sourceId } },
++  { ...envelope, status: "indeterminate", error: "uncertain" },
++])("rejects a malformed or foreign reply", async (response) => {
++  mocks.invoke.mockResolvedValue(response);
++  await expect(executeFolderWrite(ticket(), "program")).rejects.toThrow("PROJECT_SNAPSHOT_CHANGED");
++  expect(mocks.invoke).toHaveBeenCalledTimes(1);
++});
++
++it("matches the result against the original ticket across the IPC await", async () => {
++  let finish!: (value: unknown) => void;
++  mocks.invoke.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
++  const selected = ticket();
++  const pending = executeFolderWrite(selected, "program");
++  selected.source.commitId = commitId;
++  finish({ ...envelope, status: "noOp", project });
++  expect(await pending).toMatchObject({ baseCommitId, status: "noOp" });
++});
++
++it("rejects unsupported clients and malformed tickets before invoking the host", async () => {
++  mocks.isTauri.mockReturnValueOnce(false);
++  await expect(executeFolderWrite(ticket(), "undo")).rejects.toThrow("PROJECT_FOLDER_UNSUPPORTED");
++  await expect(executeFolderWrite({ ...ticket(), id: "invalid" }, "undo")).rejects.toThrow("PROJECT_SNAPSHOT_CHANGED");
++  expect(mocks.invoke).not.toHaveBeenCalled();
++});
+diff --git a/.github/workflows/storage-benchmark.yml b/.github/workflows/storage-benchmark.yml
+--- a/.github/workflows/storage-benchmark.yml
++++ b/.github/workflows/storage-benchmark.yml
+@@ -57,7 +57,9 @@ jobs:
+         run: |
+           set -o pipefail
+           cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib project_repository::window_sources:: -- --nocapture 2>&1 | tee storage-evidence/window-source-tests.log
+-          grep -F 'test result: ok. 18 passed; 0 failed;' storage-evidence/window-source-tests.log
++          grep -F 'test result: ok. 20 passed; 0 failed;' storage-evidence/window-source-tests.log
++          grep -E 'test project_repository::window_sources::write_ipc::tests::folder_write_requires_all_selectors_and_excludes_managed_payload \.\.\. ok' storage-evidence/window-source-tests.log
++          grep -E 'test project_repository::window_sources::write_ipc::tests::managed_reply_keeps_the_existing_project_json_shape \.\.\. ok' storage-evidence/window-source-tests.log
+           grep -E 'test project_repository::window_sources::approval::tests::wrong_write_command_leaves_the_original_approval_available \.\.\. ok' storage-evidence/window-source-tests.log
+           grep -E 'test project_repository::window_sources::approval::tests::write_reply_identifies_its_base_and_distinguishes_every_publication_status \.\.\. ok' storage-evidence/window-source-tests.log
+           grep -E 'test project_repository::window_sources::approval::tests::retained_prepared_request_cannot_substitute_project_or_revision \.\.\. ok' storage-evidence/window-source-tests.log
