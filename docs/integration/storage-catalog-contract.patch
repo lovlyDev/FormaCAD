@@ -1,0 +1,280 @@
+diff --git a/apps/desktop/src/features/project-catalog/api.ts b/apps/desktop/src/features/project-catalog/api.ts
+new file mode 100644
+index 0000000..0aaa867
+--- /dev/null
++++ b/apps/desktop/src/features/project-catalog/api.ts
+@@ -0,0 +1,17 @@
++import { invoke } from "@tauri-apps/api/core";
++import { t } from "../../i18n";
++import { listProjects, native } from "../../lib/api";
++import type { Project } from "../../types";
++import type { CatalogReport } from "./contract";
++
++export async function listProjectCatalog(): Promise<CatalogReport> {
++  if (native) return invoke("list_projects");
++  const projects = await listProjects();
++  return { entries: projects.map(project => ({ kind: "ready" as const, rowKey: project.id, project })), serializedProjectBytes: new TextEncoder().encode(JSON.stringify(projects)).length };
++}
++export async function readProjectSnapshot(id: string): Promise<Project> {
++  if (native) return invoke("read_project_snapshot", { id });
++  const project = (await listProjects()).find(item => item.id === id);
++  if (!project) throw new Error(t("Project was not found"));
++  return project;
++}
+diff --git a/apps/desktop/src/features/project-catalog/contract.test.ts b/apps/desktop/src/features/project-catalog/contract.test.ts
+new file mode 100644
+index 0000000..8a753fe
+--- /dev/null
++++ b/apps/desktop/src/features/project-catalog/contract.test.ts
+@@ -0,0 +1,18 @@
++import { describe, expect, it } from "vitest";
++import type { Project } from "../../types";
++import { PartialCatalogError, requireReadyProjects, type CatalogReport } from "./contract";
++
++describe("strict catalog compatibility", () => {
++  it("retains exact ready Project objects", () => {
++    const project = { id: "fixture" } as Project;
++    expect(requireReadyProjects({ entries: [{ kind: "ready", rowKey: "managed-index:9007199254740993", project }], serializedProjectBytes: 0 })[0]).toBe(project);
++  });
++  it("retains unavailable rows in the error instead of dropping or fabricating them", () => {
++    const report: CatalogReport = { entries: [{ kind: "unavailable", rowKey: "managed-index:9007199254740993", index: { projectId: null, idHint: "broken", name: null, updatedAt: null }, issue: { status: "recovery_required", code: "PROJECT_SNAPSHOT_RECOVERY_REQUIRED", details: "technical details" } }], serializedProjectBytes: 0 };
++    try { requireReadyProjects(report); throw new Error("expected rejection"); } catch (error) {
++      expect(error).toBeInstanceOf(PartialCatalogError);
++      expect((error as PartialCatalogError).report).toBe(report);
++      expect((error as Error).message).not.toContain("technical details");
++    }
++  });
++});
+diff --git a/apps/desktop/src/features/project-catalog/contract.ts b/apps/desktop/src/features/project-catalog/contract.ts
+new file mode 100644
+index 0000000..381e066
+--- /dev/null
++++ b/apps/desktop/src/features/project-catalog/contract.ts
+@@ -0,0 +1,22 @@
++import { t } from "../../i18n";
++import type { Project } from "../../types";
++
++export type CatalogEntry =
++  | { kind: "ready"; rowKey: string; project: Project }
++  | { kind: "unavailable"; rowKey: string; index: {
++      projectId: string | null; idHint: string | null; name: string | null; updatedAt: string | null;
++    }; issue: { status: "recovery_required" | "changed" | "unavailable" | "limit"; code: string; details: string } };
++export interface CatalogReport { entries: CatalogEntry[]; serializedProjectBytes: number }
++
++// Transitional callers require complete authoritative Projects. Never silently
++// hide an unavailable row or manufacture a Project from display-only index hints.
++export class PartialCatalogError extends Error {
++  constructor(readonly report: CatalogReport) {
++    super(t("Some projects are unavailable. Refresh the catalog or explicitly reopen projects that require recovery."));
++    this.name = "PartialCatalogError";
++  }
++}
++export function requireReadyProjects(report: CatalogReport): Project[] {
++  if (report.entries.some(entry => entry.kind === "unavailable")) throw new PartialCatalogError(report);
++  return report.entries.flatMap(entry => entry.kind === "ready" ? [entry.project] : []);
++}
+diff --git a/apps/desktop/src/i18n/en.json b/apps/desktop/src/i18n/en.json
+index dbe9d01..50e6780 100644
+--- a/apps/desktop/src/i18n/en.json
++++ b/apps/desktop/src/i18n/en.json
+@@ -1318,5 +1318,6 @@
+   "PLUGIN_CAPTURE_WRITE": "The video file could not be written.",
+   "PLUGIN_CAPTURE_CANCELLED": "Video recording cancelled",
+   "PLUGIN_IMPORT_API_TOO_OLD": "The plugin uses functions of a newer plugin API but manifest.json declares an older version.",
+-  "Plugin actions": "Plugin actions"
++  "Plugin actions": "Plugin actions",
++  "Some projects are unavailable. Refresh the catalog or explicitly reopen projects that require recovery.": "Some projects are unavailable. Refresh the catalog or explicitly reopen projects that require recovery."
+ }
+diff --git a/apps/desktop/src/i18n/ru.json b/apps/desktop/src/i18n/ru.json
+index 7216175..a50ab13 100644
+--- a/apps/desktop/src/i18n/ru.json
++++ b/apps/desktop/src/i18n/ru.json
+@@ -1318,5 +1318,6 @@
+   "PLUGIN_CAPTURE_WRITE": "Не удалось записать файл видео.",
+   "PLUGIN_CAPTURE_CANCELLED": "Запись видео отменена",
+   "PLUGIN_IMPORT_API_TOO_OLD": "Плагин использует функции новой версии API плагинов, но в manifest.json указана старая версия.",
+-  "Plugin actions": "Действия плагинов"
++  "Plugin actions": "Действия плагинов",
++  "Some projects are unavailable. Refresh the catalog or explicitly reopen projects that require recovery.": "Некоторые проекты недоступны. Обновите каталог или явно откройте проекты, требующие восстановления."
+ }
+diff --git a/apps/desktop/src/lib/api.ts b/apps/desktop/src/lib/api.ts
+index 2dbc24a..0a5656c 100644
+--- a/apps/desktop/src/lib/api.ts
++++ b/apps/desktop/src/lib/api.ts
+@@ -17,7 +17,10 @@ export async function acknowledgeRecovery(id: string): Promise<void> {
+ }
+ const key = "forma.projects.v1";
+ export async function listProjects(): Promise<Project[]> {
+-  if (native) return invoke("list_projects");
++  if (native) {
++    const { requireReadyProjects } = await import("../features/project-catalog/contract");
++    return requireReadyProjects(await invoke("list_projects"));
++  }
+   const raw = localStorage.getItem(key);
+   if (!raw) return [];
+   try {
+diff --git a/apps/desktop/src-tauri/src/lib.rs b/apps/desktop/src-tauri/src/lib.rs
+index ccc7ea9..5b71afc 100644
+--- a/apps/desktop/src-tauri/src/lib.rs
++++ b/apps/desktop/src-tauri/src/lib.rs
+@@ -90,6 +90,7 @@ pub fn run() {
+         })
+         .invoke_handler(tauri::generate_handler![
+             projects::list_projects,
++            projects::read_project_snapshot,
+             projects::save_project_thumbnail,
+             projects::delete_project,
+             projects::interrupted_sessions,
+diff --git a/apps/desktop/src-tauri/src/projects/catalog/tests.rs b/apps/desktop/src-tauri/src/projects/catalog/tests.rs
+new file mode 100644
+index 0000000..5ca4f47
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/projects/catalog/tests.rs
+@@ -0,0 +1,27 @@
++//! Exercise host helpers with real SQL without recovery or native CAD fixtures.
++use super::*;
++use crate::{project_repository::{catalog::CatalogEntry, legacy::read_test_fixture as fixture}};
++
++#[tokio::test]
++async fn mixed_catalog_and_target_read_never_recover_or_hide_pending_projects() {
++    let temp = tempfile::tempdir().unwrap();
++    let state = fixture::state(temp.path()).await;
++    let healthy = fixture::project(&state, 16).await;
++    let pending = fixture::project(&state, 16).await;
++    fixture::pending(&state, &pending.id).await;
++    let healthy_before = fixture::logical(&state, &healthy.id).await;
++    let pending_before = fixture::logical(&state, &pending.id).await;
++    let files_before = fixture::files(temp.path());
++    let report = list(&state).await.unwrap();
++    assert_eq!(report.entries.len(), 2);
++    assert!(report.entries.iter().any(|entry| matches!(entry, CatalogEntry::Ready { project, .. } if project.id == healthy.id)));
++    assert!(report.entries.iter().any(|entry| matches!(entry, CatalogEntry::Unavailable { index, .. } if index.project_id.as_deref() == Some(pending.id.as_str()))));
++    assert_eq!(read(&state, &healthy.id).await.unwrap().id, healthy.id);
++    assert_eq!(read(&state, &pending.id).await.err().unwrap().to_string(), "PROJECT_SNAPSHOT_RECOVERY_REQUIRED");
++    assert_eq!(fixture::logical(&state, &healthy.id).await, healthy_before);
++    assert_eq!(fixture::logical(&state, &pending.id).await, pending_before);
++    assert_eq!(fixture::files(temp.path()), files_before);
++    assert_eq!(state.project_access.status(&state.root, &healthy.id).unwrap().mode, "closed");
++    assert!(!state.root.join(&healthy.id).exists());
++    assert!(!state.root.join(&pending.id).exists());
++}
+diff --git a/apps/desktop/src-tauri/src/projects/catalog.rs b/apps/desktop/src-tauri/src/projects/catalog.rs
+new file mode 100644
+index 0000000..8cfac2f
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/projects/catalog.rs
+@@ -0,0 +1,27 @@
++//! IPC host policy for pure managed catalog and individual snapshot reads.
++use crate::{
++    core::{AppState, Result},
++    models::Project,
++    project_repository::{backend::ProjectRepository, catalog::{CatalogLimits, CatalogReport}},
++};
++
++// Response budgets, not peak-memory bounds. Enumeration never silently truncates.
++const MAX_ENTRIES: usize = 1000;
++const MAX_READY_PAYLOAD_BYTES: u64 = 128 * 1024 * 1024;
++
++pub(super) async fn list(state: &AppState) -> Result<CatalogReport> {
++    crate::project_repository::catalog::list_managed(state, CatalogLimits {
++        max_entries: MAX_ENTRIES,
++        max_total_payload_bytes: MAX_READY_PAYLOAD_BYTES,
++    }).await
++}
++
++pub(super) async fn read(state: &AppState, id: &str) -> Result<Project> {
++    let repository = ProjectRepository::managed(state, id)?;
++    let snapshot = repository.capture().await?;
++    repository.recheck(&snapshot).await?;
++    Ok(snapshot.project().clone())
++}
++
++#[cfg(test)]
++mod tests;
+diff --git a/apps/desktop/src-tauri/src/projects.rs b/apps/desktop/src-tauri/src/projects.rs
+index d0bd4fa..2ef35a5 100644
+--- a/apps/desktop/src-tauri/src/projects.rs
++++ b/apps/desktop/src-tauri/src/projects.rs
+@@ -4,6 +4,7 @@ use crate::{
+ };
+ use std::path::Path;
+ use tauri::State;
++mod catalog;
+ mod events;
+ mod mirrors;
+ mod persistence;
+@@ -51,18 +52,12 @@ pub async fn get(state: &AppState, id: &str) -> Result<Project> {
+     crate::project_storage_v2::reconcile(state, p).await
+ }
+ #[tauri::command]
+-pub async fn list_projects(state: State<'_, AppState>) -> Result<Vec<Project>> {
+-    let rows: Vec<String> =
+-        sqlx::query_scalar("SELECT payload FROM projects ORDER BY updated_at DESC")
+-            .fetch_all(&state.pool)
+-            .await?;
+-    let mut result = Vec::new();
+-    for raw in rows {
+-        let p: Project = serde_json::from_str(&raw)?;
+-        p.validate()?;
+-        result.push(crate::project_storage_v2::reconcile(&state, p).await?);
+-    }
+-    Ok(result)
++pub async fn list_projects(state: State<'_, AppState>) -> Result<crate::project_repository::catalog::CatalogReport> {
++    catalog::list(&state).await
++}
++#[tauri::command]
++pub async fn read_project_snapshot(id: String, state: State<'_, AppState>) -> Result<Project> {
++    catalog::read(&state, &id).await
+ }
+ #[tauri::command]
+ pub async fn save_project_thumbnail(
+diff --git a/docs/en/storage-catalog.md b/docs/en/storage-catalog.md
+index a26dfcf..b6d4eb5 100644
+--- a/docs/en/storage-catalog.md
++++ b/docs/en/storage-catalog.md
+@@ -3,9 +3,9 @@
+ [Documentation](index.md) · [Русский](../ru/storage-catalog.md) · [Contract](storage-contract.md)
+
+ `project_repository::catalog` is a backend API for enumerating saved managed
+-projects without recovery or write access. It is not wired into `list_projects`,
+-Dashboard or IPC. The user-facing list retains its previous route; no new button
+-or setting advertises this capability.
++projects without recovery or write access. IPC `list_projects` returns CatalogReport and `read_project_snapshot` reads one project without recovery. Dashboard still uses a strict compatibility adapter: any unavailable row raises a localized error, without silently filtering entries. Unavailable cards and workspace/model-apply target-read integration remain pending.
++
++
+
+ ## Contract
+
+@@ -66,3 +66,8 @@ rowids above `2^53`. Reproduction:
+ Test presence is not PASS; new-head execution is recorded separately in CI.
+ Fixtures are temporary and synthetic. Real NAS/USB and user-facing UI acceptance
+ are unverified.
++
++
++## Initial IPC contract and remaining integration
++
++The host limits responses to 1000 entries and 128 MiB of ready JSON, not peak memory. `projects/catalog.rs` binds the pure catalog and target read to IPC without changing intentional `projects::get`, persist or recovery. Target reads grant no writer lease and serialize no session token. The new frontend API is not yet connected to App. Existing Project[] callers reject a partial catalog as a whole, retaining the report in PartialCatalogError. This is transitional integration, not a completed user catalog; App still automatically saves thumbnails on home. The next patch must display unavailable cards, retain the workspace on failures and remove background writes.
+diff --git a/docs/ru/storage-catalog.md b/docs/ru/storage-catalog.md
+index d846e5c..220ff0c 100644
+--- a/docs/ru/storage-catalog.md
++++ b/docs/ru/storage-catalog.md
+@@ -3,9 +3,7 @@
+ [Документация](index.md) · [English](../en/storage-catalog.md) · [Контракт](storage-contract.md)
+
+ `project_repository::catalog` — backend API для перечисления сохранённых managed
+-проектов без recovery и получения доступа на запись. Он пока не подключён к
+-`list_projects`, Dashboard или IPC. Пользовательский список продолжает прежний
+-маршрут; новая возможность не объявляется доступной кнопкой или настройкой.
++проектов без recovery и получения доступа на запись. IPC `list_projects` возвращает CatalogReport, а `read_project_snapshot` читает один проект без recovery. Пока Dashboard использует строгий compatibility adapter: наличие unavailable вызывает локализованную ошибку, записи не фильтруются молча. Карточки недоступных проектов и переключение workspace/model-apply на target-read ещё не подключены.
+
+ ## Контракт
+
+@@ -66,3 +64,8 @@ repository capture/recheck working set (raw до 128 МиБ) плюс приня
+ Наличие тестов не означает PASS: результат нового head фиксируется отдельно в CI.
+ Фикстуры временные и синтетические; реальный NAS/USB и пользовательская UI-приёмка
+ не выполнялись.
++
++
++## Первый IPC-контракт и оставшаяся интеграция
++
++Host ограничивает ответ 1000 записями и 128 МиБ ready JSON; это не peak memory. `projects/catalog.rs` связывает чистый каталог и target-read с IPC, не меняя намеренный `projects::get`, persist или recovery. Target-read не выдаёт writer lease и не переносит session token в UI. Новый frontend API пока не подключён к App. Старые Project[] callers отклоняют частичный каталог целиком, сохраняя report в PartialCatalogError. Это промежуточная интеграция, а не готовый пользовательский каталог; App всё ещё автоматически сохраняет thumbnails на главной. Следующий патч должен показать все unavailable-карточки, сохранить workspace при ошибках и убрать фоновую запись.

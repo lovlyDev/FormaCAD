@@ -1,0 +1,261 @@
+diff --git a/apps/desktop/src-tauri/src/model_measurement/snapshot.rs b/apps/desktop/src-tauri/src/model_measurement/snapshot.rs
+index c156a47..982cd1f 100644
+--- a/apps/desktop/src-tauri/src/model_measurement/snapshot.rs
++++ b/apps/desktop/src-tauri/src/model_measurement/snapshot.rs
+@@ -2,25 +2,33 @@
+ use super::failure;
+ use crate::{
+     core::{AppError, AppState, Result},
+-    models::Project,
++    project_repository::legacy::{self, CommittedSnapshot},
+ };
+-pub(super) async fn read(state: &AppState, project_id: &str) -> Result<Project> {
+-    crate::project_repository::legacy::capture_project(state, project_id)
++
++pub(super) async fn read(state: &AppState, project_id: &str) -> Result<CommittedSnapshot> {
++    legacy::capture_project(state, project_id)
+         .await
+-        .map(|snapshot| snapshot.project)
+-        .map_err(|error| match error {
+-            AppError::Invalid(ref code)
+-                if code == "PROJECT_SNAPSHOT_MISSING" || code == "PROJECT_SNAPSHOT_CHANGED" =>
+-            {
+-                failure(
+-                    "MEASUREMENT_STALE",
+-                    "Measurement committed project snapshot changed",
+-                )
+-            }
+-            AppError::Invalid(ref code) if code == "PROJECT_SNAPSHOT_RECOVERY_REQUIRED" => failure(
+-                "MEASUREMENT_RECOVERY_REQUIRED",
+-                "Project storage recovery must finish before exact measurement; reopen the project",
+-            ),
+-            other => other,
+-        })
++        .map_err(compatible)
++}
++
++pub(super) async fn recheck(state: &AppState, snapshot: &CommittedSnapshot) -> Result<()> {
++    legacy::recheck(state, snapshot).await.map_err(compatible)
++}
++
++fn compatible(error: AppError) -> AppError {
++    match error {
++        AppError::Invalid(ref code)
++            if code == "PROJECT_SNAPSHOT_MISSING" || code == "PROJECT_SNAPSHOT_CHANGED" =>
++        {
++            failure(
++                "MEASUREMENT_STALE",
++                "Measurement committed project snapshot changed",
++            )
++        }
++        AppError::Invalid(ref code) if code == "PROJECT_SNAPSHOT_RECOVERY_REQUIRED" => failure(
++            "MEASUREMENT_RECOVERY_REQUIRED",
++            "Project storage recovery must finish before exact measurement; reopen the project",
++        ),
++        other => other,
++    }
+ }
+diff --git a/apps/desktop/src-tauri/src/model_measurement/capture.rs b/apps/desktop/src-tauri/src/model_measurement/capture.rs
+index 0a2aced..d1ce457 100644
+--- a/apps/desktop/src-tauri/src/model_measurement/capture.rs
++++ b/apps/desktop/src-tauri/src/model_measurement/capture.rs
+@@ -6,6 +6,7 @@ use crate::{
+     cad_ir::Document,
+     core::{AppState, Result},
+     models::{Project, ProjectFile, Revision},
++    project_repository::legacy::CommittedSnapshot,
+ };
+ use std::path::Path;
+ 
+@@ -17,7 +18,7 @@ struct PreviewSeal {
+ }
+ 
+ pub(crate) struct CapturedMeasurement {
+-    pub project: Project,
++    pub snapshot: CommittedSnapshot,
+     pub revision: Revision,
+     pub document: Document,
+     pub program_bytes: Vec<u8>,
+@@ -97,7 +98,8 @@ pub(crate) async fn capture(
+             "Selected body identifier is invalid",
+         ));
+     }
+-    let project = super::snapshot::read(state, project_id).await?;
++    let snapshot = super::snapshot::read(state, project_id).await?;
++    let project = &snapshot.project;
+     if project.current_revision.as_deref() != Some(expected_revision) {
+         return Err(failure(
+             "MEASUREMENT_STALE",
+@@ -147,7 +149,7 @@ pub(crate) async fn capture(
+                 "Measurement requires a committed exact STEP source",
+             )
+         })?;
+-    let source_bytes = sealed_bytes(state, &project, source)?;
++    let source_bytes = sealed_bytes(state, project, source)?;
+     let source_sha256 = crate::artifacts::digest(&source_bytes);
+     let source_size = source.size;
+     drop(source_bytes); // Queued requests retain seals, not a 40 MB STEP buffer.
+@@ -160,7 +162,7 @@ pub(crate) async fn capture(
+                 .iter()
+                 .find(|entry| entry.name == name)
+                 .ok_or_else(|| failure("ASSET_MISSING", "Committed preview is missing"))?;
+-            let bytes = sealed_bytes(state, &project, file)?;
++            let bytes = sealed_bytes(state, project, file)?;
+             Ok::<_, crate::core::AppError>(PreviewSeal {
+                 name: name.into(),
+                 sha256: crate::artifacts::digest(&bytes),
+@@ -178,7 +180,7 @@ pub(crate) async fn capture(
+             .iter()
+             .find(|file| file.sha256.as_deref() == Some(hash) && is_step(file))
+             .ok_or_else(|| failure("ASSET_MISSING", "Authored imported STEP is missing"))?;
+-        let bytes = sealed_bytes(state, &project, file)?;
++        let bytes = sealed_bytes(state, project, file)?;
+         total = total
+             .checked_add(bytes.len())
+             .ok_or_else(|| failure("ASSET_LIMIT", "Measurement STEP input size overflow"))?;
+@@ -209,8 +211,9 @@ pub(crate) async fn capture(
+             "Captured input binding exceeds measurement limits",
+         ));
+     }
++    super::snapshot::recheck(state, &snapshot).await?;
+     Ok(CapturedMeasurement {
+-        project,
++        snapshot,
+         revision,
+         document,
+         program_bytes,
+@@ -221,22 +224,25 @@ pub(crate) async fn capture(
+ 
+ pub(crate) fn source_bytes(state: &AppState, captured: &CapturedMeasurement) -> Result<Vec<u8>> {
+     let file = captured
++        .snapshot
+         .project
+         .files
+         .iter()
+         .find(|file| Some(&file.name) == captured.revision.source.as_ref())
+         .ok_or_else(|| failure("ASSET_MISSING", "Captured exact source is missing"))?;
+-    sealed_bytes(state, &captured.project, file)
++    sealed_bytes(state, &captured.snapshot.project, file)
+ }
+ 
+ pub(crate) async fn recheck(state: &AppState, captured: &CapturedMeasurement) -> Result<()> {
++    super::snapshot::recheck(state, &captured.snapshot).await?;
+     let latest = capture(
+         state,
+-        &captured.project.id,
++        &captured.snapshot.project.id,
+         &captured.binding.revision_id,
+         &captured.binding.body_id,
+     )
+     .await?;
++    super::snapshot::recheck(state, &captured.snapshot).await?;
+     if latest.revision != captured.revision
+         || latest.binding != captured.binding
+         || latest.preview != captured.preview
+diff --git a/apps/desktop/src-tauri/src/model_measurement/build.rs b/apps/desktop/src-tauri/src/model_measurement/build.rs
+index cbc8c9f..cf007b3 100644
+--- a/apps/desktop/src-tauri/src/model_measurement/build.rs
++++ b/apps/desktop/src-tauri/src/model_measurement/build.rs
+@@ -90,7 +90,7 @@ async fn measure_inner(
+     )?;
+     crate::native::assets::stage_project_assets(
+         state,
+-        &captured.project,
++        &captured.snapshot.project,
+         &captured.document,
+         &workspace.path,
+     )?;
+diff --git a/apps/desktop/src-tauri/src/model_pair_measurement/build.rs b/apps/desktop/src-tauri/src/model_pair_measurement/build.rs
+index 12bdf1e..8a9a657 100644
+--- a/apps/desktop/src-tauri/src/model_pair_measurement/build.rs
++++ b/apps/desktop/src-tauri/src/model_pair_measurement/build.rs
+@@ -93,7 +93,7 @@ async fn measure_inner(
+     )?;
+     crate::native::assets::stage_project_assets(
+         state,
+-        &captured.project,
++        &captured.snapshot.project,
+         &captured.document,
+         &workspace.path,
+     )?;
+diff --git a/apps/desktop/src-tauri/src/model_face_section/build.rs b/apps/desktop/src-tauri/src/model_face_section/build.rs
+index f8432ab..595e451 100644
+--- a/apps/desktop/src-tauri/src/model_face_section/build.rs
++++ b/apps/desktop/src-tauri/src/model_face_section/build.rs
+@@ -84,7 +84,7 @@ async fn section_inner(
+     )?;
+     crate::native::assets::stage_project_assets(
+         state,
+-        &captured.project,
++        &captured.snapshot.project,
+         &captured.document,
+         &workspace.path,
+     )?;
+diff --git a/apps/desktop/src-tauri/src/model_measurement/build_tests.rs b/apps/desktop/src-tauri/src/model_measurement/build_tests.rs
+index 10a454f..cc2d1da 100644
+--- a/apps/desktop/src-tauri/src/model_measurement/build_tests.rs
++++ b/apps/desktop/src-tauri/src/model_measurement/build_tests.rs
+@@ -144,3 +144,63 @@ async fn input_corruption_after_real_worker_is_rejected_by_final_host_check() {
+     .unwrap();
+     assert_eq!(valid.report.revision_id, baseline.current_revision.unwrap());
+ }
++
++#[tokio::test]
++async fn close_and_reopen_after_real_worker_rejects_unchanged_measurement_source() {
++    let root = tempfile::tempdir().unwrap();
++    let (state, baseline) = fixture::fixture(root.path()).await;
++    state
++        .project_access
++        .acquire(&state.root, &baseline.id)
++        .unwrap();
++    let before = fixture::snapshot(&state, &baseline.id).await;
++    let called = AtomicBool::new(false);
++    let reopen_after_worker = || {
++        called.store(true, Ordering::Relaxed);
++        state.project_access.release(&baseline.id).unwrap();
++        state
++            .project_access
++            .acquire(&state.root, &baseline.id)
++            .unwrap();
++    };
++    let error = measure_inner(
++        &state,
++        &baseline.id,
++        baseline.current_revision.as_deref().unwrap(),
++        "body",
++        &MeasurementQuery::BodyMetrics {},
++        fixture::token(),
++        fixture::executable(),
++        PhaseHook {
++            after_worker: Some(&reopen_after_worker),
++            ..Default::default()
++        },
++    )
++    .await
++    .unwrap_err();
++    assert!(
++        called.load(Ordering::Relaxed),
++        "The real worker must finish before reopen"
++    );
++    assert!(error.to_string().contains("MEASUREMENT_STALE"), "{error}");
++    assert_eq!(fixture::snapshot(&state, &baseline.id).await, before);
++    fixture::clean(&state).await;
++    assert_eq!(
++        std::fs::read_dir(state.root.join(".transient/reference-measurements"))
++            .unwrap()
++            .count(),
++        0
++    );
++    let fresh = measure_with_executable(
++        &state,
++        &baseline.id,
++        baseline.current_revision.as_deref().unwrap(),
++        "body",
++        &MeasurementQuery::BodyMetrics {},
++        fixture::token(),
++        fixture::executable(),
++    )
++    .await
++    .unwrap();
++    assert_eq!(fresh.report.revision_id, baseline.current_revision.unwrap());
++}

@@ -19,7 +19,8 @@ for (const locale of ["ru", "en"] as const) {
               calls.push(command);
               if (command === "get_ui_preferences") return {};
               if (command === "detect_environment") return [{ name: "OpenCascade kernel", available: true, detail: "ready" }];
-              if (["list_projects", "interrupted_sessions", "permission_audit"].includes(command)) return [];
+              if (command === "list_projects") return { entries: [], serializedProjectBytes: 0 };
+              if (["interrupted_sessions", "permission_audit"].includes(command)) return [];
               return null;
             },
           },

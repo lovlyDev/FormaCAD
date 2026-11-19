@@ -2,6 +2,9 @@ use crate::{
     core::{AppState, Result},
     models::Project,
 };
+#[cfg(test)]
+#[path = "copy/tests.rs"]
+mod tests;
 /// Copy one pure committed model/history snapshot; never recover or modify its source.
 pub async fn copy_for_editing(state: &AppState, project_id: &str) -> Result<Project> {
     let _write = state.writes.lock().await;

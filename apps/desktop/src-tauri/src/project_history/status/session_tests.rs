@@ -7,6 +7,37 @@ use crate::{
 use std::{future::Future, task::Poll};
 
 #[tokio::test]
+async fn close_while_sql_recheck_waits_rejects_original_history_without_writes() {
+    let temp = tempfile::tempdir().unwrap();
+    let state = fixture::state(temp.path()).await;
+    let project = fixture::project(&state, 16).await;
+    let snapshot = repository::capture_history_state(&state, &project.id)
+        .await
+        .unwrap();
+    let before = fixture::logical(&state, &project.id).await;
+    let files = fixture::files(temp.path());
+    let mut held = Vec::new();
+    for _ in 0..state.pool.options().get_max_connections() {
+        held.push(state.pool.acquire().await.unwrap());
+    }
+    let checking = repository::recheck_history_state(&state, &snapshot);
+    tokio::pin!(checking);
+    std::future::poll_fn(|context| {
+        assert!(checking.as_mut().poll(context).is_pending());
+        Poll::Ready(())
+    })
+    .await;
+    state.project_access.release(&project.id).unwrap();
+    drop(held);
+    assert_eq!(
+        checking.await.err().unwrap().to_string(),
+        "PROJECT_SNAPSHOT_CHANGED"
+    );
+    assert_eq!(fixture::logical(&state, &project.id).await, before);
+    assert_eq!(fixture::files(temp.path()), files);
+}
+
+#[tokio::test]
 async fn close_while_sql_capture_waits_rejects_the_new_snapshot_without_writes() {
     let temp = tempfile::tempdir().unwrap();
     let state = fixture::state(temp.path()).await;

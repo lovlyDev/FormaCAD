@@ -2,7 +2,7 @@
 use crate::{
     core::{AppError, AppState, Result},
     models::Project,
-    project_repository::legacy,
+    project_repository::legacy::{self, CommittedSnapshot},
 };
 use std::{
     future::Future,
@@ -70,10 +70,30 @@ where
         Ok(packet)
     }
     .await;
-    let mut tasks = state.tasks.lock().await;
-    tasks.remove(id);
-    tasks.remove(&marker);
-    result
+    complete(state, id, &marker, &snapshot, &cancel, result).await
+}
+
+// Completion is shared by the production request and deterministic tests of
+// its last cleanup await. Release the task-map mutex before source/SQL work.
+async fn complete(
+    state: &AppState,
+    id: &str,
+    marker: &str,
+    snapshot: &CommittedSnapshot,
+    cancel: &AtomicBool,
+    result: Result<Vec<u8>>,
+) -> Result<Vec<u8>> {
+    {
+        let mut tasks = state.tasks.lock().await;
+        tasks.remove(id);
+        tasks.remove(marker);
+    }
+    let packet = result?;
+    legacy::recheck(state, snapshot).await?;
+    if cancel.load(Ordering::Relaxed) {
+        return Err(AppError::Invalid("Model preview cancelled".into()));
+    }
+    Ok(packet)
 }
 
 #[cfg(test)]
