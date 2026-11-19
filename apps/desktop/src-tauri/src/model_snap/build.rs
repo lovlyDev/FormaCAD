@@ -47,7 +47,7 @@ pub async fn snap_with_executable(
     )?;
     crate::native::assets::stage_project_assets(
         state,
-        &captured.project,
+        &captured.snapshot.project,
         &captured.document,
         &workspace.path,
     )?;

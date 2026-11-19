@@ -2,6 +2,12 @@
 
 [Documentation](index.md) · [Русский](../ru/storage-program.md) · [Snapshots](project-snapshots.md)
 
+The `codex/storage-1-3-acceptance` branch brings stages #28–#30 onto
+`main` 7b3d31f with M3. Opening a project reads a dedicated snapshot and
+keeps the active model until the read completes. M2 cursor snapping uses
+the project from the same snapshot as the captured geometry. Independent
+folder writes remain part of stage #31.
+
 Owner: wenlixxq; acceptance and merge: lovlyDev. Local branch `codex/storage-week`
 started at `abe2e054cb4b4f807aa89195825edd0e4e82c62a`. API access confirmed
 PR #5 merged; on 29 October the branch merged current main at
