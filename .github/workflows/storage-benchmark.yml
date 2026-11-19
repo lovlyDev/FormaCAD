@@ -57,7 +57,9 @@ jobs:
         run: |
           set -o pipefail
           cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib project_repository::window_sources:: -- --nocapture 2>&1 | tee storage-evidence/window-source-tests.log
-          grep -F 'test result: ok. 16 passed; 0 failed;' storage-evidence/window-source-tests.log
+          grep -F 'test result: ok. 18 passed; 0 failed;' storage-evidence/window-source-tests.log
+          grep -E 'test project_repository::window_sources::approval::tests::wrong_write_command_leaves_the_original_approval_available \.\.\. ok' storage-evidence/window-source-tests.log
+          grep -E 'test project_repository::window_sources::approval::tests::write_reply_identifies_its_base_and_distinguishes_every_publication_status \.\.\. ok' storage-evidence/window-source-tests.log
           grep -E 'test project_repository::window_sources::approval::tests::retained_prepared_request_cannot_substitute_project_or_revision \.\.\. ok' storage-evidence/window-source-tests.log
           grep -E 'test project_repository::window_sources::approval::tests::preparation_uses_original_project_once_and_failed_validation_mints_no_request \.\.\. ok' storage-evidence/window-source-tests.log
           grep -E 'test project_repository::window_sources::approval::tests::request_is_read_only_and_retains_exact_typed_intent_until_one_use \.\.\. ok' storage-evidence/window-source-tests.log

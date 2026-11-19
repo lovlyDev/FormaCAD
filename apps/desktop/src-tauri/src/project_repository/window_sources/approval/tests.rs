@@ -131,6 +131,111 @@ async fn request_is_read_only_and_retains_exact_typed_intent_until_one_use() {
 }
 
 #[tokio::test]
+async fn wrong_write_command_leaves_the_original_approval_available() {
+    let f = Fixture::new().await;
+    let before = f.bytes();
+    let id = f
+        .windows
+        .request_write(f.source(), WriteIntent::History(Direction::Undo))
+        .await
+        .unwrap();
+    f.windows.resolve_write(&id, "window", true).await.unwrap();
+
+    for wrong in [
+        WriteCommand::Program,
+        WriteCommand::Commands,
+        WriteCommand::History(Direction::Redo),
+    ] {
+        assert!(f
+            .windows
+            .consume_matching_write(&id, f.source(), Some(wrong))
+            .await
+            .is_err());
+    }
+
+    let undo = Some(WriteCommand::History(Direction::Undo));
+    let approved = f
+        .windows
+        .consume_matching_write(&id, f.source(), undo)
+        .await
+        .unwrap();
+    assert!(matches!(
+        approved.intent,
+        WriteIntent::History(Direction::Undo)
+    ));
+    assert!(f
+        .windows
+        .consume_matching_write(&id, f.source(), undo)
+        .await
+        .is_err());
+    assert_eq!(before, f.bytes());
+}
+
+#[tokio::test]
+async fn write_reply_identifies_its_base_and_distinguishes_every_publication_status() {
+    let f = Fixture::new().await;
+    let operation = f
+        .windows
+        .capture_operation("window", &f.key, &f.id, &f.commit)
+        .await
+        .unwrap();
+    let project = operation.project().clone();
+    let no_op = serde_json::to_value(FolderWriteReply::new(
+        f.source(),
+        ModelChange::NoOp(Box::new(project.clone())),
+    ))
+    .unwrap();
+    assert_eq!(no_op["status"], "noOp");
+    assert_eq!(no_op["project"]["id"], f.id);
+    assert!(no_op.get("commitId").is_none());
+
+    let mut candidate = project;
+    candidate.name = "Updated".into();
+    let approval = operation.approve_write().await.unwrap();
+    let published = operation.commit(approval, candidate, vec![]).await.unwrap();
+    let committed = serde_json::to_value(FolderWriteReply::new(
+        f.source(),
+        ModelChange::Published(published),
+    ))
+    .unwrap();
+    assert_eq!(committed["status"], "committed");
+    assert_eq!(committed["baseCommitId"], f.commit);
+    assert_ne!(committed["commitId"].as_str().unwrap(), f.commit);
+    assert_eq!(committed["project"]["name"], "Updated");
+
+    let rejected = serde_json::to_value(FolderWriteReply::new(
+        f.source(),
+        ModelChange::Published(Publication::RejectedBefore(AppError::Invalid(
+            "PROJECT_SNAPSHOT_CHANGED".into(),
+        ))),
+    ))
+    .unwrap();
+    assert_eq!(rejected["status"], "rejectedBefore");
+    assert!(rejected.get("commitId").is_none());
+    assert!(rejected.get("project").is_none());
+
+    let attempted = uuid::Uuid::new_v4().to_string();
+    let reply = FolderWriteReply::new(
+        f.source(),
+        ModelChange::Published(Publication::Indeterminate {
+            commit_id: attempted.clone(),
+            error: AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into()),
+        }),
+    );
+    assert_eq!(
+        serde_json::to_value(reply).unwrap(),
+        serde_json::json!({
+            "sourceId": f.key,
+            "projectId": f.id,
+            "baseCommitId": f.commit,
+            "status": "indeterminate",
+            "commitId": attempted,
+            "error": "PROJECT_SNAPSHOT_CHANGED"
+        })
+    );
+}
+
+#[tokio::test]
 async fn retained_prepared_request_cannot_substitute_project_or_revision() {
     let f = Fixture::new().await;
     let before = f.bytes();

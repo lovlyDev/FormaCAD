@@ -15,6 +15,9 @@ use std::{
 };
 use tokio::sync::Mutex;
 
+mod reply;
+pub use reply::FolderWriteReply;
+
 const LIFETIME: Duration = Duration::from_secs(300);
 const LIMIT: usize = 128;
 
@@ -33,6 +36,24 @@ pub enum WriteIntent {
     PreparedModel(Box<crate::modeling::apply::ApplyRequest>),
     PreparedCommands(Box<crate::modeling::apply::ApplyRequest>),
     History(Direction),
+}
+
+/// Identifies the existing write command that is allowed to consume a ticket.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WriteCommand {
+    Program,
+    Commands,
+    History(Direction),
+}
+
+impl WriteIntent {
+    fn command(&self) -> WriteCommand {
+        match self {
+            Self::Model(_) | Self::PreparedModel(_) => WriteCommand::Program,
+            Self::PreparedCommands(_) => WriteCommand::Commands,
+            Self::History(direction) => WriteCommand::History(*direction),
+        }
+    }
 }
 
 struct Command {
@@ -206,13 +227,42 @@ impl WindowSources {
         id: &str,
         source: ApprovalSource<'_>,
     ) -> Result<ApprovedCommand> {
+        self.consume_matching_write(id, source, None).await
+    }
+
+    /// Check the invoking command before spending the ticket, then execute the
+    /// retained intent. The caller supplies no replacement edit payload.
+    pub async fn execute_write(
+        &self,
+        id: &str,
+        source: ApprovalSource<'_>,
+        command: WriteCommand,
+        runtime: ModelRuntime<'_>,
+    ) -> Result<FolderWriteReply> {
+        let outcome = self
+            .consume_matching_write(id, source, Some(command))
+            .await?
+            .execute(runtime)
+            .await?;
+        Ok(FolderWriteReply::new(source, outcome))
+    }
+
+    async fn consume_matching_write(
+        &self,
+        id: &str,
+        source: ApprovalSource<'_>,
+        expected: Option<WriteCommand>,
+    ) -> Result<ApprovedCommand> {
         let request = self.approvals.get(id)?;
         if !request.matches(source) {
             return Err(denied());
         }
         let mut decision = request.decision.lock().await;
         request.live()?;
-        if !matches!(*decision, Some(Decision::Allowed(_))) {
+        let Some(Decision::Allowed(command)) = decision.as_ref() else {
+            return Err(denied());
+        };
+        if expected.is_some_and(|expected| command.intent.command() != expected) {
             return Err(denied());
         }
         let Some(Decision::Allowed(command)) = decision.take() else {

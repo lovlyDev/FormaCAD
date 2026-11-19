@@ -551,6 +551,17 @@ and `resolve_permission` commands, as described below. Publishing changes
 through model/history IPC and exposing the corresponding UI actions come next.
 Folder controls become available once the complete read/write flow is verified.
 
+Before execution, the host binds the one-use approval to its operation: a
+program, CAD commands, Undo, or Redo. A mismatched invocation leaves the
+approval available for its original operation. The kind check and consumption
+run under the same request lock.
+
+The host reply pairs the original `sourceId`, `projectId` and `baseCommitId`
+with a `noOp`, `committed`, `rejectedBefore`, or `indeterminate` result.
+An indeterminate publication includes its attempted commit ID so the saved
+state can be checked without re-running the command. This contract is ready
+for the model/history IPC integration.
+
 ### Manual section of the original STEP source
 
 Existing `section_model` accepts an optional sourceId/expectedCommitId pair. The

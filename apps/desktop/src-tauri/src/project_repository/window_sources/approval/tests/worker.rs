@@ -1,6 +1,6 @@
 //! Explicit genuine-worker proof of request -> decision -> original execution.
 use super::*;
-use crate::{cad_tasks::CadTaskGate, project_repository::sqlite_folder::api::SavedCommit};
+use crate::cad_tasks::CadTaskGate;
 use std::sync::atomic::AtomicBool;
 
 fn program(width: f64) -> String {
@@ -15,25 +15,34 @@ async fn apply(
     commit: &str,
     intent: WriteIntent,
     runtime: ModelRuntime<'_>,
-) -> SavedCommit {
+) -> String {
     let source = ApprovalSource {
         commit_id: commit,
         ..f.source()
     };
+    let command = intent.command();
     let id = f.windows.request_write(source, intent).await.unwrap();
     f.windows.resolve_write(&id, "window", true).await.unwrap();
-    let approved = f.windows.consume_write(&id, source).await.unwrap();
+    let reply = f
+        .windows
+        .execute_write(&id, source, command, runtime)
+        .await
+        .unwrap();
     assert!(f.windows.consume_write(&id, source).await.is_err());
-    match approved.execute(runtime).await.unwrap() {
-        ModelChange::Published(Publication::Committed(saved)) => saved,
-        _ => panic!("expected a confirmed original-command publication"),
-    }
+    let reply = serde_json::to_value(reply).unwrap();
+    assert_eq!(reply["status"], "committed");
+    assert_eq!(reply["sourceId"], f.key);
+    assert_eq!(reply["projectId"], f.id);
+    assert_eq!(reply["baseCommitId"], commit);
+    let saved = reply["commitId"].as_str().unwrap();
+    assert_ne!(saved, commit);
+    saved.to_owned()
 }
 
-async fn inspect(f: &Fixture, saved: &SavedCommit, width: f64, executable: &std::path::Path) {
+async fn inspect(f: &Fixture, commit_id: &str, width: f64, executable: &std::path::Path) {
     let read = f
         .windows
-        .capture_read("window", &f.key, &f.id, saved.commit_id())
+        .capture_read("window", &f.key, &f.id, commit_id)
         .await
         .unwrap();
     let revision = read
@@ -95,7 +104,7 @@ async fn real_command_decision_applies_original_cad_and_history() {
     inspect(&f, &first, 40., &executable).await;
     let second = apply(
         &f,
-        first.commit_id(),
+        &first,
         WriteIntent::Model(ModelIntent {
             program: program(80.),
             prompt: "Second retained command".into(),
@@ -106,19 +115,13 @@ async fn real_command_decision_applies_original_cad_and_history() {
     inspect(&f, &second, 80., &executable).await;
     let undo = apply(
         &f,
-        second.commit_id(),
+        &second,
         WriteIntent::History(Direction::Undo),
         runtime(),
     )
     .await;
     inspect(&f, &undo, 40., &executable).await;
-    let redo = apply(
-        &f,
-        undo.commit_id(),
-        WriteIntent::History(Direction::Redo),
-        runtime(),
-    )
-    .await;
+    let redo = apply(&f, &undo, WriteIntent::History(Direction::Redo), runtime()).await;
     inspect(&f, &redo, 80., &executable).await;
     assert!(tasks.lock().await.is_empty());
     assert!(gate.status().unwrap().is_empty());
