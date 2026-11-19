@@ -43,6 +43,13 @@ async fn operation_keeps_window_source_and_saved_state_together_without_read_gra
     assert_eq!(operation.project().name, "First source");
     assert_eq!(operation.commit_id(), commit);
     assert_eq!(operation.task_scope_id(), first.snapshot.task_scope_id());
+    let status = operation.history_status().await.unwrap();
+    assert!(!status.can_undo);
+    assert!(!status.can_redo);
+    assert_eq!(
+        status.expected_revision,
+        operation.project().current_revision
+    );
     assert!(windows
         .capture_operation("second", &key, &id, commit)
         .await
@@ -103,6 +110,7 @@ async fn approved_operation_cannot_write_after_close_or_reused_window_label() {
     let reopened = replacement.open(root.path()).await.unwrap();
     assert_ne!(key, reopened.id.to_string());
     assert!(original.recheck().await.is_err());
+    assert!(original.history_status().await.is_err());
     assert!(original.commit(approval, candidate, vec![]).await.is_err());
     assert!(windows
         .capture_operation("window", &key, &id, commit)
@@ -149,6 +157,7 @@ async fn delayed_approval_never_recaptures_a_newer_commit_to_legalize_an_old_can
     let before = std::fs::read(root.path().join("project.sqlite")).unwrap();
     assert!(pending.approve_write().await.is_err());
     assert!(pending.recheck().await.is_err());
+    assert!(pending.history_status().await.is_err());
     assert_eq!(
         before,
         std::fs::read(root.path().join("project.sqlite")).unwrap()

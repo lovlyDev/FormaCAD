@@ -562,6 +562,11 @@ An indeterminate publication includes its attempted commit ID so the saved
 state can be checked without re-running the command. This contract is ready
 for the model/history IPC integration.
 
+For the history controls, the folder host reads the Undo/Redo cursor and
+current revision from one metadata snapshot. It rechecks that same snapshot
+before returning, so a close or a different commit invalidates the result.
+This read needs no history archive, writer lease, or global project database.
+
 ### Manual section of the original STEP source
 
 Existing `section_model` accepts an optional sourceId/expectedCommitId pair. The

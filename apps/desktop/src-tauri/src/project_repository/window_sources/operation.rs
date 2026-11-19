@@ -4,7 +4,7 @@ use super::WindowSources;
 use crate::{
     core::Result,
     models::Project,
-    project_history::Direction,
+    project_history::{Direction, HistoryStatus},
     project_repository::{
         backend::RepositoryRead,
         sqlite_folder::api::{
@@ -52,6 +52,20 @@ impl FolderOperation {
     pub async fn recheck(&self) -> Result<()> {
         self.source.recheck(&self.view).await
     }
+
+    /// The cursor and revision come from this operation's metadata view.
+    /// The archive is not read and a writer lease is not needed.
+    pub async fn history_status(&self) -> Result<HistoryStatus> {
+        let cursor = self.view.history_state();
+        let status = HistoryStatus {
+            can_undo: cursor.can_undo(),
+            can_redo: cursor.can_redo(),
+            expected_revision: self.view.project().current_revision.clone(),
+        };
+        self.recheck().await?;
+        Ok(status)
+    }
+
     pub async fn into_read(self) -> Result<RepositoryRead<'static>> {
         RepositoryRead::from_folder_view(self.source, self.view).await
     }
