@@ -30,6 +30,8 @@ pub struct ApprovalSource<'a> {
 /// The exact command is retained before the decision, never supplied at consume.
 pub enum WriteIntent {
     Model(ModelIntent),
+    PreparedModel(Box<crate::modeling::apply::ApplyRequest>),
+    PreparedCommands(Box<crate::modeling::apply::ApplyRequest>),
     History(Direction),
 }
 
@@ -102,6 +104,11 @@ pub struct ApprovedCommand {
 impl ApprovedCommand {
     pub async fn execute(self, runtime: ModelRuntime<'_>) -> Result<ModelChange> {
         match self.intent {
+            WriteIntent::PreparedModel(request) | WriteIntent::PreparedCommands(request) => {
+                self.operation
+                    .apply_request(self.approval, *request, runtime)
+                    .await
+            }
             WriteIntent::Model(intent) => {
                 self.operation
                     .apply_model(Some(self.approval), intent, runtime)
@@ -117,6 +124,14 @@ impl ApprovedCommand {
 }
 
 impl WindowSources {
+    /// Check request identity before host audit IO. This does not approve or consume it.
+    pub fn check_write_request(&self, id: &str, source: ApprovalSource<'_>) -> Result<()> {
+        let request = self.approvals.get(id)?;
+        if !request.matches(source) {
+            return Err(denied());
+        }
+        request.live()
+    }
     pub async fn request_write(
         &self,
         source: ApprovalSource<'_>,

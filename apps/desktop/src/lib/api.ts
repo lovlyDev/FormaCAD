@@ -3,6 +3,7 @@ import { getLocale, t } from "../i18n";
 import { reviewPlanSchema, type ReviewPlan } from "../features/agents/review/plan/reviewPlan";
 import type { Project, Health, Parameters } from "../types";
 import type { FolderSourceRef } from "../features/project-sources/contract";
+import {capturePermissionContext,capturePermissionRequest,readPermissionTicket,type FolderPermissionOptions,type FolderPermissionContext,type FolderPermissionTicket} from "../features/project-sources/permissionContract";
 import { cadDocumentSchema, type CadDocument } from "./cadDocument";
 export const native = isTauri();
 export interface InterruptedSession {
@@ -143,15 +144,25 @@ export async function plan(
 export async function cancelTask(projectId: string) {
   if (native) await invoke("cancel_task", { projectId });
 }
+export function requestNativePermission(projectId:string,action:string,detail:string):Promise<string>;
+export function requestNativePermission(projectId:string,action:string,detail:string,folder:FolderPermissionOptions):Promise<Readonly<FolderPermissionTicket>>;
 export async function requestNativePermission(
   projectId: string,
   action: string,
   detail: string,
-): Promise<string> {
-  return invoke("request_permission", { projectId, action, detail });
+  folder?:FolderPermissionOptions,
+): Promise<string|Readonly<FolderPermissionTicket>> {
+  if(folder===undefined)return invoke<string>("request_permission", { projectId, action, detail });
+  if(!native)throw Error("PROJECT_FOLDER_UNSUPPORTED");
+  const captured=capturePermissionRequest(projectId,folder);
+  const value=await invoke("request_permission",{projectId,action,detail,sourceId:captured.context.source.sourceId,expectedCommitId:captured.context.source.commitId,folderIntent:captured.intent});
+  return readPermissionTicket(value,captured.context);
 }
-export async function resolveNativePermission(id: string, allow: boolean) {
-  return invoke("resolve_permission", { id, allow });
+export async function resolveNativePermission(id: string, allow: boolean,folder?:FolderPermissionContext) {
+  if(folder===undefined)return invoke("resolve_permission", { id, allow });
+  if(!native)throw Error("PROJECT_FOLDER_UNSUPPORTED");
+  const captured=capturePermissionContext(folder);
+  return invoke("resolve_permission", { id, allow,projectId:captured.projectId,sourceId:captured.source.sourceId,expectedCommitId:captured.source.commitId });
 }
 export async function exportStep(
   projectId: string,

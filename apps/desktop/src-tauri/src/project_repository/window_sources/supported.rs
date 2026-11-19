@@ -6,6 +6,14 @@ use crate::{
 use std::sync::Arc;
 
 impl WindowSources {
+    #[cfg(test)]
+    pub(crate) async fn open_for_test(
+        &self,
+        label: &str,
+        root: &std::path::Path,
+    ) -> Result<crate::project_repository::sqlite_folder::api::OpenedFolder> {
+        self.for_window(label)?.open(root).await
+    }
     pub(super) fn for_window(&self, label: &str) -> Result<Arc<FolderSources>> {
         let mut scopes = self.scopes.lock().map_err(|_| changed())?;
         if let Some(scope) = scopes.get(label) {

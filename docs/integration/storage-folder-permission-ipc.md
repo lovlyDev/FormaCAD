@@ -2,7 +2,7 @@
 
 [English](storage-folder-permission-ipc.en.md) · [Host API](../ru/storage-folder-host-api.md) · [Сечения](storage-section-renderer-source.md)
 
-Статус: **подготовлен и проверен в изолированном CI; в рабочей ветке не применён; требуется согласование владельца**.
+Статус: **применён после явного согласования владельцем всех 16 файлов; текущий runtime CI ожидается**.
 Issue #31 / PR #35, исполнитель wenlixxq, согласование и приёмка lovlyDev.
 Основа `3e945bca9cfb956b23ecdaafd4eb52e95bd0af37`. Точный
 [патч](storage-folder-permission-ipc.patch) меняет 16 путей ниже. SHA256:
@@ -85,7 +85,6 @@ CAD-команду 40→80 мм → Undo/Redo, включая automatic policy �
 Собственный [review workflow](../../.github/workflows/storage-permission-review.yml)
 применяет SHA256-проверенный патч **только во временном CI checkout**, фиксирует
 ровно 16 staged путей/хэши и запускает frontend, оба strict Clippy режима, SQL и
-явный настоящий worker-тест. Ветка при этом содержит только review-артефакты,
-а shared permission-код ждёт согласования по §5 ТЗ. Такой CI подтверждает предложенный
+явный настоящий worker-тест. После изолированного ревью владелец согласовал все 16 файлов по §5 ТЗ; патч применён в рабочую ветку. Такой CI подтверждает предложенный
 патч, а не его применение в runtime ветки. После согласования нужны проверки уже
 применённого текущего SHA. Это не installed-app приёмка; локального Windows SDK нет.

@@ -2,7 +2,7 @@
 
 [Русский](storage-folder-permission-ipc.md) · [Host API](../en/storage-folder-host-api.md) · [Sections](storage-section-renderer-source.en.md)
 
-Status: **prepared and validated in isolated CI, unapplied in the task branch; owner agreement required**.
+Status: **applied after explicit owner agreement for all 16 files; current runtime CI pending**.
 Issue #31 / PR #35; implementation wenlixxq, agreement and acceptance lovlyDev.
 Base `3e945bca9cfb956b23ecdaafd4eb52e95bd0af37`. The exact
 [patch](storage-folder-permission-ipc.patch) changes the 16 paths below. SHA256:
@@ -87,8 +87,7 @@ and STEP inspection.
 The owned [review workflow](../../.github/workflows/storage-permission-review.yml)
 applies the SHA256-checked proposal **only in a temporary CI checkout**, records
 exactly 16 staged paths/hashes, and runs frontend, both strict Clippy configurations,
-SQL and the explicit genuine worker test. The branch contains review artifacts;
-shared permission source waits for specification §5 agreement. Such CI validates the
+SQL and the explicit genuine worker test. After isolated review the owner explicitly agreed to all 16 files under specification §5; the patch is now applied in the task branch. Such CI validates the
 proposal, not its runtime application in the task branch. After agreement, checks
 on the actually applied current SHA remain required. This is not installed-app
 acceptance; the local Windows SDK is incomplete.

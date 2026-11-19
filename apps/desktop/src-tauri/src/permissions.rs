@@ -1,5 +1,8 @@
 use crate::core::{AppError, AppState, Result};
-use std::time::{Duration, Instant};
+use std::time::Instant;
+mod folder;
+mod managed_requests;
+pub use folder::{Intent as FolderIntent, Receipt as FolderPermissionReceipt};
 use tauri::State;
 const ACTIONS: [&str; 5] = [
     "modify_project",
@@ -35,9 +38,12 @@ impl ConfirmationSettings {
     }
 }
 async fn settings(state: &AppState) -> Result<ConfirmationSettings> {
+    settings_for_pool(&state.pool).await
+}
+async fn settings_for_pool(pool: &sqlx::SqlitePool) -> Result<ConfirmationSettings> {
     let raw: Option<String> =
         sqlx::query_scalar("SELECT value FROM settings WHERE key='confirmations'")
-            .fetch_optional(&state.pool)
+            .fetch_optional(pool)
             .await?;
     Ok(match raw {
         Some(raw) => serde_json::from_str(&raw)?,
@@ -85,72 +91,88 @@ pub struct AuditEntry {
 pub async fn permission_audit(state: State<'_, AppState>) -> Result<Vec<AuditEntry>> {
     Ok(sqlx::query_as::<_,AuditEntry>("SELECT id,project_id,action,detail,decision,created_at FROM permissions ORDER BY created_at DESC LIMIT 100").fetch_all(&state.pool).await?)
 }
+#[derive(serde::Serialize)]
+#[serde(untagged)]
+pub enum PermissionReply {
+    Managed(String),
+    Folder(FolderPermissionReceipt),
+}
+
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn request_permission(
     project_id: String,
     action: String,
     detail: String,
+    source_id: Option<String>,
+    expected_commit_id: Option<String>,
+    folder_intent: Option<crate::permissions::FolderIntent>,
+    window: tauri::WebviewWindow,
+    sources: State<'_, crate::project_repository::window_sources::WindowSources>,
     state: State<'_, AppState>,
-) -> Result<String> {
+) -> Result<PermissionReply> {
     crate::security::valid_id(&project_id)?;
-    if ![
-        "modify_project",
-        "run_agent",
-        "export_file",
-        "convert_file",
-        "install_dependency",
-    ]
-    .contains(&action.as_str())
-        || detail.len() > 80000
-    {
+    if !ACTIONS.contains(&action.as_str()) || detail.len() > 80000 {
         return Err(AppError::Invalid("Unsupported permission request".into()));
     }
-    let id = uuid::Uuid::new_v4().to_string();
-    sqlx::query(
-        "INSERT INTO permissions(id,project_id,action,detail,created_at) VALUES(?,?,?,?,?)",
-    )
-    .bind(&id)
-    .bind(&project_id)
-    .bind(&action)
-    .bind(&detail)
-    .bind(chrono::Utc::now().to_rfc3339())
-    .execute(&state.pool)
-    .await?;
-    let mut grants = state.grants.lock().await;
-    grants.retain(|_, g| g.expires > Instant::now());
-    grants.insert(
-        id.clone(),
-        Grant {
-            project_id,
-            action,
-            approved: false,
-            expires: Instant::now() + Duration::from_secs(300),
-        },
-    );
-    Ok(id)
+    match (source_id, expected_commit_id, folder_intent) {
+        (None, None, None) => managed_requests::request(project_id, action, detail, &state)
+            .await
+            .map(PermissionReply::Managed),
+        (Some(source_id), Some(commit_id), Some(intent)) => {
+            if action != "modify_project" {
+                return Err(AppError::Invalid("Unsupported permission request".into()));
+            }
+            folder::request(
+                &state.pool,
+                &sources,
+                window.label(),
+                folder::Request {
+                    project_id,
+                    source_id,
+                    commit_id,
+                    intent,
+                    detail,
+                },
+            )
+            .await
+            .map(PermissionReply::Folder)
+        }
+        _ => Err(AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into())),
+    }
 }
+
 #[tauri::command]
-pub async fn resolve_permission(id: String, allow: bool, state: State<'_, AppState>) -> Result<()> {
-    let mut grants = state.grants.lock().await;
-    let g = grants
-        .get_mut(&id)
-        .ok_or_else(|| AppError::Permission("Request expired or was already used".into()))?;
-    if g.approved || g.expires < Instant::now() {
-        return Err(AppError::Permission(
-            "Request expired or was already resolved".into(),
-        ));
+#[allow(clippy::too_many_arguments)]
+pub async fn resolve_permission(
+    id: String,
+    allow: bool,
+    project_id: Option<String>,
+    source_id: Option<String>,
+    expected_commit_id: Option<String>,
+    window: tauri::WebviewWindow,
+    sources: State<'_, crate::project_repository::window_sources::WindowSources>,
+    state: State<'_, AppState>,
+) -> Result<()> {
+    match (project_id, source_id, expected_commit_id) {
+        (None, None, None) => managed_requests::resolve(id, allow, &state).await,
+        (Some(project_id), Some(source_id), Some(commit_id)) => {
+            folder::resolve(
+                &state.pool,
+                &sources,
+                window.label(),
+                &id,
+                allow,
+                folder::Source {
+                    project_id,
+                    source_id,
+                    commit_id,
+                },
+            )
+            .await
+        }
+        _ => Err(AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into())),
     }
-    sqlx::query("UPDATE permissions SET decision=? WHERE id=? AND decision='pending'")
-        .bind(if allow { "allowed" } else { "denied" })
-        .bind(&id)
-        .execute(&state.pool)
-        .await?;
-    if allow {
-        g.approved = true;
-    } else {
-        grants.remove(&id);
-    }
-    Ok(())
 }
 pub async fn consume(state: &AppState, project_id: &str, action: &str) -> Result<()> {
     let _access = if matches!(action, "modify_project" | "run_agent" | "convert_file") {
@@ -189,6 +211,7 @@ fn consume_from(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
     #[test]
     fn confirmation_presets_and_overrides() {
         let mut s = ConfirmationSettings::default();

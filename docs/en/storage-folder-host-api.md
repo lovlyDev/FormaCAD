@@ -546,11 +546,10 @@ then Undo/Redo through the same one-use route and inspects actual STEP files wit
 the worker to check volume and bounds. It requires an explicitly built worker and
 runs with `--ignored --exact`; a normal skipped/ignored run is not its validation.
 
-This is a host foundation, without a new user action. Existing shared
-`request_permission`/`resolve_permission` and model/history IPC are not connected
-yet; their integration requires a separate agreed patch. No parallel IPC, managed
-project rows or serialized grants are added. Folder controls remain hidden until
-the complete read/write flow is ready.
+Permission requests and confirmation use the existing `request_permission`
+and `resolve_permission` commands, as described below. Publishing changes
+through model/history IPC and exposing the corresponding UI actions come next.
+Folder controls become available once the complete read/write flow is verified.
 
 ### Manual section of the original STEP source
 
@@ -582,3 +581,25 @@ displayed geometry. An unregistered folder object never receives managed fallbac
 Folder panel preferences stay in RAM and reset on a new opening without reading or
 writing managed preferences. Complete folder writer UI is still unfinished and
 folder controls remain hidden.
+
+### Source-bound permission IPC
+
+Existing `request_permission`/`resolve_permission` accept an optional sourceId/
+expectedCommitId reference and original Model with ReviewPlan, Commands or History
+intent. Incomplete folder fields fail without managed fallback. Omitting them keeps
+managed payloads and String replies. The host captures the original FolderOperation
+and prepares the full ApplyRequest through the common validator/command pipeline.
+ReviewPlan and the Commands-prepared revision survive until execution.
+
+Server confirmation policy determines requiresConfirmation. The frontend captures
+original context and deeply copies intent before awaiting. Audit/settings never
+resurrect permission; audit SQL failure cannot allow writes or undo denial. Registry
+locks never span SQL awaits; the publisher still checks the actual OS writer lease.
+
+See the [permission IPC contract](../integration/storage-folder-permission-ipc.en.md).
+Isolated review passed 407 frontend, 567 library, 12 SQL/FCP1 and 16 window-source
+tests, both strict Clippy configurations and the genuine ReviewPlan/CAD Commands/
+Undo-Redo test. The code was applied after agreement for all 16 files; actual local
+407 tests, build/lint/i18n and Rustfmt passed again. Current runtime CI is verified
+separately. Writer/model/history IPC must still consume the receipt and return a
+publication/new commit; the corresponding UI controls remain unfinished.

@@ -88,6 +88,16 @@ impl FolderOperation {
             .apply_model(&self.view, approval, intent, runtime)
             .await
     }
+    pub(crate) async fn apply_request(
+        self,
+        approval: WriteApproval,
+        request: crate::modeling::apply::ApplyRequest,
+        runtime: ModelRuntime<'_>,
+    ) -> Result<ModelChange> {
+        self.source
+            .apply_request(&self.view, Some(approval), request, runtime)
+            .await
+    }
     pub async fn apply_history(
         self,
         approval: WriteApproval,

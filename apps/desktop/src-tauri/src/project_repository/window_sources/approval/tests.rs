@@ -115,6 +115,7 @@ async fn request_is_read_only_and_retains_exact_typed_intent_until_one_use() {
     let f = Fixture::new().await;
     let before = f.bytes();
     let id = f.request().await;
+    f.windows.check_write_request(&id, f.source()).unwrap();
     assert!(f.windows.consume_write(&id, f.source()).await.is_err());
     f.windows.resolve_write(&id, "window", true).await.unwrap();
     assert!(f.windows.resolve_write(&id, "window", true).await.is_err());
@@ -127,6 +128,53 @@ async fn request_is_read_only_and_retains_exact_typed_intent_until_one_use() {
     assert_eq!(intent.prompt, "original prompt");
     assert!(f.windows.consume_write(&id, f.source()).await.is_err());
     assert_eq!(before, f.bytes());
+}
+
+#[tokio::test]
+async fn retained_prepared_request_cannot_substitute_project_or_revision() {
+    let f = Fixture::new().await;
+    let before = f.bytes();
+    let work = tempfile::tempdir().unwrap();
+    let tasks = Mutex::new(HashMap::new());
+    let gate = crate::cad_tasks::CadTaskGate::default();
+    for wrong_project in [true, false] {
+        let request = crate::modeling::apply::ApplyRequest::new(
+            if wrong_project {
+                uuid::Uuid::new_v4().to_string()
+            } else {
+                f.id.clone()
+            },
+            "result = box(40,20,10)".into(),
+            "Retained request".into(),
+            if wrong_project {
+                None
+            } else {
+                Some(uuid::Uuid::new_v4().to_string())
+            },
+        );
+        let id = f
+            .windows
+            .request_write(f.source(), WriteIntent::PreparedModel(Box::new(request)))
+            .await
+            .unwrap();
+        f.windows.resolve_write(&id, "window", true).await.unwrap();
+        let approved = f.windows.consume_write(&id, f.source()).await.unwrap();
+        let error = approved
+            .execute(ModelRuntime {
+                tasks: &tasks,
+                gate: &gate,
+                runtime_root: work.path(),
+                transient_root: work.path(),
+                executable: None,
+            })
+            .await
+            .err()
+            .expect("foreign request was accepted");
+        assert!(error.to_string().contains("PROJECT_SNAPSHOT_CHANGED"));
+    }
+    assert_eq!(before, f.bytes());
+    assert!(tasks.lock().await.is_empty());
+    assert!(gate.status().unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -157,6 +205,7 @@ async fn wrong_window_source_project_or_commit_cannot_consume_or_resolve() {
             ..f.source()
         },
     ] {
+        assert!(f.windows.check_write_request(&id, foreign).is_err());
         assert!(f.windows.consume_write(&id, foreign).await.is_err());
     }
     // Foreign attempts neither use nor transfer the original decision.

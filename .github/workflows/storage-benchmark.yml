@@ -46,11 +46,19 @@ jobs:
           grep -E '^test result: ok\. [1-9][0-9]* passed; 0 failed;' storage-evidence/host-api-tests.log
           grep -E 'test project_repository::sqlite_folder::format::metadata_tests::metadata_succeeds_with_event_reads_denied_and_cannot_be_mistaken_for_full_archive \.\.\. ok' storage-evidence/host-api-tests.log
           grep -E 'test project_repository::sqlite_folder::api::metadata_tests::metadata_does_not_adopt_unverified_archive_as_write_copy_or_history_authority \.\.\. ok' storage-evidence/host-api-tests.log
+      - name: Test source-bound host permission policy and decisions
+        run: |
+          set -o pipefail
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib permissions::folder::host::tests:: -- --nocapture 2>&1 | tee storage-evidence/folder-permission-tests.log
+          grep -F 'test result: ok. 12 passed; 0 failed;' storage-evidence/folder-permission-tests.log
+          grep -E 'test permissions::folder::host::tests::audit_failure_cannot_allow_a_pending_request_and_cannot_undo_denial \.\.\. ok' storage-evidence/folder-permission-tests.log
+          grep -E 'test permissions::folder::host::tests::waiting_for_audit_sql_does_not_lock_source_registry_or_other_requests \.\.\. ok' storage-evidence/folder-permission-tests.log
       - name: Test window-owned folder source routing
         run: |
           set -o pipefail
           cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib project_repository::window_sources:: -- --nocapture 2>&1 | tee storage-evidence/window-source-tests.log
-          grep -F 'test result: ok. 15 passed; 0 failed;' storage-evidence/window-source-tests.log
+          grep -F 'test result: ok. 16 passed; 0 failed;' storage-evidence/window-source-tests.log
+          grep -E 'test project_repository::window_sources::approval::tests::retained_prepared_request_cannot_substitute_project_or_revision \.\.\. ok' storage-evidence/window-source-tests.log
           grep -E 'test project_repository::window_sources::approval::tests::preparation_uses_original_project_once_and_failed_validation_mints_no_request \.\.\. ok' storage-evidence/window-source-tests.log
           grep -E 'test project_repository::window_sources::approval::tests::request_is_read_only_and_retains_exact_typed_intent_until_one_use \.\.\. ok' storage-evidence/window-source-tests.log
           grep -E 'test project_repository::window_sources::approval::tests::concurrent_consumers_receive_only_one_original_command \.\.\. ok' storage-evidence/window-source-tests.log

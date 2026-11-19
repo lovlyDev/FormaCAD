@@ -548,11 +548,11 @@ Quality workflow не меняется. Результаты всегда отн
 worker для проверки объёма и габаритов. Он требует явно собранный worker и
 запускается с `--ignored --exact`; обычный skipped/ignored запуск его не доказывает.
 
-Это host-основа, пока без нового пользовательского действия. Общие
-`request_permission`/`resolve_permission` и model/history IPC ещё не подключены к
-этому маршруту: для них нужен отдельный согласованный патч. Дублирующего IPC,
-записей managed project и сериализуемых grants не добавлено. Кнопка папки остаётся
-скрыта до готовности полного read/write сценария.
+Запрос и подтверждение разрешения проходят через существующие
+`request_permission` и `resolve_permission`, как описано ниже. Публикация
+изменений из model/history IPC и соответствующие действия интерфейса остаются
+следующим шагом. Кнопка папки станет доступна после проверки полного сценария
+чтения и записи.
 
 ### Ручное сечение исходного STEP
 
@@ -583,3 +583,25 @@ Production build и rustfmt прошли локально. Новый насто
 managed fallback. Настройки панели в папке хранятся в RAM и сбрасываются при новом
 открытии, без чтения/записи managed preferences. Полный folder writer UI всё ещё
 не готов; кнопка папки остаётся скрытой.
+
+### Source-bound permission IPC
+
+Существующие `request_permission`/`resolve_permission` принимают необязательную
+связку sourceId/expectedCommitId и исходную команду Model с ReviewPlan, Commands
+либо History. Неполные folder-поля отклоняются без managed fallback. Без folder-полей
+сохранены прежние managed payload и String reply. Host захватывает исходный
+FolderOperation и готовит полный ApplyRequest через общий валидатор/command pipeline.
+ReviewPlan и подготовленная Commands revision сохраняются до исполнения.
+
+Серверная confirmation policy определяет requiresConfirmation. Frontend сохраняет
+исходный context и глубокую копию intent до await. Audit/settings не восстанавливают
+разрешение; ошибка audit SQL не разрешает запись и не отменяет отрицательное решение.
+Registry mutex не удерживается через SQL await; реальный OS lease проверяет publisher.
+
+Точный scope: [permission IPC контракт](../integration/storage-folder-permission-ipc.md).
+Изолированное ревью прошло 407 frontend, 567 library, 12 SQL/FCP1, 16 window-source
+тестов, оба strict Clippy и настоящий ReviewPlan/CAD Commands/Undo-Redo тест.
+После явного согласования всех 16 файлов код применён; локально снова прошли
+407 тестов, build/lint/i18n и Rustfmt. Текущий runtime CI проверяется отдельно.
+Writer/model/history IPC ещё должны принять receipt и вернуть publication с новым
+commit; соответствующие UI-кнопки остаются незавершёнными.

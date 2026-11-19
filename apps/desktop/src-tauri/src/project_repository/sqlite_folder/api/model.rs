@@ -3,7 +3,7 @@ use super::super::session::apply::FolderApplyHost;
 use super::{FolderProject, Publication, ReadView, WriteApproval};
 use crate::{
     cad_tasks::CadTaskGate,
-    core::Result,
+    core::{AppError, Result},
     modeling::{
         apply::ApplyRequest,
         execution::BuildRuntime,
@@ -47,16 +47,33 @@ impl FolderProject {
         intent: ModelIntent,
         runtime: ModelRuntime<'_>,
     ) -> Result<ModelChange> {
-        if let Some(approval) = &approval {
-            approval.check(self, original)?;
-        }
-        self.recheck(original).await?;
         let request = ApplyRequest::new(
             original.project().id.clone(),
             intent.program,
             intent.prompt,
             original.project().current_revision.clone(),
         );
+        self.apply_request(original, approval, request, runtime)
+            .await
+    }
+
+    /// Retain the host-prepared review plan/command revision through the one executor.
+    pub(crate) async fn apply_request(
+        &self,
+        original: &ReadView,
+        approval: Option<WriteApproval>,
+        request: ApplyRequest,
+        runtime: ModelRuntime<'_>,
+    ) -> Result<ModelChange> {
+        if request.project_id != original.project().id
+            || request.expected_revision != original.project().current_revision
+        {
+            return Err(AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into()));
+        }
+        if let Some(approval) = &approval {
+            approval.check(self, original)?;
+        }
+        self.recheck(original).await?;
         let host = FolderApplyHost::new(
             &self.session,
             BuildRuntime {
