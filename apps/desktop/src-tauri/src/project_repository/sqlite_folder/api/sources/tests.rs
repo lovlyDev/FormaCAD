@@ -3,6 +3,50 @@ use super::*;
 use crate::{models::Project, project_repository::sqlite_folder::api::Publication};
 
 #[tokio::test]
+async fn successful_folder_creation_and_opening_update_recents() {
+    let app = tempfile::tempdir().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    let index = FolderIndex::in_app_data(app.path());
+    let sources = FolderSources::with_index(FolderIndex::in_app_data(app.path()));
+    let created = sources
+        .create_blank(root.path(), "Indexed".into(), "mm".into(), "codex".into())
+        .await
+        .unwrap();
+    let FolderCreation::Opened(created) = created else {
+        panic!("expected live source");
+    };
+    let recent = index.recent().await.unwrap();
+    assert_eq!(recent.len(), 1);
+    assert_eq!(recent[0].location, root.path());
+    assert!(sources.close(&created.id.to_string()).unwrap());
+    assert!(index.set_pinned(root.path(), true).await.unwrap());
+    let reopened = sources.open(root.path()).await.unwrap();
+    assert_eq!(reopened.snapshot.commit_id(), created.snapshot.commit_id());
+    let recent = index.recent().await.unwrap();
+    assert_eq!(recent.len(), 1);
+    assert!(recent[0].pinned);
+}
+
+#[tokio::test]
+async fn failing_index_does_not_prevent_folder_opening() {
+    let app = tempfile::tempdir().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    let project_id = uuid::Uuid::new_v4().to_string();
+    fixture(root.path(), &project_id).await;
+    let missing = app.path().join("missing-app-index-directory");
+    let sources = FolderSources::with_index(FolderIndex::in_app_data(&missing));
+    let opened = sources.open(root.path()).await.unwrap();
+    assert_eq!(opened.snapshot.project().id, project_id);
+    sources
+        .lookup(&opened.id.to_string())
+        .unwrap()
+        .recheck(&opened.snapshot)
+        .await
+        .unwrap();
+    assert!(!missing.exists());
+}
+
+#[tokio::test]
 async fn blank_creation_opens_exact_saved_commit_and_reopens_without_window_registry() {
     let root = tempfile::tempdir().unwrap();
     let sources = FolderSources::default();

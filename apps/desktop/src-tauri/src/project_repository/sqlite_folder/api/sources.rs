@@ -1,6 +1,9 @@
 //! Window-owned source registry. Tokens identify live readers, never writer grants.
 use super::{FolderProject, ReadView};
-use crate::core::{AppError, Result};
+use crate::{
+    core::{AppError, Result},
+    project_repository::folder_index::FolderIndex,
+};
 use std::{
     collections::{HashMap, HashSet},
     fmt,
@@ -41,9 +44,20 @@ struct State {
 pub struct FolderSources {
     scope: uuid::Uuid,
     state: Mutex<State>,
+    index: Option<FolderIndex>,
 }
 impl Default for FolderSources {
     fn default() -> Self {
+        Self::new(None)
+    }
+}
+impl FolderSources {
+    /// Optional app metadata for the window. It is outside folder authority.
+    pub fn with_index(index: FolderIndex) -> Self {
+        Self::new(Some(index))
+    }
+
+    fn new(index: Option<FolderIndex>) -> Self {
         Self {
             scope: uuid::Uuid::new_v4(),
             state: Mutex::new(State {
@@ -52,6 +66,7 @@ impl Default for FolderSources {
                 pending: HashSet::new(),
                 sources: HashMap::new(),
             }),
+            index,
         }
     }
 }
@@ -182,6 +197,15 @@ impl Opening<'_> {
         verify(&snapshot)?;
         self.publish(Arc::clone(&source))?;
         source.recheck(&snapshot).await?;
+        if let Some(index) = &self.owner.index {
+            // The project is verified before recording its path. An index
+            // failure cannot revoke an otherwise valid folder opening.
+            if let Err(error) = index.record_open(root).await {
+                tracing::warn!(%error, "Could not record the opened project folder");
+            }
+            // An index await must not let a closed source escape to the caller.
+            source.recheck(&snapshot).await?;
+        }
         let id = self.finish();
         Ok(OpenedFolder { id, snapshot })
     }

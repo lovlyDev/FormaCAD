@@ -647,3 +647,10 @@ index reads as an empty list. A backend test deletes it and opens the same
 FCP1 commit through a fresh source registry, checking that the project database
 bytes are unchanged. Dashboard and settings integration requires the shared
 UI/IPC agreement.
+
+A window registry constructed with `FolderSources::with_index` records both
+successful creation and explicit opening. An index error is reported in the
+application log and the valid folder remains available. The registry rechecks
+the original source after the index write, including revocation if the window
+closed during the write. The default host registry remains independent of app
+data.
