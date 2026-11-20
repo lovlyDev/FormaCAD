@@ -1,0 +1,15 @@
+apps/desktop/src-tauri/src/lib.rs
+apps/desktop/src-tauri/src/project_repository/window_sources/ipc.rs
+apps/desktop/src-tauri/src/project_repository/window_sources/ipc/creation.rs
+apps/desktop/src-tauri/src/project_repository/window_sources/ipc/step.rs
+apps/desktop/src/app/App.tsx
+apps/desktop/src/app/dialogs/NewProjectDialog.test.tsx
+apps/desktop/src/app/dialogs/NewProjectDialog.tsx
+apps/desktop/src/features/project-catalog/useProjectNavigation.ts
+apps/desktop/src/features/project-sources/createFolderSelection.test.ts
+apps/desktop/src/features/project-sources/createFolderSelection.ts
+apps/desktop/src/features/project-sources/stepFolderSelection.ts
+apps/desktop/src/i18n/en.json
+apps/desktop/src/i18n/ru.json
+docs/en/storage-folder-host-api.md
+docs/ru/storage-folder-host-api.md
