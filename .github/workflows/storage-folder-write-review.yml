@@ -1,0 +1,73 @@
+name: Storage proposed folder write IPC review
+on:
+  push:
+    branches: [codex/storage-week]
+    paths:
+      - .github/workflows/storage-folder-write-review.yml
+permissions:
+  contents: read
+jobs:
+  isolated-proposal:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+      - name: Apply the exact review patches inside this runner
+        run: |
+          set -euo pipefail
+          cd docs/integration
+          sha256sum --check <<'DIGESTS'
+          a57d434de9cb1a1c036df4ed584cb9c6f9a2d71afa98861a9d847ba5158712e1  storage-folder-write-ipc.patch
+          a7a7e9f25065bbf46b5f6823b146f88711a77d47d70a4c98e7ca8d1ed24203d6  storage-folder-commit-query.patch
+          DIGESTS
+          cd ../..
+          git diff --quiet
+          git diff --cached --quiet
+          for patch in docs/integration/storage-folder-write-ipc.patch docs/integration/storage-folder-commit-query.patch; do
+            git apply --check --index "$patch"
+            git apply --index "$patch"
+          done
+          git diff --cached --check
+          diff -u <(git diff --cached --name-only | LC_ALL=C sort) <(LC_ALL=C sort <<'FILES'
+          .github/workflows/storage-benchmark.yml
+          apps/desktop/src-tauri/src/lib.rs
+          apps/desktop/src-tauri/src/modeling.rs
+          apps/desktop/src-tauri/src/project_history/mod.rs
+          apps/desktop/src-tauri/src/project_repository/window_sources/ipc.rs
+          apps/desktop/src-tauri/src/project_repository/window_sources/ipc/commit_query.rs
+          apps/desktop/src-tauri/src/project_repository/window_sources/mod.rs
+          apps/desktop/src-tauri/src/project_repository/window_sources/write_ipc.rs
+          apps/desktop/src-tauri/src/project_repository/window_sources/write_ipc/tests.rs
+          apps/desktop/src/features/project-sources/commitObservation.test.ts
+          apps/desktop/src/features/project-sources/commitObservation.ts
+          apps/desktop/src/features/project-sources/writeApi.test.ts
+          apps/desktop/src/features/project-sources/writeApi.ts
+          FILES
+          )
+          git diff --cached --stat
+      - name: Prepare Rust and frontend build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          npm ci
+          npm run build
+      - name: Check Rust handlers and run folder host tests
+        run: |
+          set -euo pipefail
+          manifest=apps/desktop/src-tauri/Cargo.toml
+          cargo fmt --manifest-path "$manifest" --all -- --check
+          cargo clippy --manifest-path "$manifest" --locked --all-targets --no-default-features -- -D warnings
+          cargo test --manifest-path "$manifest" --locked --no-default-features --lib project_repository::window_sources:: -- --nocapture | tee window-tests.log
+          grep -F 'test result: ok. 21 passed; 0 failed;' window-tests.log
+          grep -F 'test project_repository::window_sources::write_ipc::tests::folder_write_accepts_the_key_issued_by_the_registry ... ok' window-tests.log
+          cargo clippy --manifest-path "$manifest" --locked --all-targets --features native-worker-client -- -D warnings
