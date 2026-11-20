@@ -8,6 +8,9 @@ on:
       - docs/integration/storage-folder-workspace.paths
       - docs/integration/storage-folder-copy-recents.patch
       - docs/integration/storage-folder-copy-recents.paths
+      - apps/desktop/src-tauri/src/project_repository/folder_index.rs
+      - apps/desktop/src-tauri/src/project_repository/sqlite_folder/api/sources.rs
+      - apps/desktop/src-tauri/src/project_repository/sqlite_folder/api/sources/tests.rs
 permissions:
   contents: read
 jobs:
@@ -64,6 +67,7 @@ jobs:
           grep -F 'test project_repository::window_sources::write_ipc::tests::folder_write_accepts_the_key_issued_by_the_registry ... ok' window-tests.log
           cargo test --manifest-path "$manifest" --locked --no-default-features --lib project_repository::sqlite_folder::api::sources::tests::blank_creation_ -- --nocapture | tee creation-tests.log
           grep -F 'test result: ok. 2 passed; 0 failed;' creation-tests.log
+          cargo test --manifest-path "$manifest" --locked --no-default-features --lib project_repository::sqlite_folder::api::sources::tests::indexed_opening_and_creation_futures_can_run_in_tauri_commands -- --exact --nocapture
           cargo test --manifest-path "$manifest" --locked --no-default-features --lib project_repository::folder_index::tests:: -- --nocapture | tee recents-tests.log
           grep -F 'test result: ok. 4 passed; 0 failed;' recents-tests.log
           cargo clippy --manifest-path "$manifest" --locked --all-targets --features native-worker-client -- -D warnings
