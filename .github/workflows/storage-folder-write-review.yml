@@ -1,9 +1,11 @@
-name: Storage proposed folder write IPC review
+name: Storage proposed folder workspace review
 on:
   push:
     branches: [codex/storage-week]
     paths:
       - .github/workflows/storage-folder-write-review.yml
+      - docs/integration/storage-folder-workspace.patch
+      - docs/integration/storage-folder-workspace.paths
 permissions:
   contents: read
 jobs:
@@ -22,38 +24,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/desktop/src-tauri -> target
-      - name: Apply the exact review patches inside this runner
+      - name: Apply the exact review patch inside this runner
         run: |
           set -euo pipefail
-          cd docs/integration
-          sha256sum --check <<'DIGESTS'
-          a57d434de9cb1a1c036df4ed584cb9c6f9a2d71afa98861a9d847ba5158712e1  storage-folder-write-ipc.patch
-          a7a7e9f25065bbf46b5f6823b146f88711a77d47d70a4c98e7ca8d1ed24203d6  storage-folder-commit-query.patch
-          DIGESTS
-          cd ../..
+          echo '4437fdffbcf21cc35ac59fe64a7e0347bcfba0bd8696b1ff63e8046fd2b4796d  docs/integration/storage-folder-workspace.patch' | sha256sum --check
           git diff --quiet
           git diff --cached --quiet
-          for patch in docs/integration/storage-folder-write-ipc.patch docs/integration/storage-folder-commit-query.patch; do
-            git apply --check --index "$patch"
-            git apply --index "$patch"
-          done
+          git apply --check --index --whitespace=error-all docs/integration/storage-folder-workspace.patch
+          git apply --index --whitespace=error-all docs/integration/storage-folder-workspace.patch
           git diff --cached --check
-          diff -u <(git diff --cached --name-only | LC_ALL=C sort) <(LC_ALL=C sort <<'FILES'
-          .github/workflows/storage-benchmark.yml
-          apps/desktop/src-tauri/src/lib.rs
-          apps/desktop/src-tauri/src/modeling.rs
-          apps/desktop/src-tauri/src/project_history/mod.rs
-          apps/desktop/src-tauri/src/project_repository/window_sources/ipc.rs
-          apps/desktop/src-tauri/src/project_repository/window_sources/ipc/commit_query.rs
-          apps/desktop/src-tauri/src/project_repository/window_sources/mod.rs
-          apps/desktop/src-tauri/src/project_repository/window_sources/write_ipc.rs
-          apps/desktop/src-tauri/src/project_repository/window_sources/write_ipc/tests.rs
-          apps/desktop/src/features/project-sources/commitObservation.test.ts
-          apps/desktop/src/features/project-sources/commitObservation.ts
-          apps/desktop/src/features/project-sources/writeApi.test.ts
-          apps/desktop/src/features/project-sources/writeApi.ts
-          FILES
-          )
+          diff -u <(LC_ALL=C sort docs/integration/storage-folder-workspace.paths) <(git diff --cached --name-only | LC_ALL=C sort)
           git diff --cached --stat
       - name: Prepare Rust and frontend build prerequisites
         run: |
@@ -61,6 +41,10 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
           npm ci
           npm run build
+          npm test
+          npm run lint
+          npm run check:i18n
+          npm run check:docs
       - name: Check Rust handlers and run folder host tests
         run: |
           set -euo pipefail
@@ -70,4 +54,6 @@ jobs:
           cargo test --manifest-path "$manifest" --locked --no-default-features --lib project_repository::window_sources:: -- --nocapture | tee window-tests.log
           grep -F 'test result: ok. 21 passed; 0 failed;' window-tests.log
           grep -F 'test project_repository::window_sources::write_ipc::tests::folder_write_accepts_the_key_issued_by_the_registry ... ok' window-tests.log
+          cargo test --manifest-path "$manifest" --locked --no-default-features --lib project_repository::sqlite_folder::api::sources::tests::blank_creation_ -- --nocapture | tee creation-tests.log
+          grep -F 'test result: ok. 2 passed; 0 failed;' creation-tests.log
           cargo clippy --manifest-path "$manifest" --locked --all-targets --features native-worker-client -- -D warnings
