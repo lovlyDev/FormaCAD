@@ -3,6 +3,62 @@ use super::*;
 use crate::{models::Project, project_repository::sqlite_folder::api::Publication};
 
 #[tokio::test]
+async fn blank_creation_opens_exact_saved_commit_and_reopens_without_window_registry() {
+    let root = tempfile::tempdir().unwrap();
+    let sources = FolderSources::default();
+    let created = sources
+        .create_blank(
+            root.path(),
+            "  New box  ".into(),
+            "cm".into(),
+            "codex".into(),
+        )
+        .await
+        .unwrap();
+    let FolderCreation::Opened(opened) = created else {
+        panic!("expected a live opening for the saved project")
+    };
+    let project = opened.snapshot.project();
+    assert_eq!(project.name, "New box");
+    assert_eq!(project.units, "cm");
+    assert_eq!(project.current_revision, None);
+    assert!(project.revisions.is_empty());
+    assert!(project.files.is_empty());
+    let key = opened.id.to_string();
+    let source = sources.lookup(&key).unwrap();
+    source.recheck(&opened.snapshot).await.unwrap();
+    assert!(sources.close(&key).unwrap());
+    assert!(source.recheck(&opened.snapshot).await.is_err());
+    let independent = FolderSources::default();
+    let reopened = independent.open(root.path()).await.unwrap();
+    assert_ne!(reopened.id, opened.id);
+    assert_eq!(reopened.snapshot.commit_id(), opened.snapshot.commit_id());
+    assert_eq!(reopened.snapshot.project().id, project.id);
+}
+
+#[tokio::test]
+async fn blank_creation_refuses_invalid_inputs_nonempty_folders_and_closed_windows() {
+    let root = tempfile::tempdir().unwrap();
+    let sources = FolderSources::default();
+    let create = |name: &str| {
+        sources.create_blank(root.path(), name.to_owned(), "mm".into(), "codex".into())
+    };
+    assert!(create("   ").await.is_err());
+    assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 0);
+
+    let existing = root.path().join("existing.step");
+    std::fs::write(&existing, b"User data").unwrap();
+    assert!(create("Existing").await.is_err());
+    assert_eq!(std::fs::read(&existing).unwrap(), b"User data");
+    assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 1);
+    std::fs::remove_file(existing).unwrap();
+
+    sources.close_all().unwrap();
+    assert!(create("Closed").await.is_err());
+    assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 0);
+}
+
+#[tokio::test]
 async fn common_readers_keep_original_window_source_and_close_only_their_own_handle() {
     use crate::project_repository::backend::ProjectRepository;
     let root = tempfile::tempdir().unwrap();

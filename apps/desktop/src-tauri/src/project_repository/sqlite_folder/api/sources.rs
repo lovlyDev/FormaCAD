@@ -8,6 +8,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+mod creation;
+pub use creation::FolderCreation;
+
 pub const MAX_FOLDER_SOURCES: usize = 16;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -92,13 +95,7 @@ impl FolderSources {
     /// A trusted host invokes this only for an explicitly selected folder.
     /// Capacity is reserved before IO; no registry mutex crosses an await.
     pub async fn open(&self, root: &Path) -> Result<OpenedFolder> {
-        let mut opening = self.reserve()?;
-        let source = Arc::new(FolderProject::open(root).await?);
-        let snapshot = source.capture_metadata().await?;
-        opening.publish(Arc::clone(&source))?;
-        source.recheck(&snapshot).await?;
-        let id = opening.finish();
-        Ok(OpenedFolder { id, snapshot })
+        self.reserve()?.open(root, |_| Ok(())).await
     }
 
     fn parse(&self, text: &str) -> Result<(u64, uuid::Uuid)> {
@@ -175,6 +172,20 @@ impl FolderSources {
 }
 
 impl Opening<'_> {
+    async fn open(
+        mut self,
+        root: &Path,
+        verify: impl FnOnce(&ReadView) -> Result<()>,
+    ) -> Result<OpenedFolder> {
+        let source = Arc::new(FolderProject::open(root).await?);
+        let snapshot = source.capture_metadata().await?;
+        verify(&snapshot)?;
+        self.publish(Arc::clone(&source))?;
+        source.recheck(&snapshot).await?;
+        let id = self.finish();
+        Ok(OpenedFolder { id, snapshot })
+    }
+
     fn publish(&mut self, source: Arc<FolderProject>) -> Result<()> {
         let mut state = self.owner.state.lock().map_err(|_| stale())?;
         if !state.active || !state.pending.remove(&self.id.sequence) {

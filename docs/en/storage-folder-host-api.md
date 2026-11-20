@@ -1,5 +1,14 @@
 # Independent FCP1 folder Rust API
 
+The host can initialize a blank project in an explicitly selected empty folder
+with `FolderSources::create_blank`. It validates the name, units and agent
+before touching the destination and assigns a new project ID. After publication
+it opens that exact project and commit in the invoking window's registry.
+A saved project whose opening failed and an uncertain publication have separate
+outcomes. Neither causes another creation attempt. The host API does not use
+the global project index. Tests cover closing and reopening with a fresh
+registry and preserving nonempty destinations and invalid inputs.
+
 [Documentation](index.md) · [Русский](../ru/storage-folder-host-api.md) · [Format](storage-formats.md)
 
 `project_repository::sqlite_folder::api` exposes the backend to ordinary Windows
