@@ -541,10 +541,13 @@ push and queue the next run (`cancel-in-progress: false`). Checks are not reduce
 an unexecuted intermediate SHA is never claimed as verified. The shared Quality
 workflow is unchanged. Results always belong to the exact run SHA.
 
-A separate explicit native CI test executes retained CAD commands for 40→80 mm,
-then Undo/Redo through the same one-use route and inspects actual STEP files with
-the worker to check volume and bounds. It requires an explicitly built worker and
-runs with `--ignored --exact`; a normal skipped/ignored run is not its validation.
+A native CI test executes retained CAD commands for 40→80 mm and closes the
+source. A child test process opens the same folder with a fresh registry,
+verifies the exact saved project and commit, and refuses the previous source
+key. It performs Undo/Redo through the same one-use route and inspects actual
+STEP geometry with the worker at 80→40→80 mm. CI requires the explicit
+`FOLDER_CAD_REOPEN_HISTORY_OK` marker from the test. The test runs with
+`--ignored --exact` and requires an explicitly built worker.
 
 Permission requests and confirmation use the existing `request_permission`
 and `resolve_permission` commands, as described below. Publishing changes
