@@ -22,6 +22,13 @@ folder host tests. The local check passed 474 frontend tests, TypeScript,
 ESLint, localization, documentation links and Rust formatting. The complete
 desktop scenario with the real CAD worker still needs runtime verification.
 
+[Isolated CI on c2b0e4e](https://github.com/lovlyDev/FormaCAD/actions/runs/44776086005)
+passed frontend production build and tests, both strict Clippy profiles,
+21 window-source tests and two blank-creation tests with the patch applied.
+[Native CI on 305d962](https://github.com/lovlyDev/FormaCAD/actions/runs/44774700527)
+passed real CAD publication and STEP geometry checks across a new process,
+including Undo and Redo through the folder backend.
+
 ## Русский
 
 Для согласования подготовлены [патч](storage-folder-workspace.patch) и
@@ -44,3 +51,10 @@ desktop scenario with the real CAD worker still needs runtime verification.
 474 frontend-теста, TypeScript, ESLint, переводы, ссылки документации и
 форматирование Rust. Сценарий в настольном приложении с настоящим CAD worker
 ещё требует проверки.
+
+[Изолированный CI на c2b0e4e](https://github.com/lovlyDev/FormaCAD/actions/runs/44776086005)
+с применённым патчем прошёл production-сборку и frontend-тесты, два строгих
+профиля Clippy, 21 тест оконных источников и два теста создания пустой папки.
+[Native CI на 305d962](https://github.com/lovlyDev/FormaCAD/actions/runs/44774700527)
+подтвердил запись настоящей модели и геометрию STEP в новом процессе после
+Undo и Redo через backend папки.
