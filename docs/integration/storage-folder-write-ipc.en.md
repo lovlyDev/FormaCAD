@@ -6,7 +6,12 @@ Status: **proposed for agreement in Issue #31; source files are unchanged**.
 Implementation by wenlixxq, acceptance by lovlyDev. Base
 `ad710626e0ee21b87ce6bf33170516f0b7d89faf`. Exact
 [patch](storage-folder-write-ipc.patch), SHA256
-`6926a08d0628f923483a28f986d8d71679aa1207a7325723c594ac35ea4328f3`.
+`a57d434de9cb1a1c036df4ed584cb9c6f9a2d71afa98861a9d847ba5158712e1`.
+
+This revision accepts the complete compound `sourceId` opening key. The
+folder registry checks that it belongs to the invoking window. Project,
+commit, and approval IDs require UUIDs. The earlier revision incorrectly
+applied that check to the opening key as well.
 
 ## Flow
 
@@ -43,6 +48,7 @@ error codes and translations.
 
 The patch applies to the stated base. The isolated copy passed rustfmt,
 TypeScript, ESLint on the new modules, and 25 frontend tests (15 transport,
-10 permission). Two new Rust tests cover request parsing and the unchanged
-managed reply. They and the Tauri handler changes require compilation and
+10 permission). Three new Rust tests cover request parsing, a key issued
+by the registry on a real FCP1 opening, and the managed reply shape.
+They and the Tauri handler changes require compilation and
 storage CI after application.

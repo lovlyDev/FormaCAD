@@ -194,7 +194,7 @@ diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/write_
 new file mode 100644
 --- /dev/null
 +++ b/apps/desktop/src-tauri/src/project_repository/window_sources/write_ipc.rs
-@@ -0,0 +1,125 @@
+@@ -0,0 +1,122 @@
 +//! Transport bridge for the existing model and history write commands.
 +use super::WindowSources;
 +use crate::{
@@ -243,14 +243,11 @@ new file mode 100644
 +impl FolderWriteRequest {
 +    fn validate(&self, project_id: &str, has_managed_payload: bool) -> Result<()> {
 +        if has_managed_payload
-+            || [
-+                project_id,
-+                &self.source_id,
-+                &self.expected_commit_id,
-+                &self.approval_id,
-+            ]
-+            .into_iter()
-+            .any(|id| crate::security::valid_id(id).is_err())
++            || self.source_id.is_empty()
++            || self.source_id.len() > 128
++            || [project_id, &self.expected_commit_id, &self.approval_id]
++                .into_iter()
++                .any(|id| crate::security::valid_id(id).is_err())
 +        {
 +            return Err(AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into()));
 +        }
@@ -324,13 +321,13 @@ diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/write_
 new file mode 100644
 --- /dev/null
 +++ b/apps/desktop/src-tauri/src/project_repository/window_sources/write_ipc/tests.rs
-@@ -0,0 +1,51 @@
+@@ -0,0 +1,89 @@
 +use super::*;
 +use serde_json::{json, Value};
 +
-+fn request() -> Value {
++fn request(source_id: String) -> Value {
 +    json!({
-+        "sourceId": uuid::Uuid::new_v4().to_string(),
++        "sourceId": source_id,
 +        "expectedCommitId": uuid::Uuid::new_v4().to_string(),
 +        "approvalId": uuid::Uuid::new_v4().to_string()
 +    })
@@ -339,7 +336,11 @@ new file mode 100644
 +#[test]
 +fn folder_write_requires_all_selectors_and_excludes_managed_payload() {
 +    let project_id = uuid::Uuid::new_v4().to_string();
-+    let valid = request();
++    let valid = request(format!(
++        "{}:1:{}",
++        uuid::Uuid::new_v4(),
++        uuid::Uuid::new_v4()
++    ));
 +    let decoded: FolderWriteRequest = serde_json::from_value(valid.clone()).unwrap();
 +    assert!(decoded.validate(&project_id, false).is_ok());
 +    assert!(decoded.validate(&project_id, true).is_err());
@@ -351,7 +352,7 @@ new file mode 100644
 +        assert!(serde_json::from_value::<FolderWriteRequest>(missing).is_err());
 +
 +        let mut invalid = valid.clone();
-+        invalid[key] = json!("not an ID");
++        invalid[key] = json!("");
 +        let decoded: FolderWriteRequest = serde_json::from_value(invalid).unwrap();
 +        assert!(decoded.validate(&project_id, false).is_err());
 +    }
@@ -361,26 +362,60 @@ new file mode 100644
 +    assert!(serde_json::from_value::<FolderWriteRequest>(replacement).is_err());
 +}
 +
++#[cfg(any(
++    windows,
++    all(
++        target_os = "linux",
++        any(target_arch = "x86_64", target_arch = "aarch64")
++    )
++))]
++#[tokio::test]
++async fn folder_write_accepts_the_key_issued_by_the_registry() {
++    use crate::project_repository::sqlite_folder::api::{
++        FolderProject, FolderSources, Publication,
++    };
++    let root = tempfile::tempdir().unwrap();
++    let project = fixture_project();
++    let project_id = project.id.clone();
++    assert!(matches!(
++        FolderProject::create(root.path(), project, vec![], None)
++            .await
++            .unwrap(),
++        Publication::Committed(_)
++    ));
++    let registry = FolderSources::default();
++    let opened = registry.open(root.path()).await.unwrap();
++    let mut payload = request(opened.id.to_string());
++    payload["expectedCommitId"] = json!(opened.snapshot.commit_id());
++    let decoded: FolderWriteRequest = serde_json::from_value(payload).unwrap();
++    decoded.validate(&project_id, false).unwrap();
++    assert!(registry.lookup(&decoded.source_id).is_ok());
++}
++
 +#[test]
 +fn managed_reply_keeps_the_existing_project_json_shape() {
-+    let project: Project = serde_json::from_value(json!({
-+        "schemaVersion": 1, "id": uuid::Uuid::new_v4().to_string(),
-+        "name": "Managed", "units": "mm", "agent": "codex", "pinned": false,
-+        "createdAt": "2026-11-20T00:00:00Z", "updatedAt": "2026-11-20T00:00:00Z",
-+        "currentRevision": null, "messages": [], "exports": [], "files": [], "revisions": []
-+    }))
-+    .unwrap();
++    let project = fixture_project();
 +    let expected = serde_json::to_value(&project).unwrap();
 +    assert_eq!(
 +        serde_json::to_value(WriteReply::from(project)).unwrap(),
 +        expected
 +    );
 +}
++
++fn fixture_project() -> Project {
++    serde_json::from_value(json!({
++        "schemaVersion": 1, "id": uuid::Uuid::new_v4().to_string(),
++        "name": "Managed", "units": "mm", "agent": "codex", "pinned": false,
++        "createdAt": "2026-11-20T00:00:00Z", "updatedAt": "2026-11-20T00:00:00Z",
++        "currentRevision": null, "messages": [], "exports": [], "files": [], "revisions": []
++    }))
++    .unwrap()
++}
 diff --git a/apps/desktop/src/features/project-sources/writeApi.ts b/apps/desktop/src/features/project-sources/writeApi.ts
 new file mode 100644
 --- /dev/null
 +++ b/apps/desktop/src/features/project-sources/writeApi.ts
-@@ -0,0 +1,78 @@
+@@ -0,0 +1,82 @@
 +import { invoke, isTauri } from "@tauri-apps/api/core";
 +import { z } from "zod";
 +import type { Project } from "../../types";
@@ -399,7 +434,8 @@ new file mode 100644
 +export type FolderWriteCommand = keyof typeof commands;
 +
 +const id = z.string().uuid();
-+const envelope = { sourceId: id, projectId: id, baseCommitId: id };
++const sourceKey = z.string().min(1).max(128);
++const envelope = { sourceId: sourceKey, projectId: id, baseCommitId: id };
 +// The host validates persisted Project data. Check the outer shape and identity
 +// here without parsing or copying the full history and attachment payload.
 +const list = z.custom<unknown[]>(Array.isArray);
@@ -435,7 +471,10 @@ new file mode 100644
 +  if (!isTauri()) throw new Error("PROJECT_FOLDER_UNSUPPORTED");
 +  const { projectId, source } = capturePermissionContext(ticket);
 +  const approvalId = ticket.id;
-+  if (![projectId, source.sourceId, source.commitId, approvalId].every((value) => id.safeParse(value).success)) {
++  if (
++    !sourceKey.safeParse(source.sourceId).success
++    || ![projectId, source.commitId, approvalId].every((value) => id.safeParse(value).success)
++  ) {
 +    throw new Error("PROJECT_SNAPSHOT_CHANGED");
 +  }
 +  const result = reply.safeParse(await invoke<unknown>(commands[command], {
@@ -475,7 +514,7 @@ new file mode 100644
 +});
 +
 +const projectId = "9ef4f985-695a-4a73-b8de-b10468bfc450";
-+const sourceId = "340f0083-c50f-4e15-b633-5cc4753ffb5c";
++const sourceId = "340f0083-c50f-4e15-b633-5cc4753ffb5c:1:8c45ccab-969f-4b94-a565-73db75eae0ef";
 +const baseCommitId = "78b94346-f162-44e8-85c6-9cb64b8be739";
 +const commitId = "7c6c3844-bdbe-4132-91ff-8e52a46a97ec";
 +const approvalId = "0fdca3bb-60ac-4014-99e9-28b8306687c7";
@@ -523,7 +562,7 @@ new file mode 100644
 +  { ...envelope, sourceId: commitId, status: "noOp", project },
 +  { ...envelope, baseCommitId: commitId, status: "noOp", project },
 +  { ...envelope, status: "committed", commitId: baseCommitId, project },
-+  { ...envelope, status: "committed", commitId, project: { ...project, id: sourceId } },
++  { ...envelope, status: "committed", commitId, project: { ...project, id: commitId } },
 +  { ...envelope, status: "indeterminate", error: "uncertain" },
 +])("rejects a malformed or foreign reply", async (response) => {
 +  mocks.invoke.mockResolvedValue(response);
@@ -550,12 +589,13 @@ new file mode 100644
 diff --git a/.github/workflows/storage-benchmark.yml b/.github/workflows/storage-benchmark.yml
 --- a/.github/workflows/storage-benchmark.yml
 +++ b/.github/workflows/storage-benchmark.yml
-@@ -57,7 +57,9 @@ jobs:
+@@ -57,7 +57,10 @@ jobs:
          run: |
            set -o pipefail
            cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib project_repository::window_sources:: -- --nocapture 2>&1 | tee storage-evidence/window-source-tests.log
 -          grep -F 'test result: ok. 18 passed; 0 failed;' storage-evidence/window-source-tests.log
-+          grep -F 'test result: ok. 20 passed; 0 failed;' storage-evidence/window-source-tests.log
++          grep -F 'test result: ok. 21 passed; 0 failed;' storage-evidence/window-source-tests.log
++          grep -F 'test project_repository::window_sources::write_ipc::tests::folder_write_accepts_the_key_issued_by_the_registry ... ok' storage-evidence/window-source-tests.log
 +          grep -E 'test project_repository::window_sources::write_ipc::tests::folder_write_requires_all_selectors_and_excludes_managed_payload \.\.\. ok' storage-evidence/window-source-tests.log
 +          grep -E 'test project_repository::window_sources::write_ipc::tests::managed_reply_keeps_the_existing_project_json_shape \.\.\. ok' storage-evidence/window-source-tests.log
            grep -E 'test project_repository::window_sources::approval::tests::wrong_write_command_leaves_the_original_approval_available \.\.\. ok' storage-evidence/window-source-tests.log
