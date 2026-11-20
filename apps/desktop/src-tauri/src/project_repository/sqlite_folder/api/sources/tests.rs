@@ -2,6 +2,15 @@
 use super::*;
 use crate::{models::Project, project_repository::sqlite_folder::api::Publication};
 
+#[test]
+fn indexed_opening_and_creation_futures_can_run_in_tauri_commands() {
+    fn require_send(_: impl Send) {}
+    let root = Path::new("folder");
+    let sources = FolderSources::with_index(FolderIndex::in_app_data(root));
+    require_send(sources.open(root));
+    require_send(sources.create_blank(root, "Indexed".into(), "mm".into(), "codex".into()));
+}
+
 #[tokio::test]
 async fn successful_folder_creation_and_opening_update_recents() {
     let app = tempfile::tempdir().unwrap();

@@ -150,20 +150,20 @@ async fn prepare_index(db: &mut Transaction<'_, Sqlite>) -> Result<()> {
     if !schema_empty {
         return Err(unsupported());
     }
-    sqlx::raw_sql(
+    for statement in [
         "CREATE TABLE recent_folders (
              location TEXT PRIMARY KEY NOT NULL,
              last_opened_at_ms INTEGER NOT NULL,
              pinned INTEGER NOT NULL CHECK(pinned IN (0, 1))
-         );
-         CREATE TABLE index_settings (
+         )",
+        "CREATE TABLE index_settings (
              id INTEGER PRIMARY KEY CHECK(id = 1),
              remember_recent INTEGER NOT NULL CHECK(remember_recent IN (0, 1))
-         );
-         INSERT INTO index_settings VALUES (1, 1);",
-    )
-    .execute(&mut **db)
-    .await?;
+         )",
+        "INSERT INTO index_settings VALUES (1, 1)",
+    ] {
+        sqlx::query(statement).execute(&mut **db).await?;
+    }
     sqlx::query(&format!("PRAGMA application_id = {APPLICATION_ID}"))
         .execute(&mut **db)
         .await?;
