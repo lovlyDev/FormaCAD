@@ -111,6 +111,10 @@ async fn approved_operation_cannot_write_after_close_or_reused_window_label() {
     assert_ne!(key, reopened.id.to_string());
     assert!(original.recheck().await.is_err());
     assert!(original.history_status().await.is_err());
+    assert!(windows
+        .observe_folder_commit("window", &key, &id, commit)
+        .await
+        .is_err());
     assert!(original.commit(approval, candidate, vec![]).await.is_err());
     assert!(windows
         .capture_operation("window", &key, &id, commit)
@@ -158,6 +162,36 @@ async fn delayed_approval_never_recaptures_a_newer_commit_to_legalize_an_old_can
     assert!(pending.approve_write().await.is_err());
     assert!(pending.recheck().await.is_err());
     assert!(pending.history_status().await.is_err());
+    assert_eq!(
+        windows
+            .observe_folder_commit("window", &key, &id, saved.commit_id())
+            .await
+            .unwrap(),
+        CommitPresence::Present { is_head: true }
+    );
+    assert_eq!(
+        windows
+            .observe_folder_commit("window", &key, &id, opened.snapshot.commit_id())
+            .await
+            .unwrap(),
+        CommitPresence::Present { is_head: false }
+    );
+    let unknown = uuid::Uuid::new_v4().to_string();
+    assert_eq!(
+        windows
+            .observe_folder_commit("window", &key, &id, &unknown)
+            .await
+            .unwrap(),
+        CommitPresence::Absent
+    );
+    assert!(windows
+        .observe_folder_commit("foreign", &key, &id, saved.commit_id())
+        .await
+        .is_err());
+    assert!(windows
+        .observe_folder_commit("window", &key, &unknown, saved.commit_id())
+        .await
+        .is_err());
     assert_eq!(
         before,
         std::fs::read(root.path().join("project.sqlite")).unwrap()

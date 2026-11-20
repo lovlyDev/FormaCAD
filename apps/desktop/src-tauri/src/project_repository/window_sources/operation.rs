@@ -8,8 +8,8 @@ use crate::{
     project_repository::{
         backend::RepositoryRead,
         sqlite_folder::api::{
-            FolderProject, ModelChange, ModelIntent, ModelRuntime, Publication, ReadView,
-            WriteApproval,
+            CommitPresence, FolderProject, ModelChange, ModelIntent, ModelRuntime, Publication,
+            ReadView, WriteApproval,
         },
     },
 };
@@ -23,6 +23,24 @@ pub struct FolderOperation {
 }
 
 impl WindowSources {
+    /// Inspect a known publication through the same live folder opening.
+    /// This observation can outlive the expected head of the original write.
+    pub async fn observe_folder_commit(
+        &self,
+        label: &str,
+        key: &str,
+        project_id: &str,
+        commit_id: &str,
+    ) -> Result<CommitPresence> {
+        crate::security::valid_id(commit_id)?;
+        let source = self.existing(label)?.lookup(key)?;
+        let view = source.capture_metadata().await?;
+        if view.project().id != project_id {
+            return Err(super::changed());
+        }
+        source.resolve_commit(&view, commit_id).await
+    }
+
     pub async fn capture_operation(
         &self,
         label: &str,

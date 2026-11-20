@@ -567,6 +567,11 @@ current revision from one metadata snapshot. It rechecks that same snapshot
 before returning, so a close or a different commit invalidates the result.
 This read needs no history archive, writer lease, or global project database.
 
+After an uncertain write, the host can check the reported commit ID through the
+same folder opening. The result tells whether the commit is current, recorded
+in history, or absent when checked. Closing the folder revokes the old key.
+The check reads the saved chain without replaying the command.
+
 ### Manual section of the original STEP source
 
 Existing `section_model` accepts an optional sourceId/expectedCommitId pair. The
