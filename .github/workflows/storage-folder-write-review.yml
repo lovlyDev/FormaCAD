@@ -6,6 +6,8 @@ on:
       - .github/workflows/storage-folder-write-review.yml
       - docs/integration/storage-folder-workspace.patch
       - docs/integration/storage-folder-workspace.paths
+      - docs/integration/storage-folder-copy-recents.patch
+      - docs/integration/storage-folder-copy-recents.paths
 permissions:
   contents: read
 jobs:
@@ -24,16 +26,22 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/desktop/src-tauri -> target
-      - name: Apply the exact review patch inside this runner
+      - name: Apply the exact review patches inside this runner
         run: |
           set -euo pipefail
           echo '4437fdffbcf21cc35ac59fe64a7e0347bcfba0bd8696b1ff63e8046fd2b4796d  docs/integration/storage-folder-workspace.patch' | sha256sum --check
+          echo '18058541d90e522806f06c3e42f359fe07cf20483b924aa61e4d1e2485b0cfab  docs/integration/storage-folder-copy-recents.patch' | sha256sum --check
           git diff --quiet
           git diff --cached --quiet
           git apply --check --index --whitespace=error-all docs/integration/storage-folder-workspace.patch
           git apply --index --whitespace=error-all docs/integration/storage-folder-workspace.patch
           git diff --cached --check
           diff -u <(LC_ALL=C sort docs/integration/storage-folder-workspace.paths) <(git diff --cached --name-only | LC_ALL=C sort)
+          diff -u <(LC_ALL=C sort docs/integration/storage-folder-copy-recents.paths) <(git apply --numstat docs/integration/storage-folder-copy-recents.patch | cut -f3 | LC_ALL=C sort)
+          git apply --check --index --whitespace=error-all docs/integration/storage-folder-copy-recents.patch
+          git apply --index --whitespace=error-all docs/integration/storage-folder-copy-recents.patch
+          git diff --cached --check
+          diff -u <(LC_ALL=C sort -u docs/integration/storage-folder-workspace.paths docs/integration/storage-folder-copy-recents.paths) <(git diff --cached --name-only | LC_ALL=C sort)
           git diff --cached --stat
       - name: Prepare Rust and frontend build prerequisites
         run: |
@@ -56,4 +64,6 @@ jobs:
           grep -F 'test project_repository::window_sources::write_ipc::tests::folder_write_accepts_the_key_issued_by_the_registry ... ok' window-tests.log
           cargo test --manifest-path "$manifest" --locked --no-default-features --lib project_repository::sqlite_folder::api::sources::tests::blank_creation_ -- --nocapture | tee creation-tests.log
           grep -F 'test result: ok. 2 passed; 0 failed;' creation-tests.log
+          cargo test --manifest-path "$manifest" --locked --no-default-features --lib project_repository::folder_index::tests:: -- --nocapture | tee recents-tests.log
+          grep -F 'test result: ok. 4 passed; 0 failed;' recents-tests.log
           cargo clippy --manifest-path "$manifest" --locked --all-targets --features native-worker-client -- -D warnings
