@@ -48,6 +48,12 @@ jobs:
           grep -E 'test project_repository::sqlite_folder::api::metadata_tests::metadata_does_not_adopt_unverified_archive_as_write_copy_or_history_authority \.\.\. ok' storage-evidence/host-api-tests.log
           grep -F 'test project_repository::sqlite_folder::api::sources::tests::blank_creation_opens_exact_saved_commit_and_reopens_without_window_registry ... ok' storage-evidence/host-api-tests.log
           grep -F 'test project_repository::sqlite_folder::api::sources::tests::blank_creation_refuses_invalid_inputs_nonempty_folders_and_closed_windows ... ok' storage-evidence/host-api-tests.log
+      - name: Verify the application index is disposable
+        run: |
+          set -o pipefail
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib project_repository::folder_index::tests:: -- --nocapture 2>&1 | tee storage-evidence/folder-index-tests.log
+          grep -F 'test result: ok. 4 passed; 0 failed;' storage-evidence/folder-index-tests.log
+          grep -F 'test project_repository::folder_index::tests::deleting_the_app_index_leaves_the_folder_commit_reopenable ... ok' storage-evidence/folder-index-tests.log
       - name: Test source-bound host permission policy and decisions
         run: |
           set -o pipefail

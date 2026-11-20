@@ -20,6 +20,15 @@ and the V2 reader remain separate.
 
 ## Reading
 
+The separate `folder-locations.sqlite` application index stores the selected
+location, last open time, pin and an opt-out for recording recent folders.
+The trusted host records a location after a successful explicit opening.
+It does not store model data, revisions, source IDs or approvals. A missing
+index reads as an empty list. A backend test deletes it and opens the same
+FCP1 commit through a fresh source registry, checking that the project database
+bytes are unchanged. Dashboard and settings integration requires the shared
+UI/IPC agreement.
+
 ### Metadata refresh through the original source
 
 `RepositoryRead::recheck_source` validates its original reader family, opening

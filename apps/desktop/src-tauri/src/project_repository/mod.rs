@@ -4,6 +4,7 @@ pub mod backend;
 mod benchmark;
 pub mod catalog;
 pub mod folder;
+pub mod folder_index;
 pub mod legacy;
 mod location;
 #[cfg(all(
