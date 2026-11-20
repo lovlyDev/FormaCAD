@@ -33,7 +33,7 @@ jobs:
         run: |
           set -euo pipefail
           echo '4437fdffbcf21cc35ac59fe64a7e0347bcfba0bd8696b1ff63e8046fd2b4796d  docs/integration/storage-folder-workspace.patch' | sha256sum --check
-          echo '18058541d90e522806f06c3e42f359fe07cf20483b924aa61e4d1e2485b0cfab  docs/integration/storage-folder-copy-recents.patch' | sha256sum --check
+          echo '9158d5f12087fb4b2deb5521a564dae2aea263810a767544110375f48ae9a752  docs/integration/storage-folder-copy-recents.patch' | sha256sum --check
           git diff --quiet
           git diff --cached --quiet
           git apply --check --index --whitespace=error-all docs/integration/storage-folder-workspace.patch

@@ -4,8 +4,8 @@
 
 Review the [follow-up patch](storage-folder-copy-recents.patch) and its
 [26 paths](storage-folder-copy-recents.paths). Its SHA-256 is
-`18058541d90e522806f06c3e42f359fe07cf20483b924aa61e4d1e2485b0cfab`.
-The runtime base is `38205adf5217bc60d0c84842b6bb37f766abb6cb` with the
+`9158d5f12087fb4b2deb5521a564dae2aea263810a767544110375f48ae9a752`.
+The runtime base is `6014c30ac087d011844b1cfec77b651edf43b071` with the
 [workspace proposal](storage-folder-workspace.md) applied first. The workspace
 patch keeps its original SHA-256. Together the two patches change 62 paths.
 
@@ -28,8 +28,8 @@ applied. Native desktop runtime execution remains a separate check.
 
 Для согласования подготовлены [дополнительный патч](storage-folder-copy-recents.patch)
 и [список 26 файлов](storage-folder-copy-recents.paths). SHA-256 патча —
-`18058541d90e522806f06c3e42f359fe07cf20483b924aa61e4d1e2485b0cfab`.
-Основа — `38205adf5217bc60d0c84842b6bb37f766abb6cb` после применения
+`9158d5f12087fb4b2deb5521a564dae2aea263810a767544110375f48ae9a752`.
+Основа — `6014c30ac087d011844b1cfec77b651edf43b071` после применения
 [основного патча рабочей области](storage-folder-workspace.md). Хеш основного
 патча сохраняется. Вместе оба патча меняют 62 файла.
 

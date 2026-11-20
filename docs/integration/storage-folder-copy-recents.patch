@@ -319,10 +319,10 @@ diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/mod.rs
 +                any(target_arch = "x86_64", target_arch = "aarch64")
 +            )
 +        ));
-+        Self {
-+            index: supported.then(|| FolderIndex::in_app_data(app_data)),
-+            ..Self::default()
-+        }
++        let mut sources = Self::default();
++        sources.index = supported.then(|| FolderIndex::in_app_data(app_data));
++
++        sources
 +    }
 +
      pub fn close_window(&self, label: &str) {
