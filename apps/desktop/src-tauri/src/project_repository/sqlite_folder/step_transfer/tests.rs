@@ -236,7 +236,7 @@ async fn inspect_saved(root: &Path, worker: &Path) {
 #[ignore = "requires explicitly built real worker via FORMA_FOLDER_TEST_WORKER"]
 async fn real_worker_step_transfer_roundtrip() {
     use crate::project_repository::sqlite_folder::api::{
-        ModelRuntime, Publication, SelectedStepFile, StepProjectIntent,
+        FolderCreation, FolderSources, ModelRuntime, SelectedStepFile, StepProjectIntent,
     };
     let worker = std::path::PathBuf::from(
         std::env::var_os("FORMA_FOLDER_TEST_WORKER").expect("explicit real worker"),
@@ -267,15 +267,14 @@ async fn real_worker_step_transfer_roundtrip() {
     std::fs::write(&marker, old_id.as_bytes()).unwrap();
     let source = SelectedStepFile::open(&path).unwrap();
     let original = source.capture().unwrap();
-    let grant = source
-        .approve_destination(&original, target.path())
-        .unwrap();
     let tasks = AsyncMutex::new(HashMap::new());
     let gate = CadTaskGate::default();
-    let outcome = source
-        .transfer_to_folder(
+    let window = FolderSources::default();
+    let outcome = window
+        .transfer_selected_step(
+            &source,
             &original,
-            grant,
+            target.path(),
             StepProjectIntent {
                 name: "Transferred part".into(),
                 agent: "codex".into(),
@@ -291,16 +290,30 @@ async fn real_worker_step_transfer_roundtrip() {
         )
         .await
         .unwrap();
-    let saved = match outcome {
-        Publication::Committed(saved) => saved,
-        Publication::RejectedBefore(error) => panic!("transfer rejected: {error}"),
-        Publication::Indeterminate { commit_id, error } => {
-            panic!("transfer indeterminate {commit_id}: {error}")
-        }
+    let FolderCreation::Opened(saved) = outcome else {
+        panic!("expected the saved STEP project to open in the original window");
     };
-    assert_ne!(saved.project().id, old_id);
-    assert_eq!(saved.project().revisions.len(), 1);
-    assert_eq!(saved.sequence(), 1);
+    assert_ne!(saved.snapshot.project().id, old_id);
+    assert_eq!(saved.snapshot.project().revisions.len(), 1);
+    let source_key = saved.id.to_string();
+    window
+        .lookup(&source_key)
+        .unwrap()
+        .recheck(&saved.snapshot)
+        .await
+        .unwrap();
+    {
+        let mut database = super::super::read_only::ReadOnlyDatabase::open(target.path())
+            .await
+            .unwrap();
+        let persisted = super::super::format::read(database.conn()).await.unwrap();
+        assert_eq!(
+            persisted.expectation().commit_id(),
+            saved.snapshot.commit_id()
+        );
+        assert_eq!(persisted.expectation().sequence(), 1);
+    }
+    assert!(window.close(&source_key).unwrap());
     assert!(tasks.lock().await.is_empty());
     assert!(gate.status().unwrap().is_empty());
     source.recheck(&original).unwrap();

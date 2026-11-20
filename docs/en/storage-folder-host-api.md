@@ -654,3 +654,17 @@ application log and the valid folder remains available. The registry rechecks
 the original source after the index write, including revocation if the window
 closed during the write. The default host registry remains independent of app
 data.
+
+## Open a transferred STEP in the original window
+
+The trusted host can call `FolderSources::transfer_selected_step` after choosing
+the source STEP and a separate empty destination. It reserves a source in that
+window, uses the same CAD conversion and publishes a new project. It opens
+only that exact project and commit. If publication succeeded and opening fails,
+the result retains the saved commit. An uncertain publication remains
+explicit and does not trigger another transfer.
+
+The real-worker test reads the published commit through the window registry,
+checks the imported geometry and opens the folder in a separate process. The
+source STEP and neighbouring marker are compared byte for byte. The marker
+is a regression fixture, and the test does not open a FormaCAD 1.1 database.

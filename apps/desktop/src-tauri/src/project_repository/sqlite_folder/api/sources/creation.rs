@@ -1,4 +1,4 @@
-use super::{stale, FolderProject, FolderSources, OpenedFolder};
+use super::{stale, FolderProject, FolderSources, OpenedFolder, Opening};
 use crate::{
     core::{AppError, Result},
     models::Project,
@@ -44,14 +44,27 @@ impl FolderSources {
             exports: vec![],
         };
         project.validate()?;
-        let commit_id = match FolderProject::create(root, project, vec![], None).await? {
-            Publication::Committed(saved) => saved.commit_id().to_owned(),
+        let publication = FolderProject::create(root, project, vec![], None).await?;
+        opening.open_publication(root, publication).await
+    }
+}
+
+impl Opening<'_> {
+    pub(super) async fn open_publication(
+        self,
+        root: &Path,
+        publication: Publication,
+    ) -> Result<FolderCreation> {
+        let (project_id, commit_id) = match publication {
+            Publication::Committed(saved) => {
+                (saved.project().id.clone(), saved.commit_id().to_owned())
+            }
             Publication::RejectedBefore(error) => return Err(error),
             Publication::Indeterminate { commit_id, error } => {
                 return Ok(FolderCreation::Indeterminate { commit_id, error });
             }
         };
-        let opened = opening
+        let opened = self
             .open(root, |snapshot| {
                 if snapshot.project().id != project_id || snapshot.commit_id() != commit_id {
                     return Err(stale());

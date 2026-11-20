@@ -12,6 +12,8 @@ use std::{
 };
 
 mod creation;
+#[cfg(feature = "native-worker-client")]
+mod step;
 pub use creation::FolderCreation;
 
 pub const MAX_FOLDER_SOURCES: usize = 16;
