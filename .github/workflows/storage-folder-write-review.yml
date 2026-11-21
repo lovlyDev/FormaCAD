@@ -39,7 +39,7 @@ jobs:
           echo '4437fdffbcf21cc35ac59fe64a7e0347bcfba0bd8696b1ff63e8046fd2b4796d  docs/integration/storage-folder-workspace.patch' | sha256sum --check
           echo '9158d5f12087fb4b2deb5521a564dae2aea263810a767544110375f48ae9a752  docs/integration/storage-folder-copy-recents.patch' | sha256sum --check
           echo '49f96915a5f98a4a1871a57509d1bef84a9f6843186e8c4db45dcd8f87ae3e0b  docs/integration/storage-step-transfer-ui.patch' | sha256sum --check
-          echo 'd92a95867ed13332325e91e037a01a27d234d21f49104ba7c4a3b44ee7c76127  docs/integration/storage-folder-caption-browser.patch' | sha256sum --check
+          echo 'd8a5fae5df8d23064441c302d07b029100f701b7aefd6a6c322403d60743de67  docs/integration/storage-folder-caption-browser.patch' | sha256sum --check
           git diff --quiet
           git diff --cached --quiet
           git apply --check --index --whitespace=error-all docs/integration/storage-folder-workspace.patch
