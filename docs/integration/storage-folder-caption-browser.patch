@@ -1,6 +1,26 @@
 diff --git a/apps/desktop/src/app/App.tsx b/apps/desktop/src/app/App.tsx
 --- a/apps/desktop/src/app/App.tsx
 +++ b/apps/desktop/src/app/App.tsx
+@@ -161,15 +161,15 @@ export default function App() {
+     queryKey: ["recovery"],
+     queryFn: interruptedSessions,
+   });
++  const [modal, setModal] = useState<
++    "new" | "settings" | "export" | "palette" | "parameters" | null
++  >(null);
+   const agentEnvironment = useQuery({
+     queryKey: ["health"],
+     queryFn: health,
+-    enabled: native && !!project,
++    enabled: native && (!!project || modal === "new"),
+     staleTime: 60000,
+   });
+-  const [modal, setModal] = useState<
+-    "new" | "settings" | "export" | "palette" | "parameters" | null
+-  >(null);
+   const stateKey = `forma.ui.project.${project?.id ?? projectId ?? "home"}`;
+   const [search, setSearch] = usePersistentState("forma.ui.search", "");
+   const [renameTarget, setRenameTarget] = useState<Project | null>(null);
 @@ -835,7 +835,9 @@ export default function App() {
            forma
            <span className="brand-divider" />
@@ -16,7 +36,7 @@ diff --git a/apps/desktop/e2e/storage-folder-workspace.spec.ts b/apps/desktop/e2
 new file mode 100644
 --- /dev/null
 +++ b/apps/desktop/e2e/storage-folder-workspace.spec.ts
-@@ -0,0 +1,71 @@
+@@ -0,0 +1,127 @@
 +import { expect, test } from "@playwright/test";
 +
 +for (const locale of ["en", "ru"] as const) {
@@ -88,3 +108,59 @@ new file mode 100644
 +    });
 +  }
 +}
++
++test("offers STEP transfer from the dashboard after checking CAD availability on demand", async ({ page }) => {
++  await page.addInitScript(() => {
++    localStorage.setItem("forma.locale", "en");
++    const calls: { command: string; args: unknown }[] = [];
++    let transfers = 0;
++    const project = {
++      id: "step-import", schemaVersion: 1, name: "Transferred bracket", units: "mm",
++      agent: "codex", pinned: false, createdAt: "2026-11-20T00:00:00Z", updatedAt: "2026-11-20T00:00:00Z",
++      currentRevision: null, revisions: [], files: [], exports: [], messages: [],
++    };
++    Object.assign(window, {
++      isTauri: true, folderFixtureCalls: calls,
++      __TAURI_INTERNALS__: {
++        metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } },
++        transformCallback: () => 0,
++        unregisterCallback: () => {},
++        invoke: async (command: string, args: unknown) => {
++          calls.push({ command, args });
++          switch (command) {
++            case "get_ui_preferences": return {};
++            case "list_projects": return { entries: [], serializedProjectBytes: 0 };
++            case "list_recent_folders": return { items: [], rememberRecent: true };
++            case "detect_environment": return [{ name: "OpenCascade kernel", available: true, detail: "Fixture" }];
++            case "transfer_step_to_folder":
++              if (++transfers === 1) return null;
++              return { status: "opened", source: { sourceId: "fixture:1:nonce", taskScopeId: "step-task", commitId: "step-commit", project } };
++            case "history_status": return { canUndo: false, canRedo: false, expectedRevision: null };
++            case "interrupted_sessions": case "permission_audit": return [];
++            default: return null;
++          }
++        },
++      },
++    });
++  });
++  await page.goto("/");
++  const calls = () => page.evaluate(() => (window as unknown as { folderFixtureCalls: { command: string; args: unknown }[] }).folderFixtureCalls);
++  const create = page.getByRole("button", { name: /^Create a project/ });
++  await expect(create).toBeVisible();
++  expect((await calls()).some(call => call.command === "detect_environment")).toBe(false);
++  await create.click();
++  const dialog = page.getByRole("dialog");
++  const transfer = dialog.getByRole("button", { name: "Transfer STEP to folder", exact: true });
++  await expect(transfer).toBeVisible();
++  await dialog.getByRole("textbox", { name: "Project name" }).fill("Transferred bracket");
++  await transfer.click();
++  await expect(transfer).toBeEnabled();
++  await expect(dialog).toBeVisible();
++  await transfer.click();
++  await expect(page).toHaveURL(/#\/folder\/step-import$/);
++  await expect(page.locator(".project-switch")).toHaveText("Transferred bracket");
++  expect((await calls()).filter(call => call.command === "detect_environment")).toHaveLength(1);
++  const payload = { draft: { name: "Transferred bracket", agent: "codex", prompt: "Imported geometry from the selected STEP" } };
++  expect((await calls()).filter(call => call.command === "transfer_step_to_folder").map(call => call.args))
++    .toEqual([payload, payload]);
++});

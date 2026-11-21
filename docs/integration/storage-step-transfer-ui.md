@@ -23,10 +23,12 @@ the desktop picker flow are separate verification steps.
 The [browser regression follow-up](storage-folder-caption-browser.patch) applies
 after the three proposals and changes `App.tsx` and
 `e2e/storage-folder-workspace.spec.ts`. SHA-256
-`a133f2a7220e89a4645f613f8640626b6bdeb2802e2bab2be840db8de29f1ebd`.
-It fixes the folder title when a managed project has the same ID. Four local
-Chromium cases covered creation, close, reopen from recents and persistent
-theme in Russian and English, with mocked native IPC.
+`d92a95867ed13332325e91e037a01a27d234d21f49104ba7c4a3b44ee7c76127`.
+It fixes the folder title when a managed project has the same ID and checks
+CAD worker availability when the New Project dialog opens from the dashboard.
+Five local Chromium cases covered creation, close, reopen from recents,
+persistent theme, and STEP transfer including picker cancellation. The
+folder cases covered Russian and English. Native IPC was mocked.
 
 ## Русский
 
@@ -54,7 +56,9 @@ theme in Russian and English, with mocked native IPC.
 [Дополнение с браузерным тестом](storage-folder-caption-browser.patch) применяется
 после трёх предложений и меняет `App.tsx` и
 `e2e/storage-folder-workspace.spec.ts`. SHA-256 —
-`a133f2a7220e89a4645f613f8640626b6bdeb2802e2bab2be840db8de29f1ebd`.
-Оно исправляет заголовок папки при совпадающем ID управляемого проекта.
-Четыре проверки Chromium с подменой нативного IPC проверили создание,
-закрытие, открытие из недавних и сохранение темы в обоих языках.
+`d92a95867ed13332325e91e037a01a27d234d21f49104ba7c4a3b44ee7c76127`.
+Оно исправляет заголовок папки при совпадающем ID управляемого проекта
+и запускает проверку CAD worker при открытии диалога нового проекта с
+главного экрана. Пять тестов Chromium с подменой нативного IPC проверили
+создание, закрытие, открытие из недавних, сохранение темы и перенос STEP,
+включая отмену выбора. Сценарии папки проверены на русском и английском.
