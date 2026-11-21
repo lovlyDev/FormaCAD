@@ -20,6 +20,14 @@ patches, builds and tests the frontend, and compiles the Tauri handlers with
 and without the native worker feature. The real-worker backend test and
 the desktop picker flow are separate verification steps.
 
+The [browser regression follow-up](storage-folder-caption-browser.patch) applies
+after the three proposals and changes `App.tsx` and
+`e2e/storage-folder-workspace.spec.ts`. SHA-256
+`a133f2a7220e89a4645f613f8640626b6bdeb2802e2bab2be840db8de29f1ebd`.
+It fixes the folder title when a managed project has the same ID. Four local
+Chromium cases covered creation, close, reopen from recents and persistent
+theme in Russian and English, with mocked native IPC.
+
 ## Русский
 
 Для согласования подготовлены [патч](storage-step-transfer-ui.patch) и
@@ -42,3 +50,11 @@ the desktop picker flow are separate verification steps.
 патча, собирает и тестирует интерфейс и компилирует Tauri-обработчики
 с нативным worker и без него. Проверка backend с настоящим worker и
 проверка диалогов в настольном приложении проходят отдельно.
+
+[Дополнение с браузерным тестом](storage-folder-caption-browser.patch) применяется
+после трёх предложений и меняет `App.tsx` и
+`e2e/storage-folder-workspace.spec.ts`. SHA-256 —
+`a133f2a7220e89a4645f613f8640626b6bdeb2802e2bab2be840db8de29f1ebd`.
+Оно исправляет заголовок папки при совпадающем ID управляемого проекта.
+Четыре проверки Chromium с подменой нативного IPC проверили создание,
+закрытие, открытие из недавних и сохранение темы в обоих языках.

@@ -1,0 +1,90 @@
+diff --git a/apps/desktop/src/app/App.tsx b/apps/desktop/src/app/App.tsx
+--- a/apps/desktop/src/app/App.tsx
++++ b/apps/desktop/src/app/App.tsx
+@@ -835,7 +835,9 @@ export default function App() {
+           forma
+           <span className="brand-divider" />
+         </button>
+-        {project ? (
++        {project && sourceBinding?.kind === "folder" ? (
++          <span className="project-switch">{project.name}</span>
++        ) : project ? (
+           <div className="project-switch">
+             <Select
+               aria-label={t("Switch project")}
+diff --git a/apps/desktop/e2e/storage-folder-workspace.spec.ts b/apps/desktop/e2e/storage-folder-workspace.spec.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/e2e/storage-folder-workspace.spec.ts
+@@ -0,0 +1,71 @@
++import { expect, test } from "@playwright/test";
++
++for (const locale of ["en", "ru"] as const) {
++  for (const theme of ["dark", "light"] as const) {
++    test(`folder workspace keeps the selected source in ${locale}/${theme}`, async ({ page }) => {
++      const id = "4614bd8b-53b6-4011-bc12-2b4e912aea67";
++      const path = "E:/Projects/Folder fixture";
++      await page.addInitScript(({ locale, theme, id, path }) => {
++        localStorage.setItem("forma.locale", locale);
++        const project = {
++          id, schemaVersion: 1, name: "Folder fixture", units: "mm", agent: "codex",
++          pinned: false, createdAt: "2026-11-20T00:00:00Z", updatedAt: "2026-11-20T00:00:00Z",
++          currentRevision: null, revisions: [], files: [], exports: [], messages: [],
++        };
++        const managed = { ...project, name: "Managed fixture" };
++        const calls: { command: string; args: unknown }[] = [];
++        let recent = false;
++        let next = 0;
++        const selection = () => ({
++          sourceId: `fixture-window:${++next}:nonce`, taskScopeId: `tasks-${next}`,
++          commitId: "b827854d-c993-4654-a124-ae00fd759251", project,
++        });
++        Object.assign(window, {
++          isTauri: true, folderFixtureCalls: calls,
++          __TAURI_INTERNALS__: {
++            metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } },
++            transformCallback: () => 0,
++            unregisterCallback: () => {},
++            invoke: async (command: string, args: unknown) => {
++              calls.push({ command, args });
++              switch (command) {
++                case "get_ui_preferences": return { "forma.theme": theme };
++                case "list_projects": return { entries: [{ kind: "ready", rowKey: id, project: managed }], serializedProjectBytes: 1 };
++                case "read_project_snapshot": return managed;
++                case "create_project_folder": recent = true; return { status: "opened", source: selection() };
++                case "open_project_folder": return selection();
++                case "list_recent_folders": return { items: recent ? [{ location: path, lastOpenedAtMs: 1, pinned: false }] : [], rememberRecent: true };
++                case "close_project_source": return true;
++                case "history_status": return { canUndo: false, canRedo: false, expectedRevision: null };
++                case "detect_environment": case "interrupted_sessions": case "permission_audit": return [];
++                default: return null;
++              }
++            },
++          },
++        });
++      }, { locale, theme, id, path });
++      const labels = locale === "ru"
++        ? { create: /^Создать проект/, folder: "Создать в папке" }
++        : { create: /^Create a project/, folder: "Create in folder" };
++      await page.goto("/");
++      await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
++      await page.getByRole("button", { name: labels.create }).click();
++      await page.getByRole("dialog").getByRole("button", { name: labels.folder, exact: true }).click();
++      await expect(page).toHaveURL(new RegExp(`#/folder/${id}$`));
++      await expect(page.locator(".project-switch")).toContainText("Folder fixture");
++      await expect(page.locator(".project-switch")).not.toContainText("Managed fixture");
++      await page.getByRole("button", { name: "forma", exact: true }).click();
++      await expect(page).toHaveURL(/#\/$/);
++      const calls = () => page.evaluate(() => (window as unknown as { folderFixtureCalls: { command: string; args: unknown }[] }).folderFixtureCalls);
++      await expect.poll(async () => (await calls()).find(call => call.command === "close_project_source")?.args)
++        .toEqual({ sourceId: "fixture-window:1:nonce" });
++      await page.getByRole("button", { name: path, exact: true }).click();
++      await expect(page).toHaveURL(new RegExp(`#/folder/${id}$`));
++      await expect(page.locator(".project-switch")).toContainText("Folder fixture");
++      await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
++      expect((await calls()).filter(call => call.command === "open_project_folder").map(call => call.args))
++        .toEqual([{ recentLocation: path }]);
++      expect((await calls()).filter(call => call.command === "read_project_snapshot")).toEqual([]);
++    });
++  }
++}
