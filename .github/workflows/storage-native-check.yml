@@ -130,7 +130,23 @@ jobs:
           mkdir -p "$legacy_tree/apps/desktop/src-tauri/tests"
           cp scripts/fixtures/storage_legacy_1_1.rs "$legacy_tree/apps/desktop/src-tauri/tests/storage_legacy_1_1.rs"
           cargo test --manifest-path "$legacy_manifest" --locked --test storage_legacy_1_1 --no-run --message-format json > "$RUNNER_TEMP/forma-1.1-build.jsonl"
-          fixture_writer="$(jq -er 'select(.reason == "compiler-artifact" and .target.name == "storage_legacy_1_1" and .executable != null) | .executable' "$RUNNER_TEMP/forma-1.1-build.jsonl")"
+          fixture_writer="$(python3 - "$RUNNER_TEMP/forma-1.1-build.jsonl" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as messages:
+              artifacts = [
+                  item["executable"]
+                  for item in map(json.loads, messages)
+                  if item["reason"] == "compiler-artifact"
+                  and item["target"]["name"] == "storage_legacy_1_1"
+                  and item.get("executable")
+              ]
+          if len(artifacts) != 1:
+              sys.exit(f"Expected one FormaCAD 1.1 fixture writer artifact, got {len(artifacts)}")
+          print(artifacts[0])
+          PY
+          )"
           test -x "$fixture_writer"
           printf 'FORMA_LEGACY_1_1_GENERATOR=%s\n' "$fixture_writer" >> "$GITHUB_ENV"
           printf '%s\n' "$legacy_commit" > storage-native-evidence/legacy-1.1-source-sha.txt
