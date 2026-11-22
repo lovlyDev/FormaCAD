@@ -727,3 +727,13 @@ test passes only the selected attachment to the transfer and compares the
 entire legacy directory before and after. CI requires the
 `FORMA_LEGACY_1_1_SOURCE_UNCHANGED` marker. Local runs without the release
 fixture writer use the synthetic source mode.
+
+## Native desktop roundtrip
+
+The Linux Storage native consumers workflow builds the unpackaged executable
+and starts it under Xvfb with Tauri WebDriver. The test drives the real WebView
+IPC and system folder chooser. It creates a project, publishes two CAD models,
+closes the folder and opens it in a second application process. It verifies
+the saved commit and moves the history cursor back and forward. The workflow
+requires `FORMA_NATIVE_STORAGE_DESKTOP_OK`. All files and app settings used
+by the test live in a temporary directory.
