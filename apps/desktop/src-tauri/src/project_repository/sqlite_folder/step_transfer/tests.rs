@@ -4,6 +4,8 @@ use crate::cad_tasks::CadTaskGate;
 use std::{collections::HashMap, path::Path, sync::atomic::Ordering, time::Duration};
 use tokio::sync::Mutex as AsyncMutex;
 
+mod legacy_fixture;
+
 fn intent() -> TransferIntent {
     TransferIntent {
         name: "Transferred part".into(),
@@ -258,14 +260,8 @@ async fn real_worker_step_transfer_roundtrip() {
     )
     .await
     .unwrap());
-    let bytes = std::fs::read(generated.path().join("model.step")).unwrap();
-    let path = old.path().join("last.step");
-    std::fs::write(&path, &bytes).unwrap();
-    // Synthetic directory marker is not represented as an actual 1.1 project fixture.
-    let old_id = uuid::Uuid::new_v4().to_string();
-    let marker = old.path().join("old-project-sentinel");
-    std::fs::write(&marker, old_id.as_bytes()).unwrap();
-    let source = SelectedStepFile::open(&path).unwrap();
+    let legacy = legacy_fixture::prepare(old.path(), &generated.path().join("model.step"));
+    let source = SelectedStepFile::open(&legacy.step).unwrap();
     let original = source.capture().unwrap();
     let tasks = AsyncMutex::new(HashMap::new());
     let gate = CadTaskGate::default();
@@ -293,7 +289,7 @@ async fn real_worker_step_transfer_roundtrip() {
     let FolderCreation::Opened(saved) = outcome else {
         panic!("expected the saved STEP project to open in the original window");
     };
-    assert_ne!(saved.snapshot.project().id, old_id);
+    assert_ne!(saved.snapshot.project().id, legacy.project_id);
     assert_eq!(saved.snapshot.project().revisions.len(), 1);
     let source_key = saved.id.to_string();
     window
@@ -317,9 +313,7 @@ async fn real_worker_step_transfer_roundtrip() {
     assert!(tasks.lock().await.is_empty());
     assert!(gate.status().unwrap().is_empty());
     source.recheck(&original).unwrap();
-    assert_eq!(std::fs::read(&path).unwrap(), bytes);
-    assert_eq!(std::fs::read(&marker).unwrap(), old_id.as_bytes());
-    assert_eq!(std::fs::read_dir(old.path()).unwrap().count(), 2);
+    legacy.assert_unchanged();
     inspect_saved(target.path(), &worker).await;
     let nonce = uuid::Uuid::new_v4().to_string();
     let child = std::process::Command::new(std::env::current_exe().unwrap())
@@ -344,7 +338,7 @@ async fn real_worker_step_transfer_roundtrip() {
         .lines()
         .any(|line| line == format!("STEP_TRANSFER_REOPEN_OK:{nonce}")));
     // Bad geometry must fail before the target's first SQL/CAS publication.
-    let bad = old.path().join("invalid.step");
+    let bad = work.path().join("invalid.step");
     std::fs::write(&bad, b"not STEP geometry").unwrap();
     let invalid_source = SelectedStepFile::open(&bad).unwrap();
     let invalid_snapshot = invalid_source.capture().unwrap();

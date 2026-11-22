@@ -118,7 +118,23 @@ jobs:
           test -x "$FORMA_FOLDER_TEST_WORKER"
           cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target x86_64-unknown-linux-gnu --features native-occt --lib permissions::folder::host::tests::worker::real_permission_model_command_and_history -- --ignored --exact --nocapture 2>&1 | tee storage-native-evidence/permission-host-roundtrip.log
           grep -F 'test result: ok. 1 passed; 0 failed;' storage-native-evidence/permission-host-roundtrip.log
-      - name: Execute selected STEP transfer with the real CAD worker
+      - name: Compile the fixture writer from FormaCAD 1.1.0
+        run: |
+          set -euo pipefail
+          legacy_commit=1f5678b98d7461353013d0d78831eeeadf05c53c
+          git fetch --depth 1 origin refs/tags/v1.1.0:refs/tags/v1.1.0
+          test "$(git rev-parse 'refs/tags/v1.1.0^{commit}')" = "$legacy_commit"
+          legacy_tree="$(mktemp -d "$RUNNER_TEMP/forma-1.1-tree-XXXXXX")"
+          git archive "$legacy_commit" | tar -xf - -C "$legacy_tree"
+          legacy_manifest="$legacy_tree/apps/desktop/src-tauri/Cargo.toml"
+          mkdir -p "$legacy_tree/apps/desktop/src-tauri/tests"
+          cp scripts/fixtures/storage_legacy_1_1.rs "$legacy_tree/apps/desktop/src-tauri/tests/storage_legacy_1_1.rs"
+          cargo test --manifest-path "$legacy_manifest" --locked --test storage_legacy_1_1 --no-run --message-format json > "$RUNNER_TEMP/forma-1.1-build.jsonl"
+          fixture_writer="$(jq -er 'select(.reason == "compiler-artifact" and .target.name == "storage_legacy_1_1" and .executable != null) | .executable' "$RUNNER_TEMP/forma-1.1-build.jsonl")"
+          test -x "$fixture_writer"
+          printf 'FORMA_LEGACY_1_1_GENERATOR=%s\n' "$fixture_writer" >> "$GITHUB_ENV"
+          printf '%s\n' "$legacy_commit" > storage-native-evidence/legacy-1.1-source-sha.txt
+      - name: Execute selected STEP transfer from a FormaCAD 1.1.0 project with the real worker
         env:
           FORMA_OCCT_ROOT: ${{ github.workspace }}/.local/occt-install-unix-x86_64-unknown-linux-gnu
           FORMA_FOLDER_TEST_WORKER: ${{ github.workspace }}/apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/forma-cad-worker
@@ -126,8 +142,10 @@ jobs:
         run: |
           set -o pipefail
           test -x "$FORMA_FOLDER_TEST_WORKER"
+          test -x "$FORMA_LEGACY_1_1_GENERATOR"
           cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target x86_64-unknown-linux-gnu --features native-occt --lib project_repository::sqlite_folder::step_transfer::tests::real_worker_step_transfer_roundtrip -- --ignored --exact --nocapture 2>&1 | tee storage-native-evidence/step-transfer-roundtrip.log
           grep -F 'test result: ok. 1 passed; 0 failed;' storage-native-evidence/step-transfer-roundtrip.log
+          grep -Fx 'FORMA_LEGACY_1_1_SOURCE_UNCHANGED' storage-native-evidence/step-transfer-roundtrip.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:

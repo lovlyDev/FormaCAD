@@ -719,6 +719,11 @@ the result retains the saved commit. An uncertain publication remains
 explicit and does not trigger another transfer.
 
 The real-worker test reads the published commit through the window registry,
-checks the imported geometry and opens the folder in a separate process. The
-source STEP and neighbouring marker are compared byte for byte. The marker
-is a regression fixture, and the test does not open a FormaCAD 1.1 database.
+checks the imported geometry and opens the folder in a separate process. CI
+compiles a fixture writer from the pinned `v1.1.0` source. The writer uses the
+release's original SQLite migrations, project persistence and attachment
+storage to create a disposable project with the generated STEP. The current
+test passes only the selected attachment to the transfer and compares the
+entire legacy directory before and after. CI requires the
+`FORMA_LEGACY_1_1_SOURCE_UNCHANGED` marker. Local runs without the release
+fixture writer use the synthetic source mode.
