@@ -2,6 +2,7 @@
 use crate::{
     core::{AppError, Result},
     models::Project,
+    project_repository::folder_index::FolderIndex,
 };
 mod assets;
 mod capture;
@@ -14,6 +15,7 @@ pub mod ipc;
     )
 ))]
 pub mod operation;
+pub mod write_ipc;
 
 #[cfg(any(
     windows,
@@ -34,6 +36,7 @@ pub mod approval;
 mod supported;
 #[derive(Default)]
 pub struct WindowSources {
+    index: Option<FolderIndex>,
     #[cfg(any(
         windows,
         all(
@@ -58,6 +61,20 @@ fn changed() -> AppError {
 }
 
 impl WindowSources {
+    pub fn with_folder_index(app_data: &std::path::Path) -> Self {
+        let supported = cfg!(any(
+            windows,
+            all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            )
+        ));
+        let mut sources = Self::default();
+        sources.index = supported.then(|| FolderIndex::in_app_data(app_data));
+
+        sources
+    }
+
     pub fn close_window(&self, label: &str) {
         #[cfg(any(
             windows,

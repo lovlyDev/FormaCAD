@@ -18,6 +18,46 @@ is connected below, while product UI and app index remain incomplete.
 Selecting the folder never imports it into AppData. LegacyManaged
 and the V2 reader remain separate.
 
+## Folder selection in the workspace
+
+Use **File → Save project copy to folder** to save the current FCP1 project
+in another empty directory. The original opening stays active and its files
+and history are unchanged. The copy preserves revisions and attachments
+and has a fresh project identity. The host captures the source before
+showing the picker and checks it again before destination publication.
+If the copy result is uncertain, open the destination to verify it.
+
+For a blank project, choose **Create in folder** in the New Project dialog,
+then select an empty directory. The native host creates the project and opens
+its first commit. Cancel the picker to return to the form. If the save
+completed but the folder could not open, or if the publication result is
+uncertain, open that folder from the dashboard before trying any further writes.
+
+The stage 4 integration adds **Open project in folder** to the dashboard.
+Choose an existing FCP1 directory in the desktop picker to open it in place.
+Use **Import project folder** for managed import. Cancelling the picker leaves
+the workspace as it was.
+
+The native host opens the directory in the invoking window and returns its
+project, commit and source reference. The renderer keeps the source reference
+in memory and releases a late selection if another navigation wins. The folder
+route stores only the project ID. Reloading it returns to the dashboard, where
+the folder can be selected again. A matching managed ID does not restore the
+folder. The FCP1 picker supports Windows and Linux on the architectures listed
+by the host.
+
+Renderer tests exercise picker cancel, late source release, duplicate clicks,
+matching managed and folder IDs, and reload without a live opening. They mock
+the picker transport. The native storage tests cover the actual opening and
+directory lifetime.
+
+In the source editor, **Build** sends the draft program and expected revision
+to the folder permission command. The host decides whether to display a
+confirmation. Build and Undo/Redo use the same workspace write lock. Approval
+applies only to the captured opening and commit. If the result of publication
+is uncertain, use **Check saved commit** before further edits. The check reads
+the attempted commit without replaying the write.
+
 ## Reading
 
 ### Metadata refresh through the original source
@@ -639,6 +679,13 @@ publication/new commit; the corresponding UI controls remain unfinished.
 
 ## Disposable application index
 
+The dashboard's **Recent project folders** section shows the last open time
+and lets you pin a location. Clicking a location starts the native chooser in
+that folder. Confirm the folder in the chooser before the host opens it.
+Disabling **Remember opened folders** stops new entries and timestamps from
+being recorded. Existing entries and pins remain available. A missing or
+unreadable index does not prevent opening by selecting the folder directly.
+
 The separate `folder-locations.sqlite` application index stores the selected
 location, last open time, pin and an opt-out for recording recent folders.
 The trusted host records a location after a successful explicit opening.
@@ -656,6 +703,13 @@ closed during the write. The default host registry remains independent of app
 data.
 
 ## Open a transferred STEP in the original window
+
+With the native CAD worker available, choose **Transfer STEP to folder** in
+the New Project dialog. Select a STEP or STP file, then a separate empty
+directory. The new project uses millimeters and contains the imported
+geometry as one initial revision. Its original parametric feature tree and
+editing history are unavailable from STEP. The source file is opened in
+read-only mode. Cancelling either picker keeps the current workspace.
 
 The trusted host can call `FolderSources::transfer_selected_step` after choosing
 the source STEP and a separate empty destination. It reserves a source in that

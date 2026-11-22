@@ -31,6 +31,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Routes>
             <Route path="/" element={<App />} />
             <Route path="/project/:projectId" element={<App />} />
+            <Route path="/folder/:folderProjectId" element={<App />} />
           </Routes>
         </HashRouter>
       </Tooltip.Provider>

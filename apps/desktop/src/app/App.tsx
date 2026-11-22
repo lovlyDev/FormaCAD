@@ -56,6 +56,15 @@ import { ProjectFilesPanel } from "../features/project-files/ProjectFilesPanel";
 import { ModelHistoryControls } from "../features/project-history/ModelHistoryControls";
 import { RevisionList } from "../features/project-history/RevisionList";
 import { useHistoryAction } from "../features/project-history/useHistoryAction";
+import { folderHistoryAction } from "../features/project-history/folderHistoryAction";
+import { useFolderWriteAction } from "../features/project-sources/useFolderWriteAction";
+import { useFolderWriteConfirmation } from "../features/project-sources/useFolderWriteConfirmation";
+import { isFolderWriteOpeningCurrent } from "../features/project-sources/folderWriteResult";
+import { useFolderCopy } from "../features/project-sources/useFolderCopy";
+import { recentFoldersKey } from "../features/project-sources/recentFoldersApi";
+import { isSourceCurrent } from "../features/project-sources/sourceBinding";
+import { writeFolderModel } from "../features/model-apply/folderModelAction";
+import { FolderHistoryObservation } from "../features/project-history/FolderHistoryObservation";
 import { PropertiesPanel } from "../features/properties/PropertiesPanel";
 import { SelectionModelProperties } from "../features/reference-measurements/SelectionModelProperties";
 import { StatusBar } from "../features/status-bar/StatusBar";
@@ -121,7 +130,9 @@ const legacyMotionPrompt = (text: string) =>
 export default function App() {
   useLocale();
   const nav = useNavigate();
-  const { projectId } = useParams();
+  const route = useParams();
+  const projectId = route.folderProjectId ?? route.projectId;
+  const folderRoute = route.folderProjectId !== undefined;
   const queryClient = useQueryClient();
   const applyModel = useModelApply();
   useRevisionEvents();
@@ -141,23 +152,24 @@ export default function App() {
     setSelected,
   } = useWorkspace();
   const projectAccess = useWorkspaceSourceAccess(project?.id, sourceBinding, setError);
-  const openingProject = !!projectId && !!project && projectId !== project.id;
+  const openingProject = !!projectId && !!project &&
+    (projectId !== project.id || folderRoute !== (sourceBinding?.kind === "folder"));
   const editingBlocked = busy || !projectAccess.writable || openingProject;
   const { catalog, projects, unavailable } = useProjectCatalog();
-  const openProject = useProjectNavigation(projectId, nav, setError);
+  const { openProject, openFolder, createFolder, transferStep } = useProjectNavigation(projectId, nav, setError, folderRoute);
   const recovery = useQuery({
     queryKey: ["recovery"],
     queryFn: interruptedSessions,
   });
-  const agentEnvironment = useQuery({
-    queryKey: ["health"],
-    queryFn: health,
-    enabled: native && !!project,
-    staleTime: 60000,
-  });
   const [modal, setModal] = useState<
     "new" | "settings" | "export" | "palette" | "parameters" | null
   >(null);
+  const agentEnvironment = useQuery({
+    queryKey: ["health"],
+    queryFn: health,
+    enabled: native && (!!project || modal === "new"),
+    staleTime: 60000,
+  });
   const stateKey = `forma.ui.project.${project?.id ?? projectId ?? "home"}`;
   const [search, setSearch] = usePersistentState("forma.ui.search", "");
   const [renameTarget, setRenameTarget] = useState<Project | null>(null);
@@ -400,7 +412,23 @@ export default function App() {
     invalidateProjectCatalog(queryClient);
     void queryClient.invalidateQueries({ queryKey: ["model-history"] });
   }
+  async function finishFolderCreation(result: Promise<boolean | undefined>) {
+    if (await result) {
+      setModal(current => current === "new" ? null : current);
+      void queryClient.invalidateQueries({ queryKey: recentFoldersKey });
+    }
+  }
   const historyAction = useHistoryAction(ask, refresh);
+  const folderConfirmation = useFolderWriteConfirmation(sourceBinding);
+  const folderWrite = useFolderWriteAction(
+    sourceBinding,
+    () => { void queryClient.invalidateQueries({ queryKey: ["model-history"] }); },
+    setError,
+  );
+  const writeFolderHistory = folderHistoryAction(sourceBinding, folderWrite.write, folderConfirmation.confirm);
+  const folderHistoryActive = sourceBinding?.kind === "folder";
+  const folderCopy = useFolderCopy(sourceBinding, setNotice, setError);
+  const folderProgramBlocked = busy || openingProject || folderWrite.busy || !!folderWrite.uncertain || !!pending;
   async function ask(
     title: string,
     description: string,
@@ -807,7 +835,9 @@ export default function App() {
           forma
           <span className="brand-divider" />
         </button>
-        {project ? (
+        {project && sourceBinding?.kind === "folder" ? (
+          <span className="project-switch">{project.name}</span>
+        ) : project ? (
           <div className="project-switch">
             <Select
               aria-label={t("Switch project")}
@@ -880,6 +910,11 @@ export default function App() {
             },
             !!project,
             editingBlocked,
+            folderHistoryActive ? {
+              editProgramBlocked: folderProgramBlocked || !!(revision && !revision.program && !revision.source),
+              copyBlocked: busy || openingProject || folderCopy.copying,
+              saveCopy: () => void folderCopy.save(),
+            } : undefined,
           )}
         />
         {project && (
@@ -895,8 +930,11 @@ export default function App() {
           {project && (
             <ModelHistoryControls
               project={project}
-              blocked={editingBlocked || !!pending || !!modal || loadingModel}
-              onAction={historyAction}
+              sourceBinding={sourceBinding}
+              blocked={(folderHistoryActive
+                ? busy || openingProject || folderWrite.busy || !!folderWrite.uncertain
+                : editingBlocked) || !!pending || !!modal || loadingModel}
+              onAction={folderHistoryActive ? direction => void writeFolderHistory(direction) : historyAction}
             />
           )}
           <Updates blocked={busy || !!pending || !!modal || loadingModel} />
@@ -971,6 +1009,9 @@ export default function App() {
           onSearch={setSearch}
           onSettings={() => setModal("settings")}
           onImport={() => fileInput.current?.click()}
+          onOpenFolder={projectId ? undefined : (location) => {
+            void openFolder(location).then(() => queryClient.invalidateQueries({ queryKey: recentFoldersKey }));
+          }}
           onImportBundle={() =>
             void importProjectBundle()
               .then((item) => {
@@ -1286,9 +1327,19 @@ export default function App() {
         </div>
       )}
       <ActionReviewDialog
-        pending={pending}
-        onDecision={(allow) => void approve(allow)}
+        pending={folderConfirmation.pending ?? pending}
+        onDecision={(allow) => {
+          if (folderConfirmation.pending) folderConfirmation.decide(allow);
+          else if (pending) void approve(allow);
+        }}
       />
+      {folderWrite.uncertain && (
+        <FolderHistoryObservation
+          observation={folderWrite.uncertain.observation}
+          busy={folderWrite.busy}
+          onCheck={() => void folderWrite.check()}
+        />
+      )}
       <Modal
         open={!!exportInfo}
         onClose={() => setExportInfo(null)}
@@ -1416,6 +1467,12 @@ export default function App() {
         importNames={attachments.map((file) => file.name)}
         open={modal === "new"}
         close={() => setModal(null)}
+        onCreateFolder={native && !attachments.length
+          ? draft => finishFolderCreation(createFolder(draft))
+          : undefined}
+        onTransferStep={native && !attachments.length && agentEnvironment.data?.some(
+          item => item.name === "OpenCascade kernel" && item.available,
+        ) ? draft => finishFolderCreation(transferStep(draft)) : undefined}
         onCreate={async (p) => {
           try {
             if (attachments.length)
@@ -1447,7 +1504,9 @@ export default function App() {
           close={() => setModal(null)}
           source={revision?.program ?? ""}
           importedSource={revision?.source}
-          disabled={editingBlocked}
+          disabled={sourceBinding?.kind === "folder"
+            ? folderProgramBlocked
+            : editingBlocked}
           nativeCadAvailable={
             agentEnvironment.data?.some(
               (item) => item.name === "OpenCascade kernel" && item.available,
@@ -1455,7 +1514,22 @@ export default function App() {
           }
           nativeCadChecked={!!agentEnvironment.data}
           onApply={(program) => {
-            const base = useWorkspace.getState().project;
+            const active = useWorkspace.getState();
+            if (sourceBinding ? !isSourceCurrent(active.sourceBinding, sourceBinding) : !!active.sourceBinding) return;
+            if (sourceBinding?.kind === "folder" && project) {
+              const opening = sourceBinding;
+              const captured = captureApply(project, program, t("Изменён исходный код модели"), opening.openingId);
+              setModal(null);
+              void writeFolderModel(opening, captured, undefined, folderWrite.write, () =>
+                folderConfirmation.confirm(opening, {
+                  title: t("Построить модель"),
+                  description: t("Проверить геометрию и сохранить ревизию."),
+                  detail: program,
+                }),
+              ).catch(cause => { if (isFolderWriteOpeningCurrent(opening)) setError(errorText(cause)); });
+              return;
+            }
+            const base = active.project;
             if (!base) return;
             const captured = captureApply(
               base,

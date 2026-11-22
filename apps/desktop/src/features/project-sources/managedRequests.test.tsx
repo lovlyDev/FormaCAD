@@ -33,7 +33,7 @@ it("does not replace a folder view with a late equal-ID managed card read",async
   const p=project(),navigate=vi.fn(),error=vi.fn();useWorkspace.getState().setProject(p);
   let finish!:(p:Project)=>void;mock.read.mockImplementation(()=>new Promise(resolve=>{finish=resolve;}));
   const view=renderHook(()=>useProjectNavigation(p.id,navigate,error));let pending!:Promise<void>;
-  act(()=>{pending=view.result.current(p);});act(()=>useWorkspace.getState().openFolderProject(p,ref));const binding=useWorkspace.getState().sourceBinding;
+  act(()=>{pending=view.result.current.openProject(p);});act(()=>useWorkspace.getState().openFolderProject(p,ref));const binding=useWorkspace.getState().sourceBinding;
   await act(async()=>{finish({...p,name:"managed response"});await pending;});
   expect(useWorkspace.getState().project).toBe(p);expect(useWorkspace.getState().sourceBinding).toBe(binding);expect(navigate).not.toHaveBeenCalled();expect(error).not.toHaveBeenCalled();view.unmount();
 });

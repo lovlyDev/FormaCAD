@@ -42,7 +42,7 @@ it("opens a fresh target instead of adopting the card snapshot", async () => {
   const old = project("A"), latest = { ...old, name: "fresh metadata" }, navigate = vi.fn(), error = vi.fn();
   mock.read.mockResolvedValue(latest);
   const view = renderHook(() => useProjectNavigation(undefined, navigate, error));
-  await act(async () => { await view.result.current(old); });
+  await act(async () => { await view.result.current.openProject(old); });
   expect(mock.read).toHaveBeenCalledWith("A");
   expect(useWorkspace.getState().project).toBe(latest);
   expect(navigate).toHaveBeenCalledWith("/project/A");
@@ -56,7 +56,7 @@ it("cannot adopt an explicit opening after the hook unmounts", async () => {
   mock.read.mockImplementation(() => new Promise<Project>(resolve => { finish = resolve; }));
   const view = renderHook(() => useProjectNavigation("A", navigate, error));
   let pending!: Promise<void>;
-  act(() => { pending = view.result.current(next); });
+  act(() => { pending = view.result.current.openProject(next); });
   view.unmount();
   await act(async () => { finish(next); await pending; });
   expect(useWorkspace.getState().project).toBe(active);

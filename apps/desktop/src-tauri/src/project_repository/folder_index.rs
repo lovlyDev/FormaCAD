@@ -12,6 +12,7 @@ use std::{
 const APPLICATION_ID: i64 = 0x46434931; // FCI1
 const FORMAT_VERSION: i64 = 1;
 
+#[derive(Clone)]
 pub struct FolderIndex {
     path: PathBuf,
 }

@@ -22,7 +22,10 @@ impl WindowSources {
         if scopes.len() >= 16 {
             return Err(AppError::Invalid("PROJECT_SOURCE_LIMIT".into()));
         }
-        let scope = Arc::new(FolderSources::default());
+        let scope = Arc::new(match &self.index {
+            Some(index) => FolderSources::with_index(index.clone()),
+            None => FolderSources::default(),
+        });
         scopes.insert(label.to_owned(), Arc::clone(&scope));
         Ok(scope)
     }

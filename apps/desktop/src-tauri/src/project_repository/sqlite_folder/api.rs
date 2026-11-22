@@ -18,7 +18,9 @@ mod sources;
 mod write;
 pub use model::{ModelChange, ModelIntent, ModelRuntime};
 pub use publication::{CommitPresence, Publication, SavedCommit};
-pub use sources::{FolderCreation, FolderSourceId, FolderSources, OpenedFolder, MAX_FOLDER_SOURCES};
+pub use sources::{
+    FolderCreation, FolderSourceId, FolderSources, OpenedFolder, MAX_FOLDER_SOURCES,
+};
 pub use write::WriteApproval;
 #[cfg(feature = "native-worker-client")]
 mod step;
