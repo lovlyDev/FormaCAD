@@ -16,13 +16,13 @@ from pathlib import Path
 DRIVER = "http://127.0.0.1:4444"
 
 
-def request(method, path, payload=None):
+def request(method, path, payload=None, timeout=100):
     body = None if payload is None else json.dumps(payload).encode()
     query = urllib.request.Request(
         DRIVER + path, data=body, method=method, headers={"Content-Type": "application/json"}
     )
     try:
-        with urllib.request.urlopen(query, timeout=100) as response:
+        with urllib.request.urlopen(query, timeout=timeout) as response:
             return json.load(response)["value"]
     except urllib.error.HTTPError as error:
         raise RuntimeError(f"{path}: {error.read().decode()}") from error
@@ -40,8 +40,9 @@ def wait_for(check, description, timeout=25):
 
 def driver_ready():
     try:
-        return request("GET", "/status").get("ready")
-    except (urllib.error.URLError, RuntimeError):
+        return request("GET", "/status", timeout=1).get("ready")
+    except (urllib.error.URLError, ConnectionError, TimeoutError, RuntimeError):
+        # The Tauri driver can accept requests before its native driver is listening.
         return False
 
 
