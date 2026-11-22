@@ -31,6 +31,7 @@ jobs:
       - name: Build prerequisites
         run: sudo apt-get update && sudo apt-get install -y cmake g++ make libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - name: Existing native build and smoke route
+        id: native-build
         env:
           FORMA_NATIVE_TEST_ONLY: '1'
           TMPDIR: ${{ runner.temp }}
@@ -163,10 +164,13 @@ jobs:
           grep -F 'test result: ok. 1 passed; 0 failed;' storage-native-evidence/step-transfer-roundtrip.log
           grep -Fx 'FORMA_LEGACY_1_1_SOURCE_UNCHANGED' storage-native-evidence/step-transfer-roundtrip.log
       - uses: actions/setup-node@v4
+        id: desktop-node
+        if: ${{ !cancelled() && steps.native-build.outcome == 'success' }}
         with:
           node-version: 22
           cache: npm
       - name: Exercise the native folder picker and real writes through Tauri WebView
+        if: ${{ !cancelled() && steps.desktop-node.outcome == 'success' }}
         env:
           TMPDIR: ${{ runner.temp }}
         run: |

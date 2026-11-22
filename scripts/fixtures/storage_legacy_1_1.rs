@@ -24,7 +24,8 @@ async fn write_legacy_1_1_project() {
         _log_guard: guard,
     };
     let bytes = std::fs::read(input).unwrap();
-    let revision = "legacy-revision";
+    let revision_id = uuid::Uuid::new_v4().to_string();
+    let revision = revision_id.as_str();
     let now = "2026-01-01T00:00:00Z";
     let mut project: Project = serde_json::from_value(serde_json::json!({
         "schemaVersion": 1, "id": project_id, "name": "Legacy 1.1 STEP fixture",
