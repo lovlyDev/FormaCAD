@@ -1,24 +1,12 @@
-name: Storage proposed folder workspace review
+name: Storage folder workspace
 on:
   push:
     branches: [codex/storage-week]
-    paths:
-      - .github/workflows/storage-folder-write-review.yml
-      - docs/integration/storage-folder-workspace.patch
-      - docs/integration/storage-folder-workspace.paths
-      - docs/integration/storage-folder-copy-recents.patch
-      - docs/integration/storage-folder-copy-recents.paths
-      - docs/integration/storage-step-transfer-ui.patch
-      - docs/integration/storage-step-transfer-ui.paths
-      - docs/integration/storage-folder-caption-browser.patch
-      - apps/desktop/src-tauri/src/project_repository/folder_index.rs
-      - apps/desktop/src-tauri/src/project_repository/sqlite_folder/api/sources.rs
-      - apps/desktop/src-tauri/src/project_repository/sqlite_folder/api/sources/tests.rs
-      - apps/desktop/src-tauri/src/project_repository/sqlite_folder/api/sources/step.rs
+    paths-ignore: [docs/integration/**]
 permissions:
   contents: read
 jobs:
-  isolated-proposal:
+  folder-workspace:
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     steps:
@@ -33,34 +21,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/desktop/src-tauri -> target
-      - name: Apply the exact review patches inside this runner
-        run: |
-          set -euo pipefail
-          echo '4437fdffbcf21cc35ac59fe64a7e0347bcfba0bd8696b1ff63e8046fd2b4796d  docs/integration/storage-folder-workspace.patch' | sha256sum --check
-          echo '9158d5f12087fb4b2deb5521a564dae2aea263810a767544110375f48ae9a752  docs/integration/storage-folder-copy-recents.patch' | sha256sum --check
-          echo '49f96915a5f98a4a1871a57509d1bef84a9f6843186e8c4db45dcd8f87ae3e0b  docs/integration/storage-step-transfer-ui.patch' | sha256sum --check
-          echo 'd8a5fae5df8d23064441c302d07b029100f701b7aefd6a6c322403d60743de67  docs/integration/storage-folder-caption-browser.patch' | sha256sum --check
-          git diff --quiet
-          git diff --cached --quiet
-          git apply --check --index --whitespace=error-all docs/integration/storage-folder-workspace.patch
-          git apply --index --whitespace=error-all docs/integration/storage-folder-workspace.patch
-          git diff --cached --check
-          diff -u <(LC_ALL=C sort docs/integration/storage-folder-workspace.paths) <(git diff --cached --name-only | LC_ALL=C sort)
-          diff -u <(LC_ALL=C sort docs/integration/storage-folder-copy-recents.paths) <(git apply --numstat docs/integration/storage-folder-copy-recents.patch | cut -f3 | LC_ALL=C sort)
-          git apply --check --index --whitespace=error-all docs/integration/storage-folder-copy-recents.patch
-          git apply --index --whitespace=error-all docs/integration/storage-folder-copy-recents.patch
-          git diff --cached --check
-          diff -u <(LC_ALL=C sort -u docs/integration/storage-folder-workspace.paths docs/integration/storage-folder-copy-recents.paths) <(git diff --cached --name-only | LC_ALL=C sort)
-          diff -u <(LC_ALL=C sort docs/integration/storage-step-transfer-ui.paths) <(git apply --numstat docs/integration/storage-step-transfer-ui.patch | cut -f3 | LC_ALL=C sort)
-          git apply --check --index --whitespace=error-all docs/integration/storage-step-transfer-ui.patch
-          git apply --index --whitespace=error-all docs/integration/storage-step-transfer-ui.patch
-          git diff --cached --check
-          diff -u <(LC_ALL=C sort -u docs/integration/storage-folder-workspace.paths docs/integration/storage-folder-copy-recents.paths docs/integration/storage-step-transfer-ui.paths) <(git diff --cached --name-only | LC_ALL=C sort)
-          diff -u <(printf '%s\n' apps/desktop/e2e/storage-folder-workspace.spec.ts apps/desktop/src/app/App.tsx) <(git apply --numstat docs/integration/storage-folder-caption-browser.patch | cut -f3 | LC_ALL=C sort)
-          git apply --check --index --whitespace=error-all docs/integration/storage-folder-caption-browser.patch
-          git apply --index --whitespace=error-all docs/integration/storage-folder-caption-browser.patch
-          git diff --cached --check
-          git diff --cached --stat
       - name: Prepare Rust and frontend build prerequisites
         run: |
           sudo apt-get update
@@ -71,6 +31,8 @@ jobs:
           npm run lint
           npm run check:i18n
           npm run check:docs
+          npm run check:migrations
+          npm run check:version
       - name: Test folder workspace in Chromium
         run: |
           npx playwright install --with-deps chromium
