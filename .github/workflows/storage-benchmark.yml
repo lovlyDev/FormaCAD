@@ -114,3 +114,47 @@ jobs:
         with:
           name: storage-comparison-${{ github.sha }}
           path: storage-evidence/
+  folder-windows:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+          cache-on-failure: true
+      - run: npm ci
+      - run: npm run build
+      - name: Verify native filesystem and SQL behavior of FCP1
+        env:
+          CARGO_TERM_COLOR: never
+        run: |
+          $evidence = "storage-windows-evidence"
+          New-Item -ItemType Directory -Path $evidence -Force | Out-Null
+          $manifest = "apps/desktop/src-tauri/Cargo.toml"
+          $log = Join-Path $evidence "fcp1-tests.log"
+          cargo test --manifest-path $manifest --locked --no-default-features --lib project_repository::sqlite_folder:: -- --nocapture 2>&1 | Tee-Object -FilePath $log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $required = @(
+            "reader_can_copy_but_cannot_write_until_the_other_process_is_killed",
+            "abrupt_exit_exposes_an_intact_head_or_read_only_recovery_state",
+            "explicit_recovery_replays_a_real_hot_journal_only_in_private_scratch",
+            "recovery_refuses_a_source_changed_to_a_newer_commit_after_capture",
+            "explicit_draft_survives_close_without_modifying_the_saved_project",
+            "timeout_before_staging_leaves_other_work_and_does_not_replay"
+          )
+          foreach ($case in $required) {
+            if (-not (Select-String -Path $log -SimpleMatch "$case ... ok")) {
+              throw "Missing passing Windows evidence for $case"
+            }
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: storage-fcp1-windows-${{ github.sha }}
+          path: storage-windows-evidence/
