@@ -175,14 +175,14 @@ jobs:
           TMPDIR: ${{ runner.temp }}
         run: |
           set -euxo pipefail
-          sudo apt-get install -y webkit2gtk-driver xvfb xauth xdotool
+          sudo apt-get install -y webkit2gtk-driver xvfb xauth xdotool at-spi2-core python3-pyatspi
           npm ci
           npm run tauri -w apps/desktop -- build --no-bundle --target x86_64-unknown-linux-gnu --features native-worker-client
           cargo install tauri-driver --version 2.1.0 --locked
           binary="$GITHUB_WORKSPACE/apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/forma-cad"
           test -x "$binary"
           test -x "${binary%/*}/forma-cad-worker"
-          xvfb-run -a python3 scripts/test-storage-native-desktop.py "$binary" 2>&1 | tee storage-native-evidence/native-desktop.log
+          LC_ALL=C.UTF-8 NO_AT_BRIDGE=0 dbus-run-session -- xvfb-run -a /usr/bin/python3 scripts/test-storage-native-desktop.py "$binary" 2>&1 | tee storage-native-evidence/native-desktop.log
           grep -Fx 'FORMA_NATIVE_STORAGE_DESKTOP_OK' storage-native-evidence/native-desktop.log
       - uses: actions/upload-artifact@v4
         if: always()

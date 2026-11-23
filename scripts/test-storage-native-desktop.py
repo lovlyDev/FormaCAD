@@ -93,19 +93,51 @@ def visible_picker():
     return found[0] if found else None
 
 
+def picker_control(roles, state, names=None):
+    import pyatspi
+
+    def find(node):
+        if node is None:
+            return None
+        states = node.getState()
+        if (node.getRole() in roles and states.contains(pyatspi.STATE_SHOWING)
+                and states.contains(state) and (names is None or node.name in names)):
+            return node
+        for child in node:
+            match = find(child)
+            if match is not None:
+                return match
+        return None
+
+    for application in pyatspi.Registry.getDesktop(0):
+        for dialog in application:
+            if dialog is not None and dialog.name == "Forma CAD":
+                return find(dialog)
+    return None
+
+
 def select_folder(route, command, args, path):
+    import pyatspi
+
     with ThreadPoolExecutor(max_workers=1) as executor:
         response = executor.submit(invoke, route, command, args)
         picker = wait_for(visible_picker, "native folder chooser")
         pid = subprocess.check_output(["xdotool", "getwindowpid", picker], text=True).strip()
         subprocess.run(["xdotool", "windowfocus", "--sync", picker], check=True)
         subprocess.run(["xdotool", "key", "--clearmodifiers", "ctrl+l"], check=True)
-        subprocess.run(["xdotool", "type", "--clearmodifiers", str(path)], check=True)
-        subprocess.run(["xdotool", "key", "Return"], check=True)
-        # Some GTK builds first navigate to the typed directory and keep the picker open.
-        time.sleep(0.6)
-        if not response.done() and visible_picker() == picker:
-            subprocess.run(["xdotool", "key", "Return"], check=True)
+        location = wait_for(
+            lambda: picker_control((pyatspi.ROLE_ENTRY, pyatspi.ROLE_TEXT), pyatspi.STATE_EDITABLE),
+            "GTK location entry",
+        )
+        assert location.queryEditableText().setTextContents(str(path)), "GTK rejected the folder path"
+        accept = wait_for(
+            lambda: picker_control(
+                (pyatspi.ROLE_PUSH_BUTTON,), pyatspi.STATE_SENSITIVE, {"Open", "Select", "Choose"}
+            ),
+            "GTK folder confirmation button",
+        )
+        assert accept.queryAction().doAction(0), "GTK rejected folder confirmation"
+        wait_for(lambda: visible_picker() != picker, "GTK folder chooser to close")
         return pid, response.result(timeout=30)
 
 
