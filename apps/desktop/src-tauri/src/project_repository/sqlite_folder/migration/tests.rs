@@ -3,6 +3,8 @@ use super::*;
 use crate::{models::Project, project_history::Direction, project_storage_v2 as storage};
 use std::{collections::BTreeMap, fs, path::PathBuf};
 
+mod crash;
+
 const A: &[u8] = b"migration synthetic STEP A";
 const B: &[u8] = b"migration synthetic STEP B";
 

@@ -90,6 +90,10 @@ pub(super) async fn initialize(
         record_head(&mut transaction,repository_id,project,&commit_id,None,1).await?;
         read::within(&mut transaction).await
     }.await;
+    #[cfg(all(test, any(target_os = "linux", windows)))]
+    if result.is_ok() {
+        Point::BeforeSqlCommit.wait_for_kill();
+    }
     finish(transaction, result, commit_id).await
 }
 
