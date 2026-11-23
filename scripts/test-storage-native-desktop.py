@@ -8,6 +8,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
@@ -95,18 +96,24 @@ def visible_picker():
 
 def picker_control(roles, state, names=None):
     import pyatspi
+    from gi.repository import GLib
 
     def find(node):
-        if node is None:
-            return None
-        states = node.getState()
-        if (node.getRole() in roles and states.contains(pyatspi.STATE_SHOWING)
-                and states.contains(state) and (names is None or node.name in names)):
-            return node
-        for child in node:
-            match = find(child)
-            if match is not None:
-                return match
+        pending = deque([node])
+        while pending:
+            node = pending.popleft()
+            if node is None:
+                continue
+            try:
+                states = node.getState()
+                if (node.getRole() in roles and states.contains(pyatspi.STATE_SHOWING)
+                        and states.contains(state) and (names is None or node.name in names)):
+                    return node
+                pending.extend(node)
+            except GLib.Error as error:
+                if "does not exist" not in str(error):
+                    raise
+                # GTK replaces completion rows when the location entry changes.
         return None
 
     for application in pyatspi.Registry.getDesktop(0):
