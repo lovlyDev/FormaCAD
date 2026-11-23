@@ -757,3 +757,16 @@ bytes. This route is currently exposed through the Rust host API.
 The tests cover a real hot journal with changed database pages, verified
 reopening of the recovered copy, and a newer external commit published after
 the recovery capture. The latter must remain the source head.
+
+## Explicit local drafts
+
+The host can ask for `approve_local_draft` after the user chooses to keep
+editor text. The one-use approval captures the repository, project, commit
+and revision from a verified opening. `LocalDraftStore::save` can retain up to
+1 MiB of editor text in the app's local profile even if the opening is later
+closed or its media is missing. Incomplete editor text is preserved.
+
+`read_local_draft` returns the text for manual review only when the current
+saved base matches. The record carries no opening tokens, machine grants
+or commands to execute and cannot authorize publication. These records
+stay in the app profile and travel separately from an exported project.

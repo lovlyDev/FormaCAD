@@ -13,9 +13,11 @@ use std::path::Path;
 mod migration;
 mod model;
 pub use migration::{BackupRecord, MigrationReport, V2Backup};
+mod drafts;
 mod publication;
 mod sources;
 mod write;
+pub use drafts::{DraftApproval, DraftProvenance, LocalDraft, LocalDraftStore};
 pub use model::{ModelChange, ModelIntent, ModelRuntime};
 pub use publication::{CommitPresence, Publication, SavedCommit};
 pub use sources::{

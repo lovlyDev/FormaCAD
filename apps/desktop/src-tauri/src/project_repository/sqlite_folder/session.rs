@@ -64,6 +64,10 @@ impl FolderSnapshot {
         self.saved.expectation().commit_id()
     }
 
+    pub(super) fn repository_id(&self) -> &str {
+        self.saved.expectation().repository_id()
+    }
+
     pub(super) fn same_saved_state(&self, expected: &format::Snapshot) -> bool {
         self.saved.same_saved_state(expected)
     }
