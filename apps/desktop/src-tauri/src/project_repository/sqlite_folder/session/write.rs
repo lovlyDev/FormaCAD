@@ -54,14 +54,19 @@ impl FolderSession {
         self.recheck_locked(&mut database, original).await?;
         let binding = ReadBinding::new(Arc::clone(&database.source), Arc::clone(&self.opening));
         let job_binding = ReadBinding::new(Arc::clone(&database.source), Arc::clone(&self.opening));
-        // Cancellation detaches this owned job. It cannot revoke the real lease
-        // or CAS handles while filesystem IO is still executing.
+        // Cancellation detaches this owned job. A detached job that has not
+        // begun staging stops without modifying CAS. Once filesystem IO has
+        // started, its real lease must live until the owned job exits.
+        let (owner, operation) = tokio::sync::oneshot::channel::<()>();
         let (candidate, lease, published, mut reader) = tokio::task::spawn_blocking(move || {
             if let Some(barrier) = before_publication {
                 barrier();
             }
             #[cfg(test)]
             Point::BeforeStaging.wait_for_kill();
+            if owner.is_closed() {
+                return Err(AppError::Invalid("CAD_TASK_CANCELLED".into()));
+            }
             job_binding.check_active()?;
             let published = Arc::new(
                 PreparedCasBatch::validate(&candidate, &pending)?.publish(&lease, &mut reader)?,
@@ -73,6 +78,7 @@ impl FolderSession {
         })
         .await
         .map_err(|error| AppError::Io(std::io::Error::other(error)))??;
+        drop(operation);
         self.recheck_locked(&mut database, original).await?;
         published.recheck(&mut reader)?;
         let mut writer = WriteConnection::open_for_publication(

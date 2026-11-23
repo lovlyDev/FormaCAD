@@ -56,6 +56,7 @@ jobs:
           grep -F 'test project_repository::sqlite_folder::recovery::tests::explicit_recovery_replays_a_real_hot_journal_only_in_private_scratch ... ok' storage-evidence/host-api-tests.log
           grep -F 'test project_repository::sqlite_folder::recovery::tests::recovery_refuses_a_source_changed_to_a_newer_commit_after_capture ... ok' storage-evidence/host-api-tests.log
           grep -F 'test project_repository::sqlite_folder::api::drafts::tests::explicit_draft_survives_close_without_modifying_the_saved_project ... ok' storage-evidence/host-api-tests.log
+          grep -F 'test project_repository::sqlite_folder::session::write::tests::timeout_before_staging_leaves_other_work_and_does_not_replay ... ok' storage-evidence/host-api-tests.log
       - name: Verify the application index is disposable
         run: |
           set -o pipefail

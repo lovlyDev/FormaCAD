@@ -70,7 +70,15 @@ async fn recover_captured(
     destination: &Path,
     destination_location: Arc<LocationIdentity>,
 ) -> Result<format::CommitOutcome> {
-    let recovered = recover_private(&workspace.path).await?;
+    // Dropping the outer operation must not remove scratch while the SQLite
+    // worker still owns its database or reissue the operation.
+    let recovered = tokio::spawn(async move {
+        let result = recover_private(&workspace.path).await;
+        drop(workspace);
+        result
+    })
+    .await
+    .map_err(join_error)??;
     let history = recovered.history().ok_or_else(changed)?.to_vec();
     PreparedCasBatch::validate(recovered.project(), &[])?;
     let project = copy::fork_project(recovered.project(), &history)?;
@@ -90,7 +98,6 @@ async fn recover_captured(
     })
     .await
     .map_err(join_error)??;
-    drop(workspace);
     Arc::clone(&capture).recheck().await?;
     publication_verification::recheck_location(&destination_location, destination)?;
 
@@ -130,14 +137,20 @@ async fn recover_private(path: &Path) -> Result<format::Snapshot> {
         .pragma("temp_store", "MEMORY")
         .pragma("trusted_schema", "OFF");
     let mut connection = SqliteConnection::connect_with(&options).await?;
-    let recovered = format::read(&mut connection).await?;
-    let integrity: String = sqlx::query_scalar("PRAGMA quick_check(1)")
-        .fetch_one(&mut connection)
-        .await?;
-    if integrity != "ok" {
-        return Err(changed());
+    let result = async {
+        let recovered = format::read(&mut connection).await?;
+        let integrity: String = sqlx::query_scalar("PRAGMA quick_check(1)")
+            .fetch_one(&mut connection)
+            .await?;
+        if integrity != "ok" {
+            return Err(changed());
+        }
+        Ok(recovered)
     }
-    connection.close().await?;
+    .await;
+    let closed = connection.close().await;
+    let recovered = result?;
+    closed?;
     Ok(recovered)
 }
 

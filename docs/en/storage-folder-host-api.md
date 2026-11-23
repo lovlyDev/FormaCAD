@@ -770,3 +770,10 @@ closed or its media is missing. Incomplete editor text is preserved.
 saved base matches. The record carries no opening tokens, machine grants
 or commands to execute and cannot authorize publication. These records
 stay in the app profile and travel separately from an exported project.
+
+If a folder write is timed out before CAS staging begins, the detached job
+keeps its OS lease until it exits and leaves the original SQL and assets
+intact. It never submits the write a second time. An abandoned operation
+whose CAS writes already began may leave unreferenced immutable objects.
+Recovery owns its private scratch directory until SQLite closes and cleans
+that directory alone. Separate draft and CAD scratch directories stay intact.

@@ -103,8 +103,12 @@ async fn recovery_refuses_a_source_changed_to_a_newer_commit_after_capture() {
     let root = tempfile::tempdir().unwrap();
     let target = tempfile::tempdir().unwrap();
     let scratch = tempfile::tempdir().unwrap();
+    let other_workspace = Workspace::create(scratch.path()).unwrap();
+    let other_file = other_workspace.path.join("other-work");
+    fs::write(&other_file, b"another operation owns this staging").unwrap();
     let project_id = pending_source(root.path()).await;
     let (capture, workspace) = stage(root.path(), scratch.path()).unwrap();
+    let recovery_workspace = workspace.path.clone();
 
     // Deliberately emulate an external SQLite writer that does not take the
     // cooperative .forma lease. Its published head must survive stale recovery.
@@ -137,6 +141,11 @@ async fn recovery_refuses_a_source_changed_to_a_newer_commit_after_capture() {
     ));
     assert_eq!(fs::read(db).unwrap(), newer_database);
     assert_eq!(fs::read_dir(target.path()).unwrap().count(), 0);
+    assert!(!recovery_workspace.exists());
+    assert_eq!(
+        fs::read(other_file).unwrap(),
+        b"another operation owns this staging"
+    );
     let reopened = FolderProject::open(root.path()).await.unwrap();
     let view = reopened.capture().await.unwrap();
     assert_eq!(view.project().id, project_id);

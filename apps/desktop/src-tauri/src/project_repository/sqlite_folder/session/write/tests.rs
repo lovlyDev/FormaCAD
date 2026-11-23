@@ -198,6 +198,71 @@ async fn cancelled_blocking_publication_keeps_lease_until_job_finishes() {
 }
 
 #[tokio::test]
+async fn timeout_before_staging_leaves_other_work_and_does_not_replay() {
+    let root = tempfile::tempdir().unwrap();
+    let session = fixture(root.path()).await;
+    let original = session.capture().await.unwrap();
+    let database = root.path().join("project.sqlite");
+    let before = fs::read(&database).unwrap();
+    let assets = root.path().join("assets");
+    let other = assets.join(crate::artifacts::digest(b"asset from another operation"));
+    fs::write(&other, b"asset from another operation").unwrap();
+    let pending = b"timed out writer must not stage this data".to_vec();
+    let hash = crate::artifacts::digest(&pending);
+    let mut candidate = original.project().clone();
+    candidate.files.push(ProjectFile {
+        name: "unpublished.step".into(),
+        size: pending.len() as u64,
+        kind: "model".into(),
+        data: None,
+        sha256: Some(hash.clone()),
+    });
+    let (entered, waiting) = tokio::sync::oneshot::channel();
+    let (release, ready) = std::sync::mpsc::channel();
+    let mut attempt = Box::pin(session.commit_inner(
+        &original,
+        candidate,
+        vec![(hash.clone(), pending)],
+        None,
+        Some(Box::new(move || {
+            entered.send(()).unwrap();
+            ready.recv_timeout(Duration::from_secs(10)).unwrap();
+        })),
+    ));
+    tokio::time::timeout(Duration::from_secs(10), async {
+        tokio::select! {
+            step = waiting => step.unwrap(),
+            _ = &mut attempt => panic!("writer finished before the timeout boundary"),
+        }
+    })
+    .await
+    .unwrap();
+    assert!(
+        tokio::time::timeout(Duration::from_millis(10), &mut attempt)
+            .await
+            .is_err()
+    );
+    drop(attempt);
+    assert!(FolderLease::acquire(root.path()).is_err());
+    release.send(()).unwrap();
+    tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            if FolderLease::acquire(root.path()).is_ok() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(fs::read(&database).unwrap(), before);
+    assert_eq!(fs::read(other).unwrap(), b"asset from another operation");
+    assert!(!assets.join(hash).exists());
+    assert!(!root.path().join("project.sqlite-journal").exists());
+    session.recheck(&original).await.unwrap();
+}
+
+#[tokio::test]
 async fn commit_future_is_send() {
     fn assert_send<T: Send>(_: T) {}
     let root = tempfile::tempdir().unwrap();
