@@ -202,7 +202,6 @@ jobs:
         run: |
           set -euxo pipefail
           sudo apt-get install -y webkit2gtk-driver xvfb xauth xdotool at-spi2-core python3-pyatspi
-          cargo install tauri-driver --version 2.1.0 --locked
           binary="$GITHUB_WORKSPACE/apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/forma-cad"
           install -m 755 .local/storage-desktop-bin/forma-cad "$binary"
           test -x "$binary"

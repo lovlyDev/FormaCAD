@@ -44,14 +44,15 @@ def driver_ready():
     try:
         return request("GET", "/status", timeout=1).get("ready")
     except (urllib.error.URLError, ConnectionError, TimeoutError, RuntimeError):
-        # The Tauri driver can accept requests before its native driver is listening.
         return False
 
 
 @contextmanager
 def application(binary):
     session = request("POST", "/session", {
-        "capabilities": {"alwaysMatch": {"tauri:options": {"application": str(binary)}}},
+        "capabilities": {"alwaysMatch": {
+            "webkitgtk:browserOptions": {"binary": str(binary), "args": []},
+        }},
     })["sessionId"]
     route = f"/session/{session}"
     try:
@@ -280,10 +281,17 @@ def main():
         gtk = config / "gtk-3.0"
         gtk.mkdir(parents=True)
         (gtk / "bookmarks").write_text(f"{root.as_uri()} Storage fixture\n", encoding="utf-8")
-        env = dict(os.environ, FORMA_DATA_DIR=str(root / "app"), XDG_CONFIG_HOME=str(config))
-        with subprocess.Popen(["tauri-driver"], env=env) as driver:
+        env = dict(
+            os.environ,
+            FORMA_DATA_DIR=str(root / "app"),
+            XDG_CONFIG_HOME=str(config),
+            TAURI_WEBVIEW_AUTOMATION="true",
+        )
+        with subprocess.Popen(
+            ["WebKitWebDriver", "--host=127.0.0.1", "--port=4444"], env=env
+        ) as driver:
             try:
-                wait_for(driver_ready, "tauri-driver")
+                wait_for(driver_ready, "WebKitWebDriver")
                 verify(binary, folder)
             finally:
                 if driver.poll() is None:
