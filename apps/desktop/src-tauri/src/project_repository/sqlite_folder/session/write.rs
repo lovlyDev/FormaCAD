@@ -11,6 +11,9 @@ use crate::{
 };
 use std::sync::Arc;
 
+#[cfg(test)]
+use super::super::crash_probe::Point;
+
 impl FolderSession {
     pub(in crate::project_repository::sqlite_folder) async fn commit(
         &self,
@@ -57,10 +60,14 @@ impl FolderSession {
             if let Some(barrier) = before_publication {
                 barrier();
             }
+            #[cfg(test)]
+            Point::BeforeStaging.wait_for_kill();
             job_binding.check_active()?;
             let published = Arc::new(
                 PreparedCasBatch::validate(&candidate, &pending)?.publish(&lease, &mut reader)?,
             );
+            #[cfg(test)]
+            Point::AfterAssetFlush.wait_for_kill();
             job_binding.check_active()?;
             Ok::<_, AppError>((candidate, lease, published, reader))
         })
@@ -86,6 +93,8 @@ impl FolderSession {
         .await;
         let outcome = match outcome {
             Ok(format::CommitOutcome::Committed(snapshot)) => {
+                #[cfg(test)]
+                Point::AfterSqlCommit.wait_for_kill();
                 let commit_id = snapshot.expectation().commit_id().to_owned();
                 let checked = async {
                     self.owns(original)?;

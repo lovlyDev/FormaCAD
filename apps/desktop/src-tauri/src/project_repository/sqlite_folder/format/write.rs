@@ -3,6 +3,9 @@
 use super::*;
 use sqlx::{Connection, Sqlite, Transaction};
 
+#[cfg(all(test, any(target_os = "linux", windows)))]
+use super::super::crash_probe::Point;
+
 async fn finish(
     transaction: Transaction<'_, Sqlite>,
     prepared: Result<Snapshot>,
@@ -126,6 +129,8 @@ pub(super) async fn commit(
         if updated.rows_affected() != 1 {
             return Err(corrupt());
         }
+        #[cfg(all(test, any(target_os = "linux", windows)))]
+        Point::DuringSqlWrite.wait_for_kill();
         // The deliberately identical history-table contract reuses the same
         // pure prepare_commit validation through record_commit, not a second
         // storage-specific state machine or the app's migration runner.
@@ -148,6 +153,10 @@ pub(super) async fn commit(
         read::within(&mut transaction).await
     }
     .await;
+    #[cfg(all(test, any(target_os = "linux", windows)))]
+    if result.is_ok() {
+        Point::BeforeSqlCommit.wait_for_kill();
+    }
     finish(transaction, result, commit_id).await
 }
 

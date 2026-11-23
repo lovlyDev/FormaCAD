@@ -23,6 +23,8 @@ mod cas;
     )
 ))]
 mod copy;
+#[cfg(all(test, any(target_os = "linux", windows)))]
+mod crash_probe;
 #[cfg(any(
     windows,
     all(

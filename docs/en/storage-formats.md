@@ -461,3 +461,18 @@ ID takes its place. The interrupted write must change neither SQL nor CAS.
 The original directory is then written through a fresh opening while detached.
 After it returns, a new opening must see the external commit. The old opening
 must remain invalidated. This is a local namespace change with real files.
+
+The child-process crash test covers the following boundaries. It kills the
+writer at each barrier and reopens the folder without the application index.
+
+| Interruption | Expected result on reopening |
+| --- | --- |
+| Before staging | The previous commit and SQL bytes are unchanged. The new asset is absent. |
+| After flushing CAS | The previous commit and SQL bytes are unchanged. The new CAS object has no project reference. |
+| During SQL updates | An existing rollback journal causes `PROJECT_SNAPSHOT_RECOVERY_REQUIRED`. The open attempt preserves both files. |
+| After validating SQL and before commit | The same read-only refusal preserves the journal and database. |
+| After SQLite commit | The new commit, metadata, history and asset are readable without the global index. |
+
+These are real process exits on a local disk. They exercise the application's
+publication route with synthetic data. Power-loss durability, recovery and
+removable or network media require separate evidence.

@@ -1,25 +1,33 @@
 //! Real process contention and writer termination on a local filesystem.
 use super::{fs, project, AppError, Duration, FolderSession, ProjectFile};
-use crate::project_repository::sqlite_folder::api::{FolderProject, Publication};
+use crate::project_repository::sqlite_folder::{
+    api::{FolderProject, Publication},
+    crash_probe::{Point, POINT, READY},
+};
 use std::{
     path::{Path, PathBuf},
     process::{Child, Command},
 };
 
 const ROOT: &str = "FORMA_FCP1_WRITER_LEASE_TEST_ROOT";
-const READY: &str = "FORMA_FCP1_WRITER_LEASE_TEST_READY";
 const ORIGINAL_BYTES: &[u8] = b"immutable local process fixture";
+const PENDING_BYTES: &[u8] = b"asset supplied by the actual writer transaction";
+const CANDIDATE_NAME: &str = "Project committed by the child writer";
+
+#[path = "crash_tests.rs"]
+mod crash_tests;
 
 struct ParkedWriter(Child);
 
 impl ParkedWriter {
-    async fn start(root: &Path, ready: &Path) -> Self {
+    async fn start(root: &Path, ready: &Path, point: Point) -> Self {
         let (_, module) = module_path!().split_once("::").unwrap();
         let test = format!("{module}::write_while_holding_the_lease");
         let mut writer = Self(
             Command::new(std::env::current_exe().unwrap())
                 .args(["--ignored", "--exact", &test, "--nocapture"])
                 .env(ROOT, root)
+                .env(POINT, point.name())
                 .env(READY, ready)
                 .spawn()
                 .unwrap(),
@@ -28,16 +36,16 @@ impl ParkedWriter {
             loop {
                 assert!(
                     writer.0.try_wait().unwrap().is_none(),
-                    "writer exited before holding the lease"
+                    "writer exited before {point:?}"
                 );
-                if ready.is_file() {
+                if fs::read_to_string(ready).is_ok_and(|value| value == point.name()) {
                     break;
                 }
                 tokio::time::sleep(Duration::from_millis(10)).await;
             }
         })
         .await
-        .expect("writer did not reach the pre-publication barrier");
+        .unwrap_or_else(|_| panic!("writer did not reach {point:?}"));
         writer
     }
 
@@ -81,7 +89,12 @@ async fn reader_can_copy_but_cannot_write_until_the_other_process_is_killed() {
     .unwrap() else {
         panic!("expected a committed baseline");
     };
-    let mut writer = ParkedWriter::start(root.path(), &control.path().join("ready")).await;
+    let mut writer = ParkedWriter::start(
+        root.path(),
+        &control.path().join("ready"),
+        Point::BeforeStaging,
+    )
+    .await;
     assert_ne!(writer.0.id(), std::process::id());
 
     let database = root.path().join("project.sqlite");
@@ -161,22 +174,24 @@ async fn reader_can_copy_but_cannot_write_until_the_other_process_is_killed() {
 #[ignore = "parent process invokes this exact writer fixture"]
 async fn write_while_holding_the_lease() {
     let root = PathBuf::from(std::env::var_os(ROOT).expect("parent supplies fixture root"));
-    let ready = PathBuf::from(std::env::var_os(READY).expect("parent supplies barrier path"));
     let session = FolderSession::open(&root).await.unwrap();
     let original = session.capture().await.unwrap();
     let mut candidate = original.project().clone();
-    candidate.name = "Terminated before publication".into();
+    candidate.name = CANDIDATE_NAME.into();
+    let hash = crate::artifacts::digest(PENDING_BYTES);
+    candidate.files.push(ProjectFile {
+        name: "child.step".into(),
+        kind: "model".into(),
+        size: PENDING_BYTES.len() as u64,
+        data: None,
+        sha256: Some(hash.clone()),
+    });
     let outcome = session
-        .commit_inner(
+        .commit(
             &original,
             candidate,
-            vec![],
+            vec![(hash, PENDING_BYTES.to_vec())],
             None,
-            Some(Box::new(move || {
-                fs::write(ready, b"lease acquired").unwrap();
-                std::thread::sleep(Duration::from_secs(60));
-                panic!("parent must terminate the writer while the lease is held");
-            })),
         )
         .await;
     match outcome {
