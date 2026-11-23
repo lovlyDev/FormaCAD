@@ -63,6 +63,8 @@ import { useFolderWriteConfirmation } from "../features/project-sources/useFolde
 import { isFolderWriteOpeningCurrent } from "../features/project-sources/folderWriteResult";
 import { useFolderWriteAvailability } from "../features/project-sources/useFolderWriteAvailability";
 import { FolderWriteNotice } from "../features/project-sources/FolderWriteNotice";
+import { ExportProjectBundleControl } from "../features/project-bundle/ExportProjectBundleControl";
+import { exportFolderBundle } from "../features/project-bundle/folderBundle";
 import { useFolderCopy } from "../features/project-sources/useFolderCopy";
 import { recentFoldersKey } from "../features/project-sources/recentFoldersApi";
 import { isSourceCurrent } from "../features/project-sources/sourceBinding";
@@ -930,7 +932,16 @@ export default function App() {
           <span className="brand-divider" />
         </button>
         {project && sourceBinding?.kind === "folder" ? (
-          <span className="project-switch">{project.name}</span>
+          <>
+            <span className="project-switch">{project.name}</span>
+            {native && !openingProject && (
+              <ExportProjectBundleControl
+                key={sourceBinding.source.sourceId + ":" + sourceBinding.source.commitId}
+                project={project}
+                onExport={(_, redact) => void exportFolderBundle(sourceBinding, redact, setNotice, setError)}
+              />
+            )}
+          </>
         ) : project ? (
           <div className="project-switch">
             <Select

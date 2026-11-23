@@ -137,6 +137,7 @@ pub fn run() {
             model_pair_measurement::measure_model_pair,
             model_snap::snap_model_reference,
             cadpack::export::export_project_bundle,
+            cadpack::export::folder::export_folder_project_bundle,
             cadpack::import_project_bundle,
             permissions::request_permission,
             permissions::permission_audit,

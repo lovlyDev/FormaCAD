@@ -38,6 +38,7 @@ for (const locale of ["en", "ru"] as const) {
                 case "close_project_source": return true;
                 case "project_folder_write_availability": return { status: "readOnly", reason: "PROJECT_READ_ONLY" };
                 case "save_project_folder_copy": return null;
+                case "export_folder_project_bundle": return "E:/Exports/share.cadpack";
                 case "history_status": return { canUndo: false, canRedo: false, expectedRevision: null };
                 case "detect_environment": case "interrupted_sessions": case "permission_audit": return [];
                 default: return null;
@@ -47,8 +48,8 @@ for (const locale of ["en", "ru"] as const) {
         });
       }, { locale, theme, id, path });
       const labels = locale === "ru"
-        ? { create: /^Создать проект/, folder: "Создать в папке", readOnly: /другом экземпляре/i, copy: "Сохранить копию проекта в папку" }
-        : { create: /^Create a project/, folder: "Create in folder", readOnly: /another instance/i, copy: "Save project copy to folder" };
+        ? { create: /^Создать проект/, folder: "Создать в папке", readOnly: /другом экземпляре/i, copy: "Сохранить копию проекта в папку", bundle: "Экспортировать пакет проекта", redact: "Исключить переписку и текст действий", export: "Экспорт" }
+        : { create: /^Create a project/, folder: "Create in folder", readOnly: /another instance/i, copy: "Save project copy to folder", bundle: "Export project bundle", redact: "Exclude conversation and activity text", export: "Export" };
       await page.goto("/");
       await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
       await page.getByRole("button", { name: labels.create }).click();
@@ -59,12 +60,21 @@ for (const locale of ["en", "ru"] as const) {
       const readOnly = page.getByRole("status").filter({ hasText: labels.readOnly });
       await expect(readOnly).toBeVisible();
       await readOnly.getByRole("button", { name: labels.copy, exact: true }).click();
+      await page.getByRole("button", { name: labels.bundle, exact: true }).click();
+      const bundle = page.getByRole("dialog", { name: labels.bundle, exact: true });
+      await bundle.getByRole("checkbox", { name: labels.redact, exact: true }).check();
+      await bundle.getByRole("button", { name: labels.export, exact: true }).click();
       await page.getByRole("button", { name: "forma", exact: true }).click();
       await expect(page).toHaveURL(/#\/$/);
       const calls = () => page.evaluate(() => (window as unknown as { folderFixtureCalls: { command: string; args: unknown }[] }).folderFixtureCalls);
       expect((await calls()).find(call => call.command === "save_project_folder_copy")?.args)
         .toEqual({ projectId: id, sourceId: "fixture-window:1:nonce", expectedCommitId: "b827854d-c993-4654-a124-ae00fd759251" });
       expect((await calls()).filter(call => call.command === "copy_project_for_editing")).toEqual([]);
+      expect((await calls()).find(call => call.command === "export_folder_project_bundle")?.args).toEqual({
+        projectId: id, sourceId: "fixture-window:1:nonce", expectedCommitId: "b827854d-c993-4654-a124-ae00fd759251",
+        locale, redactConversation: true,
+      });
+      expect((await calls()).filter(call => call.command === "export_project_bundle")).toEqual([]);
       await expect.poll(async () => (await calls()).find(call => call.command === "close_project_source")?.args)
         .toEqual({ sourceId: "fixture-window:1:nonce" });
       await page.getByRole("button", { name: path, exact: true }).click();

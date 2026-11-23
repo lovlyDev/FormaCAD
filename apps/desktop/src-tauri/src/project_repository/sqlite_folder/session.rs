@@ -78,6 +78,10 @@ fn changed() -> AppError {
 }
 
 impl FolderSession {
+    pub(super) fn root(&self) -> &Path {
+        &self.root
+    }
+
     pub(super) async fn open(root: &Path) -> Result<Self> {
         Self::open_scoped(root, format::ReadScope::Complete).await
     }

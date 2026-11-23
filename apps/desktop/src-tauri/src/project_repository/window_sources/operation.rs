@@ -15,6 +15,9 @@ use crate::{
 };
 use std::{path::Path, sync::Arc};
 
+mod bundle_destination;
+pub(crate) use bundle_destination::BundleDestination;
+
 /// The original Arc and view cannot be replaced independently after an await.
 /// Capturing this value confers no writer lease or permission approval.
 pub struct FolderOperation {

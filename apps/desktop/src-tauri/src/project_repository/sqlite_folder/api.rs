@@ -56,6 +56,10 @@ impl ReadView {
 }
 
 impl FolderProject {
+    pub(in crate::project_repository) fn root(&self) -> &Path {
+        self.session.root()
+    }
+
     pub async fn open(root: &Path) -> Result<Self> {
         Ok(Self {
             session: FolderSession::open_metadata(root).await?,

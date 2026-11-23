@@ -791,3 +791,14 @@ folder. The app verifies the SQLite snapshot, history and attachments, uses its
 private application profile for temporary recovery data, and opens the copy as
 a separate project. The original files stay intact. Cancelling either folder
 picker leaves the workspace as it was.
+
+Use **Export project bundle** beside the folder project name to create a
+`.cadpack` outside the source folder. The same saved commit supplies its model
+history, revisions and attachment contents. The full bundle includes the
+conversation. Select **Exclude conversation and activity text** to share a copy
+that still contains attachments used by retained revisions, including their
+STEP inputs. Legacy scripts keep all attachments because their file accesses
+cannot be inferred safely. Model code and geometry may contain private data.
+The export works while another application holds the source write lease. The
+source opening is verified after the save dialog, and grants and opening keys
+are never written to the bundle.

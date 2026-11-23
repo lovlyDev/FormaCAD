@@ -59,6 +59,9 @@ jobs:
           cargo test --manifest-path "$manifest" --locked --no-default-features --lib project_repository::sqlite_folder::api::sources::tests::indexed_opening_and_creation_futures_can_run_in_tauri_commands -- --exact --nocapture
           cargo test --manifest-path "$manifest" --locked --no-default-features --lib project_repository::sqlite_folder::recovery::tests::recovered_copy_has_its_own_window_source_and_preserves_original_files -- --exact --nocapture | tee recovery-tests.log
           grep -F 'test result: ok. 1 passed; 0 failed;' recovery-tests.log
+          cargo test --manifest-path "$manifest" --locked --no-default-features --lib cadpack::export:: -- --nocapture | tee bundle-tests.log
+          grep -F 'test cadpack::export::folder::tests::moved_folder_exports_full_and_share_bundles_without_writer_authority ... ok' bundle-tests.log
+          grep -F 'test cadpack::export::folder::tests::folder_export_rejects_source_destinations_and_closed_openings ... ok' bundle-tests.log
           cargo test --manifest-path "$manifest" --locked --no-default-features --lib project_repository::folder_index::tests:: -- --nocapture | tee recents-tests.log
           grep -F 'test result: ok. 4 passed; 0 failed;' recents-tests.log
           cargo clippy --manifest-path "$manifest" --locked --all-targets --features native-worker-client -- -D warnings

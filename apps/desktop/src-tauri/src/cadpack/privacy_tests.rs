@@ -1,7 +1,7 @@
 use super::*;
 use crate::project_history::{self, Direction};
 
-fn fixture() -> Project {
+pub(super) fn fixture() -> Project {
     let id = uuid::Uuid::new_v4().to_string();
     let mut project: Project = serde_json::from_value(serde_json::json!({
         "schemaVersion":1,"id":id,"name":"Retained model name","units":"mm",

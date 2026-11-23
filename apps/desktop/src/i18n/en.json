@@ -1626,6 +1626,7 @@
   "Opening the selected project. The current model is kept until reading succeeds.": "Opening the selected project. The current model is kept until reading succeeds.",
   "PROJECT_SOURCE_LIMIT": "Too many project folders are open. Close an unused folder and retry.",
   "PROJECT_FOLDER_UNSUPPORTED": "Projects in folders are not supported in this environment.",
+  "PROJECT_BUNDLE_DESTINATION_INVALID": "Choose a .cadpack file outside the source project folder.",
   "The result of the last model history action could not be confirmed.": "The result of the last model history action could not be confirmed.",
   "The commit is saved in history. Reopen the folder to load its current model.": "The commit is saved in history. Reopen the folder to load its current model.",
   "The commit was not found. Reopen the folder before making further changes.": "The commit was not found. Reopen the folder before making further changes.",
