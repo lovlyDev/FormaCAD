@@ -33,19 +33,7 @@ pub(in crate::project_repository::sqlite_folder) struct Source {
 
 impl Source {
     pub fn capture(root: &Path) -> Result<Arc<Self>> {
-        let root = std::path::absolute(root)?;
-        let location = LocationIdentity::capture(&root, Path::new("assets"))?;
-        let binding = platform::Binding::capture(&root)?;
-        let source = Arc::new(Self {
-            root,
-            location,
-            binding,
-            identity: OnceLock::new(),
-            fault: AtomicU8::new(0),
-            token: uuid::Uuid::new_v4().to_string(),
-            #[cfg(test)]
-            before_base_open: Mutex::new(None),
-        });
+        let source = Self::bind(root)?;
         source.check()?;
         let mut sources = SOURCES
             .get_or_init(Default::default)
@@ -54,6 +42,24 @@ impl Source {
         sources.retain(|_, source| source.strong_count() != 0);
         sources.insert(source.token.clone(), Arc::downgrade(&source));
         Ok(source)
+    }
+
+    /// Physical authority without an ordinary SQL/VFS registration. Used
+    /// when a recovery operation must inspect journal bytes without replay.
+    pub(super) fn bind(root: &Path) -> Result<Arc<Self>> {
+        let root = std::path::absolute(root)?;
+        let location = LocationIdentity::capture(&root, Path::new("assets"))?;
+        let binding = platform::Binding::capture(&root)?;
+        Ok(Arc::new(Self {
+            root,
+            location,
+            binding,
+            identity: OnceLock::new(),
+            fault: AtomicU8::new(0),
+            token: uuid::Uuid::new_v4().to_string(),
+            #[cfg(test)]
+            before_base_open: Mutex::new(None),
+        }))
     }
     pub fn virtual_name(&self) -> String {
         format!("{PREFIX}{}/project.sqlite", self.token)

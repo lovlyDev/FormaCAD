@@ -5,13 +5,22 @@ use crate::core::Result;
 use std::sync::Arc;
 
 pub(super) fn read(source: &Arc<Source>, hash: &str, size: u64) -> Result<Vec<u8>> {
+    read_checked(source, hash, size, || source.check())
+}
+
+pub(super) fn read_checked(
+    source: &Arc<Source>,
+    hash: &str,
+    size: u64,
+    check: impl Fn() -> Result<()>,
+) -> Result<Vec<u8>> {
     if !crate::artifacts::valid_digest(hash)
         || size == 0
         || size > crate::artifacts::MAX_FILE_BYTES as u64
     {
         return Err(invalid());
     }
-    source.check()?;
+    check()?;
     let directory = source.binding.subdirectory("assets")?;
     if !directory.matches_directory(&source.binding.path("assets"))? {
         return Err(invalid());
@@ -72,6 +81,6 @@ pub(super) fn read(source: &Arc<Source>, hash: &str, size: u64) -> Result<Vec<u8
     if unsafe { file.close() } != abi::OK {
         return Err(invalid());
     }
-    source.check()?;
+    check()?;
     Ok(bytes)
 }

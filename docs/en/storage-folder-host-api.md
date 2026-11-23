@@ -737,3 +737,23 @@ closes the folder and opens it in a second application process. It verifies
 the saved commit and moves the history cursor back and forward. The workflow
 requires `FORMA_NATIVE_STORAGE_DESKTOP_OK`. All files and app settings used
 by the test live in a temporary directory.
+## Explicit recovery to an independent folder
+
+`FolderProject::recover_to_copy(source, destination, app_scratch)` takes an FCP1
+source with a DELETE rollback journal, an empty separate destination and the
+application's private scratch root. It takes the source's cooperative lease
+and reads the database and journal through the pinned SQLite file bindings.
+SQLite rolls back the transaction on a private pair. The host checks the
+recovered format, SQL integrity, history and referenced CAS objects.
+
+The route compares the original physical file identities and SHA-256 digests
+again before publishing. An externally replaced database or changed journal
+blocks publication. A successful recovery uses the same independent project
+copy rules as Save Copy. The original database and journal are kept for
+inspection. Unknown formats, WAL/SHM and journals with SQLite super-journal
+trailers are refused. Normal opens report pending recovery and preserve those
+bytes. This route is currently exposed through the Rust host API.
+
+The tests cover a real hot journal with changed database pages, verified
+reopening of the recovered copy, and a newer external commit published after
+the recovery capture. The latter must remain the source head.

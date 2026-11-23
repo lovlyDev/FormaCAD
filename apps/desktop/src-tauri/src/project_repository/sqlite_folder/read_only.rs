@@ -28,6 +28,9 @@ pub(super) mod platform;
 #[path = "read_only/windows.rs"]
 pub(super) mod platform;
 #[cfg(any(target_os = "linux", windows))]
+#[path = "read_only/recovery_files.rs"]
+pub(super) mod recovery_files;
+#[cfg(any(target_os = "linux", windows))]
 #[path = "read_only/source.rs"]
 pub(super) mod source;
 #[cfg(any(target_os = "linux", windows))]

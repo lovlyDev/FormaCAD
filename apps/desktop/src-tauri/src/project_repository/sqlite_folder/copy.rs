@@ -5,7 +5,7 @@ use super::{
     creation, format, publication_verification,
     session::{FolderSession, FolderSnapshot},
 };
-use crate::{core::Result, project_repository::location::LocationIdentity};
+use crate::{core::Result, models::Project, project_repository::location::LocationIdentity};
 use std::{collections::HashSet, path::Path};
 
 /// Trusted host API. A selected empty destination is required. Revision IDs and
@@ -32,16 +32,7 @@ pub(super) async fn save_copy(
         }
     }
     source.recheck(original).await?;
-    let mut project = original.project().clone();
-    project.id = loop {
-        let id = uuid::Uuid::new_v4().to_string();
-        if id != original.project().id {
-            break id;
-        }
-    };
-    project.created_at = chrono::Utc::now().to_rfc3339();
-    project.updated_at = project.created_at.clone();
-    crate::project_history::validate_archive(&project, &history)?;
+    let project = fork_project(original.project(), &history)?;
     let location = LocationIdentity::capture(destination, Path::new(""))?;
     publication_verification::recheck_location(&location, destination)?;
     let outcome =
@@ -69,6 +60,20 @@ pub(super) async fn save_copy(
         },
         outcome => Ok(outcome),
     }
+}
+
+pub(super) fn fork_project(original: &Project, history: &[u8]) -> Result<Project> {
+    let mut project = original.clone();
+    project.id = loop {
+        let id = uuid::Uuid::new_v4().to_string();
+        if id != original.id {
+            break id;
+        }
+    };
+    project.created_at = chrono::Utc::now().to_rfc3339();
+    project.updated_at = project.created_at.clone();
+    crate::project_history::validate_archive(&project, history)?;
+    Ok(project)
 }
 
 #[cfg(test)]

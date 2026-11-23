@@ -39,6 +39,14 @@ mod migration;
 #[cfg(any(target_os = "linux", windows))]
 mod publication_verification;
 mod read_only;
+#[cfg(any(
+    windows,
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    )
+))]
+mod recovery;
 #[cfg(any(target_os = "linux", windows))]
 mod session;
 #[cfg(all(feature = "native-worker-client", any(target_os = "linux", windows)))]

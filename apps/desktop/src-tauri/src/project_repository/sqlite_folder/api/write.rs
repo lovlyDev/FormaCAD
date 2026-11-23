@@ -1,5 +1,5 @@
 //! Explicit trusted-host transaction entry points. No grants are deserialized.
-use super::super::{copy, creation, session::apply::FolderAuthorization};
+use super::super::{copy, creation, recovery, session::apply::FolderAuthorization};
 use super::{FolderProject, Publication, ReadView};
 use crate::{core::Result, models::Project, project_history::Direction};
 use std::path::Path;
@@ -69,5 +69,18 @@ impl FolderProject {
                 .await?
                 .into(),
         )
+    }
+
+    /// Explicit recovery from a selected FCP1 source with a rollback journal.
+    /// The caller supplies an empty independent target and the application's
+    /// private scratch root. Ordinary opens never call this route.
+    pub async fn recover_to_copy(
+        source: &Path,
+        destination: &Path,
+        app_scratch: &Path,
+    ) -> Result<Publication> {
+        Ok(recovery::recover(source, destination, app_scratch)
+            .await?
+            .into())
     }
 }
