@@ -94,7 +94,7 @@ def visible_picker():
     return found[0] if found else None
 
 
-def picker_control(roles, state, names=None):
+def picker_control(name):
     import pyatspi
     from gi.repository import GLib
 
@@ -105,9 +105,8 @@ def picker_control(roles, state, names=None):
             if node is None:
                 continue
             try:
-                states = node.getState()
-                if (node.getRole() in roles and states.contains(pyatspi.STATE_SHOWING)
-                        and states.contains(state) and (names is None or node.name in names)):
+                if (node.name.lstrip("_") == name
+                        and node.getState().contains(pyatspi.STATE_SHOWING)):
                     return node
                 pending.extend(node)
             except GLib.Error as error:
@@ -123,28 +122,47 @@ def picker_control(roles, state, names=None):
     return None
 
 
-def select_folder(route, command, args, path):
+def click_picker_control(name):
     import pyatspi
 
+    control = wait_for(lambda: picker_control(name), f"GTK control {name!r}")
+    x, y, width, height = control.queryComponent().getExtents(pyatspi.DESKTOP_COORDS)
+    assert width > 0 and height > 0, f"GTK control {name!r} has no clickable area"
+    subprocess.run(
+        ["xdotool", "mousemove", str(x + width // 2), str(y + height // 2), "click", "1"],
+        check=True,
+    )
+
+
+def save_picker_screenshot():
+    import gi
+
+    gi.require_version("Gdk", "3.0")
+    from gi.repository import Gdk
+
+    display = Gdk.Display.open(os.environ["DISPLAY"])
+    root = display.get_default_screen().get_root_window()
+    view = Gdk.pixbuf_get_from_window(root, 0, 0, root.get_width(), root.get_height())
+    view.savev("storage-native-evidence/native-picker-failure.png", "png", [], [])
+
+
+def select_folder(route, command, args, path):
     with ThreadPoolExecutor(max_workers=1) as executor:
         response = executor.submit(invoke, route, command, args)
         picker = wait_for(visible_picker, "native folder chooser")
         pid = subprocess.check_output(["xdotool", "getwindowpid", picker], text=True).strip()
-        subprocess.run(["xdotool", "windowfocus", "--sync", picker], check=True)
-        subprocess.run(["xdotool", "key", "--clearmodifiers", "ctrl+l"], check=True)
-        location = wait_for(
-            lambda: picker_control((pyatspi.ROLE_ENTRY, pyatspi.ROLE_TEXT), pyatspi.STATE_EDITABLE),
-            "GTK location entry",
-        )
-        assert location.queryEditableText().setTextContents(str(path)), "GTK rejected the folder path"
-        accept = wait_for(
-            lambda: picker_control(
-                (pyatspi.ROLE_PUSH_BUTTON,), pyatspi.STATE_SENSITIVE, {"Open", "Select", "Choose"}
-            ),
-            "GTK folder confirmation button",
-        )
-        assert accept.queryAction().doAction(0), "GTK rejected folder confirmation"
-        wait_for(lambda: visible_picker() != picker, "GTK folder chooser to close")
+        try:
+            subprocess.run(["xdotool", "windowfocus", "--sync", picker], check=True)
+            click_picker_control("Storage fixture")
+            click_picker_control(path.name)
+            click_picker_control("Open")
+            wait_for(lambda: visible_picker() != picker, "GTK folder chooser to close")
+        except Exception:
+            try:
+                save_picker_screenshot()
+            except Exception as error:
+                print(f"Could not capture GTK chooser: {error}", file=sys.stderr)
+            raise
         return pid, response.result(timeout=30)
 
 
@@ -233,7 +251,11 @@ def main():
         root = Path(directory)
         folder = root / "selected-FCP1"
         folder.mkdir()
-        env = dict(os.environ, FORMA_DATA_DIR=str(root / "app"))
+        config = root / "config"
+        gtk = config / "gtk-3.0"
+        gtk.mkdir(parents=True)
+        (gtk / "bookmarks").write_text(f"{root.as_uri()} Storage fixture\n", encoding="utf-8")
+        env = dict(os.environ, FORMA_DATA_DIR=str(root / "app"), XDG_CONFIG_HOME=str(config))
         with subprocess.Popen(["tauri-driver"], env=env) as driver:
             try:
                 wait_for(driver_ready, "tauri-driver")
