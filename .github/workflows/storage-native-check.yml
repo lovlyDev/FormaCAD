@@ -174,7 +174,7 @@ jobs:
         if: ${{ !cancelled() && steps.desktop-node.outcome == 'success' }}
         run: |
           set -euo pipefail
-          fingerprint="$(git ls-tree -r HEAD -- .cargo Cargo.lock Cargo.toml rust-toolchain.toml package.json package-lock.json apps/desktop packages crates cad-core | sha256sum | cut -d ' ' -f 1)"
+          fingerprint="$(git ls-tree -r HEAD -- .cargo .npmrc Cargo.lock Cargo.toml rust-toolchain.toml package.json package-lock.json apps/desktop packages crates cad-core plugins vendor | sha256sum | cut -d ' ' -f 1)"
           printf 'key=storage-desktop-ubuntu22-v1-%s\n' "$fingerprint" >> "$GITHUB_OUTPUT"
       - uses: actions/cache/restore@v4
         id: desktop-cache

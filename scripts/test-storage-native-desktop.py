@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Use the real WebView, native folder chooser and CAD worker on an isolated X display."""
 import json
+import math
 import os
 import subprocess
 import sys
@@ -201,6 +202,24 @@ def program(width):
     })
 
 
+def inspect_geometry(route, saved, width):
+    project = saved["project"]
+    revision = next(
+        revision for revision in project["revisions"] if revision["id"] == project["currentRevision"]
+    )
+    assert revision["source"].endswith(".step"), revision
+    geometry = invoke(route, "inspect_model", {
+        "projectId": project["id"], "revisionId": revision["id"],
+        "sourceId": saved["sourceId"], "expectedCommitId": saved["commitId"],
+    })
+    assert math.isclose(geometry["volumeMm3"], width * 20 * 10, rel_tol=0, abs_tol=1e-6), geometry
+    assert all(
+        math.isclose(actual, expected, rel_tol=0, abs_tol=1e-6)
+        for actual, expected in zip(geometry["boundsMm"], (width, 20, 10), strict=True)
+    ), geometry
+    return revision
+
+
 def verify(binary, folder):
     with application(binary) as route:
         original_pid, creation = select_folder(route, "create_project_folder", {
@@ -214,12 +233,13 @@ def verify(binary, folder):
         })
         first_revision = first["project"]["currentRevision"]
         assert first_revision
+        inspect_geometry(route, first, 40)
         saved = write(route, first, "apply_program", {
             "kind": "model", "program": program(80), "prompt": "Native storage test",
             "expectedRevision": first_revision,
         })
         revision = saved["project"]["currentRevision"]
-        assert revision and saved["project"]["revisions"][-1]["source"].endswith(".step")
+        assert revision and revision != first_revision
         assert invoke(route, "close_project_source", {"sourceId": opening["sourceId"]})
 
     assert (folder / "project.sqlite").is_file()
@@ -230,6 +250,7 @@ def verify(binary, folder):
         assert reopened["commitId"] == saved["commitId"]
         assert reopened["sourceId"] != opening["sourceId"]
         assert reopened["project"]["currentRevision"] == revision
+        inspect_geometry(route, reopened, 80)
         status = invoke(route, "history_status", {
             "projectId": reopened["project"]["id"], "sourceId": reopened["sourceId"],
             "expectedCommitId": reopened["commitId"],
@@ -238,11 +259,15 @@ def verify(binary, folder):
         undone = write(route, reopened, "undo_model", {
             "kind": "history", "direction": "undo", "expectedRevision": revision,
         })
-        assert undone["project"]["currentRevision"] == first_revision
+        undo_revision = inspect_geometry(route, undone, 40)
+        assert undo_revision["id"] not in (first_revision, revision)
+        assert undo_revision["parent"] == revision
         redone = write(route, undone, "redo_model", {
-            "kind": "history", "direction": "redo", "expectedRevision": first_revision,
+            "kind": "history", "direction": "redo", "expectedRevision": undo_revision["id"],
         })
-        assert redone["project"]["currentRevision"] == revision
+        redo_revision = inspect_geometry(route, redone, 80)
+        assert redo_revision["id"] not in (first_revision, revision, undo_revision["id"])
+        assert redo_revision["parent"] == undo_revision["id"]
 
 
 def main():
