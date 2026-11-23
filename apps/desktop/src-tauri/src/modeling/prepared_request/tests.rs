@@ -186,7 +186,7 @@ fn snapshot_commands_use_the_single_engine_and_preserve_source() {
         &original,
         commands.clone(),
         "command prompt".into(),
-        OLD.into(),
+        Some(OLD.to_owned()),
     )
     .unwrap();
     let next = value.next_revision.as_deref().unwrap();
@@ -215,7 +215,7 @@ fn snapshot_commands_keep_count_stale_binding_and_no_change_errors() {
             project,
             commands,
             "prompt".into(),
-            expected.into(),
+            Some(expected.to_owned()),
         )
     };
     assert!(
