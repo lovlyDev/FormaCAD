@@ -453,3 +453,11 @@ the writer, checks that the lock file and original SQL bytes remain, and
 publishes a new commit through the same reader opening. The fixture uses a
 local filesystem and a synthetic attachment. Later interruption points,
 explicit recovery and physical USB/NAS behavior have independent acceptance checks.
+
+On Linux, `vanished_folder_and_external_replacement_cannot_receive_a_late_write`
+moves the selected directory while publication is paused. It checks refusal
+while the path is missing and after a different repository with the same project
+ID takes its place. The interrupted write must change neither SQL nor CAS.
+The original directory is then written through a fresh opening while detached.
+After it returns, a new opening must see the external commit. The old opening
+must remain invalidated. This is a local namespace change with real files.

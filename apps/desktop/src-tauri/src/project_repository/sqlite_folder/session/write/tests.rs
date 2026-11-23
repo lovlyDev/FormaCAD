@@ -4,6 +4,12 @@ use super::*;
 use crate::models::ProjectFile;
 use std::{fs, time::Duration};
 
+#[cfg(all(
+    target_os = "linux",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
+#[path = "media_tests.rs"]
+mod media_tests;
 #[cfg(any(
     windows,
     all(

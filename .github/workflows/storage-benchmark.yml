@@ -51,6 +51,7 @@ jobs:
           grep -F 'test project_repository::sqlite_folder::api::sources::tests::successful_folder_creation_and_opening_update_recents ... ok' storage-evidence/host-api-tests.log
           grep -F 'test project_repository::sqlite_folder::api::sources::tests::failing_index_does_not_prevent_folder_opening ... ok' storage-evidence/host-api-tests.log
           grep -F 'test project_repository::sqlite_folder::session::write::tests::process_tests::reader_can_copy_but_cannot_write_until_the_other_process_is_killed ... ok' storage-evidence/host-api-tests.log
+          grep -F 'test project_repository::sqlite_folder::session::write::tests::media_tests::vanished_folder_and_external_replacement_cannot_receive_a_late_write ... ok' storage-evidence/host-api-tests.log
       - name: Verify the application index is disposable
         run: |
           set -o pipefail
