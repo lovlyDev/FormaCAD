@@ -1,0 +1,1663 @@
+diff --git a/apps/desktop/src-tauri/src/permissions.rs b/apps/desktop/src-tauri/src/permissions.rs
+index 7117e21..afafc51 100644
+--- a/apps/desktop/src-tauri/src/permissions.rs
++++ b/apps/desktop/src-tauri/src/permissions.rs
+@@ -1,5 +1,8 @@
+ use crate::core::{AppError, AppState, Result};
+-use std::time::{Duration, Instant};
++use std::time::Instant;
++mod folder;
++mod managed_requests;
++pub use folder::{Intent as FolderIntent, Receipt as FolderPermissionReceipt};
+ use tauri::State;
+ const ACTIONS: [&str; 5] = [
+     "modify_project",
+@@ -35,9 +38,12 @@ impl ConfirmationSettings {
+     }
+ }
+ async fn settings(state: &AppState) -> Result<ConfirmationSettings> {
++    settings_for_pool(&state.pool).await
++}
++async fn settings_for_pool(pool: &sqlx::SqlitePool) -> Result<ConfirmationSettings> {
+     let raw: Option<String> =
+         sqlx::query_scalar("SELECT value FROM settings WHERE key='confirmations'")
+-            .fetch_optional(&state.pool)
++            .fetch_optional(pool)
+             .await?;
+     Ok(match raw {
+         Some(raw) => serde_json::from_str(&raw)?,
+@@ -85,72 +91,88 @@ pub struct AuditEntry {
+ pub async fn permission_audit(state: State<'_, AppState>) -> Result<Vec<AuditEntry>> {
+     Ok(sqlx::query_as::<_,AuditEntry>("SELECT id,project_id,action,detail,decision,created_at FROM permissions ORDER BY created_at DESC LIMIT 100").fetch_all(&state.pool).await?)
+ }
++#[derive(serde::Serialize)]
++#[serde(untagged)]
++pub enum PermissionReply {
++    Managed(String),
++    Folder(FolderPermissionReceipt),
++}
++
+ #[tauri::command]
++#[allow(clippy::too_many_arguments)]
+ pub async fn request_permission(
+     project_id: String,
+     action: String,
+     detail: String,
++    source_id: Option<String>,
++    expected_commit_id: Option<String>,
++    folder_intent: Option<crate::permissions::FolderIntent>,
++    window: tauri::WebviewWindow,
++    sources: State<'_, crate::project_repository::window_sources::WindowSources>,
+     state: State<'_, AppState>,
+-) -> Result<String> {
++) -> Result<PermissionReply> {
+     crate::security::valid_id(&project_id)?;
+-    if ![
+-        "modify_project",
+-        "run_agent",
+-        "export_file",
+-        "convert_file",
+-        "install_dependency",
+-    ]
+-    .contains(&action.as_str())
+-        || detail.len() > 80000
+-    {
++    if !ACTIONS.contains(&action.as_str()) || detail.len() > 80000 {
+         return Err(AppError::Invalid("Unsupported permission request".into()));
+     }
+-    let id = uuid::Uuid::new_v4().to_string();
+-    sqlx::query(
+-        "INSERT INTO permissions(id,project_id,action,detail,created_at) VALUES(?,?,?,?,?)",
+-    )
+-    .bind(&id)
+-    .bind(&project_id)
+-    .bind(&action)
+-    .bind(&detail)
+-    .bind(chrono::Utc::now().to_rfc3339())
+-    .execute(&state.pool)
+-    .await?;
+-    let mut grants = state.grants.lock().await;
+-    grants.retain(|_, g| g.expires > Instant::now());
+-    grants.insert(
+-        id.clone(),
+-        Grant {
+-            project_id,
+-            action,
+-            approved: false,
+-            expires: Instant::now() + Duration::from_secs(300),
+-        },
+-    );
+-    Ok(id)
++    match (source_id, expected_commit_id, folder_intent) {
++        (None, None, None) => managed_requests::request(project_id, action, detail, &state)
++            .await
++            .map(PermissionReply::Managed),
++        (Some(source_id), Some(commit_id), Some(intent)) => {
++            if action != "modify_project" {
++                return Err(AppError::Invalid("Unsupported permission request".into()));
++            }
++            folder::request(
++                &state.pool,
++                &sources,
++                window.label(),
++                folder::Request {
++                    project_id,
++                    source_id,
++                    commit_id,
++                    intent,
++                    detail,
++                },
++            )
++            .await
++            .map(PermissionReply::Folder)
++        }
++        _ => Err(AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into())),
++    }
+ }
++
+ #[tauri::command]
+-pub async fn resolve_permission(id: String, allow: bool, state: State<'_, AppState>) -> Result<()> {
+-    let mut grants = state.grants.lock().await;
+-    let g = grants
+-        .get_mut(&id)
+-        .ok_or_else(|| AppError::Permission("Request expired or was already used".into()))?;
+-    if g.approved || g.expires < Instant::now() {
+-        return Err(AppError::Permission(
+-            "Request expired or was already resolved".into(),
+-        ));
+-    }
+-    sqlx::query("UPDATE permissions SET decision=? WHERE id=? AND decision='pending'")
+-        .bind(if allow { "allowed" } else { "denied" })
+-        .bind(&id)
+-        .execute(&state.pool)
+-        .await?;
+-    if allow {
+-        g.approved = true;
+-    } else {
+-        grants.remove(&id);
++#[allow(clippy::too_many_arguments)]
++pub async fn resolve_permission(
++    id: String,
++    allow: bool,
++    project_id: Option<String>,
++    source_id: Option<String>,
++    expected_commit_id: Option<String>,
++    window: tauri::WebviewWindow,
++    sources: State<'_, crate::project_repository::window_sources::WindowSources>,
++    state: State<'_, AppState>,
++) -> Result<()> {
++    match (project_id, source_id, expected_commit_id) {
++        (None, None, None) => managed_requests::resolve(id, allow, &state).await,
++        (Some(project_id), Some(source_id), Some(commit_id)) => {
++            folder::resolve(
++                &state.pool,
++                &sources,
++                window.label(),
++                &id,
++                allow,
++                folder::Source {
++                    project_id,
++                    source_id,
++                    commit_id,
++                },
++            )
++            .await
++        }
++        _ => Err(AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into())),
+     }
+-    Ok(())
+ }
+ pub async fn consume(state: &AppState, project_id: &str, action: &str) -> Result<()> {
+     let _access = if matches!(action, "modify_project" | "run_agent" | "convert_file") {
+@@ -189,6 +211,7 @@ fn consume_from(
+ #[cfg(test)]
+ mod tests {
+     use super::*;
++    use std::time::Duration;
+     #[test]
+     fn confirmation_presets_and_overrides() {
+         let mut s = ConfirmationSettings::default();
+diff --git a/apps/desktop/src-tauri/src/permissions/managed_requests.rs b/apps/desktop/src-tauri/src/permissions/managed_requests.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/permissions/managed_requests.rs
+@@ -0,0 +1,69 @@
++//! Existing managed request/resolve behavior; folder requests never enter this map.
++use super::Grant;
++use crate::core::{AppError, AppState, Result};
++use std::time::{Duration, Instant};
++pub(super) async fn request(
++    project_id: String,
++    action: String,
++    detail: String,
++    state: &AppState,
++) -> Result<String> {
++    crate::security::valid_id(&project_id)?;
++    if ![
++        "modify_project",
++        "run_agent",
++        "export_file",
++        "convert_file",
++        "install_dependency",
++    ]
++    .contains(&action.as_str())
++        || detail.len() > 80000
++    {
++        return Err(AppError::Invalid("Unsupported permission request".into()));
++    }
++    let id = uuid::Uuid::new_v4().to_string();
++    sqlx::query(
++        "INSERT INTO permissions(id,project_id,action,detail,created_at) VALUES(?,?,?,?,?)",
++    )
++    .bind(&id)
++    .bind(&project_id)
++    .bind(&action)
++    .bind(&detail)
++    .bind(chrono::Utc::now().to_rfc3339())
++    .execute(&state.pool)
++    .await?;
++    let mut grants = state.grants.lock().await;
++    grants.retain(|_, g| g.expires > Instant::now());
++    grants.insert(
++        id.clone(),
++        Grant {
++            project_id,
++            action,
++            approved: false,
++            expires: Instant::now() + Duration::from_secs(300),
++        },
++    );
++    Ok(id)
++}
++pub(super) async fn resolve(id: String, allow: bool, state: &AppState) -> Result<()> {
++    let mut grants = state.grants.lock().await;
++    let g = grants
++        .get_mut(&id)
++        .ok_or_else(|| AppError::Permission("Request expired or was already used".into()))?;
++    if g.approved || g.expires < Instant::now() {
++        return Err(AppError::Permission(
++            "Request expired or was already resolved".into(),
++        ));
++    }
++    sqlx::query("UPDATE permissions SET decision=? WHERE id=? AND decision='pending'")
++        .bind(if allow { "allowed" } else { "denied" })
++        .bind(&id)
++        .execute(&state.pool)
++        .await?;
++    if allow {
++        g.approved = true;
++    } else {
++        grants.remove(&id);
++    }
++    Ok(())
++}
+diff --git a/apps/desktop/src-tauri/src/permissions/folder.rs b/apps/desktop/src-tauri/src/permissions/folder.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/permissions/folder.rs
+@@ -0,0 +1,142 @@
++//! Typed optional folder route for the existing permission commands.
++use crate::{core::Result, project_repository::window_sources::WindowSources};
++
++#[derive(serde::Deserialize)]
++#[serde(
++    tag = "kind",
++    rename_all = "camelCase",
++    rename_all_fields = "camelCase",
++    deny_unknown_fields
++)]
++pub enum Intent {
++    Model {
++        program: String,
++        prompt: String,
++        expected_revision: Option<String>,
++        review_plan: Option<crate::agents::review_plan::ReviewPlan>,
++    },
++    Commands {
++        commands: Vec<crate::cad_ir::Command>,
++        prompt: String,
++        expected_revision: String,
++    },
++    History {
++        direction: Direction,
++        expected_revision: Option<String>,
++    },
++}
++#[derive(serde::Deserialize)]
++#[serde(rename_all = "camelCase")]
++pub enum Direction {
++    Undo,
++    Redo,
++}
++
++#[derive(serde::Serialize)]
++#[serde(rename_all = "camelCase")]
++pub struct Receipt {
++    pub id: String,
++    pub requires_confirmation: bool,
++}
++
++pub(super) struct Request {
++    pub project_id: String,
++    pub source_id: String,
++    pub commit_id: String,
++    pub intent: Intent,
++    pub detail: String,
++}
++pub(super) struct Source {
++    pub project_id: String,
++    pub source_id: String,
++    pub commit_id: String,
++}
++
++#[cfg(any(
++    windows,
++    all(
++        target_os = "linux",
++        any(target_arch = "x86_64", target_arch = "aarch64")
++    )
++))]
++mod host;
++
++pub(super) async fn request(
++    pool: &sqlx::SqlitePool,
++    sources: &WindowSources,
++    window: &str,
++    input: Request,
++) -> Result<Receipt> {
++    #[cfg(any(
++        windows,
++        all(
++            target_os = "linux",
++            any(target_arch = "x86_64", target_arch = "aarch64")
++        )
++    ))]
++    {
++        host::request(pool, sources, window, input).await
++    }
++    #[cfg(not(any(
++        windows,
++        all(
++            target_os = "linux",
++            any(target_arch = "x86_64", target_arch = "aarch64")
++        )
++    )))]
++    {
++        let Request {
++            project_id,
++            source_id,
++            commit_id,
++            intent,
++            detail,
++        } = input;
++        let _ = (
++            pool, sources, window, project_id, source_id, commit_id, intent, detail,
++        );
++        Err(crate::core::AppError::Invalid(
++            "PROJECT_FOLDER_UNSUPPORTED".into(),
++        ))
++    }
++}
++
++pub(super) async fn resolve(
++    pool: &sqlx::SqlitePool,
++    sources: &WindowSources,
++    window: &str,
++    id: &str,
++    allow: bool,
++    source: Source,
++) -> Result<()> {
++    #[cfg(any(
++        windows,
++        all(
++            target_os = "linux",
++            any(target_arch = "x86_64", target_arch = "aarch64")
++        )
++    ))]
++    {
++        host::resolve(pool, sources, window, id, allow, source).await
++    }
++    #[cfg(not(any(
++        windows,
++        all(
++            target_os = "linux",
++            any(target_arch = "x86_64", target_arch = "aarch64")
++        )
++    )))]
++    {
++        let Source {
++            project_id,
++            source_id,
++            commit_id,
++        } = source;
++        let _ = (
++            pool, sources, window, id, allow, project_id, source_id, commit_id,
++        );
++        Err(crate::core::AppError::Invalid(
++            "PROJECT_FOLDER_UNSUPPORTED".into(),
++        ))
++    }
++}
+diff --git a/apps/desktop/src-tauri/src/permissions/folder/host.rs b/apps/desktop/src-tauri/src/permissions/folder/host.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/permissions/folder/host.rs
+@@ -0,0 +1,136 @@
++//! App audit/settings are diagnostics/policy; authority stays in original RAM state.
++use super::{Intent, Receipt, Request, Source};
++use crate::{
++    core::{AppError, Result},
++    modeling::{apply::ApplyRequest, prepared_request},
++    project_history,
++    project_repository::window_sources::{
++        approval::{ApprovalSource, WriteIntent},
++        WindowSources,
++    },
++};
++
++fn prepare(original: &crate::models::Project, intent: Intent) -> Result<WriteIntent> {
++    match intent {
++        Intent::Model {
++            program,
++            prompt,
++            expected_revision,
++            review_plan,
++        } => {
++            let mut request =
++                ApplyRequest::new(original.id.clone(), program, prompt, expected_revision);
++            request.review_plan = review_plan;
++            // The existing pure validator enforces request limits, program and revision.
++            let _ = prepared_request::prepare(original, &request)?;
++            Ok(WriteIntent::PreparedModel(Box::new(request)))
++        }
++        Intent::Commands {
++            commands,
++            prompt,
++            expected_revision,
++        } => {
++            let request = crate::modeling::commands::prepare_for_snapshot(
++                original,
++                commands,
++                prompt,
++                expected_revision,
++            )?;
++            let _ = prepared_request::prepare(original, &request)?;
++            Ok(WriteIntent::PreparedCommands(Box::new(request)))
++        }
++        Intent::History {
++            direction,
++            expected_revision,
++        } => {
++            if original.current_revision != expected_revision {
++                return Err(AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into()));
++            }
++            Ok(WriteIntent::History(match direction {
++                super::Direction::Undo => project_history::Direction::Undo,
++                super::Direction::Redo => project_history::Direction::Redo,
++            }))
++        }
++    }
++}
++
++pub(super) async fn request(
++    pool: &sqlx::SqlitePool,
++    sources: &WindowSources,
++    window: &str,
++    input: Request,
++) -> Result<Receipt> {
++    let Request {
++        project_id,
++        source_id,
++        commit_id,
++        intent,
++        detail,
++    } = input;
++    // Only the existing server-owned confirmation policy selects automatic approval.
++    let required = super::super::settings_for_pool(pool)
++        .await?
++        .required("modify_project");
++    let source = ApprovalSource {
++        window,
++        project_id: &project_id,
++        source_id: &source_id,
++        commit_id: &commit_id,
++    };
++    let id = sources
++        .request_prepared_write(source, move |original| prepare(original, intent))
++        .await?;
++    // Neither paths nor source/access tokens are written to the audit table.
++    // An audit failure never reaches the allow transition. Unreturned pending IDs expire.
++    sqlx::query("INSERT INTO permissions(id,project_id,action,detail,decision,created_at) VALUES(?,?,?,?,?,?)")
++        .bind(&id).bind(&project_id).bind("modify_project").bind(detail)
++        .bind(if required {"pending"}else{"automatic"})
++        .bind(chrono::Utc::now().to_rfc3339()).execute(pool).await?;
++    if !required {
++        sources.resolve_write(&id, window, true).await?;
++    }
++    Ok(Receipt {
++        id,
++        requires_confirmation: required,
++    })
++}
++
++pub(super) async fn resolve(
++    pool: &sqlx::SqlitePool,
++    sources: &WindowSources,
++    window: &str,
++    id: &str,
++    allow: bool,
++    source: Source,
++) -> Result<()> {
++    let source = ApprovalSource {
++        window,
++        project_id: &source.project_id,
++        source_id: &source.source_id,
++        commit_id: &source.commit_id,
++    };
++    // Audit is never used to recover source identity or resurrect a grant.
++    sources.check_write_request(id, source)?;
++    if !allow {
++        // Denial revokes authority even if writing its audit decision fails.
++        sources.resolve_write(id, window, false).await?;
++    }
++    let changed =
++        sqlx::query("UPDATE permissions SET decision=? WHERE id=? AND decision='pending'")
++            .bind(if allow { "allowed" } else { "denied" })
++            .bind(id)
++            .execute(pool)
++            .await?;
++    if changed.rows_affected() != 1 {
++        return Err(AppError::Permission(
++            "Request expired or was already resolved".into(),
++        ));
++    }
++    if allow {
++        sources.resolve_write(id, window, true).await?;
++    }
++    Ok(())
++}
++
++#[cfg(test)]
++mod tests;
+diff --git a/apps/desktop/src-tauri/src/permissions/folder/host/tests.rs b/apps/desktop/src-tauri/src/permissions/folder/host/tests.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/permissions/folder/host/tests.rs
+@@ -0,0 +1,484 @@
++use super::*;
++use crate::{
++    models::Project,
++    project_repository::sqlite_folder::api::{FolderProject, Publication},
++};
++use std::{sync::Arc, time::Duration};
++#[cfg(feature = "native-worker-client")]
++mod worker;
++
++struct Fixture {
++    pool: sqlx::SqlitePool,
++    windows: Arc<WindowSources>,
++    id: String,
++    key: String,
++    commit: String,
++    root: tempfile::TempDir,
++}
++impl Fixture {
++    async fn new() -> Self {
++        let pool = sqlx::sqlite::SqlitePoolOptions::new()
++            .max_connections(1)
++            .connect("sqlite::memory:")
++            .await
++            .unwrap();
++        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
++        let root = tempfile::tempdir().unwrap();
++        let id = uuid::Uuid::new_v4().to_string();
++        let project:Project=serde_json::from_value(serde_json::json!({
++            "schemaVersion":1,"id":id,"name":"Original permission source","units":"mm","agent":"codex","pinned":false,
++            "createdAt":"2026-11-06T00:00:00Z","updatedAt":"2026-11-06T00:00:00Z","currentRevision":null,
++            "messages":[],"exports":[],"files":[],"revisions":[]
++        })).unwrap();
++        assert!(matches!(
++            FolderProject::create(root.path(), project, vec![], None)
++                .await
++                .unwrap(),
++            Publication::Committed(_)
++        ));
++        let windows = Arc::new(WindowSources::default());
++        let opened = windows.open_for_test("window", root.path()).await.unwrap();
++        Self {
++            pool,
++            windows,
++            id,
++            key: opened.id.to_string(),
++            commit: opened.snapshot.commit_id().into(),
++            root,
++        }
++    }
++    fn source(&self) -> Source {
++        Source {
++            project_id: self.id.clone(),
++            source_id: self.key.clone(),
++            commit_id: self.commit.clone(),
++        }
++    }
++    fn approval_source(&self) -> ApprovalSource<'_> {
++        ApprovalSource {
++            window: "window",
++            project_id: &self.id,
++            source_id: &self.key,
++            commit_id: &self.commit,
++        }
++    }
++    fn input(&self) -> Request {
++        let program = r#"{"version":1,"features":[{"id":"profile","operation":{"type":"rectangle","width":40,"depth":20}},{"id":"pad","operation":{"type":"extrude","sketch":"profile","distance":10}}],"output":"pad"}"#;
++        Request {
++            project_id: self.id.clone(),
++            source_id: self.key.clone(),
++            commit_id: self.commit.clone(),
++            detail: "Original command".into(),
++            intent: Intent::Model {
++                program: program.into(),
++                prompt: "Original command".into(),
++                expected_revision: None,
++                review_plan: None,
++            },
++        }
++    }
++    async fn request(&self) -> Receipt {
++        request(&self.pool, &self.windows, "window", self.input())
++            .await
++            .unwrap()
++    }
++    async fn decision(&self, id: &str) -> String {
++        sqlx::query_scalar("SELECT decision FROM permissions WHERE id=?")
++            .bind(id)
++            .fetch_one(&self.pool)
++            .await
++            .unwrap()
++    }
++    fn bytes(&self) -> Vec<u8> {
++        std::fs::read(self.root.path().join("project.sqlite")).unwrap()
++    }
++}
++
++#[tokio::test]
++async fn explicit_confirmation_is_original_source_bound_without_managed_project_rows() {
++    let f = Fixture::new().await;
++    let before = f.bytes();
++    let receipt = f.request().await;
++    assert!(receipt.requires_confirmation);
++    assert_eq!(f.decision(&receipt.id).await, "pending");
++    assert!(f
++        .windows
++        .consume_write(&receipt.id, f.approval_source())
++        .await
++        .is_err());
++    resolve(&f.pool, &f.windows, "window", &receipt.id, true, f.source())
++        .await
++        .unwrap();
++    assert_eq!(f.decision(&receipt.id).await, "allowed");
++    f.windows
++        .consume_write(&receipt.id, f.approval_source())
++        .await
++        .unwrap();
++    assert!(f
++        .windows
++        .consume_write(&receipt.id, f.approval_source())
++        .await
++        .is_err());
++    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM projects")
++        .fetch_one(&f.pool)
++        .await
++        .unwrap();
++    assert_eq!(count, 0);
++    assert_eq!(before, f.bytes());
++}
++
++#[tokio::test]
++async fn automatic_decision_comes_only_from_the_server_confirmation_policy() {
++    let f = Fixture::new().await;
++    sqlx::query("INSERT INTO settings(key,value) VALUES('confirmations',?)")
++        .bind(r#"{"mode":"none","overrides":{}}"#)
++        .execute(&f.pool)
++        .await
++        .unwrap();
++    let receipt = f.request().await;
++    assert!(!receipt.requires_confirmation);
++    assert_eq!(f.decision(&receipt.id).await, "automatic");
++    f.windows
++        .consume_write(&receipt.id, f.approval_source())
++        .await
++        .unwrap();
++    sqlx::query("UPDATE settings SET value=? WHERE key='confirmations'")
++        .bind(r#"{"mode":"none","overrides":{"modify_project":true}}"#)
++        .execute(&f.pool)
++        .await
++        .unwrap();
++    let receipt = f.request().await;
++    assert!(receipt.requires_confirmation);
++    assert!(f
++        .windows
++        .consume_write(&receipt.id, f.approval_source())
++        .await
++        .is_err());
++}
++
++#[tokio::test]
++async fn invalid_program_revision_and_commit_create_no_audit_or_permission() {
++    let f = Fixture::new().await;
++    let mut wrong = f.input();
++    wrong.commit_id = "wrong".into();
++    assert!(request(&f.pool, &f.windows, "window", wrong).await.is_err());
++    let mut wrong = f.input();
++    wrong.intent = Intent::Model {
++        program: String::new(),
++        prompt: String::new(),
++        expected_revision: None,
++        review_plan: None,
++    };
++    assert!(request(&f.pool, &f.windows, "window", wrong).await.is_err());
++    let mut wrong = f.input();
++    wrong.intent = Intent::History {
++        direction: super::super::Direction::Undo,
++        expected_revision: Some(uuid::Uuid::new_v4().to_string()),
++    };
++    assert!(request(&f.pool, &f.windows, "window", wrong).await.is_err());
++    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM permissions")
++        .fetch_one(&f.pool)
++        .await
++        .unwrap();
++    assert_eq!(count, 0);
++}
++
++#[tokio::test]
++async fn foreign_window_source_project_and_commit_cannot_even_change_audit_decision() {
++    let f = Fixture::new().await;
++    let receipt = f.request().await;
++    for kind in 0..4 {
++        let mut source = f.source();
++        let window = if kind == 0 { "foreign" } else { "window" };
++        match kind {
++            1 => source.source_id = "foreign".into(),
++            2 => source.project_id = uuid::Uuid::new_v4().to_string(),
++            3 => source.commit_id = "foreign".into(),
++            _ => {}
++        }
++        assert!(
++            resolve(&f.pool, &f.windows, window, &receipt.id, true, source)
++                .await
++                .is_err()
++        );
++        assert_eq!(f.decision(&receipt.id).await, "pending");
++    }
++    resolve(&f.pool, &f.windows, "window", &receipt.id, true, f.source())
++        .await
++        .unwrap();
++    f.windows
++        .consume_write(&receipt.id, f.approval_source())
++        .await
++        .unwrap();
++}
++
++#[tokio::test]
++async fn source_close_reopen_and_audit_rows_cannot_resurrect_a_decision() {
++    let f = Fixture::new().await;
++    let receipt = f.request().await;
++    resolve(&f.pool, &f.windows, "window", &receipt.id, true, f.source())
++        .await
++        .unwrap();
++    f.windows.close_source("window", &f.key).unwrap();
++    let opened = f
++        .windows
++        .open_for_test("window", f.root.path())
++        .await
++        .unwrap();
++    assert_ne!(opened.id.to_string(), f.key);
++    assert_eq!(f.decision(&receipt.id).await, "allowed");
++    assert!(
++        resolve(&f.pool, &f.windows, "window", &receipt.id, true, f.source())
++            .await
++            .is_err()
++    );
++    let fresh = WindowSources::default();
++    assert!(fresh
++        .consume_write(&receipt.id, f.approval_source())
++        .await
++        .is_err());
++}
++
++#[tokio::test]
++async fn equal_project_ids_in_two_physical_folders_do_not_share_decisions() {
++    let f = Fixture::new().await;
++    let original = f.request().await;
++    let foreign_root = tempfile::tempdir().unwrap();
++    let read = f
++        .windows
++        .capture_read("window", &f.key, &f.id, &f.commit)
++        .await
++        .unwrap();
++    let mut project = read.project().clone();
++    project.name = "Foreign same-ID folder".into();
++    assert!(matches!(
++        FolderProject::create(foreign_root.path(), project, vec![], None)
++            .await
++            .unwrap(),
++        Publication::Committed(_)
++    ));
++    let opened = f
++        .windows
++        .open_for_test("window", foreign_root.path())
++        .await
++        .unwrap();
++    let foreign_key = opened.id.to_string();
++    let foreign_commit = opened.snapshot.commit_id().to_string();
++    drop(opened);
++    let foreign = || Source {
++        project_id: f.id.clone(),
++        source_id: foreign_key.clone(),
++        commit_id: foreign_commit.clone(),
++    };
++    assert!(
++        resolve(&f.pool, &f.windows, "window", &original.id, true, foreign())
++            .await
++            .is_err()
++    );
++    assert_eq!(f.decision(&original.id).await, "pending");
++    let second = request(
++        &f.pool,
++        &f.windows,
++        "window",
++        Request {
++            source_id: foreign_key.clone(),
++            commit_id: foreign_commit.clone(),
++            ..f.input()
++        },
++    )
++    .await
++    .unwrap();
++    assert!(
++        resolve(&f.pool, &f.windows, "window", &second.id, true, f.source())
++            .await
++            .is_err()
++    );
++    resolve(
++        &f.pool,
++        &f.windows,
++        "window",
++        &original.id,
++        true,
++        f.source(),
++    )
++    .await
++    .unwrap();
++    f.windows
++        .consume_write(&original.id, f.approval_source())
++        .await
++        .unwrap();
++    assert!(f
++        .windows
++        .consume_write(&second.id, f.approval_source())
++        .await
++        .is_err());
++    resolve(&f.pool, &f.windows, "window", &second.id, true, foreign())
++        .await
++        .unwrap();
++    f.windows
++        .consume_write(
++            &second.id,
++            ApprovalSource {
++                window: "window",
++                project_id: &f.id,
++                source_id: &foreign_key,
++                commit_id: &foreign_commit,
++            },
++        )
++        .await
++        .unwrap();
++    f.windows.close_source("window", &foreign_key).unwrap();
++}
++
++#[tokio::test]
++async fn corrupt_server_settings_fail_closed_before_request_or_audit_creation() {
++    let f = Fixture::new().await;
++    sqlx::query("INSERT INTO settings(key,value) VALUES('confirmations','not-json')")
++        .execute(&f.pool)
++        .await
++        .unwrap();
++    assert!(request(&f.pool, &f.windows, "window", f.input())
++        .await
++        .is_err());
++    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM permissions")
++        .fetch_one(&f.pool)
++        .await
++        .unwrap();
++    assert_eq!(count, 0);
++}
++
++#[tokio::test]
++async fn audit_failure_cannot_allow_a_pending_request_and_cannot_undo_denial() {
++    for allow in [true, false] {
++        let f = Fixture::new().await;
++        let before = f.bytes();
++        let receipt = f.request().await;
++        sqlx::query("DROP TABLE permissions")
++            .execute(&f.pool)
++            .await
++            .unwrap();
++        assert!(resolve(
++            &f.pool,
++            &f.windows,
++            "window",
++            &receipt.id,
++            allow,
++            f.source()
++        )
++        .await
++        .is_err());
++        assert!(f
++            .windows
++            .consume_write(&receipt.id, f.approval_source())
++            .await
++            .is_err());
++        if !allow {
++            assert!(f
++                .windows
++                .check_write_request(&receipt.id, f.approval_source())
++                .is_err());
++        }
++        assert_eq!(before, f.bytes());
++    }
++}
++
++#[tokio::test]
++async fn forged_allowed_audit_row_is_not_authority() {
++    let f = Fixture::new().await;
++    let receipt = f.request().await;
++    sqlx::query("UPDATE permissions SET decision='allowed' WHERE id=?")
++        .bind(&receipt.id)
++        .execute(&f.pool)
++        .await
++        .unwrap();
++    assert!(
++        resolve(&f.pool, &f.windows, "window", &receipt.id, true, f.source())
++            .await
++            .is_err()
++    );
++    assert!(f
++        .windows
++        .consume_write(&receipt.id, f.approval_source())
++        .await
++        .is_err());
++}
++
++#[tokio::test]
++async fn concurrent_resolutions_allow_only_one_one_use_original_command() {
++    let f = Fixture::new().await;
++    let receipt = f.request().await;
++    let (a, b) = tokio::join!(
++        resolve(&f.pool, &f.windows, "window", &receipt.id, true, f.source()),
++        resolve(&f.pool, &f.windows, "window", &receipt.id, true, f.source())
++    );
++    assert_ne!(a.is_ok(), b.is_ok());
++    f.windows
++        .consume_write(&receipt.id, f.approval_source())
++        .await
++        .unwrap();
++    assert!(f
++        .windows
++        .consume_write(&receipt.id, f.approval_source())
++        .await
++        .is_err());
++}
++
++#[tokio::test]
++async fn waiting_for_audit_sql_does_not_lock_source_registry_or_other_requests() {
++    let f = Fixture::new().await;
++    let receipt = f.request().await;
++    let connection = f.pool.acquire().await.unwrap();
++    let future = resolve(&f.pool, &f.windows, "window", &receipt.id, true, f.source());
++    tokio::pin!(future);
++    tokio::select! {
++        result=&mut future=>panic!("audit unexpectedly completed: {result:?}"),
++        _=tokio::time::sleep(Duration::from_millis(20))=>{},
++    }
++    f.windows
++        .check_write_request(&receipt.id, f.approval_source())
++        .unwrap();
++    let second = tokio::time::timeout(
++        Duration::from_secs(5),
++        f.windows.request_write(
++            f.approval_source(),
++            WriteIntent::History(project_history::Direction::Undo),
++        ),
++    )
++    .await
++    .unwrap()
++    .unwrap();
++    f.windows
++        .resolve_write(&second, "window", false)
++        .await
++        .unwrap();
++    drop(connection);
++    future.await.unwrap();
++    f.windows
++        .consume_write(&receipt.id, f.approval_source())
++        .await
++        .unwrap();
++}
++
++#[test]
++fn folder_intents_reject_unknown_fields_and_replies_preserve_managed_wire_shape() {
++    assert!(serde_json::from_value::<Intent>(serde_json::json!({"kind":"model","program":"program","prompt":"prompt","expectedRevision":null,"allow":true})).is_err());
++    assert!(serde_json::from_value::<Intent>(
++        serde_json::json!({"kind":"history","direction":"erase","expectedRevision":null})
++    )
++    .is_err());
++    assert_eq!(
++        serde_json::to_value(crate::permissions::PermissionReply::Managed(
++            "legacy-id".into()
++        ))
++        .unwrap(),
++        serde_json::json!("legacy-id")
++    );
++    assert_eq!(
++        serde_json::to_value(Receipt {
++            id: "request".into(),
++            requires_confirmation: true
++        })
++        .unwrap(),
++        serde_json::json!({"id":"request","requiresConfirmation":true})
++    );
++}
+diff --git a/apps/desktop/src-tauri/src/permissions/folder/host/tests/worker.rs b/apps/desktop/src-tauri/src/permissions/folder/host/tests/worker.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/permissions/folder/host/tests/worker.rs
+@@ -0,0 +1,244 @@
++//! Explicit genuine-worker check of host policy -> decision -> retained CAD command.
++use super::*;
++use crate::agents::review_plan::{ExpectedCheck, ReviewPlan};
++use crate::{
++    cad_tasks::CadTaskGate,
++    project_repository::sqlite_folder::api::{ModelChange, ModelRuntime, SavedCommit},
++};
++use std::{collections::HashMap, sync::atomic::AtomicBool};
++use tokio::sync::Mutex;
++
++fn model(width: f64) -> String {
++    serde_json::json!({"schemaVersion":2,"revisionId":"permission_candidate","parameters":[],"features":[
++        {"id":"profile","name":"Profile","operation":{"type":"rectangle","width":{"kind":"literal","mm":width},"depth":{"kind":"literal","mm":20}}},
++        {"id":"pad","name":"Pad","operation":{"type":"extrude","sketchId":"profile","distance":{"kind":"literal","mm":10}}}
++    ],"bodies":[{"id":"body","name":"Body","sourceFeatureId":"pad"}]}).to_string()
++}
++fn plan(volume: f64) -> ReviewPlan {
++    ReviewPlan {
++        assumptions: vec![],
++        dimensions: vec![],
++        affected_body_ids: vec!["body".into()],
++        expected_checks: vec![ExpectedCheck::Volume {
++            value_mm3: volume,
++            tolerance_mm3: 1e-6,
++        }],
++    }
++}
++async fn apply(
++    f: &Fixture,
++    commit: &str,
++    intent: Intent,
++    required: bool,
++    runtime: ModelRuntime<'_>,
++) -> SavedCommit {
++    let receipt = request(
++        &f.pool,
++        &f.windows,
++        "window",
++        Request {
++            commit_id: commit.into(),
++            intent,
++            ..f.input()
++        },
++    )
++    .await
++    .unwrap();
++    assert_eq!(receipt.requires_confirmation, required);
++    let source = ApprovalSource {
++        commit_id: commit,
++        ..f.approval_source()
++    };
++    if required {
++        assert!(f.windows.consume_write(&receipt.id, source).await.is_err());
++        resolve(
++            &f.pool,
++            &f.windows,
++            "window",
++            &receipt.id,
++            true,
++            Source {
++                commit_id: commit.into(),
++                ..f.source()
++            },
++        )
++        .await
++        .unwrap();
++    }
++    let approved = f.windows.consume_write(&receipt.id, source).await.unwrap();
++    assert!(f.windows.consume_write(&receipt.id, source).await.is_err());
++    match approved.execute(runtime).await.unwrap() {
++        ModelChange::Published(Publication::Committed(saved)) => saved,
++        _ => panic!("actual original-command publication required"),
++    }
++}
++async fn inspect(f: &Fixture, saved: &SavedCommit, width: f64, executable: &std::path::Path) {
++    let read = f
++        .windows
++        .capture_read("window", &f.key, &f.id, saved.commit_id())
++        .await
++        .unwrap();
++    let project = read.project();
++    let revision = project
++        .revisions
++        .iter()
++        .find(|revision| Some(&revision.id) == project.current_revision.as_ref())
++        .unwrap();
++    let file = project
++        .files
++        .iter()
++        .find(|file| Some(&file.name) == revision.source.as_ref())
++        .unwrap();
++    let bytes = read.read_asset(file).await.unwrap();
++    let stage = tempfile::tempdir().unwrap();
++    std::fs::write(stage.path().join("source.step"), bytes).unwrap();
++    let report = crate::native::inspection::inspect_with_executable(
++        stage.path(),
++        Arc::new(AtomicBool::new(false)),
++        executable,
++    )
++    .await
++    .unwrap();
++    assert!((report.volume_mm3 - width * 20. * 10.).abs() < 1e-6);
++    for (actual, expected) in report.bounds_mm.into_iter().zip([width, 20., 10.]) {
++        assert!((actual - expected).abs() < 1e-6);
++    }
++    read.recheck().await.unwrap();
++}
++
++#[tokio::test]
++#[ignore = "requires explicitly built genuine CAD worker"]
++async fn real_permission_model_command_and_history() {
++    let executable: std::path::PathBuf = std::env::var_os("FORMA_FOLDER_TEST_WORKER")
++        .expect("explicit genuine worker")
++        .into();
++    let f = Fixture::new().await;
++    let work = tempfile::tempdir().unwrap();
++    let tasks = Mutex::new(HashMap::new());
++    let gate = CadTaskGate::default();
++    let runtime = || ModelRuntime {
++        tasks: &tasks,
++        gate: &gate,
++        runtime_root: work.path(),
++        transient_root: work.path(),
++        executable: Some(&executable),
++    };
++    let first = apply(
++        &f,
++        &f.commit,
++        Intent::Model {
++            program: model(40.),
++            prompt: "Original requested command".into(),
++            expected_revision: None,
++            review_plan: Some(plan(8000.)),
++        },
++        true,
++        runtime(),
++    )
++    .await;
++    inspect(&f, &first, 40., &executable).await;
++    // A structurally valid plan with false geometry claims must survive approval
++    // and be rejected by the actual common worker verifier, never silently dropped.
++    let before = f.bytes();
++    let receipt = request(
++        &f.pool,
++        &f.windows,
++        "window",
++        Request {
++            commit_id: first.commit_id().into(),
++            intent: Intent::Model {
++                program: model(40.),
++                prompt: "False metric claim".into(),
++                expected_revision: first.project().current_revision.clone(),
++                review_plan: Some(plan(1.)),
++            },
++            ..f.input()
++        },
++    )
++    .await
++    .unwrap();
++    resolve(
++        &f.pool,
++        &f.windows,
++        "window",
++        &receipt.id,
++        true,
++        Source {
++            commit_id: first.commit_id().into(),
++            ..f.source()
++        },
++    )
++    .await
++    .unwrap();
++    let approved = f
++        .windows
++        .consume_write(
++            &receipt.id,
++            ApprovalSource {
++                commit_id: first.commit_id(),
++                ..f.approval_source()
++            },
++        )
++        .await
++        .unwrap();
++    let error = approved
++        .execute(runtime())
++        .await
++        .err()
++        .expect("false review plan was accepted");
++    assert!(error.to_string().contains("EXPECTED_CHECK_FAILED"));
++    assert_eq!(before, f.bytes());
++    let second = apply(
++        &f,
++        first.commit_id(),
++        Intent::Commands {
++            commands: vec![crate::cad_ir::Command::SetLiteral {
++                feature_id: "profile".into(),
++                field: crate::cad_ir::DimensionField::Width,
++                value_mm: 80.,
++            }],
++            prompt: "Original CAD command".into(),
++            expected_revision: first.project().current_revision.clone().unwrap(),
++        },
++        true,
++        runtime(),
++    )
++    .await;
++    inspect(&f, &second, 80., &executable).await;
++    let undo = apply(
++        &f,
++        second.commit_id(),
++        Intent::History {
++            direction: super::super::super::Direction::Undo,
++            expected_revision: second.project().current_revision.clone(),
++        },
++        true,
++        runtime(),
++    )
++    .await;
++    inspect(&f, &undo, 40., &executable).await;
++    sqlx::query("INSERT INTO settings(key,value) VALUES('confirmations',?)")
++        .bind(r#"{"mode":"none","overrides":{}}"#)
++        .execute(&f.pool)
++        .await
++        .unwrap();
++    let redo = apply(
++        &f,
++        undo.commit_id(),
++        Intent::History {
++            direction: super::super::super::Direction::Redo,
++            expected_revision: undo.project().current_revision.clone(),
++        },
++        false,
++        runtime(),
++    )
++    .await;
++    inspect(&f, &redo, 80., &executable).await;
++    assert!(tasks.lock().await.is_empty());
++    assert!(gate.status().unwrap().is_empty());
++    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM projects")
++        .fetch_one(&f.pool)
++        .await
++        .unwrap();
++    assert_eq!(count, 0);
++}
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/approval.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/approval.rs
+index 597b774..e1805d7 100644
+--- a/apps/desktop/src-tauri/src/project_repository/window_sources/approval.rs
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/approval.rs
+@@ -30,6 +30,8 @@ pub struct ApprovalSource<'a> {
+ /// The exact command is retained before the decision, never supplied at consume.
+ pub enum WriteIntent {
+     Model(ModelIntent),
++    PreparedModel(Box<crate::modeling::apply::ApplyRequest>),
++    PreparedCommands(Box<crate::modeling::apply::ApplyRequest>),
+     History(Direction),
+ }
+ 
+@@ -102,6 +104,11 @@ pub struct ApprovedCommand {
+ impl ApprovedCommand {
+     pub async fn execute(self, runtime: ModelRuntime<'_>) -> Result<ModelChange> {
+         match self.intent {
++            WriteIntent::PreparedModel(request) | WriteIntent::PreparedCommands(request) => {
++                self.operation
++                    .apply_request(self.approval, *request, runtime)
++                    .await
++            }
+             WriteIntent::Model(intent) => {
+                 self.operation
+                     .apply_model(Some(self.approval), intent, runtime)
+@@ -117,6 +124,14 @@ impl ApprovedCommand {
+ }
+ 
+ impl WindowSources {
++    /// Check request identity before host audit IO. This does not approve or consume it.
++    pub fn check_write_request(&self, id: &str, source: ApprovalSource<'_>) -> Result<()> {
++        let request = self.approvals.get(id)?;
++        if !request.matches(source) {
++            return Err(denied());
++        }
++        request.live()
++    }
+     pub async fn request_write(
+         &self,
+         source: ApprovalSource<'_>,
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/approval/tests.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/approval/tests.rs
+index 8dcde80..6b664cd 100644
+--- a/apps/desktop/src-tauri/src/project_repository/window_sources/approval/tests.rs
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/approval/tests.rs
+@@ -115,6 +115,7 @@ async fn request_is_read_only_and_retains_exact_typed_intent_until_one_use() {
+     let f = Fixture::new().await;
+     let before = f.bytes();
+     let id = f.request().await;
++    f.windows.check_write_request(&id, f.source()).unwrap();
+     assert!(f.windows.consume_write(&id, f.source()).await.is_err());
+     f.windows.resolve_write(&id, "window", true).await.unwrap();
+     assert!(f.windows.resolve_write(&id, "window", true).await.is_err());
+@@ -129,6 +130,53 @@ async fn request_is_read_only_and_retains_exact_typed_intent_until_one_use() {
+     assert_eq!(before, f.bytes());
+ }
+ 
++#[tokio::test]
++async fn retained_prepared_request_cannot_substitute_project_or_revision() {
++    let f = Fixture::new().await;
++    let before = f.bytes();
++    let work = tempfile::tempdir().unwrap();
++    let tasks = Mutex::new(HashMap::new());
++    let gate = crate::cad_tasks::CadTaskGate::default();
++    for wrong_project in [true, false] {
++        let request = crate::modeling::apply::ApplyRequest::new(
++            if wrong_project {
++                uuid::Uuid::new_v4().to_string()
++            } else {
++                f.id.clone()
++            },
++            "result = box(40,20,10)".into(),
++            "Retained request".into(),
++            if wrong_project {
++                None
++            } else {
++                Some(uuid::Uuid::new_v4().to_string())
++            },
++        );
++        let id = f
++            .windows
++            .request_write(f.source(), WriteIntent::PreparedModel(Box::new(request)))
++            .await
++            .unwrap();
++        f.windows.resolve_write(&id, "window", true).await.unwrap();
++        let approved = f.windows.consume_write(&id, f.source()).await.unwrap();
++        let error = approved
++            .execute(ModelRuntime {
++                tasks: &tasks,
++                gate: &gate,
++                runtime_root: work.path(),
++                transient_root: work.path(),
++                executable: None,
++            })
++            .await
++            .err()
++            .expect("foreign request was accepted");
++        assert!(error.to_string().contains("PROJECT_SNAPSHOT_CHANGED"));
++    }
++    assert_eq!(before, f.bytes());
++    assert!(tasks.lock().await.is_empty());
++    assert!(gate.status().unwrap().is_empty());
++}
++
+ #[tokio::test]
+ async fn wrong_window_source_project_or_commit_cannot_consume_or_resolve() {
+     let f = Fixture::new().await;
+@@ -157,6 +205,7 @@ async fn wrong_window_source_project_or_commit_cannot_consume_or_resolve() {
+             ..f.source()
+         },
+     ] {
++        assert!(f.windows.check_write_request(&id, foreign).is_err());
+         assert!(f.windows.consume_write(&id, foreign).await.is_err());
+     }
+     // Foreign attempts neither use nor transfer the original decision.
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/supported.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/supported.rs
+index 44d2b42..13af0e9 100644
+--- a/apps/desktop/src-tauri/src/project_repository/window_sources/supported.rs
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/supported.rs
+@@ -6,6 +6,14 @@ use crate::{
+ use std::sync::Arc;
+ 
+ impl WindowSources {
++    #[cfg(test)]
++    pub(crate) async fn open_for_test(
++        &self,
++        label: &str,
++        root: &std::path::Path,
++    ) -> Result<crate::project_repository::sqlite_folder::api::OpenedFolder> {
++        self.for_window(label)?.open(root).await
++    }
+     pub(super) fn for_window(&self, label: &str) -> Result<Arc<FolderSources>> {
+         let mut scopes = self.scopes.lock().map_err(|_| changed())?;
+         if let Some(scope) = scopes.get(label) {
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/operation.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/operation.rs
+index db59d9c..40755e7 100644
+--- a/apps/desktop/src-tauri/src/project_repository/window_sources/operation.rs
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/operation.rs
+@@ -88,6 +88,16 @@ impl FolderOperation {
+             .apply_model(&self.view, approval, intent, runtime)
+             .await
+     }
++    pub(crate) async fn apply_request(
++        self,
++        approval: WriteApproval,
++        request: crate::modeling::apply::ApplyRequest,
++        runtime: ModelRuntime<'_>,
++    ) -> Result<ModelChange> {
++        self.source
++            .apply_request(&self.view, Some(approval), request, runtime)
++            .await
++    }
+     pub async fn apply_history(
+         self,
+         approval: WriteApproval,
+diff --git a/apps/desktop/src-tauri/src/project_repository/sqlite_folder/api/model.rs b/apps/desktop/src-tauri/src/project_repository/sqlite_folder/api/model.rs
+index 4b6d454..d2ae8ac 100644
+--- a/apps/desktop/src-tauri/src/project_repository/sqlite_folder/api/model.rs
++++ b/apps/desktop/src-tauri/src/project_repository/sqlite_folder/api/model.rs
+@@ -3,7 +3,7 @@ use super::super::session::apply::FolderApplyHost;
+ use super::{FolderProject, Publication, ReadView, WriteApproval};
+ use crate::{
+     cad_tasks::CadTaskGate,
+-    core::Result,
++    core::{AppError, Result},
+     modeling::{
+         apply::ApplyRequest,
+         execution::BuildRuntime,
+@@ -47,16 +47,33 @@ impl FolderProject {
+         intent: ModelIntent,
+         runtime: ModelRuntime<'_>,
+     ) -> Result<ModelChange> {
+-        if let Some(approval) = &approval {
+-            approval.check(self, original)?;
+-        }
+-        self.recheck(original).await?;
+         let request = ApplyRequest::new(
+             original.project().id.clone(),
+             intent.program,
+             intent.prompt,
+             original.project().current_revision.clone(),
+         );
++        self.apply_request(original, approval, request, runtime)
++            .await
++    }
++
++    /// Retain the host-prepared review plan/command revision through the one executor.
++    pub(crate) async fn apply_request(
++        &self,
++        original: &ReadView,
++        approval: Option<WriteApproval>,
++        request: ApplyRequest,
++        runtime: ModelRuntime<'_>,
++    ) -> Result<ModelChange> {
++        if request.project_id != original.project().id
++            || request.expected_revision != original.project().current_revision
++        {
++            return Err(AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into()));
++        }
++        if let Some(approval) = &approval {
++            approval.check(self, original)?;
++        }
++        self.recheck(original).await?;
+         let host = FolderApplyHost::new(
+             &self.session,
+             BuildRuntime {
+diff --git a/apps/desktop/src/lib/api.ts b/apps/desktop/src/lib/api.ts
+index 22ae543..79d9ba4 100644
+--- a/apps/desktop/src/lib/api.ts
++++ b/apps/desktop/src/lib/api.ts
+@@ -3,6 +3,7 @@ import { getLocale, t } from "../i18n";
+ import { reviewPlanSchema, type ReviewPlan } from "../features/agents/review/plan/reviewPlan";
+ import type { Project, Health, Parameters } from "../types";
+ import type { FolderSourceRef } from "../features/project-sources/contract";
++import {capturePermissionContext,capturePermissionRequest,readPermissionTicket,type FolderPermissionOptions,type FolderPermissionContext,type FolderPermissionTicket} from "../features/project-sources/permissionContract";
+ import { cadDocumentSchema, type CadDocument } from "./cadDocument";
+ export const native = isTauri();
+ export interface InterruptedSession {
+@@ -143,15 +144,25 @@ export async function plan(
+ export async function cancelTask(projectId: string) {
+   if (native) await invoke("cancel_task", { projectId });
+ }
++export function requestNativePermission(projectId:string,action:string,detail:string):Promise<string>;
++export function requestNativePermission(projectId:string,action:string,detail:string,folder:FolderPermissionOptions):Promise<Readonly<FolderPermissionTicket>>;
+ export async function requestNativePermission(
+   projectId: string,
+   action: string,
+   detail: string,
+-): Promise<string> {
+-  return invoke("request_permission", { projectId, action, detail });
++  folder?:FolderPermissionOptions,
++): Promise<string|Readonly<FolderPermissionTicket>> {
++  if(folder===undefined)return invoke<string>("request_permission", { projectId, action, detail });
++  if(!native)throw Error("PROJECT_FOLDER_UNSUPPORTED");
++  const captured=capturePermissionRequest(projectId,folder);
++  const value=await invoke("request_permission",{projectId,action,detail,sourceId:captured.context.source.sourceId,expectedCommitId:captured.context.source.commitId,folderIntent:captured.intent});
++  return readPermissionTicket(value,captured.context);
+ }
+-export async function resolveNativePermission(id: string, allow: boolean) {
+-  return invoke("resolve_permission", { id, allow });
++export async function resolveNativePermission(id: string, allow: boolean,folder?:FolderPermissionContext) {
++  if(folder===undefined)return invoke("resolve_permission", { id, allow });
++  if(!native)throw Error("PROJECT_FOLDER_UNSUPPORTED");
++  const captured=capturePermissionContext(folder);
++  return invoke("resolve_permission", { id, allow,projectId:captured.projectId,sourceId:captured.source.sourceId,expectedCommitId:captured.source.commitId });
+ }
+ export async function exportStep(
+   projectId: string,
+diff --git a/apps/desktop/src/features/project-sources/permissionContract.ts b/apps/desktop/src/features/project-sources/permissionContract.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/permissionContract.ts
+@@ -0,0 +1,27 @@
++import {z} from "zod";
++import type {FolderSourceRef} from "./contract";
++import type {ReviewPlan} from "../agents/review/plan/reviewPlan";
++
++export type FolderWriteIntent=
++ | Readonly<{kind:"model";program:string;prompt:string;expectedRevision:string|null;reviewPlan?:ReviewPlan|null}>
++ | Readonly<{kind:"commands";commands:readonly object[];prompt:string;expectedRevision:string}>
++ | Readonly<{kind:"history";direction:"undo"|"redo";expectedRevision:string|null}>;
++export interface FolderPermissionOptions { readonly source:FolderSourceRef; readonly intent:FolderWriteIntent }
++export interface FolderPermissionContext { readonly projectId:string; readonly source:FolderSourceRef }
++export interface FolderPermissionTicket extends FolderPermissionContext { readonly id:string; readonly requiresConfirmation:boolean }
++
++const receipt=z.object({id:z.string().uuid(),requiresConfirmation:z.boolean()});
++const changed=()=>new Error("PROJECT_SNAPSHOT_CHANGED");
++export function capturePermissionContext(value:FolderPermissionContext):Readonly<FolderPermissionContext>{
++ if(!value?.projectId||!value.source?.sourceId||!value.source.commitId||!value.source.taskScopeId)throw changed();
++ return Object.freeze({projectId:value.projectId,source:Object.freeze({sourceId:value.source.sourceId,commitId:value.source.commitId,taskScopeId:value.source.taskScopeId})});
++}
++export function capturePermissionRequest(projectId:string,options:FolderPermissionOptions){
++ if(!options?.intent)throw changed();
++ const context=capturePermissionContext({projectId,source:options.source});
++ return{context,intent:Object.freeze(structuredClone(options.intent))};
++}
++export function readPermissionTicket(value:unknown,context:Readonly<FolderPermissionContext>):Readonly<FolderPermissionTicket>{
++ const parsed=receipt.safeParse(value);if(!parsed.success)throw changed();
++ return Object.freeze({...context,...parsed.data});
++}
+diff --git a/apps/desktop/src/features/project-sources/permissionContract.test.ts b/apps/desktop/src/features/project-sources/permissionContract.test.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/permissionContract.test.ts
+@@ -0,0 +1,54 @@
++import {afterEach,expect,it,vi} from "vitest";
++import {requestNativePermission,resolveNativePermission} from "../../lib/api";
++import {capturePermissionContext,type FolderPermissionOptions} from "./permissionContract";
++const mocks=vi.hoisted(()=>({invoke:vi.fn()}));
++vi.mock("@tauri-apps/api/core",async original=>({...await original<typeof import("@tauri-apps/api/core")>(),invoke:mocks.invoke,isTauri:()=>true}));
++afterEach(()=>vi.resetAllMocks());
++const id="0fdca3bb-60ac-4014-99e9-28b8306687c7";
++function options():FolderPermissionOptions{return{source:{sourceId:"source",commitId:"commit",taskScopeId:"task"},intent:{kind:"model",program:"original program",prompt:"Original",expectedRevision:null}};}
++it("preserves the existing managed request and decision transport shapes",async()=>{
++ mocks.invoke.mockResolvedValue("legacy-id");expect(await requestNativePermission("project","modify_project","detail")).toBe("legacy-id");
++ expect(mocks.invoke).toHaveBeenCalledWith("request_permission",{projectId:"project",action:"modify_project",detail:"detail"});
++ await resolveNativePermission("legacy-id",true);expect(mocks.invoke).toHaveBeenLastCalledWith("resolve_permission",{id:"legacy-id",allow:true});
++});
++it("routes a typed model intent to the original source and retains the host confirmation policy",async()=>{
++ const folder=options();mocks.invoke.mockResolvedValue({id,requiresConfirmation:true});const ticket=await requestNativePermission("project","modify_project","detail",folder);
++ expect(mocks.invoke).toHaveBeenCalledWith("request_permission",{projectId:"project",action:"modify_project",detail:"detail",sourceId:"source",expectedCommitId:"commit",folderIntent:folder.intent});
++ expect(ticket).toEqual({id,requiresConfirmation:true,projectId:"project",source:folder.source});expect(Object.isFrozen(ticket)).toBe(true);expect(Object.isFrozen(ticket.source)).toBe(true);
++ await resolveNativePermission(ticket.id,true,ticket);expect(mocks.invoke).toHaveBeenLastCalledWith("resolve_permission",{id,allow:true,projectId:"project",sourceId:"source",expectedCommitId:"commit"});
++});
++it("captures request source and intent before awaiting the native reply",async()=>{
++ const source={sourceId:"source",commitId:"commit",taskScopeId:"task"},intent={kind:"model" as const,program:"original program",prompt:"Original",expectedRevision:null};
++ let finish!:(value:unknown)=>void;mocks.invoke.mockImplementation(()=>new Promise(resolve=>{finish=resolve;}));
++ const pending=requestNativePermission("project","modify_project","detail",{source,intent});source.sourceId="foreign";source.commitId="new";intent.program="replacement";
++ finish({id,requiresConfirmation:true});const ticket=await pending;
++ expect(ticket.source.sourceId).toBe("source");expect(ticket.source.commitId).toBe("commit");expect(mocks.invoke.mock.calls[0][1].folderIntent.program).toBe("original program");
++});
++it("uses the same route for a typed history decision and does not manufacture automatic approval",async()=>{
++ const folder:FolderPermissionOptions={source:options().source,intent:{kind:"history",direction:"undo",expectedRevision:"revision"}};
++ mocks.invoke.mockResolvedValue({id,requiresConfirmation:false});const ticket=await requestNativePermission("project","modify_project","detail",folder);
++ expect(ticket.requiresConfirmation).toBe(false);expect(mocks.invoke).toHaveBeenCalledTimes(1);
++ expect(mocks.invoke.mock.calls[0][1].folderIntent).toEqual(folder.intent);expect(mocks.invoke.mock.calls[0][1]).not.toHaveProperty("allow");
++});
++it("captures nested CAD commands before awaiting the permission reply",async()=>{
++ const commands=[{command:"set_literal",featureId:"profile",field:"width",valueMm:80}];let finish!:(value:unknown)=>void;
++ mocks.invoke.mockImplementation(()=>new Promise(resolve=>{finish=resolve;}));
++ const pending=requestNativePermission("project","modify_project","detail",{source:options().source,intent:{kind:"commands",commands,prompt:"Width",expectedRevision:"revision"}});
++ commands[0].valueMm=999;finish({id,requiresConfirmation:true});await pending;
++ expect(mocks.invoke.mock.calls[0][1].folderIntent.commands[0].valueMm).toBe(80);
++});
++it("retains the original nested ReviewPlan with its model request",async()=>{
++ const reviewPlan={assumptions:[],dimensions:[],affectedBodyIds:["body"],expectedChecks:[{type:"volume" as const,valueMm3:8000,toleranceMm3:0}]};let finish!:(value:unknown)=>void;
++ mocks.invoke.mockImplementation(()=>new Promise(resolve=>{finish=resolve;}));
++ const pending=requestNativePermission("project","modify_project","detail",{source:options().source,intent:{kind:"model",program:"program",prompt:"Model",expectedRevision:null,reviewPlan}});
++ reviewPlan.expectedChecks[0].valueMm3=1;finish({id,requiresConfirmation:true});await pending;
++ expect(mocks.invoke.mock.calls[0][1].folderIntent.reviewPlan.expectedChecks[0].valueMm3).toBe(8000);
++});
++it.each([{id:"invalid",requiresConfirmation:true},{id,requiresConfirmation:"false"},"managed-id"])("refuses malformed folder reply without a managed fallback: %j",async value=>{
++ mocks.invoke.mockResolvedValue(value);await expect(requestNativePermission("project","modify_project","detail",options())).rejects.toThrow("PROJECT_SNAPSHOT_CHANGED");expect(mocks.invoke).toHaveBeenCalledTimes(1);
++});
++it("refuses explicit null or incomplete source contexts instead of managed requests",async()=>{
++ await expect(requestNativePermission("project","modify_project","detail",null as never)).rejects.toThrow("PROJECT_SNAPSHOT_CHANGED");
++ await expect(resolveNativePermission(id,true,null as never)).rejects.toThrow("PROJECT_SNAPSHOT_CHANGED");
++ expect(()=>capturePermissionContext({projectId:"project",source:{sourceId:"source",commitId:"",taskScopeId:"task"}})).toThrow("PROJECT_SNAPSHOT_CHANGED");expect(mocks.invoke).not.toHaveBeenCalled();
++});
+diff --git a/.github/workflows/storage-benchmark.yml b/.github/workflows/storage-benchmark.yml
+index afabed7..359d94a 100644
+--- a/.github/workflows/storage-benchmark.yml
++++ b/.github/workflows/storage-benchmark.yml
+@@ -46,11 +46,19 @@ jobs:
+           grep -E '^test result: ok\. [1-9][0-9]* passed; 0 failed;' storage-evidence/host-api-tests.log
+           grep -E 'test project_repository::sqlite_folder::format::metadata_tests::metadata_succeeds_with_event_reads_denied_and_cannot_be_mistaken_for_full_archive \.\.\. ok' storage-evidence/host-api-tests.log
+           grep -E 'test project_repository::sqlite_folder::api::metadata_tests::metadata_does_not_adopt_unverified_archive_as_write_copy_or_history_authority \.\.\. ok' storage-evidence/host-api-tests.log
++      - name: Test source-bound host permission policy and decisions
++        run: |
++          set -o pipefail
++          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib permissions::folder::host::tests:: -- --nocapture 2>&1 | tee storage-evidence/folder-permission-tests.log
++          grep -F 'test result: ok. 12 passed; 0 failed;' storage-evidence/folder-permission-tests.log
++          grep -E 'test permissions::folder::host::tests::audit_failure_cannot_allow_a_pending_request_and_cannot_undo_denial \.\.\. ok' storage-evidence/folder-permission-tests.log
++          grep -E 'test permissions::folder::host::tests::waiting_for_audit_sql_does_not_lock_source_registry_or_other_requests \.\.\. ok' storage-evidence/folder-permission-tests.log
+       - name: Test window-owned folder source routing
+         run: |
+           set -o pipefail
+           cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib project_repository::window_sources:: -- --nocapture 2>&1 | tee storage-evidence/window-source-tests.log
+-          grep -F 'test result: ok. 15 passed; 0 failed;' storage-evidence/window-source-tests.log
++          grep -F 'test result: ok. 16 passed; 0 failed;' storage-evidence/window-source-tests.log
++          grep -E 'test project_repository::window_sources::approval::tests::retained_prepared_request_cannot_substitute_project_or_revision \.\.\. ok' storage-evidence/window-source-tests.log
+           grep -E 'test project_repository::window_sources::approval::tests::preparation_uses_original_project_once_and_failed_validation_mints_no_request \.\.\. ok' storage-evidence/window-source-tests.log
+           grep -E 'test project_repository::window_sources::approval::tests::request_is_read_only_and_retains_exact_typed_intent_until_one_use \.\.\. ok' storage-evidence/window-source-tests.log
+           grep -E 'test project_repository::window_sources::approval::tests::concurrent_consumers_receive_only_one_original_command \.\.\. ok' storage-evidence/window-source-tests.log
+diff --git a/.github/workflows/storage-native-check.yml b/.github/workflows/storage-native-check.yml
+index a9105e3..bba6d93 100644
+--- a/.github/workflows/storage-native-check.yml
++++ b/.github/workflows/storage-native-check.yml
+@@ -107,6 +107,16 @@ jobs:
+           test -x "$FORMA_FOLDER_TEST_WORKER"
+           cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target x86_64-unknown-linux-gnu --features native-occt --lib project_repository::window_sources::approval::tests::worker::real_command_decision_applies_original_cad_and_history -- --ignored --exact --nocapture 2>&1 | tee storage-native-evidence/folder-command-approval.log
+           grep -F 'test result: ok. 1 passed; 0 failed;' storage-native-evidence/folder-command-approval.log
++      - name: Execute source-bound permission host with actual CAD and history
++        env:
++          FORMA_OCCT_ROOT: ${{ github.workspace }}/.local/occt-install-unix-x86_64-unknown-linux-gnu
++          FORMA_FOLDER_TEST_WORKER: ${{ github.workspace }}/apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/forma-cad-worker
++          TMPDIR: ${{ runner.temp }}
++        run: |
++          set -o pipefail
++          test -x "$FORMA_FOLDER_TEST_WORKER"
++          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target x86_64-unknown-linux-gnu --features native-occt --lib permissions::folder::host::tests::worker::real_permission_model_command_and_history -- --ignored --exact --nocapture 2>&1 | tee storage-native-evidence/permission-host-roundtrip.log
++          grep -F 'test result: ok. 1 passed; 0 failed;' storage-native-evidence/permission-host-roundtrip.log
+       - name: Execute selected STEP transfer with the real CAD worker
+         env:
+           FORMA_OCCT_ROOT: ${{ github.workspace }}/.local/occt-install-unix-x86_64-unknown-linux-gnu

@@ -14,6 +14,7 @@ import { currentParameters } from "../stores/workspace";
 import type { Project } from "../types";
 import { ImportProjectFolderButton } from "../features/project-folder/ImportProjectFolderButton";
 import { ExportProjectBundleControl } from "../features/project-bundle/ExportProjectBundleControl";
+import { RecentFoldersPanel } from "../features/project-sources/RecentFoldersPanel";
 
 type Props = {
   projects: Project[];
@@ -24,6 +25,7 @@ type Props = {
   onSearch: (value: string) => void;
   onSettings: () => void;
   onImport: () => void;
+  onOpenFolder?: (recentLocation?: string) => void;
   onImportBundle: () => void;
   onExportBundle: (project: Project, redactConversation: boolean) => void;
   onNew: () => void;
@@ -34,7 +36,7 @@ type Props = {
   onError: (message: string) => void;
 };
 
-export function Dashboard({ projects, unavailable, loading, error, search, onSearch, onSettings, onImport, onImportBundle, onExportBundle, onNew, onOpen, onRename, onDelete, onRefresh, onError }: Props) {
+export function Dashboard({ projects, unavailable, loading, error, search, onSearch, onSettings, onImport, onOpenFolder, onImportBundle, onExportBundle, onNew, onOpen, onRename, onDelete, onRefresh, onError }: Props) {
   const pinRequests = useRef(new Set<string>());
   const visible = [...projects]
     .sort((a, b) => Number(b.pinned) - Number(a.pinned))
@@ -64,8 +66,16 @@ export function Dashboard({ projects, unavailable, loading, error, search, onSea
       <div className="eyebrow">{t("YOUR IDEAS, IN DIMENSIONS")}</div>
       <div className="dashboard-title">
         <div><h1>{t("A place to make things.")}</h1><p>{t("Give your next idea a little more shape.")}</p></div>
-        <div className="dashboard-import-actions"><Button onClick={onImport}><FolderOpen size={15} />{t("Import model")}</Button>{native && <><Button onClick={onImportBundle}><PackageOpen size={15} />{t("Import project bundle")}</Button><ImportProjectFolderButton onImported={project => { onRefresh(); onOpen(project); }} onError={onError} /></>}</div>
+        <div className="dashboard-import-actions">
+          <Button onClick={onImport}><FolderOpen size={15} />{t("Import model")}</Button>
+          {native && <>
+            {onOpenFolder && <Button onClick={() => onOpenFolder()}><FolderOpen size={15} />{t("Open project in folder")}</Button>}
+            <Button onClick={onImportBundle}><PackageOpen size={15} />{t("Import project bundle")}</Button>
+            <ImportProjectFolderButton onImported={project => { onRefresh(); onOpen(project); }} onError={onError} />
+          </>}
+        </div>
       </div>
+      {native && onOpenFolder && <RecentFoldersPanel openFolder={onOpenFolder} />}
       <div className="section-heading">
         <h2>{t("Projects")}</h2>
         <div className="search-input"><Search size={14} /><input aria-label={t("Search projects")} placeholder={t("Find a project…")} value={search} onChange={(event) => onSearch(event.target.value)} /></div>

@@ -197,9 +197,21 @@ pub fn read(state: &AppState, project_id: &str, file: &ProjectFile) -> Result<Ve
 pub async fn read_project_file(
     project_id: String,
     name: String,
+    source_id: Option<String>,
+    expected_commit_id: Option<String>,
+    window: tauri::WebviewWindow,
+    sources: tauri::State<'_, crate::project_repository::window_sources::WindowSources>,
     state: tauri::State<'_, AppState>,
 ) -> Result<String> {
-    read_project_file_for(&state, &project_id, &name).await
+    match (source_id, expected_commit_id) {
+        (None, None) => read_project_file_for(&state, &project_id, &name).await,
+        (Some(source), Some(commit)) => {
+            sources
+                .read_asset(window.label(), &source, &project_id, &commit, &name)
+                .await
+        }
+        _ => Err(AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into())),
+    }
 }
 
 #[cfg(test)]

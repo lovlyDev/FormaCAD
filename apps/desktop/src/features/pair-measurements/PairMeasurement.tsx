@@ -3,7 +3,7 @@ import { Ruler,MousePointer2,RefreshCw,X,CheckCircle2,LoaderCircle,AlertCircle }
 import { Button,Select } from "../../components/ui";
 import { t,errorText } from "../../i18n";
 import { useWorkspace } from "../../stores/workspace";
-import { usePersistentState } from "../../lib/persistence";
+import {useSourcePreference} from "../project-sources/useSourcePreference";
 import { EditorDisclosure } from "../model-editor/EditorDisclosure";
 import { pairKinds } from "./pairCapture";
 import type { PairKind } from "./pairSchema";
@@ -15,11 +15,12 @@ import "./PairMeasurement.css";
 /** Uses actual workspace selections; capture buttons never fabricate selection or geometry. */
 export function PairMeasurement({bodyId,sceneToken,interactive,hostAvailable}:{bodyId:string|null;sceneToken:string;interactive:boolean;hostAvailable:boolean}){
  const project=useWorkspace(state=>state.project),edge=useWorkspace(state=>state.selectedEdge),face=useWorkspace(state=>state.selectedFace);
- const slots=usePairSlots(project,bodyId,sceneToken,interactive&&hostAvailable,edge,face);
+ const sourceBinding=useWorkspace(state=>state.sourceBinding);
+ const slots=usePairSlots(project,bodyId,sceneToken,interactive&&hostAvailable,edge,face,sourceBinding);
  const [kind,setKind]=useState<PairKind>("minimumDistance");
  const kinds=pairKinds(slots.first,slots.second),activeKind=kinds.includes(kind)?kind:(kinds[0]??"minimumDistance");
  const measurement=usePairMeasurement(slots.scope,slots.first,slots.second,activeKind);
- const [open,setOpen]=usePersistentState(`forma.ui.project.${project?.id??"empty"}.pairMeasurement.open`,false);
+ const [open,setOpen]=useSourcePreference(`forma.ui.project.${project?.id??"empty"}.pairMeasurement.open`,false,sourceBinding);
  const labels:Record<PairKind,string>={minimumDistance:t("Minimum distance between references"),faceNormalAngle:t("Outward face-normal angle (0–180°)"),edgeAcuteAngle:t("Acute straight-edge angle (0–90°)")};
  const pending=measurement.phase==="pending",previous=!!measurement.report&&(pending||measurement.phase==="failed");
  const rows=measurement.report?pairRows(measurement.report.result,project?.units??"mm"):[];

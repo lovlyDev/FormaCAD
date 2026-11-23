@@ -11,7 +11,9 @@ export type PendingAction = {
   cancelled?: () => void;
 };
 
-export function ActionReviewDialog({ pending, onDecision }: { pending: PendingAction | null; onDecision: (allow: boolean) => void }) {
+export type ActionReviewContent = Pick<PendingAction, "title" | "description" | "detail" | "review">;
+
+export function ActionReviewDialog({ pending, onDecision }: { pending: ActionReviewContent | null; onDecision: (allow: boolean) => void }) {
   // Keep the same content through Radix's exit animation instead of flashing a generic dialog.
   const [retained, setRetained] = useState(pending);
   useEffect(() => {

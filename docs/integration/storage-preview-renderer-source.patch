@@ -1,0 +1,351 @@
+diff --git a/apps/desktop/src/features/model-preview/useModelPreview.ts b/apps/desktop/src/features/model-preview/useModelPreview.ts
+index e74e880..3b053ec 100644
+--- a/apps/desktop/src/features/model-preview/useModelPreview.ts
++++ b/apps/desktop/src/features/model-preview/useModelPreview.ts
+@@ -1,27 +1,44 @@
+ import { useEffect,useRef,useState } from "react";
+ import { disposeModel } from "../../lib/model";
++import { sourceRefFor,type ProjectSourceBinding } from "../project-sources/sourceBinding";
+ import { cancelModelPreview,previewModel,modelPreviewAvailable,type ModelPreview } from "./previewApi";
+-/** At most one request per editor; debounce the latest source while an older request finishes. */
+-export function useModelPreview(projectId:string,source:string,revision:string|null,enabled:boolean,refresh:number){
+- const key=JSON.stringify({projectId,source,revision,refresh}),available=modelPreviewAvailable();
++/** Serial requests; an opening owns its cancellation and retained preview geometry. */
++export function useModelPreview(projectId:string,source:string,revision:string|null,enabled:boolean,refresh:number,binding?:ProjectSourceBinding|null){
++ const valid=binding===undefined||!!binding&&binding.projectId===projectId;
++ const folder=valid&&binding?sourceRefFor(binding,projectId):undefined;
++ const owner=JSON.stringify([projectId,binding?.openingId,folder?.sourceId,folder?.taskScopeId,folder?.commitId,valid]);
++ const key=JSON.stringify({owner,source,revision,refresh}),available=modelPreviewAvailable()&&valid;
+  const latest=useRef(key);latest.current=key;const wanted=useRef(enabled);wanted.current=enabled;
+- const flight=useRef(false),alive=useRef(true),owned=useRef<ModelPreview|null>(null);
++ const flight=useRef(false),alive=useRef(true),owned=useRef<{owner:string;preview:ModelPreview}|null>(null);
+  const [tick,setTick]=useState(0),[pending,setPending]=useState(false),[state,setState]=useState<{key:string;preview:ModelPreview|null;error:string|null}>({key:"",preview:null,error:null});
+- useEffect(()=>{alive.current=true;return()=>{alive.current=false;if(available)void cancelModelPreview(projectId).catch(()=>{});if(owned.current){disposeModel(owned.current.object);owned.current=null;}};},[projectId,available]);
+  useEffect(()=>{
+-  if(!enabled||!available||!projectId){if(flight.current&&available)void cancelModelPreview(projectId).catch(()=>{});if(owned.current){disposeModel(owned.current.object);owned.current=null;setState({key:"",preview:null,error:null});}return;}
++  alive.current=true;
++  return()=>{
++   alive.current=false;
++   if(available)void (folder?cancelModelPreview(projectId,folder):cancelModelPreview(projectId)).catch(()=>{});
++   if(owned.current?.owner===owner){disposeModel(owned.current.preview.object);owned.current=null;}
++  };
++ },[owner,available]);
++ useEffect(()=>{
++  if(!enabled||!available||!projectId){
++   if(flight.current&&available)void (folder?cancelModelPreview(projectId,folder):cancelModelPreview(projectId)).catch(()=>{});
++   if(owned.current?.owner===owner){disposeModel(owned.current.preview.object);owned.current=null;setState({key:"",preview:null,error:null});}return;
++  }
+   if(flight.current||state.key===key)return;
+   const timer=setTimeout(()=>{
+-   flight.current=true;setPending(true);const request=JSON.parse(key) as {projectId:string;source:string;revision:string|null};
+-   void previewModel(request.projectId,request.source,request.revision,()=>alive.current&&wanted.current&&latest.current===key).then(preview=>{
+-    if(!alive.current||latest.current!==key||!wanted.current){disposeModel(preview.object);return;}
+-    if(owned.current)disposeModel(owned.current.object);owned.current=preview;setState({key,preview,error:null});
+-   },error=>{if(alive.current&&latest.current===key&&wanted.current)setState({key,preview:null,error:String(error)});}).finally(()=>{
++   flight.current=true;setPending(true);
++   const mayAdopt=()=>alive.current&&wanted.current&&latest.current===key;
++   const request=folder?previewModel(projectId,source,revision,mayAdopt,folder):previewModel(projectId,source,revision,mayAdopt);
++   void request.then(preview=>{
++    if(!mayAdopt()){disposeModel(preview.object);return;}
++    if(owned.current)disposeModel(owned.current.preview.object);
++    owned.current={owner,preview};setState({key,preview,error:null});
++   },error=>{if(mayAdopt())setState({key,preview:null,error:String(error)});}).finally(()=>{
+     flight.current=false;if(alive.current){setPending(false);setTick(value=>value+1);}
+    });
+   },500);
+   return()=>clearTimeout(timer);
+  },[key,enabled,available,projectId,tick,state.key]);
+  const fresh=enabled&&state.key===key;
+- return {available,pending,waiting:enabled&&available&&!fresh,preview:enabled&&available?(fresh?state.preview:owned.current):null,error:fresh?state.error:null};
++ return {available,pending,waiting:enabled&&available&&!fresh,preview:enabled&&available?(fresh?state.preview:owned.current?.owner===owner?owned.current.preview:null):null,error:fresh?state.error:null};
+ }
+diff --git a/apps/desktop/src/features/project-sources/previewRequests.test.tsx b/apps/desktop/src/features/project-sources/previewRequests.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/previewRequests.test.tsx
+@@ -0,0 +1,70 @@
++import { afterEach, expect, it, vi } from "vitest";
++import { act, cleanup, renderHook } from "@testing-library/react";
++import { Group } from "three";
++import { folderSource, refreshFolderSource, type ProjectSourceBinding } from "./sourceBinding";
++import { useModelPreview } from "../model-preview/useModelPreview";
++import type { ModelPreview } from "../model-preview/previewApi";
++const mocks = vi.hoisted(() => ({ preview: vi.fn(), cancel: vi.fn().mockResolvedValue(undefined), dispose: vi.fn() }));
++vi.mock("../model-preview/previewApi", () => ({ previewModel: mocks.preview, cancelModelPreview: mocks.cancel, modelPreviewAvailable: () => true }));
++vi.mock("../../lib/model", () => ({ disposeModel: mocks.dispose }));
++const source = (id = "first") => folderSource("same", { sourceId: id, commitId: "commit", taskScopeId: `task-${id}` });
++const report = (): ModelPreview => ({ object: new Group(), metrics: { volumeMm3: 1, areaMm2: 6, faceCount: 6, edgeCount: 12, boundsMm: [1, 1, 1] } });
++afterEach(() => { cleanup(); vi.useRealTimers(); vi.resetAllMocks(); mocks.cancel.mockResolvedValue(undefined); });
++it("routes request and cancellation through the captured folder reference", async () => {
++  vi.useFakeTimers(); const binding = source(); mocks.preview.mockResolvedValueOnce(report());
++  const hook = renderHook(() => useModelPreview("same", "program", "revision", true, 0, binding));
++  await act(async () => vi.advanceTimersByTime(500));
++  expect(mocks.preview.mock.calls[0][4]).toEqual(binding.kind === "folder" ? binding.source : null);
++  hook.unmount(); expect(mocks.cancel).toHaveBeenCalledWith("same", binding.kind === "folder" ? binding.source : null);
++});
++it("hides retired same-ID geometry immediately and cancels only the retired source", async () => {
++  vi.useFakeTimers(); const first = source(), second = source("second"), old = report(); mocks.preview.mockResolvedValueOnce(old);
++  const hook = renderHook(({ binding }) => useModelPreview("same", "program", "revision", true, 0, binding), { initialProps: { binding: first } });
++  await act(async () => vi.advanceTimersByTime(500)); expect(hook.result.current.preview).toBe(old);
++  hook.rerender({ binding: second }); expect(hook.result.current.preview).toBeNull();
++  expect(mocks.dispose).toHaveBeenCalledWith(old.object);
++  expect(mocks.cancel).toHaveBeenCalledWith("same", first.kind === "folder" ? first.source : null);
++});
++it("rejects a late worker reply after same-ID reopen even with identical host reference", async () => {
++  vi.useFakeTimers(); let resolve!: (value: ModelPreview) => void;
++  mocks.preview.mockImplementationOnce(() => new Promise<ModelPreview>(done => { resolve = done; }));
++  const hook = renderHook(({ binding }) => useModelPreview("same", "program", "revision", true, 0, binding), { initialProps: { binding: source() } });
++  act(() => vi.advanceTimersByTime(500)); const mayAdopt = mocks.preview.mock.calls[0][3];
++  hook.rerender({ binding: source() }); expect(mayAdopt()).toBe(false);
++  const late = report(); await act(async () => resolve(late));
++  expect(hook.result.current.preview).toBeNull(); expect(mocks.dispose).toHaveBeenCalledWith(late.object);
++});
++it("restarts strict preview IO after metadata commit advances within one opening", async () => {
++  vi.useFakeTimers(); const first = source(); if (first.kind !== "folder") throw Error("fixture");
++  mocks.preview.mockResolvedValueOnce(report()).mockResolvedValueOnce(report());
++  const hook = renderHook(({ binding }) => useModelPreview("same", "program", "revision", true, 0, binding), { initialProps: { binding: first as ProjectSourceBinding } });
++  await act(async () => vi.advanceTimersByTime(500));
++  const next = refreshFolderSource(first, { ...first.source, commitId: "next" }); hook.rerender({ binding: next });
++  expect(hook.result.current.preview).toBeNull(); await act(async () => vi.advanceTimersByTime(500));
++  expect(mocks.preview.mock.calls[1][4]).toEqual({ ...first.source, commitId: "next" });
++});
++it("never falls back to managed IPC for absent or mismatched explicit binding", () => {
++  vi.useFakeTimers(); const binding = source();
++  const hook = renderHook(({ value }) => useModelPreview("different", "program", "revision", true, 0, value), { initialProps: { value: binding as ProjectSourceBinding | null } });
++  act(() => vi.advanceTimersByTime(500)); expect(hook.result.current.available).toBe(false);
++  hook.rerender({ value: null }); act(() => vi.advanceTimersByTime(500)); expect(mocks.preview).not.toHaveBeenCalled(); expect(mocks.cancel).not.toHaveBeenCalled();
++});
++it("does not publish a retired opening's failure into the new opening", async () => {
++  vi.useFakeTimers(); let reject!: (reason: Error) => void;
++  mocks.preview.mockImplementationOnce(() => new Promise<ModelPreview>((_, fail) => { reject = fail; }));
++  const hook = renderHook(({ binding }) => useModelPreview("same", "program", "revision", true, 0, binding), { initialProps: { binding: source() } });
++  act(() => vi.advanceTimersByTime(500)); hook.rerender({ binding: source("second") });
++  await act(async () => reject(Error("old worker error")));
++  expect(hook.result.current.error).toBeNull(); expect(hook.result.current.preview).toBeNull();
++  const next = report(); mocks.preview.mockResolvedValueOnce(next);
++  await act(async () => vi.advanceTimersByTime(500)); expect(hook.result.current.preview).toBe(next);
++});
++it("disabling folder preview cancels its source and disposes the late object", async () => {
++  vi.useFakeTimers(); const binding = source(); let resolve!: (value: ModelPreview) => void;
++  mocks.preview.mockImplementationOnce(() => new Promise<ModelPreview>(done => { resolve = done; }));
++  const hook = renderHook(({ enabled }) => useModelPreview("same", "program", "revision", enabled, 0, binding), { initialProps: { enabled: true } });
++  act(() => vi.advanceTimersByTime(500)); hook.rerender({ enabled: false });
++  expect(mocks.cancel).toHaveBeenCalledWith("same", binding.kind === "folder" ? binding.source : null);
++  const late = report(); await act(async () => resolve(late));
++  expect(mocks.dispose).toHaveBeenCalledWith(late.object); expect(hook.result.current.preview).toBeNull();
++});
+diff --git a/apps/desktop/src/app/dialogs/ProgramDialog.tsx b/apps/desktop/src/app/dialogs/ProgramDialog.tsx
+index c71463b..626e9ad 100644
+--- a/apps/desktop/src/app/dialogs/ProgramDialog.tsx
++++ b/apps/desktop/src/app/dialogs/ProgramDialog.tsx
+@@ -13,7 +13,7 @@ import { CadFeatureEditor } from "../../components/CadFeatureEditor";
+ import { TypedFeatureTree } from "../../components/TypedFeatureTree";
+ import { Button,Modal } from "../../components/ui";
+ import { native } from "../../lib/api";
+-import { usePersistentState } from "../../lib/persistence";
++import {useSourcePreference} from "../../features/project-sources/useSourcePreference";
+ import { useWorkspace } from "../../stores/workspace";
+ import { readTypedCadDocument } from "../../lib/typedCadDocument";
+ import { importStepHistory, hasImportedSource } from "../../features/import/importStepHistory";
+@@ -24,12 +24,13 @@ import { previewError } from "../../features/model-preview/previewError";
+ import "./ProgramDialog.css";
+ export function ProgramDialog({open,close,source,disabled,nativeCadAvailable,nativeCadChecked,importedSource,onApply}:{open:boolean;close:()=>void;source:string;disabled:boolean;nativeCadAvailable:boolean;nativeCadChecked:boolean;importedSource?:string;onApply:(source:string)=>void}){
+  const project=useWorkspace(state=>state.project);
++ const sourceBinding=useWorkspace(state=>state.sourceBinding);
+  const draftKey=`forma.ui.project.${project?.id??"home"}.source.${project?.currentRevision??"new"}`;
+- const [draft,setDraft]=usePersistentState(draftKey,source),document=readTypedCadDocument(draft),typed=!!document;
++ const [draft,setDraft]=useSourcePreference(draftKey,source,sourceBinding),document=readTypedCadDocument(draft),typed=!!document;
+  const [sourceOpen,setSourceOpen]=useEditorPreference("source.open",!readTypedCadDocument(source)),[formatError,setFormatError]=useState(false);
+  const [autoPreview,setAutoPreview]=useEditorPreference("preview.auto",false),[refresh,setRefresh]=useState(0);
+  const review=useSketchBuildReview(draft,open&&typed&&nativeCadAvailable&&!disabled);
+- const preview=useModelPreview(project?.id??"",draft,project?.currentRevision??null,open&&autoPreview&&typed&&nativeCadAvailable&&!disabled,refresh);
++ const preview=useModelPreview(project?.id??"",draft,project?.currentRevision??null,open&&autoPreview&&typed&&nativeCadAvailable&&!disabled,refresh,sourceBinding);
+  const importFile=project?.files.find(file=>file.name===importedSource);
+  const importHistory=importStepHistory(importFile,project?.currentRevision??"draft");
+  const importedOnly=!!importedSource&&!source.trim()&&!hasImportedSource(document,importFile);
+diff --git a/apps/desktop/src/features/agents/review/CandidateReview.tsx b/apps/desktop/src/features/agents/review/CandidateReview.tsx
+index 463a1f2..383d421 100644
+--- a/apps/desktop/src/features/agents/review/CandidateReview.tsx
++++ b/apps/desktop/src/features/agents/review/CandidateReview.tsx
+@@ -1,8 +1,9 @@
+-import { lazy, Suspense, useState, useMemo } from "react";
++import { lazy, Suspense, useState, useMemo, useRef } from "react";
+ import { Check, X, Box, Maximize, LoaderCircle, RotateCw, AlertCircle, Layers, Sparkles } from "lucide-react";
+ import { Button } from "../../../components/ui";
+ import { t, number, useLocale } from "../../../i18n";
+ import { useWorkspace } from "../../../stores/workspace";
++import {isSourceCurrent,type ProjectSourceBinding} from "../../project-sources/sourceBinding";
+ import type { Project } from "../../../types";
+ import { readTypedCadDocument } from "../../../lib/typedCadDocument";
+ import { candidateSourceStatus } from "../candidateSource";
+@@ -16,15 +17,18 @@ import "../../model-preview/ModelPreviewPanel.css";
+ import "./CandidateReview.css";
+ 
+ const PreviewCanvas = lazy(() => import("../../model-preview/PreviewCanvas").then(module => ({ default: module.PreviewCanvas })));
+-export type CandidateReviewData = { base: Project; source: string; reviewPlan?: ReviewPlan | null };
++export type CandidateReviewData = { base: Project; source: string; reviewPlan?: ReviewPlan | null; sourceBinding?: ProjectSourceBinding | null };
+ 
+ export function CandidateReview({ review, onDecision }: { review: CandidateReviewData; onDecision: (allow: boolean) => void }) {
+   useLocale();
+   const current = useWorkspace(state => state.project);
+-  const validBase = !!current && candidateSourceStatus(current, review.base) === "valid";
++  const currentBinding=useWorkspace(state=>state.sourceBinding);
++  const legacyBinding=useRef(currentBinding);
++  const capturedBinding=review.sourceBinding===undefined?legacyBinding.current:review.sourceBinding;
++  const validBase = !!current && !!capturedBinding && isSourceCurrent(currentBinding,capturedBinding) && candidateSourceStatus(current, review.base) === "valid";
+   const [refresh, setRefresh] = useState(0), [fit, setFit] = useState(0), [view, setView] = useState<"candidate" | "current">("candidate");
+-  const preview = useModelPreview(review.base.id, review.source, review.base.currentRevision, validBase, refresh);
+-  const baseline = useSavedBaseline(review.base);
++  const preview = useModelPreview(review.base.id, review.source, review.base.currentRevision, validBase, refresh, capturedBinding);
++  const baseline = useSavedBaseline(review.base,validBase?capturedBinding:null);
+   const geometryReady = validBase && preview.available && !preview.pending && !preview.waiting && !!preview.preview && !preview.error;
+   const object = view === "candidate" ? preview.preview?.object : baseline.object;
+   const finding = preview.error ? previewError(preview.error) : null;
+diff --git a/apps/desktop/src/features/agents/review/useSavedBaseline.ts b/apps/desktop/src/features/agents/review/useSavedBaseline.ts
+index 806b7f5..f7bc6fc 100644
+--- a/apps/desktop/src/features/agents/review/useSavedBaseline.ts
++++ b/apps/desktop/src/features/agents/review/useSavedBaseline.ts
+@@ -2,21 +2,25 @@ import { useEffect, useState } from "react";
+ import type { Group } from "three";
+ import { loadModel } from "../../../lib/files";
+ import { disposeModel } from "../../../lib/model";
++import {sourceRefFor,type ProjectSourceBinding} from "../../project-sources/sourceBinding";
+ import type { Project } from "../../../types";
+ 
+-/** Own a separate GLB object; never reparent the main workspace scene into review. */
+-export function useSavedBaseline(base: Project) {
+-  const [state, setState] = useState<{ object: Group | null; error: boolean; pending: boolean }>({ object: null, error: false, pending: true });
+-  useEffect(() => {
+-    let active = true, owned: Group | null = null;
+-    const name = base.revisions.find(revision => revision.id === base.currentRevision)?.preview;
+-    const file = base.files.find(file => file.name === name && /\.glb$/i.test(file.name));
+-    setState({ object: null, error: false, pending: !!file });
+-    if (file) void loadModel(file, base.id).then(object => {
+-      if (!active) { disposeModel(object); return; }
+-      owned = object; setState({ object, error: false, pending: false });
+-    }, () => { if (active) setState({ object: null, error: true, pending: false }); });
+-    return () => { active = false; if (owned) disposeModel(owned); };
+-  }, [base]);
+-  return state;
++/** Separate original-source GLB; a retired opening never lends its scene to review. */
++export function useSavedBaseline(base: Project,binding?:ProjectSourceBinding|null) {
++  const name=base.revisions.find(revision=>revision.id===base.currentRevision)?.preview;
++  const file=base.files.find(file=>file.name===name&&/\.glb$/i.test(file.name));
++  const valid=binding===undefined||!!binding&&binding.projectId===base.id;
++  const folder=valid&&binding?sourceRefFor(binding,base.id):undefined;
++  const key=JSON.stringify([base.id,base.currentRevision,binding?.openingId,folder?.sourceId,folder?.taskScopeId,folder?.commitId,file?.name,file?.sha256,file?.size,valid]);
++  const [state,setState]=useState<{key:string;object:Group|null;error:boolean;pending:boolean}>({key:"",object:null,error:false,pending:!!file&&valid});
++  useEffect(()=>{
++    let active=true,owned:Group|null=null;
++    setState({key,object:null,error:false,pending:!!file&&valid});
++    if(file&&valid)void (folder?loadModel(file,base.id,folder):loadModel(file,base.id)).then(object=>{
++      if(!active){disposeModel(object);return;}
++      owned=object;setState({key,object,error:false,pending:false});
++    },()=>{if(active)setState({key,object:null,error:true,pending:false});});
++    return()=>{active=false;if(owned)disposeModel(owned);};
++  },[key]);
++  return state.key===key?state:{object:null,error:false,pending:!!file&&valid};
+ }
+diff --git a/apps/desktop/src/app/App.tsx b/apps/desktop/src/app/App.tsx
+index 461c113..8a8b396 100644
+--- a/apps/desktop/src/app/App.tsx
++++ b/apps/desktop/src/app/App.tsx
+@@ -411,6 +411,7 @@ export default function App() {
+     review?: CandidateReviewData,
+     cancelled?: () => void,
+   ) {
++    const capturedReview=review?{...review,sourceBinding:review.sourceBinding===undefined?useWorkspace.getState().sourceBinding:review.sourceBinding}:undefined;
+     try {
+       if (!review && !needsConfirmation(await confirmationSettings(), action)) {
+         await run();
+@@ -427,7 +428,7 @@ export default function App() {
+         detail,
+         run,
+         id,
+-        review,
++        review:capturedReview,
+         targetProjectId,
+         cancelled,
+       });
+diff --git a/apps/desktop/src/features/project-sources/baselineSource.test.tsx b/apps/desktop/src/features/project-sources/baselineSource.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/baselineSource.test.tsx
+@@ -0,0 +1,37 @@
++import { afterEach, expect, it, vi } from "vitest";
++import { act, cleanup, renderHook } from "@testing-library/react";
++import { Group } from "three";
++import { newProject } from "../../stores/workspace";
++import { defaults } from "../../types";
++import { folderSource, type ProjectSourceBinding } from "./sourceBinding";
++import { useSavedBaseline } from "../agents/review/useSavedBaseline";
++const mocks=vi.hoisted(()=>({load:vi.fn(),dispose:vi.fn()}));
++vi.mock("../../lib/files",()=>({loadModel:mocks.load}));
++vi.mock("../../lib/model",()=>({disposeModel:mocks.dispose}));
++afterEach(()=>{cleanup();vi.resetAllMocks();});
++function fixture(){
++ const project=newProject("Review","blank","mm","codex");project.currentRevision="base";
++ project.revisions=[{id:"base",parent:null,createdAt:project.createdAt,prompt:"",parameters:defaults,preview:"base.glb"}];
++ project.files=[{name:"base.glb",kind:"model",size:100,sha256:"a".repeat(64)}];
++ const binding=()=>folderSource(project.id,{sourceId:"source",commitId:"commit",taskScopeId:"task"});
++ return{project,binding};
++}
++it("loads the baseline from its captured host folder reference",async()=>{
++ const{project,binding}=fixture(),source=binding(),object=new Group();mocks.load.mockResolvedValue(object);
++ const hook=renderHook(()=>useSavedBaseline(project,source));await act(async()=>{});
++ expect(mocks.load).toHaveBeenCalledWith(project.files[0],project.id,source.kind==="folder"?source.source:null);
++ expect(hook.result.current.object).toBe(object);
++});
++it("hides old baseline and disposes late model after equal-ID reopen",async()=>{
++ const{project,binding}=fixture();let resolve!:(object:Group)=>void;mocks.load.mockImplementationOnce(()=>new Promise<Group>(done=>{resolve=done;})).mockResolvedValueOnce(new Group());
++ const hook=renderHook(({source})=>useSavedBaseline(project,source),{initialProps:{source:binding()}});
++ hook.rerender({source:binding()});expect(hook.result.current.object).toBeNull();
++ const late=new Group();await act(async()=>resolve(late));expect(mocks.dispose).toHaveBeenCalledWith(late);
++ expect(hook.result.current.object).not.toBe(late);
++});
++it("does not route a missing or mismatched explicit source to managed loading",async()=>{
++ const{project}=fixture(),wrong=folderSource("other",{sourceId:"source",commitId:"commit",taskScopeId:"task"});
++ const hook=renderHook(({source})=>useSavedBaseline(project,source),{initialProps:{source:wrong as ProjectSourceBinding|null}});
++ await act(async()=>{});hook.rerender({source:null});await act(async()=>{});
++ expect(mocks.load).not.toHaveBeenCalled();expect(hook.result.current.pending).toBe(false);
++});
+diff --git a/apps/desktop/src/features/project-sources/candidateSource.test.tsx b/apps/desktop/src/features/project-sources/candidateSource.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/candidateSource.test.tsx
+@@ -0,0 +1,35 @@
++import {afterEach,expect,it,vi} from "vitest";
++import {act,cleanup,fireEvent,render,screen} from "@testing-library/react";
++import {Group} from "three";
++import {newProject,useWorkspace} from "../../stores/workspace";
++import {CandidateReview} from "../agents/review/CandidateReview";
++const mocks=vi.hoisted(()=>({preview:vi.fn(),baseline:vi.fn()}));
++vi.mock("../model-preview/useModelPreview",()=>({useModelPreview:mocks.preview}));
++vi.mock("../agents/review/useSavedBaseline",()=>({useSavedBaseline:mocks.baseline}));
++vi.mock("../model-preview/PreviewCanvas",()=>({PreviewCanvas:()=>null}));
++afterEach(()=>{cleanup();useWorkspace.getState().setProject(null);vi.resetAllMocks();});
++function fixture(){
++ const base=newProject("Review","blank","mm","codex");
++ useWorkspace.getState().openFolderProject(base,{sourceId:"first",commitId:"commit",taskScopeId:"task"});
++ mocks.preview.mockReturnValue({available:true,pending:false,waiting:false,preview:{object:new Group(),metrics:{volumeMm3:10,areaMm2:12,boundsMm:[1,2,5]}},error:null});
++ mocks.baseline.mockReturnValue({object:null,error:false,pending:false});
++ return{base,source:"{}",sourceBinding:useWorkspace.getState().sourceBinding};
++}
++it("routes both candidate and baseline to the captured opening",()=>{
++ const review=fixture();render(<CandidateReview review={review} onDecision={()=>{}}/>);
++ expect(mocks.preview.mock.calls[0][5]).toBe(review.sourceBinding);
++ expect(mocks.baseline).toHaveBeenCalledWith(review.base,review.sourceBinding);
++});
++it("blocks acceptance after another folder opens with identical project data",async()=>{
++ const review=fixture(),decision=vi.fn();render(<CandidateReview review={review} onDecision={decision}/>);
++ expect(screen.getByRole("button",{name:"Accept candidate"})).toBeEnabled();
++ await act(async()=>useWorkspace.getState().openFolderProject(review.base,{sourceId:"second",commitId:"commit",taskScopeId:"other-task"}));
++ expect(screen.getByRole("button",{name:"Accept candidate"})).toBeDisabled();
++ expect(mocks.baseline).toHaveBeenLastCalledWith(review.base,null);
++ fireEvent.click(screen.getByRole("button",{name:"Accept candidate"}));expect(decision).not.toHaveBeenCalled();
++});
++it("does not turn a missing captured opening into current managed access",()=>{
++ const review=fixture();render(<CandidateReview review={{...review,sourceBinding:null}} onDecision={()=>{}}/>);
++ expect(screen.getByRole("button",{name:"Accept candidate"})).toBeDisabled();
++ expect(mocks.preview.mock.calls[0][5]).toBeNull();
++});

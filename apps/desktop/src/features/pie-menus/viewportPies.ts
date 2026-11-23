@@ -1,3 +1,4 @@
+import {useWorkspace} from "../../stores/workspace";
 import { t } from "../../i18n";
 import type { RenderMode } from "../viewer/renderMode";
 import {
@@ -5,8 +6,8 @@ import {
   useTransformViewport,
 } from "../transform/viewport/transformStore";
 import { useSnapSettings } from "../snapping/cursor/snapSettings";
-import { useWorkspace } from "../../stores/workspace";
-import { exactSnap } from "../snapping/snapApi";
+import {edgeSnapActions} from "./edgeSnapActions";
+import {beginSnapRequest,captureSnapSource,captureDisplayedSnapSource} from "../snapping/snapRequest";
 import type { PieItem } from "./PieMenu";
 
 const shading: { mode: RenderMode; label: string }[] = [
@@ -54,36 +55,14 @@ export function pivotPie() {
   };
 }
 
-/** Cursor to a selected CAD edge, computed by OCCT on the committed body. */
-function cursorToEdge(kind: "edgeMidpoint" | "circleCenter") {
-  const { project, selectedEdge } = useWorkspace.getState();
-  const reference = selectedEdge?.topologyRef;
-  if (!project?.currentRevision || !selectedEdge || !reference) return;
-  const revisionId = project.currentRevision;
-  const snap = useSnapSettings.getState();
-  snap.setPending(true);
-  void exactSnap(
-    { projectId: project.id, revisionId, bodyId: selectedEdge.bodyId },
-    { kind, reference },
-  )
-    .then((result) => {
-      if (useWorkspace.getState().project?.currentRevision === revisionId) {
-        useTransformViewport.getState().setCursor(result.pointMm);
-        useSnapSettings.getState().setError(null);
-      }
-    })
-    .catch((cause) => useSnapSettings.getState().setError(cause))
-    .finally(() => useSnapSettings.getState().setPending(false));
-}
-
-export function snapPie() {
+export function snapPie(object?:{uuid:string}) {
   const { incrementSnap, setIncrementSnap, setCursor } =
     useTransformViewport.getState();
   const { exact, setExact } = useSnapSettings.getState();
-  const { selectedEdge, project } = useWorkspace.getState();
-  const edgeReady =
-    !!selectedEdge?.topologyRef &&
-    selectedEdge.revisionId === project?.currentRevision;
+  const menuSource=captureSnapSource(),displayed=object?captureDisplayedSnapSource(object):menuSource;
+  const menuCurrent=()=>(menuSource?menuSource.isCurrent():!useWorkspace.getState().project)&&(!object||!!displayed?.isCurrent());
+  const edgeSnap=edgeSnapActions(object);
+  const edgeReady=edgeSnap.ready;
   return {
     title: t("Snapping"),
     items: [
@@ -103,18 +82,18 @@ export function snapPie() {
         id: "edge-midpoint",
         label: t("Cursor to edge midpoint"),
         disabled: !edgeReady,
-        run: () => cursorToEdge("edgeMidpoint"),
+        run: () => edgeSnap.run("edgeMidpoint"),
       },
       {
         id: "circle-center",
         label: t("Cursor to circle center"),
         disabled: !edgeReady,
-        run: () => cursorToEdge("circleCenter"),
+        run: () => edgeSnap.run("circleCenter"),
       },
       {
         id: "origin",
         label: t("Cursor to world origin"),
-        run: () => setCursor([0, 0, 0]),
+        run: () => {if(!menuCurrent())return;const request=beginSnapRequest(menuSource);setCursor([0,0,0]);request.finish();},
       },
     ] satisfies PieItem[],
   };

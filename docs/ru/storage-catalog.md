@@ -7,6 +7,22 @@
 
 ## Контракт
 
+При обновлении задачной ветки на принятый main `a66ba5a` сохранены
+`WorkspaceShell`, главное меню и вкладки проектов M1. Их выбор проекта проходит
+через тот же `useProjectNavigation` и чистое target-read; недоступные записи
+остаются в Dashboard. До успешного чтения настройки и модель относятся к
+последнему принятому проекту. Фоновая генерация/запись thumbnails не возвращается.
+Это интеграция managed-каталога с новым workspace, а не production-подключение FCP1.
+
+Проверка этой интеграции 3 ноября 2026: frontend build прошёл, 233 unit-теста
+в 80 файлах прошли с одним worker; browser-набор в установленном Chrome —
+51 PASS, 35 прежних skipped, 0 FAIL (4,1 минуты). Сценарии M1 проверили RU/EN,
+обе темы, split/workspace/settings и сохранение viewport; карточки остались
+read-only до явного pin/rename/delete. Native browser skips требуют локального
+worker fixture и не являются PASS; backend CAD подтверждён отдельно на `d1368cc`.
+После merge-коммита нужен CI точного нового head. Cargo.lock унаследован точно
+из принятого main PR #36, без ручного изменения зависимостей задачным агентом.
+
 `list_managed(state, CatalogLimits { max_entries, max_total_payload_bytes })`
 возвращает `CatalogReport`: все выбранные строки и фактическую сумму JSON-байтов
 готовых `Project`. Лимиты явно задаёт host; продуктовых defaults здесь нет.

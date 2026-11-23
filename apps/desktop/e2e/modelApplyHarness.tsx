@@ -20,11 +20,8 @@ export async function mountModelApplyHarness(fixture: {
     delayed = false;
   let rejectPlan: ((cause: Error) => void) | null = null;
   const invoke = async (command: string, args: any) => {
-    calls.push({ command, args });
-    if (command === "plugin:event|listen") {
-      listeners.set(++eventId, { event: args.event, handler: args.handler });
-      return eventId;
-    }
+    calls.push({command,args});
+    if (command === "plugin:event|listen") { listeners.set(++eventId,{event:args.event,handler:args.handler}); return eventId; }
     if (command === "list_projects") {
       const values = Object.values(projects);
       return {

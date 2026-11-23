@@ -1,4 +1,5 @@
 import { useEffect,useMemo,useRef,useState } from "react";
+import type {ProjectSourceBinding} from "../../../project-sources/sourceBinding";
 import type { Project } from "../../../../types";
 import type { FaceSelection } from "../../faceSelection";
 import { captureFaceSection } from "./faceSectionCapture";
@@ -6,8 +7,8 @@ import { sectionReference } from "./faceSectionApi";
 import type { FaceSectionReport } from "./faceSectionSchema";
 
 /** One unfinished invocation survives context changes; only a current verified result clips. */
-export function useFaceSection(project:Project|null,selection:FaceSelection|null,offsetMm:number,active:boolean,sceneToken:string,automatic=true,blocked=false){
- const capture=useMemo(()=>{const value=captureFaceSection(project,selection,offsetMm,active);return value?{...value,key:JSON.stringify([value.key,sceneToken])}:null;},[project,selection,offsetMm,active,sceneToken]);
+export function useFaceSection(project:Project|null,selection:FaceSelection|null,offsetMm:number,active:boolean,sceneToken:string,automatic=true,blocked=false,sourceBinding?:ProjectSourceBinding|null){
+ const capture=useMemo(()=>{const value=captureFaceSection(project,selection,offsetMm,active,sourceBinding);return value?{...value,key:JSON.stringify([value.key,sceneToken])}:null;},[project,selection,offsetMm,active,sceneToken,sourceBinding]);
  const forced=useRef<{key:string;epoch:number}|null>(null);
  const latest=useRef({key:"",epoch:0});
  if(latest.current.key!==(capture?.key??"")){latest.current={key:capture?.key??"",epoch:latest.current.epoch+1};forced.current=null;}
@@ -26,5 +27,5 @@ export function useFaceSection(project:Project|null,selection:FaceSelection|null
   },delay);return()=>clearTimeout(timer);
  },[capture,result.key,tick,forceTick,automatic,blocked]);
  const aligned=!!capture&&result.key===capture.key,report=aligned?result.report:undefined;
- return{available:!!capture,working:working||blocked,pending:!!capture&&(working||(automatic&&!aligned)),report,error:aligned?result.error:undefined,plane:report?.geometry.plane,calculate:()=>{if(!capture||blocked||inFlight.current)return;forced.current={key:capture.key,epoch:latest.current.epoch};setForceTick(value=>value+1);}};
+ return{available:!!capture,working:working||blocked,pending:!!capture&&(working||(automatic&&!aligned)),report,error:aligned?result.error:undefined,plane:report?.geometry.plane,calculate:()=>{if(!capture||blocked||inFlight.current||latest.current.key!==capture.key)return;forced.current={key:capture.key,epoch:latest.current.epoch};setForceTick(value=>value+1);}};
 }

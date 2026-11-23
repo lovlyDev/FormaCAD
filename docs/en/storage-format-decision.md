@@ -83,3 +83,11 @@ in the [program](storage-program.md) and Issue #29. lovlyDev retains acceptance
 of the format and production integration.
 Security CI separately reports existing Wasmtime vulnerabilities in Issue #3's
 area; this task branch neither changes that dependency nor suppresses the audit.
+
+## Pure saved-model preparation
+
+The first approved stage 4 step separates `modeling/prepared_change` from managed persistence. Existing saving follows real CAD build → `commit::commit` → pure `prepare` → `PreparedModelChange::into_parts` → the same `projects::persist`. Preparation assembles the next revision and STEP/GLB descriptors, normalizes pending bytes, checks cancellation and validates Project. It performs no filesystem/SQL/clock IO or publication. The host supplies one timestamp, sampled immediately before preparation rather than after data URL construction.
+
+Filenames, parent/job/program binding, parameter defaults and metadata are retained. Identical output bytes have the same hashes; the existing normalizer may return duplicate pending entries with one hash. This is not new CAS publication/deduplication. Normalization errors still precede cancellation; an invalid Project is now rejected before candidate success, as well as by persistence.
+
+The privately constructed, nonserialized candidate is not a writer lease, permission, history intent or commit receipt. A backend must still check original session/location/expected commit and history under genuine writer authority. This step does not implement the standalone folder or shared asset/permission contract. Six synthetic unit regressions cover metadata/revision preservation, descriptors, matching hashes, cancellation and errors; Rust execution awaits new CI. Synthetic bytes do not establish CAD geometry validity.

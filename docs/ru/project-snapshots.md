@@ -73,3 +73,9 @@ read-only/reacquire, смену пути/реестра и pending recovery. П�
 Frontend-регрессия `apps/desktop/src/i18n/errorText.test.ts` проверяет все три новых кода на русском и английском, перевод сообщения и отдельное сохранение исходной диагностики. Нативные проверки общего снимка, копирования, экспорта и совместимости измерений выполняются отдельно; результат релизной проверки фиксируется после их завершения. Тест переводов не доказывает блокировки ОС или crash recovery. Готовность всего хранения 2.0 этим пунктом не заявляется.
 
 Реализация: [project_repository/legacy](../../apps/desktop/src-tauri/src/project_repository/legacy/mod.rs), `capture_project` / `capture_with_history`.
+
+### Directory-only открытие на Unix
+
+Unix identity adapter открывает ожидаемый каталог с `O_DIRECTORY | O_NOFOLLOW`, а не открывает произвольный файл с последующей проверкой metadata. Это важно и для отказа на symlink, и для сохранности SQLite: [SQLite описывает](https://www.sqlite.org/howtocorrupt.html) снятие process-wide POSIX record locks при закрытии постороннего дескриптора того же файла. Неподдерживаемые Unix ABI не получают предположительных числовых flags. Известные flags проверены для Linux x86-64/AArch64 и macOS; Windows сохраняет отдельный handle route.
+
+Регрессия держит настоящий SQLite `BEGIN IMMEDIATE`, вызывает отказ directory adapter на пути базы и трижды проверяет kernel contention из собственного child test process: busy до отказа, busy после отказа и успешный захват после rollback. Это не только проверка in-process SQLite bookkeeping. Child привязан к точному test name, собственной БД и nonce; runtime PASS должен быть подтверждён новым CI. Эта коррекция не доказывает NAS/USB/power-loss или самостоятельный folder commit.

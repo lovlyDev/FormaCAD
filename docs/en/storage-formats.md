@@ -183,8 +183,296 @@ the unnecessary dereference without weakening lint.
 
 ## Shared integration
 
+The next real CAD executor seam has a separate
+[exact contract and patch](../integration/storage-folder-execution.md) for six
+files. It was applied after lovlyDev separately authorized all six paths,
+including the two Issue #3 native asset files under specification §5. This does not establish a working
+folder model commit.
+
+### Independent SQLite backend foundations (stage 4, verification)
+
+`project_repository/sqlite_folder` introduces a separate FCP1 schema
+(`application_id=0x46435031`, `user_version=1`). Repository, project and commit
+UUIDs are distinct. The reader checks the complete schema fingerprint and seals
+the project, cursor and history archive with hashes. Publication distinguishes
+confirmed commits, rejection before COMMIT and indeterminate COMMIT outcomes;
+an indeterminate operation must not be retried automatically. Initialization
+refuses to alter a nonempty foreign database.
+
+The reader uses a non-default SQLite VFS denying writes, journal recovery, SHM
+and ATTACH. It checks the actual opened file, retains its directory binding and
+reads CAS through SQLite file primitives so closing an accidental Unix hardlink
+does not release another connection's process locks. This layer supports Linux
+and Windows; other platforms fail explicitly. Its ABI check pins SQLite 3.46.0
+from the current lockfile.
+The main database must also have exactly one filesystem link: another hardlink
+name could hide the original rollback/WAL journal namespace. Refusal removes
+neither the original database/journal nor the alternate path.
+Writes compare the complete captured snapshot inside `BEGIN IMMEDIATE`, rather
+than only the commit UUID. Same-ID metadata changes with recomputed hashes do
+not authorize overwriting the source. A SQLite commit-hook regression models
+COMMIT refusal: the indeterminate operation retains its known UUID, and a fresh
+read determines actual state without replaying the command.
+Known-UUID resolution distinguishes the current head, an earlier saved commit
+and absence from the validated chain. It runs in one SQL transaction and checks
+repository/project UUIDs. Absence does not authorize automatic replay. The
+session permits resolution after the head advances, but rejects it after close
+or through a different opening.
+
+`project_access/folder_lease` retains a separate selected-folder writer lock.
+Initialization requires an existing empty directory and does not claim atomic
+reservation of an external namespace. Operations retain directory handles,
+detect replacement and refuse links.
+
+These modules are currently registered **only in test builds**. There is no FCP1
+open/write user action yet. Tests cover the SQL contract, sidecar/WAL refusal,
+source preservation and independent locks; they do not establish CAD commits,
+crash recovery or stage 4 completion. Local compilation needs the Windows MSVC
+linker. CI must verify this code before production routing is connected.
+
+`sqlite_folder/cas` validates the whole candidate and pending batch before IO.
+Existing objects are verified only through the VFS; new objects use `create_new`
+and are written and flushed before SQL references appear. The published batch
+retains its directory, writer lease and original new-file handles until SQL
+outcome resolution. Failure leaves an unreferenced object for explicit recovery
+instead of overwriting or deleting an existing file. Bootstrap requires all
+candidate bytes and refuses any existing digest. Linux flushes the assets
+directory; Windows uses write-through and new-file flushes. Process-crash tests
+do not prove arbitrary-device power-loss durability. Flushing the root after
+creating assets remains part of the future bootstrap protocol.
+
+`sqlite_folder/write_connection` initially opens existing FCP1 without permission
+to mutate data or recover journals. Under `BEGIN IMMEDIATE`, it verifies the
+schema and full captured snapshot before permitting its own DELETE rollback
+journal. The VFS retains the lease through actual base-file close, including
+cancelled SQLx connect and asynchronous Drop. Foreign journal/WAL/SHM, a different
+head or schema cause refusal. Linux journal unlink remains an optimistic check
+under the cooperative lease, without claiming atomic unlink-if-inode-matches
+against an unrelated namespace swap. This layer also remains test-only.
+
+New database creation has a separate private VFS mode: exactly one
+`MAIN_DB | READWRITE | CREATE | EXCLUSIVE`, followed by actual empty-file identity
+attestation. Existing or raced files are never adopted. Only this mode receives
+DDL authority for the immutable FCP1 schema; initialization is followed by saved
+snapshot validation and the normal policy. Nonconfirmed outcomes poison further
+connection use, and failures after COMMIT retain the UUID as Indeterminate.
+Linux additionally flushes assets/.forma/root. Four new checks cover fresh reads,
+existing-file refusal, interruption before the schema transaction and cancelled
+connect; they are not the complete crash matrix. The host create/model route is
+still not connected.
+
+`sqlite_folder/creation` combines project/complete-asset validation, reservation
+of the selected empty directory, CAS publication and SQL bootstrap. The blocking
+publication job owns its lease: async cancellation cannot release it during IO
+or start SQL after the caller is gone. The VFS source retains
+`Arc<PublishedCasBatch>` through actual close; closing after SQL errors preserves
+the known commit UUID. New tests cover a separate test-process read without app
+index, nonempty-folder refusal and cancellation at an actual blocking-job barrier.
+These storage fixtures use synthetic bytes, not a real CAD model commit.
+
+Existing writes now require a `ReadBinding` minted only by the original
+FolderSession under its mutex after snapshot recheck. It binds opening, location
+and original actual DB identity. The VFS compares its actual writer base before
+allowing journal/write authority. A copy's identical SQL UUIDs/seals do not
+replace physical source authority. Once an operation owns a journal, it may
+finish or roll back after lifecycle revocation; its result must not be accepted
+into a closed UI session, and a possibly committed UUID requires resolution.
+Close does not promise atomic cancellation of an already-started SQLite commit.
+
+`FolderSession::commit` combines exact snapshot/history-intent checks, the real
+writer lease, CAS job and SQL commit. It holds the original reader mutex through
+completion so that session does not mistake its own journal for foreign recovery.
+After COMMIT, it verifies the new snapshot and CAS; verification/close/lifecycle
+failure returns Indeterminate with the known UUID, without replay.
+
+For long CAD jobs, `latest_compatible` permits fresh metadata: equal current
+revision/files/revisions, the original immutable commit node and only intervening
+commits retaining original cursor/archive seals. One read transaction checks the
+full validated chain without a schema change. Model edits and undo/redo do not
+become metadata-only merely because geometry returns to an earlier state. The
+result is a new exact commit snapshot within the original opening.
+
+Shared [modeling/command request preparation](../integration/storage-model-request.md)
+was applied after separate approval for five files. It extracts existing limits,
+program, ReviewPlan, no-op and job checks without changing managed permission/task
+ordering. The separately approved [common orchestration patch](../integration/storage-repository-apply.md)
+is now applied: managed execution retains its original read session and compares
+revision contents/history as well as head/files, while retaining compatible latest
+metadata. Pending recovery is refused rather than reconciled by this route.
+The folder adapter now uses that same algorithm with an opening-specific task
+UUID and an explicit single-use Rust host grant. The grant retains the original
+opening/location binding and never replaces the OS writer lease.
+The grant also retains a small original commit/project/cursor/archive stamp,
+without copying complete project/history payloads. Saved-state changes between
+explicit approval and the initial CAD capture are rejected before task
+registration, worker execution or writes. A fresh snapshot cannot silently stand
+in for the approved command; the host must present the current state again.
+After the initial capture, verified compatible metadata continuation remains
+supported without recapturing the original lifecycle. Required STEP
+inputs come from the original snapshot; final publication checks original
+model/history compatibility and the exact latest state before session commit.
+An indeterminate commit stays indeterminate. UI/IPC wiring remains incomplete.
+
+The native CI workflow explicitly runs the ignored
+`real_worker_folder_roundtrip` test with `FORMA_FOLDER_TEST_WORKER` pointing to
+the built worker. It creates a standalone empty project, commits 40 mm and 80 mm
+boxes using common CAD execution, undoes to 40 mm, closes, checks the saved STEP
+in a nonce-confirmed child process, then reopens and redoes to 80 mm. Inspection
+checks volume and bounds using the actual worker. The workflow requires one
+executed passing test; default library skips are not evidence for this route.
+At `d1368cc`, native run `41430475640` explicitly executed this vertical test:
+1 passed, 0 failed. Its normal library run passed 491 tests (13 ignored), the
+worker suite passed 11 and host suites passed 7/7/9. Storage comparison
+`41430476355` passed; Windows, Linux, both macOS jobs and frontend also passed.
+Overall Quality remained red solely on the existing Wasmtime 50.0.0 security
+advisories. This evidence applies to that exact head; later source/transfer work
+requires its own CI and does not establish connected external-folder UI.
+
+Strict CI at `708877f` found that the publication-guard GAT caused a higher-ranked
+Send error and an unintended static AppState borrow. Publication now has a plain
+associated type, with the managed guard bound to its actual state lifetime.
+The source checks, held lock and compile-time Send regressions remain intact;
+the correction still needs current-head CI.
+
+The corrected `09ea6b1` compilation no longer reported that lifetime error;
+strict lint instead rejected the generic result enum's large no-op Project
+variant. It is now boxed without changing the managed result. A guard regression
+also checks that the real state mutex stays locked after a temporary host is
+dropped. At `c3781e9`, the copy test incorrectly expected undo/redo to reuse a
+revision UUID. It now checks restored model contents, fresh identity and the
+correct parent, including a second undo/redo cycle. Those corrections need CI.
+
+The [V2-to-FCP1 migration design](../integration/storage-folder-migration-design.md)
+requires a separate, independently verified V2 backup before target conversion.
+The backup preserves exact published manifest bytes and every listed entry;
+unlisted files and old generations are excluded. The conversion preserves project
+and revision UUIDs, timestamps and portable history, unlike Save Copy. Its report
+retains backup provenance even when the target fails, and preserves a known target
+commit UUID after any late verification failure. Source and backup checks surround
+the existing creation transaction; there is no transaction spanning three folders.
+Implementation and fault regressions are still under verification, with no UI.
+This is an explicit published-folder migration: V2 cannot discover a pending mirror
+intent hidden in an unrelated app SQL database. Managed callers require the pure
+legacy recovery check. A genuine 1.1 project is not accepted as V2; its last STEP
+requires a separate new-project import without a claim to restored parametrics.
+
+`project_repository/selected_step` is an explicitly selected STEP source exposed
+through `api::SelectedStepFile` in supported native-client Rust builds. It is not
+an old database reader. It retains the original file handle, directory
+identity, SHA-256, bounded size and distinct opening. It rejects unsafe links and
+nonregular inputs, checks the 40 MiB limit before allocating a payload, and uses
+one mutex-protected file without descriptor duplication. Recheck hashes in 32 KiB
+chunks. Reopen, path replacement and close never refresh the original authority.
+Windows denies write/delete sharing; Linux uses optimistic identity/hash checks,
+not an epoch for external writes. Close revokes the capability immediately while
+a retained snapshot can keep its physical handle alive longer. This establishes
+input-byte provenance, not valid CAD geometry or recovered 1.1 history. Transfer
+through common CAD execution is implemented by the test-only
+[transfer controller](storage-step-transfer.md), with first SQL publication after
+worker validation. Its runtime tests still need CI; UI/IPC remain incomplete.
+
+The trusted `FolderSession::apply_history` backend now uses the existing pure
+history planner and session commit route. It requires a captured snapshot rather
+than a revision ID. New synthetic storage regressions cover undo, a fresh child
+process reading its CAS artifact, reopening for redo, and stale/closed refusal.
+These tests do not establish CAD geometry correctness and await execution in CI.
+
+At `1c5d59e`, Linux library CI passed 387 tests (9 ignored). Native run
+41326510425 passed 454 library tests, 11 worker tests and host suites of 7/7/9;
+storage comparison and Clippy also passed. Windows aborted when a test hook read
+an empty locked writer-lock file. The fixture now checks its zero length without
+reading locked bytes, and test hooks catch panics before returning across C ABI.
+The new history tests and Windows correction require a fresh CI run.
+
+The folder executor asset adapter prefetches only selected captured descriptors
+through verified session reads. Metadata and unique-hash byte limits are checked
+before CAS payload buffers are allocated; names sharing a hash share the cached
+bytes. The synchronous existing CAD callback accepts only selected descriptors
+and checks the original opening/location binding. Cached input does not authorize
+publication: the host must recheck the original model after execution. The adapter
+does not invoke CAD or connect the external-folder UI by itself.
+
+The independent save-copy backend targets an existing empty directory and needs
+no source writer lease or app-index row. It preserves revision IDs and portable
+history while assigning new project/repository identity. It verifies source CAS,
+rechecks the original snapshot after destination CAS staging and before SQL, then
+checks it again after publication. There is no atomic transaction across source
+and destination. If the final check fails after a destination commit, its known
+commit UUID is retained as an indeterminate outcome; the copy is neither replayed
+nor deleted automatically. Interrupted staging may leave unreferenced destination
+assets. Source bytes and history remain untouched. New adapter/copy regressions
+require CI; these are backend APIs, not available UI scenarios.
+
+Runtime CI at 79431c2 found excessive VFS refusal: optional SYNC/COMMIT_PHASETWO
+pager notifications returned READONLY. They now report NOTFOUND without delegation,
+as SQLite permits. Bootstrap authorization allows REINDEX solely for the frozen
+main index during creation. Initial writer attestation preserves original recovery
+errors. These fixes still require new runtime CI.
+
+Reader/writer now compile a single SQLite C ABI/platform binding after Clippy
+identified duplicate modules and clashing extern declarations. Per-IO checks use
+identity/lease; full CAS hashes remain at publication boundaries instead of
+rehashing every attachment for every SQLite page.
+
+CI showed that a SQLx connection must be discarded after COMMIT failure; outcome
+resolution uses a fresh connection. The file-backed regression now follows that
+route. Windows writer directory handles request FILE_LIST_DIRECTORY because
+attribute-only opens do not enforce the intended delete-sharing check; the
+assets-retention test detected this limitation.
+
+`sqlite_folder/session` retains a distinct opening and serializes access to its
+SQLite connection. Capture and recheck compare repository/project UUIDs, commit
+identity and validated state hashes. Close immediately revokes the opening,
+including operations waiting for the mutex. Another opening cannot accept a
+snapshot even from a copied folder with identical UUIDs. Asset reads require the
+exact captured descriptor, verify CAS and then recheck SQL state. New regressions
+cover copying/reopening, metadata commits during a live session, close while
+waiting and asset replacement. These also require execution in CI.
+
 The [measurement contract and exact patch](../integration/storage-measurement-session.md)
 target the current main baseline. lovlyDev separately authorized the six listed
 files on 29 October 2026, and the patch is applied in the task branch. Compilation
 and real-worker results remain required. Other Issue #3 files, worker protocol and
 Cargo remain outside task edits.
+
+## FCP1 publication and writer process contention
+
+| State | Durable project state |
+| --- | --- |
+| Staging | The writer verifies the captured session and obtains the OS lease. Pending files and metadata belong to the attempted operation. |
+| Validated | CAS objects are checked and flushed. A SQLite transaction validates the expected saved state, the new project and the history. Unreferenced CAS objects can remain after an interruption. |
+| Published | Successful SQLite `COMMIT` makes metadata, history and the head visible together. An ambiguous reply requires checking the attempted commit UUID from a fresh read. |
+| Indexed | The application can update its location and recent-project information. Opening the folder can reconstruct access if the index is missing. |
+
+The test `reader_can_copy_but_cannot_write_until_the_other_process_is_killed`
+starts a writer in a separate process and parks the real commit route after it
+acquires the lease, before CAS publication. The parent reads the saved commit,
+history and attachment through the folder host. It checks refusal with
+`PROJECT_READ_ONLY` and creates a copy with a new project ID. It then kills
+the writer, checks that the lock file and original SQL bytes remain, and
+publishes a new commit through the same reader opening. The fixture uses a
+local filesystem and a synthetic attachment. Later interruption points,
+explicit recovery and physical USB/NAS behavior have independent acceptance checks.
+
+On Linux, `vanished_folder_and_external_replacement_cannot_receive_a_late_write`
+moves the selected directory while publication is paused. It checks refusal
+while the path is missing and after a different repository with the same project
+ID takes its place. The interrupted write must change neither SQL nor CAS.
+The original directory is then written through a fresh opening while detached.
+After it returns, a new opening must see the external commit. The old opening
+must remain invalidated. This is a local namespace change with real files.
+
+The child-process crash test covers the following boundaries. It kills the
+writer at each barrier and reopens the folder without the application index.
+
+| Interruption | Expected result on reopening |
+| --- | --- |
+| Before staging | The previous commit and SQL bytes are unchanged. The new asset is absent. |
+| After flushing CAS | The previous commit and SQL bytes are unchanged. The new CAS object has no project reference. |
+| During SQL updates | An existing rollback journal causes `PROJECT_SNAPSHOT_RECOVERY_REQUIRED`. The open attempt preserves both files. |
+| After validating SQL and before commit | The same read-only refusal preserves the journal and database. |
+| After SQLite commit | The new commit, metadata, history and asset are readable without the global index. |
+
+These are real process exits on a local disk. They exercise the application's
+publication route with synthetic data. Power-loss durability, recovery and
+removable or network media require separate evidence.

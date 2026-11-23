@@ -12,6 +12,45 @@ PR №5 подтверждён объединённым через API; 29 ок�
 этапы — №28–34; область Issue №3 прочитана и остаётся исключённой.
 Версии, релизы, установка и область native/Cargo/worker исключены из изменений.
 
+## Текущее положение: 4 ноября 2026
+
+`7e02a7c` прошёл strict Clippy без native client и 92 теста папочного backend
+(0 failed, 5 ignored) в
+[run 41736623409](https://github.com/lovlyDev/FormaCAD/actions/runs/41736623409),
+job `126267360681`. Включены SQL authorizer с запретом event reads, отказ
+history/copy/write повреждённому archive и original-view проверка после внешнего
+commit. Следующий обязательный native-client gate снова остановился на известном
+snap E0609; весь run остаётся красным.
+
+`2423200` совмещает принятую владельцем основу `6a882fe` с задачной веткой;
+конфликты были только в RU/EN i18n и разрешены объединением ключей. Версия 1.6.1,
+Cargo/lock/Tauri и release-файлы унаследованы из main без задачного изменения.
+Локально на совмещённом коде прошли frontend build, 294 unit tests в 104 файлах,
+51 browser test (41 native-fixture skip, 0 failed), i18n 1480, docs 172,
+migrations и Rust formatting. Две пустые строки EOF в settings-and-updates
+унаследованы из main; собственные staged изменения прошли diff check.
+Current-head remote CI ещё не подтверждён. Эти результаты не доказывают native
+geometry или подключённый пользователю folder UI.
+
+Активен этап 4; этапы 5–7 не завершены. В задачную ветку принят `main`
+`a4aec3e6` с M2; согласованный патч сохраняет amend/Undo и исходный storage
+сеанс. [Rust host API](storage-folder-host-api.md) подключает FCP1 к обычной
+поддерживаемой сборке и общему reader без app SQL. На `ca66156` strict Clippy
+без native client и четыре API-теста прошли в
+[run 41607907708](https://github.com/lovlyDev/FormaCAD/actions/runs/41607907708).
+Полный run красный: обязательный native-client gate нашёл E0609 нового snap
+consumer. Точный однострочный патч затем одобрен lovlyDev 4 ноября и применён в
+`1b54cd4`; его новые native-проверки ещё выполняются. Scope зафиксирован в
+[Issue #31](https://github.com/lovlyDev/FormaCAD/issues/31#issuecomment-6599119794).
+
+На `edd2f92` production V2 backup/migration API прошёл strict Clippy без native
+client и все шесть API-тестов в run `41609704135`; полный run снова отклонил
+известный snap E0609. Windows/Linux/macOS ARM Quality jobs прошли. Отдельное
+macOS исправление ограничивает writer stamp поддерживаемыми Windows/Linux,
+не выключая macOS jobs. Разделение metadata/archive теперь добавлено в FCP1,
+но требует текущих регрессий и замеров. UI/index, настоящая fixture 1.1 и hardware gates остаются
+незавершёнными. Исторические результаты ниже относятся только к указанным SHA.
+
 ## Приёмка этапов 1–3
 
 Ветка `codex/storage-1-3-acceptance` переносит этапы #28–#30 на
@@ -19,7 +58,6 @@ PR №5 подтверждён объединённым через API; 29 ок�
 снимка, сохраняя состояние текущей модели до получения ответа. Привязка
 курсора M2 использует проект из того же снимка, что и захваченная
 геометрия. Самостоятельная запись во внешнюю папку остаётся в этапе #31.
-
 ## Исправление сеанса общего снимка
 
 Пользователь продолжает пользоваться существующими чтением вложений,
@@ -150,3 +188,14 @@ job 123428058352, head `147a0dd05e1a15c94c7656b9569eca4f028b795c`:
 поздние pair/face ответы и установленный UI остаются отдельными gates.
 
 Навигационная регрессия отдельно переключает проекты A/B с одинаковыми revision ID и body ID в непрозрачном тестовом model program: поздний ответ A не заменяет B. Проверены пять navigation-тестов после усиления фикстуры. Это проверка frontend identity/generation, не корректности CAD-документа или ядра.
+
+## Кэш зависимостей собственных проверок
+
+В storage comparison/native workflows `Swatinem/rust-cache@v2` сохраняет кэш
+зависимостей и при ошибке job (`cache-on-failure: true`). Стандартные ключи
+toolchain/Cargo environment сохранены; workspace crates не включены в кэш.
+Результаты тестов, source SHA и compile gates этим не заменяются. Настройка
+уменьшает повторную компиляцию неизменившихся зависимостей после исправления
+нашего кода; фактическое ускорение нужно оценивать по времени следующих runs.
+Quality владельца, Cargo и версии не меняются.
+Параметр описан в [документации rust-cache](https://github.com/Swatinem/rust-cache#configuration).

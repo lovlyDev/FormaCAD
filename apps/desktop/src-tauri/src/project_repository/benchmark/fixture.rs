@@ -25,7 +25,7 @@ pub(super) async fn read_project(pool: &SqlitePool, id: &str) -> Project {
     project
 }
 
-pub(super) async fn build(
+pub(crate) async fn build(
     root: &Path,
     revisions: usize,
     attachments: usize,

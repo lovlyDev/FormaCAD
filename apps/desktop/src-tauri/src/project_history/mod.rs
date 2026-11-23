@@ -22,6 +22,10 @@ pub(crate) use state::{prepare_amend, AmendCapture};
 use crate::{
     core::{AppError, AppState, Result},
     models::Project,
+    project_repository::window_sources::{
+        write_ipc::{self, Command as FolderCommand, FolderWriteRequest, WriteReply},
+        WindowSources,
+    },
 };
 use serde::Serialize;
 use tauri::State;
@@ -37,9 +41,21 @@ pub struct HistoryStatus {
 #[tauri::command]
 pub async fn history_status(
     project_id: String,
+    source_id: Option<String>,
+    expected_commit_id: Option<String>,
+    window: tauri::WebviewWindow,
+    sources: State<'_, crate::project_repository::window_sources::WindowSources>,
     state: State<'_, AppState>,
 ) -> Result<HistoryStatus> {
-    status_for(&state, &project_id).await
+    match (source_id, expected_commit_id) {
+        (None, None) => status_for(&state, &project_id).await,
+        (Some(source_id), Some(commit)) => {
+            sources
+                .folder_history_status(window.label(), &source_id, &project_id, &commit)
+                .await
+        }
+        _ => Err(AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into())),
+    }
 }
 
 pub async fn apply_history(
@@ -79,9 +95,24 @@ pub async fn apply_history(
 pub async fn undo_model(
     project_id: String,
     expected_revision: Option<String>,
+    folder_write: Option<FolderWriteRequest>,
+    window: tauri::WebviewWindow,
+    sources: State<'_, WindowSources>,
     state: State<'_, AppState>,
     app: tauri::AppHandle,
-) -> Result<Project> {
+) -> Result<WriteReply> {
+    if let Some(request) = folder_write {
+        return write_ipc::execute(
+            &sources,
+            &state,
+            window.label(),
+            &project_id,
+            request,
+            FolderCommand::History(Direction::Undo),
+            expected_revision.is_some(),
+        )
+        .await;
+    }
     apply_history(
         &state,
         &project_id,
@@ -90,15 +121,31 @@ pub async fn undo_model(
         Some(&app),
     )
     .await
+    .map(WriteReply::from)
 }
 
 #[tauri::command]
 pub async fn redo_model(
     project_id: String,
     expected_revision: Option<String>,
+    folder_write: Option<FolderWriteRequest>,
+    window: tauri::WebviewWindow,
+    sources: State<'_, WindowSources>,
     state: State<'_, AppState>,
     app: tauri::AppHandle,
-) -> Result<Project> {
+) -> Result<WriteReply> {
+    if let Some(request) = folder_write {
+        return write_ipc::execute(
+            &sources,
+            &state,
+            window.label(),
+            &project_id,
+            request,
+            FolderCommand::History(Direction::Redo),
+            expected_revision.is_some(),
+        )
+        .await;
+    }
     apply_history(
         &state,
         &project_id,
@@ -107,4 +154,5 @@ pub async fn redo_model(
         Some(&app),
     )
     .await
+    .map(WriteReply::from)
 }

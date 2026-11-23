@@ -209,11 +209,14 @@ async fn close_and_reopen_while_final_preview_cleanup_waits_rejects_verified_pac
     let source = state.root.join(&project.id);
     std::fs::create_dir(&source).unwrap();
     std::fs::write(source.join("sentinel.txt"), b"unchanged preview source").unwrap();
-    let snapshot = legacy::capture_project(&state, &project.id).await.unwrap();
+    let snapshot =
+        RepositoryRead::capture(ProjectRepository::managed(&state, &project.id).unwrap())
+            .await
+            .unwrap();
     let cancel = Arc::new(AtomicBool::new(false));
     let packet = super::super::build::build_with_project(
         &state,
-        &snapshot.project,
+        snapshot.project(),
         &program(),
         cancel.clone(),
         &worker(),
@@ -222,7 +225,7 @@ async fn close_and_reopen_while_final_preview_cleanup_waits_rejects_verified_pac
     .unwrap();
     let n = u32::from_le_bytes(packet[..4].try_into().unwrap()) as usize;
     assert_eq!(&packet[4 + n..8 + n], b"glTF");
-    legacy::recheck(&state, &snapshot).await.unwrap();
+    snapshot.recheck().await.unwrap();
     let before = fixture::logical(&state, &project.id).await;
     let files = fixture::files(&source);
     let marker = format!("preview:{}", project.id);

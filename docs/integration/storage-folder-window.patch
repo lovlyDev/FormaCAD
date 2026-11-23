@@ -1,0 +1,396 @@
+diff --git a/apps/desktop/src-tauri/src/lib.rs b/apps/desktop/src-tauri/src/lib.rs
+index 1fe42c1..4f92d8c 100644
+--- a/apps/desktop/src-tauri/src/lib.rs
++++ b/apps/desktop/src-tauri/src/lib.rs
+@@ -57,6 +57,14 @@ pub fn run() {
+         .plugin(tauri_plugin_window_state::Builder::default().build())
+         .plugin(tauri_plugin_deep_link::init())
+         .manage(account::AccountState::default())
++        .manage(project_repository::window_sources::WindowSources::default())
++        .on_window_event(|window, event| {
++            if matches!(event, tauri::WindowEvent::Destroyed) {
++                window
++                    .state::<project_repository::window_sources::WindowSources>()
++                    .close_window(window.label());
++            }
++        })
+         .setup(|app| {
+             let data = app.path().app_data_dir()?;
+             std::fs::create_dir_all(&data)?;
+@@ -93,6 +101,8 @@ pub fn run() {
+         .invoke_handler(tauri::generate_handler![
+             projects::list_projects,
+             projects::read_project_snapshot,
++            project_repository::window_sources::ipc::open_project_folder,
++            project_repository::window_sources::ipc::close_project_source,
+             projects::save_project_thumbnail,
+             projects::delete_project,
+             projects::interrupted_sessions,
+diff --git a/apps/desktop/src-tauri/src/projects.rs b/apps/desktop/src-tauri/src/projects.rs
+index 9f00347..046c3ea 100644
+--- a/apps/desktop/src-tauri/src/projects.rs
++++ b/apps/desktop/src-tauri/src/projects.rs
+@@ -58,8 +58,19 @@ pub async fn list_projects(
+     catalog::list(&state).await
+ }
+ #[tauri::command]
+-pub async fn read_project_snapshot(id: String, state: State<'_, AppState>) -> Result<Project> {
+-    catalog::read(&state, &id).await
++pub async fn read_project_snapshot(
++    id: String,
++    source_id: Option<String>,
++    expected_commit_id: Option<String>,
++    window: tauri::WebviewWindow,
++    sources: State<'_, crate::project_repository::window_sources::WindowSources>,
++    state: State<'_, AppState>,
++) -> Result<Project> {
++    match (source_id, expected_commit_id) {
++        (None, None) => catalog::read(&state, &id).await,
++        (Some(source), Some(commit)) => sources.read(window.label(), &source, &id, &commit).await,
++        _ => Err(AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into())),
++    }
+ }
+ #[tauri::command]
+ pub async fn save_project_thumbnail(
+diff --git a/apps/desktop/src-tauri/src/project_repository/mod.rs b/apps/desktop/src-tauri/src/project_repository/mod.rs
+index 644b39d..39087d6 100644
+--- a/apps/desktop/src-tauri/src/project_repository/mod.rs
++++ b/apps/desktop/src-tauri/src/project_repository/mod.rs
+@@ -21,4 +21,5 @@ mod session;
+     )
+ ))]
+ pub mod sqlite_folder;
++pub mod window_sources;
+ pub use legacy::{capture_history_state, recheck_history_state, HistoryStateSnapshot};
+diff --git a/.github/workflows/storage-benchmark.yml b/.github/workflows/storage-benchmark.yml
+index f4ee903..eb91cc0 100644
+--- a/.github/workflows/storage-benchmark.yml
++++ b/.github/workflows/storage-benchmark.yml
+@@ -45,6 +45,11 @@ jobs:
+           grep -E '^test result: ok\. [1-9][0-9]* passed; 0 failed;' storage-evidence/host-api-tests.log
+           grep -E 'test project_repository::sqlite_folder::format::metadata_tests::metadata_succeeds_with_event_reads_denied_and_cannot_be_mistaken_for_full_archive \.\.\. ok' storage-evidence/host-api-tests.log
+           grep -E 'test project_repository::sqlite_folder::api::metadata_tests::metadata_does_not_adopt_unverified_archive_as_write_copy_or_history_authority \.\.\. ok' storage-evidence/host-api-tests.log
++      - name: Test window-owned folder source routing
++        run: |
++          set -o pipefail
++          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib project_repository::window_sources:: -- --nocapture 2>&1 | tee storage-evidence/window-source-tests.log
++          grep -F 'test result: ok. 1 passed; 0 failed;' storage-evidence/window-source-tests.log
+       - name: Measure actual FCP1 metadata and complete read scopes
+         env:
+           TMPDIR: ${{ runner.temp }}
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/mod.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/mod.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/mod.rs
+@@ -0,0 +1,134 @@
++//! Window-local FCP1 sources. No app project rows or persisted access keys.
++use crate::{
++    core::{AppError, Result},
++    models::Project,
++};
++pub mod ipc;
++
++#[cfg(any(
++    windows,
++    all(
++        target_os = "linux",
++        any(target_arch = "x86_64", target_arch = "aarch64")
++    )
++))]
++mod supported;
++#[derive(Default)]
++pub struct WindowSources {
++    #[cfg(any(
++        windows,
++        all(
++            target_os = "linux",
++            any(target_arch = "x86_64", target_arch = "aarch64")
++        )
++    ))]
++    scopes: std::sync::Mutex<
++        std::collections::HashMap<String, std::sync::Arc<super::sqlite_folder::api::FolderSources>>,
++    >,
++}
++fn changed() -> AppError {
++    AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into())
++}
++
++impl WindowSources {
++    pub fn close_window(&self, label: &str) {
++        #[cfg(any(
++            windows,
++            all(
++                target_os = "linux",
++                any(target_arch = "x86_64", target_arch = "aarch64")
++            )
++        ))]
++        {
++            let scope = self
++                .scopes
++                .lock()
++                .unwrap_or_else(|error| error.into_inner())
++                .remove(label);
++            if let Some(scope) = scope {
++                let _ = scope.close_all();
++            }
++        }
++        #[cfg(not(any(
++            windows,
++            all(
++                target_os = "linux",
++                any(target_arch = "x86_64", target_arch = "aarch64")
++            )
++        )))]
++        let _ = label;
++    }
++    pub async fn read(&self, label: &str, key: &str, id: &str, expected: &str) -> Result<Project> {
++        #[cfg(any(
++            windows,
++            all(
++                target_os = "linux",
++                any(target_arch = "x86_64", target_arch = "aarch64")
++            )
++        ))]
++        {
++            let source = self.existing(label)?.lookup(key)?;
++            let view = source.capture_metadata().await?;
++            if view.project().id != id || view.commit_id() != expected {
++                return Err(changed());
++            }
++            let project = view.project().clone();
++            source.recheck(&view).await?;
++            Ok(project)
++        }
++        #[cfg(not(any(
++            windows,
++            all(
++                target_os = "linux",
++                any(target_arch = "x86_64", target_arch = "aarch64")
++            )
++        )))]
++        {
++            let _ = (label, key, id, expected);
++            Err(AppError::Invalid("PROJECT_FOLDER_UNSUPPORTED".into()))
++        }
++    }
++    pub fn close_source(&self, label: &str, key: &str) -> Result<bool> {
++        #[cfg(any(
++            windows,
++            all(
++                target_os = "linux",
++                any(target_arch = "x86_64", target_arch = "aarch64")
++            )
++        ))]
++        {
++            self.existing(label)?.close(key)
++        }
++        #[cfg(not(any(
++            windows,
++            all(
++                target_os = "linux",
++                any(target_arch = "x86_64", target_arch = "aarch64")
++            )
++        )))]
++        {
++            let _ = (label, key);
++            Err(changed())
++        }
++    }
++}
++
++impl Drop for WindowSources {
++    fn drop(&mut self) {
++        #[cfg(any(
++            windows,
++            all(
++                target_os = "linux",
++                any(target_arch = "x86_64", target_arch = "aarch64")
++            )
++        ))]
++        for scope in self
++            .scopes
++            .get_mut()
++            .unwrap_or_else(|error| error.into_inner())
++            .values()
++        {
++            let _ = scope.close_all();
++        }
++    }
++}
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/supported.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/supported.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/supported.rs
+@@ -0,0 +1,32 @@
++use super::{changed, WindowSources};
++use crate::{
++    core::{AppError, Result},
++    project_repository::sqlite_folder::api::FolderSources,
++};
++use std::sync::Arc;
++
++impl WindowSources {
++    pub(super) fn for_window(&self, label: &str) -> Result<Arc<FolderSources>> {
++        let mut scopes = self.scopes.lock().map_err(|_| changed())?;
++        if let Some(scope) = scopes.get(label) {
++            return Ok(Arc::clone(scope));
++        }
++        if scopes.len() >= 16 {
++            return Err(AppError::Invalid("PROJECT_SOURCE_LIMIT".into()));
++        }
++        let scope = Arc::new(FolderSources::default());
++        scopes.insert(label.to_owned(), Arc::clone(&scope));
++        Ok(scope)
++    }
++    pub(super) fn existing(&self, label: &str) -> Result<Arc<FolderSources>> {
++        self.scopes
++            .lock()
++            .map_err(|_| changed())?
++            .get(label)
++            .cloned()
++            .ok_or_else(changed)
++    }
++}
++
++#[cfg(test)]
++mod tests;
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/ipc.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/ipc.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/ipc.rs
+@@ -0,0 +1,77 @@
++//! Explicit selection/close; individual reads use the existing read_project_snapshot IPC.
++use super::WindowSources;
++use crate::{core::Result, models::Project};
++use tauri::State;
++
++#[derive(serde::Serialize)]
++#[serde(rename_all = "camelCase")]
++pub struct FolderOpen {
++    source_id: String,
++    commit_id: String,
++    project: Project,
++}
++
++#[tauri::command]
++pub async fn open_project_folder(
++    window: tauri::WebviewWindow,
++    sources: State<'_, WindowSources>,
++) -> Result<Option<FolderOpen>> {
++    #[cfg(any(
++        windows,
++        all(
++            target_os = "linux",
++            any(target_arch = "x86_64", target_arch = "aarch64")
++        )
++    ))]
++    {
++        use tauri::Manager;
++        use tauri_plugin_dialog::DialogExt;
++        // Reserve the original window scope BEFORE the dialog await. Destroying
++        // this window closes it even if a late picker result arrives afterward.
++        let scope = sources.for_window(window.label())?;
++        let app = window.app_handle().clone();
++        let picked = tokio::task::spawn_blocking(move || {
++            app.dialog()
++                .file()
++                .set_title("Forma CAD")
++                .blocking_pick_folder()
++        })
++        .await
++        .map_err(|error| crate::core::AppError::Invalid(error.to_string()))?;
++        let Some(picked) = picked else {
++            return Ok(None);
++        };
++        let path = picked
++            .into_path()
++            .map_err(|error| crate::core::AppError::Invalid(error.to_string()))?;
++        let opened = scope.open(&path).await?;
++        // No further await after the registry's cancellation-protected recheck.
++        Ok(Some(FolderOpen {
++            source_id: opened.id.to_string(),
++            commit_id: opened.snapshot.commit_id().into(),
++            project: opened.snapshot.project().clone(),
++        }))
++    }
++    #[cfg(not(any(
++        windows,
++        all(
++            target_os = "linux",
++            any(target_arch = "x86_64", target_arch = "aarch64")
++        )
++    )))]
++    {
++        let _ = (window, sources);
++        Err(crate::core::AppError::Invalid(
++            "PROJECT_FOLDER_UNSUPPORTED".into(),
++        ))
++    }
++}
++
++#[tauri::command]
++pub fn close_project_source(
++    source_id: String,
++    window: tauri::WebviewWindow,
++    sources: State<'_, WindowSources>,
++) -> Result<bool> {
++    sources.close_source(window.label(), &source_id)
++}
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/supported/tests.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/supported/tests.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/supported/tests.rs
+@@ -0,0 +1,53 @@
++use super::*;
++use crate::{
++    models::Project,
++    project_repository::sqlite_folder::api::{FolderProject, Publication},
++};
++
++#[tokio::test]
++async fn windows_and_reused_labels_cannot_adopt_each_others_openings() {
++    let root = tempfile::tempdir().unwrap();
++    let id = uuid::Uuid::new_v4().to_string();
++    let project: Project = serde_json::from_value(serde_json::json!({
++        "schemaVersion":1,"id":id,"name":"Window source fixture","units":"mm","agent":"codex","pinned":false,
++        "createdAt":"2026-11-04T00:00:00Z","updatedAt":"2026-11-04T00:00:00Z","currentRevision":null,
++        "messages":[],"exports":[],"files":[],"revisions":[]
++    })).unwrap();
++    assert!(matches!(
++        FolderProject::create(root.path(), project, vec![], None)
++            .await
++            .unwrap(),
++        Publication::Committed(_)
++    ));
++    let windows = WindowSources::default();
++    let first = windows.for_window("first").unwrap();
++    let opened = first.open(root.path()).await.unwrap();
++    let key = opened.id.to_string();
++    let commit = opened.snapshot.commit_id();
++    windows.read("first", &key, &id, commit).await.unwrap();
++    windows.for_window("second").unwrap();
++    assert!(windows.read("second", &key, &id, commit).await.is_err());
++    assert!(windows.close_source("second", &key).is_err());
++    assert!(windows
++        .read("first", &key, &id, "wrong-commit")
++        .await
++        .is_err());
++    assert!(windows
++        .read("first", &key, "wrong-project", commit)
++        .await
++        .is_err());
++    windows.close_window("first");
++    assert!(first.open(root.path()).await.is_err());
++    assert!(windows.read("first", &key, &id, commit).await.is_err());
++    let replacement = windows.for_window("first").unwrap();
++    assert!(!Arc::ptr_eq(&first, &replacement));
++    assert!(windows.read("first", &key, &id, commit).await.is_err());
++    let current = replacement.open(root.path()).await.unwrap();
++    let current_key = current.id.to_string();
++    windows
++        .read("first", &current_key, &id, current.snapshot.commit_id())
++        .await
++        .unwrap();
++    drop(windows);
++    assert!(replacement.lookup(&current_key).is_err());
++}

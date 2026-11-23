@@ -58,8 +58,19 @@ pub async fn list_projects(
     catalog::list(&state).await
 }
 #[tauri::command]
-pub async fn read_project_snapshot(id: String, state: State<'_, AppState>) -> Result<Project> {
-    catalog::read(&state, &id).await
+pub async fn read_project_snapshot(
+    id: String,
+    source_id: Option<String>,
+    expected_commit_id: Option<String>,
+    window: tauri::WebviewWindow,
+    sources: State<'_, crate::project_repository::window_sources::WindowSources>,
+    state: State<'_, AppState>,
+) -> Result<Project> {
+    match (source_id, expected_commit_id) {
+        (None, None) => catalog::read(&state, &id).await,
+        (Some(source), Some(commit)) => sources.read(window.label(), &source, &id, &commit).await,
+        _ => Err(AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into())),
+    }
 }
 #[tauri::command]
 pub async fn save_project_thumbnail(

@@ -1,0 +1,54 @@
+name: Storage folder workspace
+on:
+  push:
+    branches: [codex/storage-week]
+    paths-ignore: [docs/integration/**]
+permissions:
+  contents: read
+jobs:
+  folder-workspace:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+      - name: Prepare Rust and frontend build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          npm ci
+          npm run build
+          npm test
+          npm run lint
+          npm run check:i18n
+          npm run check:docs
+          npm run check:migrations
+          npm run check:version
+      - name: Test folder workspace in Chromium
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e -w apps/desktop -- storage-folder-workspace.spec.ts
+      - name: Check Rust handlers and run folder host tests
+        run: |
+          set -euo pipefail
+          manifest=apps/desktop/src-tauri/Cargo.toml
+          cargo fmt --manifest-path "$manifest" --all -- --check
+          cargo clippy --manifest-path "$manifest" --locked --all-targets --no-default-features -- -D warnings
+          cargo test --manifest-path "$manifest" --locked --no-default-features --lib project_repository::window_sources:: -- --nocapture | tee window-tests.log
+          grep -F 'test result: ok. 21 passed; 0 failed;' window-tests.log
+          grep -F 'test project_repository::window_sources::write_ipc::tests::folder_write_accepts_the_key_issued_by_the_registry ... ok' window-tests.log
+          cargo test --manifest-path "$manifest" --locked --no-default-features --lib project_repository::sqlite_folder::api::sources::tests::blank_creation_ -- --nocapture | tee creation-tests.log
+          grep -F 'test result: ok. 2 passed; 0 failed;' creation-tests.log
+          cargo test --manifest-path "$manifest" --locked --no-default-features --lib project_repository::sqlite_folder::api::sources::tests::indexed_opening_and_creation_futures_can_run_in_tauri_commands -- --exact --nocapture
+          cargo test --manifest-path "$manifest" --locked --no-default-features --lib project_repository::folder_index::tests:: -- --nocapture | tee recents-tests.log
+          grep -F 'test result: ok. 4 passed; 0 failed;' recents-tests.log
+          cargo clippy --manifest-path "$manifest" --locked --all-targets --features native-worker-client -- -D warnings

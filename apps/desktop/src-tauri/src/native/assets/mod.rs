@@ -6,7 +6,7 @@ mod shape;
 mod stage;
 #[cfg(feature = "native-occt")]
 pub use shape::read_step;
-pub use stage::stage_project_assets;
+pub use stage::{stage_assets_with, stage_project_assets};
 
 pub const MAX_TOTAL_STEP_BYTES: usize = 128 * 1024 * 1024;
 /// Check every authored input before producing any geometry/artifact.

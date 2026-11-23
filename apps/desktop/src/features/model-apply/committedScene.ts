@@ -1,5 +1,5 @@
 /** Atomic committed geometry loading; renderer owns final disposal timing. */
-export interface SceneIdentity { projectId: string; revisionId: string; sourceSeal: string }
+export interface SceneIdentity { projectId: string; revisionId: string; sourceSeal: string; sourceOpeningId?: string }
 export interface SceneSnapshot<T> {
   phase: "empty" | "loading" | "ready" | "failed";
   target: SceneIdentity | null;
@@ -7,7 +7,8 @@ export interface SceneSnapshot<T> {
   object: T | null;
   cause?: unknown;
 }
-const sameScene = (a: SceneIdentity | null, b: SceneIdentity | null) => !!a && !!b && a.projectId === b.projectId && a.revisionId === b.revisionId && a.sourceSeal === b.sourceSeal;
+export const sameSceneSource = (a:SceneIdentity|null,b:SceneIdentity|null)=>!!a&&!!b&&a.projectId===b.projectId&&a.sourceOpeningId===b.sourceOpeningId;
+const sameScene = (a: SceneIdentity | null, b: SceneIdentity | null) => !!a && !!b && sameSceneSource(a,b) && a.revisionId === b.revisionId && a.sourceSeal === b.sourceSeal;
 
 export class CommittedScene<T> {
   private value: SceneSnapshot<T> = { phase: "empty", target: null, displayed: null, object: null };
@@ -28,7 +29,7 @@ export class CommittedScene<T> {
     if (target && this.value.phase === "ready" && sameScene(this.value.displayed, target)) return;
     const epoch = ++this.epoch;
     this.pending?.abort(); this.pending = null;
-    const retained = target && this.value.displayed?.projectId === target.projectId ? this.value.object : null;
+    const retained = target && sameSceneSource(this.value.displayed,target) ? this.value.object : null;
     if (retained === null) this.retire(this.value.object);
     if (!target) { this.publish({ phase: "empty", target: null, displayed: null, object: null }); return; }
     const captured = Object.freeze({ ...target });
@@ -41,6 +42,7 @@ export class CommittedScene<T> {
         return;
       }
       if (this.value.object !== object) this.retire(this.value.object);
+      this.retired=this.retired.filter(retired=>retired!==object);
       this.pending = null;
       this.publish({ phase: "ready", target: captured, displayed: captured, object });
     } catch (cause) {

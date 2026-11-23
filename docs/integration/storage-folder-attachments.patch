@@ -1,0 +1,111 @@
+diff --git a/apps/desktop/src-tauri/src/artifacts.rs b/apps/desktop/src-tauri/src/artifacts.rs
+index 5a69b1d..ea9ae39 100644
+--- a/apps/desktop/src-tauri/src/artifacts.rs
++++ b/apps/desktop/src-tauri/src/artifacts.rs
+@@ -197,9 +197,21 @@ pub fn read(state: &AppState, project_id: &str, file: &ProjectFile) -> Result<Ve
+ pub async fn read_project_file(
+     project_id: String,
+     name: String,
++    source_id: Option<String>,
++    expected_commit_id: Option<String>,
++    window: tauri::WebviewWindow,
++    sources: tauri::State<'_, crate::project_repository::window_sources::WindowSources>,
+     state: tauri::State<'_, AppState>,
+ ) -> Result<String> {
+-    read_project_file_for(&state, &project_id, &name).await
++    match (source_id, expected_commit_id) {
++        (None, None) => read_project_file_for(&state, &project_id, &name).await,
++        (Some(source), Some(commit)) => {
++            sources
++                .read_asset(window.label(), &source, &project_id, &commit, &name)
++                .await
++        }
++        _ => Err(AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into())),
++    }
+ }
+ 
+ #[cfg(test)]
+diff --git a/apps/desktop/src/lib/api.ts b/apps/desktop/src/lib/api.ts
+index 0a5656c..22ae543 100644
+--- a/apps/desktop/src/lib/api.ts
++++ b/apps/desktop/src/lib/api.ts
+@@ -2,6 +2,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
+ import { getLocale, t } from "../i18n";
+ import { reviewPlanSchema, type ReviewPlan } from "../features/agents/review/plan/reviewPlan";
+ import type { Project, Health, Parameters } from "../types";
++import type { FolderSourceRef } from "../features/project-sources/contract";
+ import { cadDocumentSchema, type CadDocument } from "./cadDocument";
+ export const native = isTauri();
+ export interface InterruptedSession {
+@@ -85,8 +86,12 @@ export async function deleteProject(id: string): Promise<void> {
+ export async function readProjectFile(
+   projectId: string,
+   name: string,
++  source?: FolderSourceRef,
+ ): Promise<string> {
+-  return invoke("read_project_file", { projectId, name });
++  if (source && !native) throw new Error(t("PROJECT_FOLDER_UNSUPPORTED"));
++  return invoke("read_project_file", source
++    ? { projectId, name, sourceId: source.sourceId, expectedCommitId: source.commitId }
++    : { projectId, name });
+ }
+ export async function health(): Promise<Health[]> {
+   if (native) return invoke("detect_environment");
+diff --git a/apps/desktop/src/features/project-catalog/api.ts b/apps/desktop/src/features/project-catalog/api.ts
+index 0aaa867..ca82811 100644
+--- a/apps/desktop/src/features/project-catalog/api.ts
++++ b/apps/desktop/src/features/project-catalog/api.ts
+@@ -3,14 +3,18 @@ import { t } from "../../i18n";
+ import { listProjects, native } from "../../lib/api";
+ import type { Project } from "../../types";
+ import type { CatalogReport } from "./contract";
++import type { FolderSourceRef } from "../project-sources/contract";
+ 
+ export async function listProjectCatalog(): Promise<CatalogReport> {
+   if (native) return invoke("list_projects");
+   const projects = await listProjects();
+   return { entries: projects.map(project => ({ kind: "ready" as const, rowKey: project.id, project })), serializedProjectBytes: new TextEncoder().encode(JSON.stringify(projects)).length };
+ }
+-export async function readProjectSnapshot(id: string): Promise<Project> {
+-  if (native) return invoke("read_project_snapshot", { id });
++export async function readProjectSnapshot(id: string, source?: FolderSourceRef): Promise<Project> {
++  if (native) return invoke("read_project_snapshot", source
++    ? { id, sourceId: source.sourceId, expectedCommitId: source.commitId }
++    : { id });
++  if (source) throw new Error(t("PROJECT_FOLDER_UNSUPPORTED"));
+   const project = (await listProjects()).find(item => item.id === id);
+   if (!project) throw new Error(t("Project was not found"));
+   return project;
+diff --git a/apps/desktop/src/i18n/en.json b/apps/desktop/src/i18n/en.json
+index 1eb4bcc..251a505 100644
+--- a/apps/desktop/src/i18n/en.json
++++ b/apps/desktop/src/i18n/en.json
+@@ -1,4 +1,6 @@
+ {
++  "PROJECT_SOURCE_LIMIT": "Too many project folders are open. Close an unused folder and retry.",
++  "PROJECT_FOLDER_UNSUPPORTED": "Projects in folders are not supported in this environment.",
+   "Feature history": "Feature history",
+   "Suppressed": "Suppressed",
+   "Suppress": "Suppress",
+diff --git a/apps/desktop/src/i18n/ru.json b/apps/desktop/src/i18n/ru.json
+index acd5f5b..cfecce9 100644
+--- a/apps/desktop/src/i18n/ru.json
++++ b/apps/desktop/src/i18n/ru.json
+@@ -1,4 +1,6 @@
+ {
++  "PROJECT_SOURCE_LIMIT": "Открыто слишком много папок проектов. Закройте неиспользуемую папку и повторите действие.",
++  "PROJECT_FOLDER_UNSUPPORTED": "Проекты в папках не поддерживаются в этой среде.",
+   "Feature history": "История операций",
+   "Suppressed": "Подавлена",
+   "Suppress": "Подавить",
+diff --git a/apps/desktop/src/features/project-sources/contract.ts b/apps/desktop/src/features/project-sources/contract.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/contract.ts
+@@ -0,0 +1,6 @@
++// Window-local source reference. It is neither persisted nor a writer grant.
++// Project ID and the actual invoking window are checked again by the host.
++export interface FolderSourceRef {
++  readonly sourceId: string;
++  readonly commitId: string;
++}

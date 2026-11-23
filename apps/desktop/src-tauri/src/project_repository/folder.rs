@@ -15,6 +15,11 @@ use std::{
     },
 };
 
+#[cfg(any(target_os = "linux", windows))]
+mod backup;
+#[cfg(any(target_os = "linux", windows))]
+pub(crate) use backup::{BackupProvenance, VerifiedV2Backup};
+
 struct Opening {
     id: uuid::Uuid,
     active: AtomicBool,
@@ -65,12 +70,16 @@ impl FolderRepository {
     }
 
     pub fn recheck(&self, snapshot: &FolderReadSnapshot) -> Result<()> {
+        self.recheck_source(snapshot)?;
+        snapshot.saved.recheck(&self.root)?;
+        self.recheck_source(snapshot)
+    }
+
+    pub(crate) fn recheck_source(&self, snapshot: &FolderReadSnapshot) -> Result<()> {
         if !Arc::ptr_eq(&self.opening, &snapshot.opening) || self.opening.id != snapshot.opening.id
         {
             return Err(super::legacy::changed());
         }
-        self.check_open()?;
-        snapshot.saved.recheck(&self.root)?;
         self.check_open()
     }
 

@@ -23,6 +23,7 @@ export function applicationMenus(
   projectOpen: boolean,
   blocked: boolean,
   canAddGeometry = false,
+  folder?: { editProgramBlocked: boolean; copyBlocked: boolean; saveCopy: () => void },
 ): MenuGroup[] {
   return [
     {
@@ -49,7 +50,12 @@ export function applicationMenus(
           run: actions.export,
           disabled: !projectOpen || blocked,
         },
-        {
+        folder ? {
+          id: "folder-copy",
+          label: t("Save project copy to folder"),
+          run: folder.saveCopy,
+          disabled: folder.copyBlocked,
+        } : {
           id: "duplicate",
           label: t("Duplicate project"),
           run: actions.duplicate,
@@ -65,7 +71,7 @@ export function applicationMenus(
           id: "parameters",
           label: t("Edit model parameters"),
           run: actions.parameters,
-          disabled: !projectOpen || blocked,
+          disabled: !projectOpen || (folder?.editProgramBlocked ?? blocked),
         },
         {
           id: "search",
@@ -112,7 +118,7 @@ export function applicationMenus(
           id: "feature",
           label: t("Edit model parameters"),
           run: actions.parameters,
-          disabled: !projectOpen || blocked,
+          disabled: !projectOpen || (folder?.editProgramBlocked ?? blocked),
         },
         {
           id: "import",

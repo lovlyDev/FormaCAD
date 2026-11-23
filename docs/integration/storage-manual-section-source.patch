@@ -1,0 +1,485 @@
+diff --git a/apps/desktop/src-tauri/src/model_section/capture.rs b/apps/desktop/src-tauri/src/model_section/capture.rs
+index abb72e4..35ae362 100644
+--- a/apps/desktop/src-tauri/src/model_section/capture.rs
++++ b/apps/desktop/src-tauri/src/model_section/capture.rs
+@@ -2,12 +2,12 @@
+ use crate::{
+     core::{AppError, AppState, Result},
+     models::ProjectFile,
+-    project_repository::legacy::{self, CommittedSnapshot},
++    project_repository::backend::{ProjectRepository, RepositoryRead},
+ };
+ use std::path::Path;
+ 
+-pub(super) struct CapturedSection {
+-    pub snapshot: CommittedSnapshot,
++pub(super) struct CapturedSection<'a> {
++    pub snapshot: RepositoryRead<'a>,
+     pub hash: String,
+     source: ProjectFile,
+ }
+@@ -23,15 +23,22 @@ fn snapshot_error(error: AppError) -> AppError {
+     }
+ }
+ 
+-pub(super) async fn capture(
+-    state: &AppState,
++pub(super) async fn capture<'a>(
++    state: &'a AppState,
+     project_id: &str,
+     expected_revision: &str,
+-) -> Result<CapturedSection> {
+-    let snapshot = legacy::capture_project(state, project_id)
++) -> Result<CapturedSection<'a>> {
++    let snapshot = RepositoryRead::capture(ProjectRepository::managed(state, project_id)?)
+         .await
+         .map_err(snapshot_error)?;
+-    let project = &snapshot.project;
++    capture_bound(snapshot, expected_revision).await
++}
++
++pub(super) async fn capture_bound<'a>(
++    snapshot: RepositoryRead<'a>,
++    expected_revision: &str,
++) -> Result<CapturedSection<'a>> {
++    let project = snapshot.project();
+     if project.current_revision.as_deref() != Some(expected_revision) {
+         return Err(super::stale());
+     }
+@@ -78,23 +85,36 @@ pub(super) async fn capture(
+         hash,
+         source,
+     };
+-    recheck(state, &captured).await?;
++    recheck(&captured).await?;
+     Ok(captured)
+ }
+ 
+ /// Verify both repository identity and original bytes, not only the staged worker copy.
+-pub(super) async fn recheck(state: &AppState, captured: &CapturedSection) -> Result<()> {
+-    legacy::recheck(state, &captured.snapshot)
+-        .await
+-        .map_err(snapshot_error)?;
++pub(super) async fn recheck(captured: &CapturedSection<'_>) -> Result<()> {
++    captured.snapshot.recheck().await.map_err(snapshot_error)?;
++    let _ = bytes(captured).await?;
++    captured.snapshot.recheck().await.map_err(snapshot_error)
++}
++
++pub(super) async fn bytes(captured: &CapturedSection<'_>) -> Result<Vec<u8>> {
+     if captured.source.size == 0 || captured.source.size > crate::artifacts::MAX_FILE_BYTES as u64 {
+         return Err(super::super::failure(
+             "ASSET_LIMIT",
+             "CAD section source size is invalid",
+         ));
+     }
+-    let bytes = crate::artifacts::read(state, &captured.snapshot.project.id, &captured.source)
+-        .map_err(|error| super::super::failure("ASSET_CHECKSUM_MISMATCH", &error.to_string()))?;
++    let bytes = captured
++        .snapshot
++        .read_asset(&captured.source)
++        .await
++        .map_err(|error| match error {
++            AppError::Invalid(ref code)
++                if code == "PROJECT_SNAPSHOT_CHANGED" || code == "PROJECT_SNAPSHOT_MISSING" =>
++            {
++                snapshot_error(error)
++            }
++            other => super::super::failure("ASSET_CHECKSUM_MISMATCH", &other.to_string()),
++        })?;
+     if bytes.len() as u64 != captured.source.size
+         || crate::artifacts::digest(&bytes) != captured.hash
+     {
+@@ -103,10 +123,6 @@ pub(super) async fn recheck(state: &AppState, captured: &CapturedSection) -> Res
+             "CAD section source differs from its committed seal",
+         ));
+     }
+-    // Asset IO can outlive the earlier observation. Revalidate the ORIGINAL
+-    // opening and saved state after those sealed bytes were checked as well.
+-    legacy::recheck(state, &captured.snapshot)
+-        .await
+-        .map_err(snapshot_error)?;
+-    Ok(())
++    captured.snapshot.recheck().await.map_err(snapshot_error)?;
++    Ok(bytes)
+ }
+diff --git a/apps/desktop/src-tauri/src/model_section/build.rs b/apps/desktop/src-tauri/src/model_section/build.rs
+index 797f673..00af630 100644
+--- a/apps/desktop/src-tauri/src/model_section/build.rs
++++ b/apps/desktop/src-tauri/src/model_section/build.rs
+@@ -1,4 +1,5 @@
+ use super::{workspace::Workspace, SectionPlane, SectionReport};
++use crate::project_repository::backend::RepositoryRead;
+ use crate::{
+     cad_ir::{Body, Document, Feature, Operation},
+     core::{AppError, AppState, Result},
+@@ -48,21 +49,71 @@ async fn section_inner(
+     cancel: Arc<AtomicBool>,
+     executable: &Path,
+     hook: PhaseHook<'_>,
++) -> Result<SectionReport> {
++    section_inner_source(
++        state,
++        project_id,
++        expected_revision,
++        plane,
++        cancel,
++        executable,
++        hook,
++        None,
++    )
++    .await
++}
++
++pub async fn section_source_with_executable<'a>(
++    state: &'a AppState,
++    source: RepositoryRead<'a>,
++    expected_revision: &str,
++    plane: &SectionPlane,
++    cancel: Arc<AtomicBool>,
++    executable: &Path,
++) -> Result<SectionReport> {
++    let id = source.project().id.clone();
++    section_inner_source(
++        state,
++        &id,
++        expected_revision,
++        plane,
++        cancel,
++        executable,
++        PhaseHook::default(),
++        Some(source),
++    )
++    .await
++}
++
++#[allow(clippy::too_many_arguments)]
++async fn section_inner_source<'a>(
++    state: &'a AppState,
++    project_id: &str,
++    expected_revision: &str,
++    plane: &SectionPlane,
++    cancel: Arc<AtomicBool>,
++    executable: &Path,
++    hook: PhaseHook<'_>,
++    source: Option<RepositoryRead<'a>>,
+ ) -> Result<SectionReport> {
+     plane.normalized().map_err(|e| {
+         AppError::Invalid(serde_json::json!({"code":e.code,"message":e.detail}).to_string())
+     })?;
+     crate::security::valid_id(project_id)?;
+-    let captured = capture::capture(state, project_id, expected_revision).await?;
++    let captured = match source {
++        Some(read) => capture::capture_bound(read, expected_revision).await?,
++        None => capture::capture(state, project_id, expected_revision).await?,
++    };
++    let task_scope = captured.snapshot.task_scope_id().to_owned();
+     let hash = captured.hash.clone();
+     let _permit = state
+         .cad_tasks
+-        .acquire(project_id, "section", cancel.clone())
++        .acquire(&task_scope, "section", cancel.clone())
+         .await?;
+     if cancel.load(Ordering::Relaxed) {
+         return Err(super::failure("SECTION_CANCELLED", "CAD section cancelled"));
+     }
+-    capture::recheck(state, &captured).await?;
++    capture::recheck(&captured).await?;
+     let workspace = Workspace::create(&state.root, project_id)?;
+     let document = Document {
+         schema_version: 2,
+@@ -83,13 +134,19 @@ async fn section_inner(
+             source_feature_id: "section_source".into(),
+         }],
+     };
+-    crate::native::assets::stage_project_assets(
+-        state,
+-        &captured.snapshot.project,
++    let mut bytes = Some(capture::bytes(&captured).await?);
++    crate::native::assets::stage_assets_with(
++        captured.snapshot.project(),
+         &document,
+         &workspace.path,
++        |file| {
++            if file.sha256.as_deref() != Some(hash.as_str()) {
++                return Err(stale());
++            }
++            bytes.take().ok_or_else(stale)
++        },
+     )?;
+-    capture::recheck(state, &captured).await?;
++    capture::recheck(&captured).await?;
+     let report = crate::native::section::section_with_executable(
+         &workspace.path,
+         &hash,
+@@ -107,7 +164,7 @@ async fn section_inner(
+     }
+     #[cfg(not(test))]
+     let _ = hook;
+-    capture::recheck(state, &captured).await?;
++    capture::recheck(&captured).await?;
+     if cancel.load(Ordering::Relaxed) {
+         return Err(super::failure("SECTION_CANCELLED", "CAD section cancelled"));
+     }
+@@ -120,3 +177,17 @@ fn stale() -> AppError {
+ #[cfg(test)]
+ #[path = "build_tests.rs"]
+ mod tests;
++
++#[cfg(all(
++    test,
++    feature = "native-occt",
++    any(
++        windows,
++        all(
++            target_os = "linux",
++            any(target_arch = "x86_64", target_arch = "aarch64")
++        )
++    )
++))]
++#[path = "folder_build_tests.rs"]
++mod folder_tests;
+diff --git a/apps/desktop/src-tauri/src/model_section/build_tests.rs b/apps/desktop/src-tauri/src/model_section/build_tests.rs
+index 6462d2e..4355bd8 100644
+--- a/apps/desktop/src-tauri/src/model_section/build_tests.rs
++++ b/apps/desktop/src-tauri/src/model_section/build_tests.rs
+@@ -1,6 +1,6 @@
+ use super::*;
+ #[allow(dead_code)]
+-mod fixture {
++pub(super) mod fixture {
+     use crate as forma_core;
+     include!(concat!(
+         env!("CARGO_MANIFEST_DIR"),
+diff --git a/apps/desktop/src-tauri/src/model_section/mod.rs b/apps/desktop/src-tauri/src/model_section/mod.rs
+index 7e6ff19..a459e06 100644
+--- a/apps/desktop/src-tauri/src/model_section/mod.rs
++++ b/apps/desktop/src-tauri/src/model_section/mod.rs
+@@ -8,14 +8,24 @@ mod workspace;
+ pub use crate::native::section::{SectionPlane, SectionReport};
+ 
+ #[tauri::command]
++#[allow(clippy::too_many_arguments)]
+ pub async fn section_model(
+     project_id: String,
+     expected_revision: String,
+     origin_mm: [f64; 3],
+     normal: [f64; 3],
+     deflection_mm: Option<f64>,
++    source_id: Option<String>,
++    expected_commit_id: Option<String>,
++    window: tauri::WebviewWindow,
++    sources: tauri::State<'_, crate::project_repository::window_sources::WindowSources>,
+     state: tauri::State<'_, AppState>,
+ ) -> Result<serde_json::Value> {
++    if source_id.is_some() != expected_commit_id.is_some() {
++        return Err(crate::core::AppError::Invalid(
++            "PROJECT_SNAPSHOT_CHANGED".into(),
++        ));
++    }
+     #[cfg(not(feature = "native-worker-client"))]
+     {
+         let _ = (
+@@ -25,7 +35,15 @@ pub async fn section_model(
+             normal,
+             deflection_mm,
+             state,
++            window,
++            sources,
++            expected_commit_id,
+         );
++        if source_id.is_some() {
++            return Err(crate::core::AppError::Invalid(
++                "PROJECT_FOLDER_UNSUPPORTED".into(),
++            ));
++        }
+         Err(failure(
+             "SECTION_UNAVAILABLE",
+             "Model section requires the native OpenCascade build",
+@@ -38,7 +56,32 @@ pub async fn section_model(
+             normal,
+             deflection_mm: deflection_mm.unwrap_or(0.01),
+         };
++        let source = match (source_id, expected_commit_id) {
++            (Some(key), Some(commit)) => Some(
++                sources
++                    .capture_read(window.label(), &key, &project_id, &commit)
++                    .await?,
++            ),
++            (None, None) => None,
++            _ => {
++                return Err(crate::core::AppError::Invalid(
++                    "PROJECT_SNAPSHOT_CHANGED".into(),
++                ))
++            }
++        };
+         let executable = crate::native::worker::worker_executable()?;
++        if let Some(read) = source {
++            let report = build::section_source_with_executable(
++                &state,
++                read,
++                &expected_revision,
++                &plane,
++                std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
++                &executable,
++            )
++            .await?;
++            return Ok(serde_json::to_value(report)?);
++        }
+         let report = build::section_with_executable(
+             &state,
+             &project_id,
+diff --git a/apps/desktop/src/features/viewer/sections/sectionApi.ts b/apps/desktop/src/features/viewer/sections/sectionApi.ts
+index 49e0c8b..efe7be6 100644
+--- a/apps/desktop/src/features/viewer/sections/sectionApi.ts
++++ b/apps/desktop/src/features/viewer/sections/sectionApi.ts
+@@ -1,3 +1,5 @@
++import type { FolderSourceRef } from "../../project-sources/contract";
++import { native } from "../../../lib/api";
+ import { invoke } from "@tauri-apps/api/core";
+ import { z } from "zod";
+ import type { SectionPlane } from "./sectionPlane";
+@@ -9,8 +11,9 @@ const report = z.object({ sourceSha256: z.string().regex(/^[a-f0-9]{64}$/), geom
+     .refine(curves => curves.reduce((count, curve) => count + curve.pointsMm.length, 0) <= 100000),
+ }) });
+ export type SectionReport = z.infer<typeof report>;
+-export async function sectionModel(projectId: string, expectedRevision: string, sourceSha256: string, plane: SectionPlane): Promise<SectionReport> {
+-  const result = report.parse(await invoke("section_model", { projectId, expectedRevision, ...plane }));
++export async function sectionModel(projectId: string, expectedRevision: string, sourceSha256: string, plane: SectionPlane, source?: FolderSourceRef): Promise<SectionReport> {
++  if(source&&!native)throw Error("PROJECT_FOLDER_UNSUPPORTED");
++  const result = report.parse(await invoke("section_model", { projectId, expectedRevision, ...plane, ...(source ? {sourceId:source.sourceId,expectedCommitId:source.commitId} : {}) }));
+   if (result.sourceSha256 !== sourceSha256) throw new Error("SECTION_STALE");
+   return result;
+ }
+diff --git a/apps/desktop/src-tauri/src/model_section/folder_build_tests.rs b/apps/desktop/src-tauri/src/model_section/folder_build_tests.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/model_section/folder_build_tests.rs
+@@ -0,0 +1,127 @@
++use super::tests::fixture;
++use super::*;
++use crate::project_repository::sqlite_folder::api::{FolderProject, Publication};
++
++#[tokio::test]
++async fn raw_folder_step_section_uses_original_source_and_refuses_late_close() {
++    let app = tempfile::tempdir().unwrap();
++    let root = tempfile::tempdir().unwrap();
++    let (state, baseline) = fixture::fixture(app.path()).await;
++    let mut project = baseline.clone();
++    let revision = project.current_revision.clone().unwrap();
++    let current = project
++        .revisions
++        .iter_mut()
++        .find(|r| r.id == revision)
++        .unwrap();
++    current.program = None;
++    current.preview = None;
++    let source_name = current.source.clone().unwrap();
++    let mut pending = Vec::new();
++    for file in &project.files {
++        pending.push((
++            file.sha256.clone().unwrap(),
++            crate::artifacts::read(&state, &project.id, file).unwrap(),
++        ));
++    }
++    assert!(matches!(
++        FolderProject::create(root.path(), project, pending, None)
++            .await
++            .unwrap(),
++        Publication::Committed(_)
++    ));
++    let source = Arc::new(FolderProject::open(root.path()).await.unwrap());
++    let saved = baseline
++        .files
++        .iter()
++        .find(|f| f.name == source_name)
++        .unwrap();
++    let hash = saved.sha256.as_deref().unwrap();
++    let extension = Path::new(&saved.name)
++        .extension()
++        .unwrap()
++        .to_str()
++        .unwrap()
++        .to_ascii_lowercase();
++    let managed = state
++        .root
++        .join(&baseline.id)
++        .join("attachments")
++        .join(format!("{hash}.{extension}"));
++    let mut wrong = std::fs::read(&managed).unwrap();
++    wrong[0] ^= 1;
++    std::fs::write(managed, wrong).unwrap();
++    let before_app = fixture::snapshot(&state, &baseline.id).await;
++    let before_folder = std::fs::read(root.path().join("project.sqlite")).unwrap();
++    let plane = SectionPlane {
++        origin_mm: [0., 0., 5.],
++        normal: [0., 0., 1.],
++        deflection_mm: 0.01,
++    };
++    let original = RepositoryRead::from_folder_view(
++        Arc::clone(&source),
++        source.capture_metadata().await.unwrap(),
++    )
++    .await
++    .unwrap();
++    assert!(original
++        .project()
++        .revisions
++        .iter()
++        .find(|r| r.id == revision)
++        .unwrap()
++        .program
++        .is_none());
++    let report = section_source_with_executable(
++        &state,
++        original,
++        &revision,
++        &plane,
++        fixture::token(),
++        fixture::executable(),
++    )
++    .await
++    .unwrap();
++    assert_eq!(report.source_sha256, hash);
++    assert!((report.geometry.total_length_mm - 120.).abs() < 1e-6);
++    let original = RepositoryRead::from_folder_view(
++        Arc::clone(&source),
++        source.capture_metadata().await.unwrap(),
++    )
++    .await
++    .unwrap();
++    let called = AtomicBool::new(false);
++    let after_worker = || {
++        called.store(true, Ordering::Relaxed);
++        source.close();
++    };
++    let error = section_inner_source(
++        &state,
++        &baseline.id,
++        &revision,
++        &plane,
++        fixture::token(),
++        fixture::executable(),
++        PhaseHook {
++            after_worker: Some(&after_worker),
++            ..Default::default()
++        },
++        Some(original),
++    )
++    .await
++    .unwrap_err();
++    assert!(called.load(Ordering::Relaxed));
++    assert!(error.to_string().contains("SECTION_STALE"), "{error}");
++    assert_eq!(fixture::snapshot(&state, &baseline.id).await, before_app);
++    assert_eq!(
++        std::fs::read(root.path().join("project.sqlite")).unwrap(),
++        before_folder
++    );
++    fixture::clean(&state).await;
++    assert_eq!(
++        std::fs::read_dir(state.root.join(".transient/sections"))
++            .unwrap()
++            .count(),
++        0
++    );
++}

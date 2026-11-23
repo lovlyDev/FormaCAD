@@ -50,11 +50,22 @@ import {
   usePlugins,
 } from "../features/plugins/usePluginCommands";
 import { ProjectAccessNotice } from "../features/project-access/ProjectAccessNotice";
-import { useProjectAccess } from "../features/project-access/useProjectAccess";
+import {useWorkspaceSourceAccess} from "../features/project-sources/useWorkspaceSourceAccess";
+import {managedActionSource} from "../features/project-sources/sourceAction";
+import {useSourcePreference} from "../features/project-sources/useSourcePreference";
 import { ProjectFilesPanel } from "../features/project-files/ProjectFilesPanel";
 import { ModelHistoryControls } from "../features/project-history/ModelHistoryControls";
 import { RevisionList } from "../features/project-history/RevisionList";
 import { useHistoryAction } from "../features/project-history/useHistoryAction";
+import { folderHistoryAction } from "../features/project-history/folderHistoryAction";
+import { useFolderWriteAction } from "../features/project-sources/useFolderWriteAction";
+import { useFolderWriteConfirmation } from "../features/project-sources/useFolderWriteConfirmation";
+import { isFolderWriteOpeningCurrent } from "../features/project-sources/folderWriteResult";
+import { useFolderCopy } from "../features/project-sources/useFolderCopy";
+import { recentFoldersKey } from "../features/project-sources/recentFoldersApi";
+import { isSourceCurrent } from "../features/project-sources/sourceBinding";
+import { writeFolderModel } from "../features/model-apply/folderModelAction";
+import { FolderHistoryObservation } from "../features/project-history/FolderHistoryObservation";
 import { PropertiesPanel } from "../features/properties/PropertiesPanel";
 import { SelectionModelProperties } from "../features/reference-measurements/SelectionModelProperties";
 import { StatusBar } from "../features/status-bar/StatusBar";
@@ -141,12 +152,15 @@ const legacyMotionPrompt = (text: string) =>
 export default function App() {
   const locale = useLocale();
   const nav = useNavigate();
-  const { projectId } = useParams();
+  const route = useParams();
+  const projectId = route.folderProjectId ?? route.projectId;
+  const folderRoute = route.folderProjectId !== undefined;
   const queryClient = useQueryClient();
   const applyModel = useModelApply();
   useRevisionEvents();
   const {
     project,
+    sourceBinding,
     setProject,
     update,
     revise,
@@ -160,20 +174,15 @@ export default function App() {
     selectedEdges,
     setSelected,
   } = useWorkspace();
-  const projectAccess = useProjectAccess(project?.id, setError);
-  const openingProject = !!projectId && !!project && projectId !== project.id;
+  const projectAccess = useWorkspaceSourceAccess(project?.id, sourceBinding, setError);
+  const openingProject = !!projectId && !!project &&
+    (projectId !== project.id || folderRoute !== (sourceBinding?.kind === "folder"));
   const editingBlocked = busy || !projectAccess.writable || openingProject;
   const { catalog, projects, unavailable } = useProjectCatalog();
-  const openProject = useProjectNavigation(projectId, nav, setError);
+  const { openProject, openFolder, createFolder, transferStep } = useProjectNavigation(projectId, nav, setError, folderRoute);
   const recovery = useQuery({
     queryKey: ["recovery"],
     queryFn: interruptedSessions,
-  });
-  const agentEnvironment = useQuery({
-    queryKey: ["health"],
-    queryFn: health,
-    enabled: native && !!project,
-    staleTime: 60000,
   });
   const [modal, setModal] = useState<
     "new" | "settings" | "export" | "palette" | "parameters" | "torus" | "datum" | "faceExtrusion" | "edgeBlend" | "shell" | "pattern" | "duplicateBody" | "boolean" | null
@@ -190,17 +199,23 @@ export default function App() {
     && project.currentRevision === datumTarget.revision;
   const torusTargetCurrent = !!torusTarget && project?.id === torusTarget.id
     && project.currentRevision === torusTarget.revision;
+  const agentEnvironment = useQuery({
+    queryKey: ["health"],
+    queryFn: health,
+    enabled: native && (!!project || modal === "new"),
+    staleTime: 60000,
+  });
   const stateKey = `forma.ui.project.${project?.id ?? projectId ?? "home"}`;
   const [search, setSearch] = usePersistentState("forma.ui.search", "");
   const [renameTarget, setRenameTarget] = useState<Project | null>(null);
   const [renameName, setRenameName] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [deleteName, setDeleteName] = useState("");
-  const [prompt, setPrompt] = usePersistentState(`${stateKey}.prompt`, "");
+  const [prompt, setPrompt] = useSourcePreference(`${stateKey}.prompt`, "",sourceBinding);
   const [pending, setPending] = useState<PendingAction | null>(null);
-  const [attachments, setAttachments] = usePersistentState<ProjectFile[]>(
+  const [attachments, setAttachments] = useSourcePreference<ProjectFile[]>(
     `${stateKey}.attachments`,
-    [],
+    [],sourceBinding,
   );
   const [notice, setNotice] = useState("");
   const plugins = usePlugins(modal === "palette");
@@ -214,16 +229,16 @@ export default function App() {
   const [exportInfo, setExportInfo] = useState<
     Project["exports"][number] | null
   >(null);
-  const [lockedBodies, setLockedBodies] = usePersistentState<string[]>(
+  const [lockedBodies, setLockedBodies] = useSourcePreference<string[]>(
     `${stateKey}.lockedBodies`,
-    [],
+    [],sourceBinding,
   );
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(
     null,
   );
-  const [compare, setCompare] = usePersistentState<string | null>(
+  const [compare, setCompare] = useSourcePreference<string | null>(
     `${stateKey}.compare`,
-    null,
+    null,sourceBinding,
   );
   const fileInput = useRef<HTMLInputElement>(null);
   const chatInput = useRef<HTMLTextAreaElement>(null);
@@ -231,7 +246,7 @@ export default function App() {
   const revision = project?.revisions.find(
     (r) => r.id === project.currentRevision,
   );
-  const committedScene = useCommittedScene(project, revision);
+  const committedScene = useCommittedScene(project, revision,sourceBinding);
   const loadingModel = committedScene.loading;
   const emptyScene = useMemo(() => new THREE.Group(), []);
   const generatedFiles = new Set(
@@ -460,10 +475,15 @@ export default function App() {
         fileInput.current?.click();
       } else if (e.code === "KeyS") {
         e.preventDefault();
-        if (project && !openingProject)
-          saveProject(project)
-            .then(() => { refresh(); setNotice(t("Project saved")); })
-            .catch((e) => setError(errorText(e)));
+        if (project && !openingProject&&!editingBlocked){
+          const action=managedActionSource(project.id,sourceBinding);if(!action.isCurrent())return;
+          update(project)
+            .then(() => {
+              if(!action.isCurrent())return;
+              refresh();
+              setNotice(t("Project saved"));
+            })
+            .catch((e) => {if(action.isCurrent())setError(errorText(e));});}
       } else if (e.code === "KeyE" && e.shiftKey) {
         e.preventDefault();
         setModal("export");
@@ -476,7 +496,23 @@ export default function App() {
     invalidateProjectCatalog(queryClient);
     void queryClient.invalidateQueries({ queryKey: ["model-history"] });
   }
+  async function finishFolderCreation(result: Promise<boolean | undefined>) {
+    if (await result) {
+      setModal(current => current === "new" ? null : current);
+      void queryClient.invalidateQueries({ queryKey: recentFoldersKey });
+    }
+  }
   const historyAction = useHistoryAction(ask, refresh);
+  const folderConfirmation = useFolderWriteConfirmation(sourceBinding);
+  const folderWrite = useFolderWriteAction(
+    sourceBinding,
+    () => { void queryClient.invalidateQueries({ queryKey: ["model-history"] }); },
+    setError,
+  );
+  const writeFolderHistory = folderHistoryAction(sourceBinding, folderWrite.write, folderConfirmation.confirm);
+  const folderHistoryActive = sourceBinding?.kind === "folder";
+  const folderCopy = useFolderCopy(sourceBinding, setNotice, setError);
+  const folderProgramBlocked = busy || openingProject || folderWrite.busy || !!folderWrite.uncertain || !!pending;
   async function ask(
     title: string,
     description: string,
@@ -487,6 +523,7 @@ export default function App() {
     review?: CandidateReviewData,
     cancelled?: () => void,
   ) {
+    const capturedReview=review?{...review,sourceBinding:review.sourceBinding===undefined?useWorkspace.getState().sourceBinding:review.sourceBinding}:undefined;
     try {
       if (!review && !needsConfirmation(await confirmationSettings(), action)) {
         await run();
@@ -503,7 +540,7 @@ export default function App() {
         detail,
         run,
         id,
-        review,
+        review:capturedReview,
         targetProjectId,
         cancelled,
       });
@@ -638,11 +675,14 @@ export default function App() {
     if (!project || editingBlocked || !request.trim()) return;
     const text = request.trim();
     const p = project;
+    const sourceAction=managedActionSource(p.id,sourceBinding);
     let agentPreview: { description: string; detail: string };
     try {
+      sourceAction.assertCurrent();
       agentPreview = await agentPermissionPreview(p, text);
+      sourceAction.assertCurrent();
     } catch (cause) {
-      if (useWorkspace.getState().project?.id === p.id)
+      if (sourceAction.isCurrent())
         setError(errorText(cause));
       return;
     }
@@ -651,6 +691,7 @@ export default function App() {
       agentPreview.description,
       agentPreview.detail,
       async () => {
+        sourceAction.assertCurrent();
         setPrompt("");
         liveRef.current = [];
         setLiveEvents([]);
@@ -669,6 +710,7 @@ export default function App() {
               },
             ],
           });
+          sourceAction.assertCurrent();
           const result = await plan(
             p,
             text,
@@ -679,6 +721,7 @@ export default function App() {
                 ? selectedFace
                 : null,
           );
+          sourceAction.assertCurrent();
           setAttachments([]);
           const latest = useWorkspace.getState().project;
           if (!latest || candidateSourceStatus(latest, p) === "projectChanged")
@@ -705,6 +748,7 @@ export default function App() {
               },
             ],
           });
+          sourceAction.assertCurrent();
           liveRef.current = [];
           setLiveEvents([]);
           setChatBusy(false);
@@ -715,6 +759,7 @@ export default function App() {
             result.message,
             result.program,
             async () => {
+              sourceAction.assertCurrent();
               setBusy(true, t("Построение и проверка геометрии"));
               try {
                 const current = useWorkspace.getState().project;
@@ -727,13 +772,13 @@ export default function App() {
                   throw new Error(
                     t("Модель изменилась во время ответа. Повторите запрос."),
                   );
-                await applyModel(captureApply(p, result.program!, text), {
+                await applyModel(captureApply(p, result.program!, text,sourceAction.openingId), {
                   reviewPlan: result.reviewPlan,
                   assistantMessage: result.message,
                 });
               } catch (error) {
                 const current = useWorkspace.getState().project;
-                if (current?.id === p.id)
+                if (sourceAction.isCurrent()&&current?.id === p.id)
                   await update({
                     ...current,
                     messages: [
@@ -762,7 +807,7 @@ export default function App() {
           );
         } catch (e) {
           const latest = useWorkspace.getState().project;
-          if (latest?.id === p.id)
+          if (sourceAction.isCurrent()&&latest?.id === p.id)
             await update({
               ...latest,
               messages: [
@@ -879,7 +924,9 @@ export default function App() {
           forma
           <span className="brand-divider" />
         </button>
-        {project ? (
+        {project && sourceBinding?.kind === "folder" ? (
+          <span className="project-switch">{project.name}</span>
+        ) : project ? (
           <div className="project-switch">
             <Select
               aria-label={t("Switch project")}
@@ -983,6 +1030,11 @@ export default function App() {
             editingBlocked,
             native && !!project && (project.currentRevision === null
               || (!!revision?.program && !!readTypedCadDocument(revision.program))),
+            folderHistoryActive ? {
+              editProgramBlocked: folderProgramBlocked || !!(revision && !revision.program && !revision.source),
+              copyBlocked: busy || openingProject || folderCopy.copying,
+              saveCopy: () => void folderCopy.save(),
+            } : undefined,
           )}
         />
         {project && (
@@ -998,8 +1050,11 @@ export default function App() {
           {project && (
             <ModelHistoryControls
               project={project}
-              blocked={editingBlocked || !!pending || !!modal || loadingModel}
-              onAction={historyAction}
+              sourceBinding={sourceBinding}
+              blocked={(folderHistoryActive
+                ? busy || openingProject || folderWrite.busy || !!folderWrite.uncertain
+                : editingBlocked) || !!pending || !!modal || loadingModel}
+              onAction={folderHistoryActive ? direction => void writeFolderHistory(direction) : historyAction}
             />
           )}
           <Updates blocked={busy || !!pending || !!modal || loadingModel} />
@@ -1036,6 +1091,11 @@ export default function App() {
           )}
         </div>
       </header>
+      {openingProject && (
+        <div className="error-inline" role="status">
+          {t("Opening the selected project. The current model is kept until reading succeeds.")}
+        </div>
+      )}
       {project && (
         <ProjectAccessNotice
           projectId={project.id}
@@ -1070,6 +1130,9 @@ export default function App() {
           onSearch={setSearch}
           onSettings={() => setModal("settings")}
           onImport={() => fileInput.current?.click()}
+          onOpenFolder={projectId ? undefined : (location) => {
+            void openFolder(location).then(() => queryClient.invalidateQueries({ queryKey: recentFoldersKey }));
+          }}
           onImportBundle={() =>
             void importProjectBundle()
               .then((item) => {
@@ -1249,6 +1312,7 @@ export default function App() {
                   onEdit={() => setModal("parameters")}
                 >
                   <SelectionModelProperties
+                    sourceBinding={sourceBinding}
                     selectedBodyId={selected}
                     sceneToken={committedScene.selectionScene.token}
                     interactive={committedScene.interactive && !compare}
@@ -1416,9 +1480,19 @@ export default function App() {
         </div>
       )}
       <ActionReviewDialog
-        pending={pending}
-        onDecision={(allow) => void approve(allow)}
+        pending={folderConfirmation.pending ?? pending}
+        onDecision={(allow) => {
+          if (folderConfirmation.pending) folderConfirmation.decide(allow);
+          else if (pending) void approve(allow);
+        }}
       />
+      {folderWrite.uncertain && (
+        <FolderHistoryObservation
+          observation={folderWrite.uncertain.observation}
+          busy={folderWrite.busy}
+          onCheck={() => void folderWrite.check()}
+        />
+      )}
       <Modal
         open={!!exportInfo}
         onClose={() => setExportInfo(null)}
@@ -1548,6 +1622,12 @@ export default function App() {
         importNames={attachments.map((file) => file.name)}
         open={modal === "new"}
         close={() => setModal(null)}
+        onCreateFolder={native && !attachments.length
+          ? draft => finishFolderCreation(createFolder(draft))
+          : undefined}
+        onTransferStep={native && !attachments.length && agentEnvironment.data?.some(
+          item => item.name === "OpenCascade kernel" && item.available,
+        ) ? draft => finishFolderCreation(transferStep(draft)) : undefined}
         onCreate={async (p) => {
           try {
             if (attachments.length)
@@ -1747,7 +1827,9 @@ export default function App() {
           close={() => setModal(null)}
           source={revision?.program ?? ""}
           importedSource={revision?.source}
-          disabled={editingBlocked}
+          disabled={sourceBinding?.kind === "folder"
+            ? folderProgramBlocked
+            : editingBlocked}
           nativeCadAvailable={
             agentEnvironment.data?.some(
               (item) => item.name === "OpenCascade kernel" && item.available,
@@ -1755,12 +1837,27 @@ export default function App() {
           }
           nativeCadChecked={!!agentEnvironment.data}
           onApply={(program) => {
-            const base = useWorkspace.getState().project;
+            const active = useWorkspace.getState();
+            if (sourceBinding ? !isSourceCurrent(active.sourceBinding, sourceBinding) : !!active.sourceBinding) return;
+            if (sourceBinding?.kind === "folder" && project) {
+              const opening = sourceBinding;
+              const captured = captureApply(project, program, t("Изменён исходный код модели"), opening.openingId);
+              setModal(null);
+              void writeFolderModel(opening, captured, undefined, folderWrite.write, () =>
+                folderConfirmation.confirm(opening, {
+                  title: t("Построить модель"),
+                  description: t("Проверить геометрию и сохранить ревизию."),
+                  detail: program,
+                }),
+              ).catch(cause => { if (isFolderWriteOpeningCurrent(opening)) setError(errorText(cause)); });
+              return;
+            }
+            const base = active.project;
             if (!base) return;
             const captured = captureApply(
               base,
               program,
-              t("Изменён исходный код модели"),
+              t("Изменён исходный код модели"),useWorkspace.getState().sourceBinding?.openingId,
             );
             setModal(null);
             void ask(
@@ -1768,7 +1865,7 @@ export default function App() {
               t("Проверить геометрию и сохранить ревизию."),
               program,
               async () => {
-                assertApplyBase(useWorkspace.getState().project, captured);
+                assertApplyBase(useWorkspace.getState().project, captured,useWorkspace.getState().sourceBinding?.openingId);
                 setBusy(true, t("Построение геометрии"));
                 try {
                   await applyModel(captured);

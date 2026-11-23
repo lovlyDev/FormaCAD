@@ -4,7 +4,7 @@ mod candidate;
 mod copy;
 mod crash;
 mod export;
-mod fixture;
+pub(crate) mod fixture;
 mod legacy_status;
 mod measurement;
 mod process;

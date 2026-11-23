@@ -82,3 +82,11 @@ cursor/archive consistency и повторное сравнение. Это не
 формата и production-интеграция остаются у lovlyDev.
 Security CI отдельно сообщает уязвимости существующей Wasmtime в области
 Issue #3; эта задачная ветка не меняет зависимость и не подавляет проверку.
+
+## Чистая подготовка сохранённой модели
+
+Первый согласованный шаг этапа 4 отделяет `modeling/prepared_change` от managed persistence. Текущий маршрут сохранения: настоящий CAD build → `commit::commit` → чистый `prepare` → `PreparedModelChange::into_parts` → прежний `projects::persist`. Preparer создаёт следующую ревизию и STEP/GLB descriptors, нормализует pending bytes, проверяет отмену и валидирует Project. Он не читает диск/SQL/clock и не публикует файлы. Host передаёт один timestamp; его получение перенесено непосредственно перед preparer, немного раньше прежней точки после data URL.
+
+Имена файлов, parent/job/program binding, defaults параметров и metadata сохраняются. Идентичные output bytes получают одинаковые хеши; прежний normalizer может вернуть два pending элемента с одним хешем. Это не новая CAS-публикация или дедупликация. Ошибка normalization по-прежнему опережает cancellation; недопустимый Project теперь отклоняется до успешного кандидата, а не только внутри persistence.
+
+Кандидат имеет закрытые поля и конструктор, не сериализуется и не является writer lease, permission, историческим intent или доказательством commit. Следующий backend должен проверить исходный сеанс/location/expected commit и историю под настоящим writer-доступом. Самостоятельная папка и общий asset/permission контракт этим шагом не реализуются. Шесть синтетических unit-регрессий подготовлены для metadata/revision preservation, blob descriptors, одинаковых хешей, отмены и ошибок; исполнение Rust-тестов требует нового CI. Синтетические bytes не доказывают геометрию CAD.
