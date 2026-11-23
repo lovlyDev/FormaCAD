@@ -3,10 +3,12 @@ use super::WindowSources;
 use crate::{core::Result, models::Project};
 use tauri::State;
 
+pub mod access;
 pub mod commit_query;
 pub mod copy;
 pub mod creation;
 pub mod recents;
+pub mod recovery;
 pub mod step;
 
 #[derive(serde::Serialize)]
@@ -69,12 +71,27 @@ async fn pick_folder(
     window: &tauri::WebviewWindow,
     initial: Option<std::path::PathBuf>,
 ) -> Result<Option<std::path::PathBuf>> {
+    pick_folder_with_title(window, initial, "Forma CAD".into()).await
+}
+
+#[cfg(any(
+    windows,
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    )
+))]
+async fn pick_folder_with_title(
+    window: &tauri::WebviewWindow,
+    initial: Option<std::path::PathBuf>,
+    title: String,
+) -> Result<Option<std::path::PathBuf>> {
     use crate::core::AppError;
     use tauri::Manager;
     use tauri_plugin_dialog::DialogExt;
     let app = window.app_handle().clone();
     let picked = tokio::task::spawn_blocking(move || {
-        let dialog = app.dialog().file().set_title("Forma CAD");
+        let dialog = app.dialog().file().set_title(title);
         match initial {
             Some(initial) => dialog.set_directory(initial).blocking_pick_folder(),
             None => dialog.blocking_pick_folder(),

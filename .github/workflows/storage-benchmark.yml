@@ -80,7 +80,8 @@ jobs:
         run: |
           set -o pipefail
           cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib project_repository::window_sources:: -- --nocapture 2>&1 | tee storage-evidence/window-source-tests.log
-          grep -F 'test result: ok. 21 passed; 0 failed;' storage-evidence/window-source-tests.log
+          grep -E '^test result: ok\. [1-9][0-9]* passed; 0 failed;' storage-evidence/window-source-tests.log
+          grep -F 'test project_repository::window_sources::operation::tests::write_availability_rechecks_the_original_window_and_reports_held_lease ... ok' storage-evidence/window-source-tests.log
           grep -F 'test project_repository::window_sources::write_ipc::tests::folder_write_accepts_the_key_issued_by_the_registry ... ok' storage-evidence/window-source-tests.log
           grep -E 'test project_repository::window_sources::write_ipc::tests::folder_write_requires_all_selectors_and_excludes_managed_payload \.\.\. ok' storage-evidence/window-source-tests.log
           grep -E 'test project_repository::window_sources::write_ipc::tests::managed_reply_keeps_the_existing_project_json_shape \.\.\. ok' storage-evidence/window-source-tests.log

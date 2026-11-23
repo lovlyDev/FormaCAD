@@ -36,6 +36,8 @@ for (const locale of ["en", "ru"] as const) {
                 case "open_project_folder": return selection();
                 case "list_recent_folders": return { items: recent ? [{ location: path, lastOpenedAtMs: 1, pinned: false }] : [], rememberRecent: true };
                 case "close_project_source": return true;
+                case "project_folder_write_availability": return { status: "readOnly", reason: "PROJECT_READ_ONLY" };
+                case "save_project_folder_copy": return null;
                 case "history_status": return { canUndo: false, canRedo: false, expectedRevision: null };
                 case "detect_environment": case "interrupted_sessions": case "permission_audit": return [];
                 default: return null;
@@ -45,8 +47,8 @@ for (const locale of ["en", "ru"] as const) {
         });
       }, { locale, theme, id, path });
       const labels = locale === "ru"
-        ? { create: /^Создать проект/, folder: "Создать в папке" }
-        : { create: /^Create a project/, folder: "Create in folder" };
+        ? { create: /^Создать проект/, folder: "Создать в папке", readOnly: /другом экземпляре/i, copy: "Сохранить копию проекта в папку" }
+        : { create: /^Create a project/, folder: "Create in folder", readOnly: /another instance/i, copy: "Save project copy to folder" };
       await page.goto("/");
       await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
       await page.getByRole("button", { name: labels.create }).click();
@@ -54,9 +56,15 @@ for (const locale of ["en", "ru"] as const) {
       await expect(page).toHaveURL(new RegExp(`#/folder/${id}$`));
       await expect(page.locator(".project-switch")).toContainText("Folder fixture");
       await expect(page.locator(".project-switch")).not.toContainText("Managed fixture");
+      const readOnly = page.getByRole("status").filter({ hasText: labels.readOnly });
+      await expect(readOnly).toBeVisible();
+      await readOnly.getByRole("button", { name: labels.copy, exact: true }).click();
       await page.getByRole("button", { name: "forma", exact: true }).click();
       await expect(page).toHaveURL(/#\/$/);
       const calls = () => page.evaluate(() => (window as unknown as { folderFixtureCalls: { command: string; args: unknown }[] }).folderFixtureCalls);
+      expect((await calls()).find(call => call.command === "save_project_folder_copy")?.args)
+        .toEqual({ projectId: id, sourceId: "fixture-window:1:nonce", expectedCommitId: "b827854d-c993-4654-a124-ae00fd759251" });
+      expect((await calls()).filter(call => call.command === "copy_project_for_editing")).toEqual([]);
       await expect.poll(async () => (await calls()).find(call => call.command === "close_project_source")?.args)
         .toEqual({ sourceId: "fixture-window:1:nonce" });
       await page.getByRole("button", { name: path, exact: true }).click();
@@ -69,6 +77,60 @@ for (const locale of ["en", "ru"] as const) {
     });
   }
 }
+
+test("recovers a folder copy after a read-only open reports recovery", async ({ page }) => {
+  const id = "13a3dfbd-9d7e-4e16-a97f-5159a9c2b974";
+  await page.addInitScript(id => {
+    localStorage.setItem("forma.locale", "en");
+    const calls: { command: string; args: unknown }[] = [];
+    let recoveries = 0;
+    const project = {
+      id, schemaVersion: 1, name: "Recovered fixture", units: "mm", agent: "codex",
+      pinned: false, createdAt: "2026-11-20T00:00:00Z", updatedAt: "2026-11-20T00:00:00Z",
+      currentRevision: null, revisions: [], files: [], exports: [], messages: [],
+    };
+    Object.assign(window, {
+      isTauri: true, folderFixtureCalls: calls,
+      __TAURI_INTERNALS__: {
+        metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } },
+        transformCallback: () => 0,
+        unregisterCallback: () => {},
+        invoke: async (command: string, args: unknown) => {
+          calls.push({ command, args });
+          switch (command) {
+            case "list_projects": return { entries: [], serializedProjectBytes: 0 };
+            case "list_recent_folders": return { items: [], rememberRecent: false };
+            case "open_project_folder": throw "PROJECT_SNAPSHOT_RECOVERY_REQUIRED";
+            case "recover_project_folder_copy": return ++recoveries === 1 ? null : {
+              status: "opened", source: { project, sourceId: "recovered:1", taskScopeId: "recovered-tasks", commitId: "recovered-commit" },
+            };
+            case "project_folder_write_availability": return { status: "available" };
+            case "history_status": return { canUndo: false, canRedo: false, expectedRevision: null };
+            case "detect_environment": case "interrupted_sessions": case "permission_audit": return [];
+            default: return null;
+          }
+        },
+      },
+    });
+  }, id);
+  const calls = () => page.evaluate(() => (window as unknown as { folderFixtureCalls: { command: string; args: unknown }[] }).folderFixtureCalls);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Open project in folder", exact: true }).click();
+  await expect(page.getByText("This folder needs recovery. Use Recover a folder copy to keep the original files.", { exact: true })).toBeVisible();
+  const recover = page.getByRole("button", { name: "Recover a folder copy", exact: true });
+  await recover.click();
+  await expect.poll(async () => (await calls()).filter(call => call.command === "recover_project_folder_copy").length).toBe(1);
+  await expect(page).toHaveURL(new URL("/", page.url()).href);
+  await recover.click();
+  await expect(page).toHaveURL(new RegExp(`#/folder/${id}$`));
+  await expect(page.locator(".project-switch")).toContainText("Recovered fixture");
+  expect((await calls()).filter(call => call.command === "recover_project_folder_copy").map(call => call.args)).toEqual(
+    Array.from({ length: 2 }, () => ({
+      titles: { source: "Select the folder to recover", destination: "Select an empty folder for the recovered copy" },
+    })),
+  );
+  expect((await calls()).filter(call => call.command === "read_project_snapshot")).toEqual([]);
+});
 
 test("offers STEP transfer from the dashboard after checking CAD availability on demand", async ({ page }) => {
   await page.addInitScript(() => {
@@ -92,6 +154,7 @@ test("offers STEP transfer from the dashboard after checking CAD availability on
             case "get_ui_preferences": return {};
             case "list_projects": return { entries: [], serializedProjectBytes: 0 };
             case "list_recent_folders": return { items: [], rememberRecent: true };
+            case "project_folder_write_availability": return { status: "available" };
             case "detect_environment": return [{ name: "OpenCascade kernel", available: true, detail: "Fixture" }];
             case "transfer_step_to_folder":
               if (++transfers === 1) return null;
@@ -171,6 +234,7 @@ test("saves a draft then uses the reopened folder for Undo and Redo", async ({ p
             case "get_ui_preferences": return {};
             case "list_projects": return { entries: [], serializedProjectBytes: 0 };
             case "list_recent_folders": return { items: [], rememberRecent: true };
+            case "project_folder_write_availability": return { status: "available" };
             case "open_project_folder":
               opening += 1;
               return { sourceId: sourceId(), taskScopeId: `tasks-${opening}`, commitId: commits[head], project: project() };

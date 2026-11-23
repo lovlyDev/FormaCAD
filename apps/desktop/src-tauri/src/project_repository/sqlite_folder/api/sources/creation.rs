@@ -14,6 +14,19 @@ pub enum FolderCreation {
 }
 
 impl FolderSources {
+    /// Recover from an explicitly selected source into an independent target
+    /// and open only the verified commit in the original window registry.
+    pub async fn recover_copy(
+        &self,
+        source: &Path,
+        destination: &Path,
+        scratch: &Path,
+    ) -> Result<FolderCreation> {
+        let opening = self.reserve()?;
+        let publication = FolderProject::recover_to_copy(source, destination, scratch).await?;
+        opening.open_publication(destination, publication).await
+    }
+
     /// Initialize a new project in an explicitly selected empty folder.
     /// No live source or AppState is required to create it.
     pub async fn create_blank(

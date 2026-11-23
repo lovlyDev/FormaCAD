@@ -1,4 +1,5 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { rawError } from "../../i18n";
 import type { Project } from "../../types";
 import type { FolderSourceRef } from "./contract";
 import { closeFolderSource } from "./sourceApi";
@@ -23,8 +24,11 @@ export async function openFolderSelection(target: FolderSelectionTarget, recentL
       ? await invoke<FolderSelection | null>("open_project_folder")
       : await invoke<FolderSelection | null>("open_project_folder", { recentLocation });
   } catch (cause) {
-    if (target.isCurrent()) throw cause;
-    return;
+    if (!target.isCurrent()) return;
+    if (rawError(cause) === "PROJECT_SNAPSHOT_RECOVERY_REQUIRED") {
+      throw new Error("This folder needs recovery. Use Recover a folder copy to keep the original files.", { cause });
+    }
+    throw cause;
   }
   if (!selected) return;
   await adoptFolderSelection(selected, target);

@@ -7,7 +7,7 @@ import {
 
 export type BlankFolderDraft = Pick<Project, "name" | "units" | "agent">;
 
-type FolderCreationReply =
+export type FolderCreationReply =
   | { status: "opened"; source: FolderSelection }
   | { status: "savedWithoutOpening" | "indeterminate"; commitId: string; error: string };
 

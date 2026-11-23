@@ -18,6 +18,7 @@ export function useFolderWriteAction(
   binding: ProjectSourceBinding | null,
   onCommit: () => void,
   reportError: (message: string) => void,
+  available = true,
 ) {
   const lock = useRef(false);
   const unresolved = useRef<Uncertain | null>(null);
@@ -47,7 +48,7 @@ export function useFolderWriteAction(
     detail: string,
     confirm: () => Promise<boolean>,
   ) {
-    if (lock.current || !isFolderWriteOpeningCurrent(opening)
+    if (!available || lock.current || !isFolderWriteOpeningCurrent(opening)
       || (unresolved.current && isFolderWriteOpeningCurrent(unresolved.current.opening))) return;
 
     await withLock(async () => {

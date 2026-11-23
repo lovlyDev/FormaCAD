@@ -24,7 +24,6 @@ on:
   push:
     branches: [codex/storage-week]
     paths-ignore: [docs/integration/**]
-  workflow_dispatch:
 concurrency:
   group: storage-native-consumers-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: false

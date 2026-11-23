@@ -17,6 +17,12 @@ impl WriteApproval {
 }
 
 impl FolderProject {
+    /// Check the current write availability of this exact saved view. This
+    /// creates no approval and retains no authority after it returns.
+    pub async fn check_write_available(&self, original: &ReadView) -> Result<()> {
+        self.session.check_write_available(&original.snapshot).await
+    }
+
     /// Invoke only after the host's explicit modify decision for this read view.
     pub async fn approve_write(&self, original: &ReadView) -> Result<WriteApproval> {
         let authorization =

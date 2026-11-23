@@ -777,3 +777,17 @@ intact. It never submits the write a second time. An abandoned operation
 whose CAS writes already began may leave unreferenced immutable objects.
 Recovery owns its private scratch directory until SQLite closes and cleans
 that directory alone. Separate draft and CAD scratch directories stay intact.
+
+The folder toolbar checks write availability for its current window, source
+and saved commit. While checking or while another application holds the OS
+lease, editing and history writes are disabled. The status shows the reason
+and recommends an independent copy when the folder is locked. The copy
+route continues to read the original folder. Before publication the writer
+still reacquires its own lease and validates the captured commit.
+
+If opening a folder reports that it needs recovery, choose **Recover a folder
+copy** on the dashboard. Select the affected folder and then an empty target
+folder. The app verifies the SQLite snapshot, history and attachments, uses its
+private application profile for temporary recovery data, and opens the copy as
+a separate project. The original files stay intact. Cancelling either folder
+picker leaves the workspace as it was.

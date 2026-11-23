@@ -22,6 +22,40 @@ async fn fixture(root: &Path, id: &str, name: &str) {
 }
 
 #[tokio::test]
+async fn write_availability_rechecks_the_original_window_and_reports_held_lease() {
+    let root = tempfile::tempdir().unwrap();
+    let id = uuid::Uuid::new_v4().to_string();
+    fixture(root.path(), &id, "Availability fixture").await;
+    let windows = WindowSources::default();
+    let opened = windows
+        .for_window("window")
+        .unwrap()
+        .open(root.path())
+        .await
+        .unwrap();
+    let key = opened.id.to_string();
+    let operation = windows
+        .capture_operation("window", &key, &id, opened.snapshot.commit_id())
+        .await
+        .unwrap();
+    operation.check_write_available().await.unwrap();
+    let writer = crate::project_access::folder_lease::FolderLease::acquire(root.path()).unwrap();
+    assert_eq!(
+        operation
+            .check_write_available()
+            .await
+            .unwrap_err()
+            .to_string(),
+        "PROJECT_READ_ONLY"
+    );
+    operation.recheck().await.unwrap();
+    drop(writer);
+    operation.check_write_available().await.unwrap();
+    windows.close_window("window");
+    assert!(operation.check_write_available().await.is_err());
+}
+
+#[tokio::test]
 async fn operation_keeps_window_source_and_saved_state_together_without_read_grants() {
     let first_root = tempfile::tempdir().unwrap();
     let second_root = tempfile::tempdir().unwrap();

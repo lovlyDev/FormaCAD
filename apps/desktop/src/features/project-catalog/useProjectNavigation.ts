@@ -1,6 +1,7 @@
 import { openFolderSelection, type FolderSelectionTarget } from "../project-sources/openFolderSelection";
 import { createFolderSelection, type BlankFolderDraft } from "../project-sources/createFolderSelection";
 import { transferStepToFolder, type StepFolderDraft } from "../project-sources/stepFolderSelection";
+import { recoverFolderSelection } from "../project-sources/recoverFolderSelection";
 import { isSourceCurrent, type ProjectSourceBinding } from "../project-sources/sourceBinding";
 import { useCallback, useEffect, useRef } from "react";
 import { errorText, t } from "../../i18n";
@@ -100,6 +101,7 @@ export function useProjectNavigation(
       selectFolder(target => createFolderSelection(draft, target, onError)),
     transferStep: (draft: StepFolderDraft) =>
       selectFolder(target => transferStepToFolder(draft, target, onError)),
+    recoverFolder: () => selectFolder(target => recoverFolderSelection(target, onError)),
   };
 }
 

@@ -99,6 +99,41 @@ async fn explicit_recovery_replays_a_real_hot_journal_only_in_private_scratch() 
 }
 
 #[tokio::test]
+async fn recovered_copy_has_its_own_window_source_and_preserves_original_files() {
+    use crate::project_repository::sqlite_folder::api::{FolderCreation, FolderSources};
+
+    let root = tempfile::tempdir().unwrap();
+    let target = tempfile::tempdir().unwrap();
+    let scratch = tempfile::tempdir().unwrap();
+    let project_id = pending_source(root.path()).await;
+    let database = root.path().join("project.sqlite");
+    let journal = root.path().join("project.sqlite-journal");
+    let before = (fs::read(&database).unwrap(), fs::read(&journal).unwrap());
+    let sources = FolderSources::default();
+
+    let FolderCreation::Opened(opened) = sources
+        .recover_copy(root.path(), target.path(), scratch.path())
+        .await
+        .unwrap()
+    else {
+        panic!("verified recovery must open the new project");
+    };
+    assert_ne!(opened.snapshot.project().id, project_id);
+    let copy = sources.lookup(&opened.id.to_string()).unwrap();
+    let view = copy.capture().await.unwrap();
+    assert_eq!(view.project().name, ORIGINAL);
+    assert_eq!(view.commit_id(), opened.snapshot.commit_id());
+    assert_eq!(
+        copy.read_asset(&view, &view.project().files[0])
+            .await
+            .unwrap(),
+        ASSET
+    );
+    assert_eq!(fs::read(database).unwrap(), before.0);
+    assert_eq!(fs::read(journal).unwrap(), before.1);
+}
+
+#[tokio::test]
 async fn recovery_refuses_a_source_changed_to_a_newer_commit_after_capture() {
     let root = tempfile::tempdir().unwrap();
     let target = tempfile::tempdir().unwrap();

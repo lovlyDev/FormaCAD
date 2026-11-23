@@ -15,6 +15,18 @@ use std::sync::Arc;
 use super::super::crash_probe::Point;
 
 impl FolderSession {
+    /// Advisory only. Publication still acquires its own lease after validating
+    /// the original source again.
+    pub(in crate::project_repository::sqlite_folder) async fn check_write_available(
+        &self,
+        original: &FolderSnapshot,
+    ) -> Result<()> {
+        self.recheck(original).await?;
+        let lease = FolderLease::acquire(&self.root)?;
+        self.recheck(original).await?;
+        lease.recheck()
+    }
+
     pub(in crate::project_repository::sqlite_folder) async fn commit(
         &self,
         original: &FolderSnapshot,

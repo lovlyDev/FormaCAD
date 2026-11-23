@@ -5,7 +5,7 @@ import type { UnavailableEntry } from "../features/project-catalog/useProjectCat
 import { version as appVersion } from "../../package.json";
 import { motion } from "framer-motion";
 import {
-  Box, Cpu, FolderOpen, LayoutGrid, LoaderCircle, PackageOpen, Pencil, Plus, Search, Settings2, Star, Trash2,
+  Box, Cpu, FolderOpen, LayoutGrid, LifeBuoy, LoaderCircle, PackageOpen, Pencil, Plus, Search, Settings2, Star, Trash2,
 } from "lucide-react";
 import { Button, IconButton } from "../components/ui";
 import { errorText, getLocale, quantity, t } from "../i18n";
@@ -26,6 +26,7 @@ type Props = {
   onSettings: () => void;
   onImport: () => void;
   onOpenFolder?: (recentLocation?: string) => void;
+  onRecoverFolder?: () => void;
   onImportBundle: () => void;
   onExportBundle: (project: Project, redactConversation: boolean) => void;
   onNew: () => void;
@@ -36,7 +37,7 @@ type Props = {
   onError: (message: string) => void;
 };
 
-export function Dashboard({ projects, unavailable, loading, error, search, onSearch, onSettings, onImport, onOpenFolder, onImportBundle, onExportBundle, onNew, onOpen, onRename, onDelete, onRefresh, onError }: Props) {
+export function Dashboard({ projects, unavailable, loading, error, search, onSearch, onSettings, onImport, onOpenFolder, onRecoverFolder, onImportBundle, onExportBundle, onNew, onOpen, onRename, onDelete, onRefresh, onError }: Props) {
   const pinRequests = useRef(new Set<string>());
   const visible = [...projects]
     .sort((a, b) => Number(b.pinned) - Number(a.pinned))
@@ -70,6 +71,7 @@ export function Dashboard({ projects, unavailable, loading, error, search, onSea
           <Button onClick={onImport}><FolderOpen size={15} />{t("Import model")}</Button>
           {native && <>
             {onOpenFolder && <Button onClick={() => onOpenFolder()}><FolderOpen size={15} />{t("Open project in folder")}</Button>}
+            {onRecoverFolder && <Button onClick={onRecoverFolder}><LifeBuoy size={15} />{t("Recover a folder copy")}</Button>}
             <Button onClick={onImportBundle}><PackageOpen size={15} />{t("Import project bundle")}</Button>
             <ImportProjectFolderButton onImported={project => { onRefresh(); onOpen(project); }} onError={onError} />
           </>}

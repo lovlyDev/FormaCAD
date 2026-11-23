@@ -104,6 +104,8 @@ pub fn run() {
             projects::list_projects,
             projects::read_project_snapshot,
             project_repository::window_sources::ipc::open_project_folder,
+            project_repository::window_sources::ipc::access::project_folder_write_availability,
+            project_repository::window_sources::ipc::recovery::recover_project_folder_copy,
             project_repository::window_sources::ipc::recents::list_recent_folders,
             project_repository::window_sources::ipc::recents::pin_recent_folder,
             project_repository::window_sources::ipc::recents::remember_recent_folders,

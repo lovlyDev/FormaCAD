@@ -71,6 +71,10 @@ impl FolderOperation {
         self.source.recheck(&self.view).await
     }
 
+    pub async fn check_write_available(&self) -> Result<()> {
+        self.source.check_write_available(&self.view).await
+    }
+
     /// The cursor and revision come from this operation's metadata view.
     /// The archive is not read and a writer lease is not needed.
     pub async fn history_status(&self) -> Result<HistoryStatus> {

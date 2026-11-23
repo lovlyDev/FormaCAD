@@ -61,6 +61,8 @@ import { folderHistoryAction } from "../features/project-history/folderHistoryAc
 import { useFolderWriteAction } from "../features/project-sources/useFolderWriteAction";
 import { useFolderWriteConfirmation } from "../features/project-sources/useFolderWriteConfirmation";
 import { isFolderWriteOpeningCurrent } from "../features/project-sources/folderWriteResult";
+import { useFolderWriteAvailability } from "../features/project-sources/useFolderWriteAvailability";
+import { FolderWriteNotice } from "../features/project-sources/FolderWriteNotice";
 import { useFolderCopy } from "../features/project-sources/useFolderCopy";
 import { recentFoldersKey } from "../features/project-sources/recentFoldersApi";
 import { isSourceCurrent } from "../features/project-sources/sourceBinding";
@@ -179,7 +181,7 @@ export default function App() {
     (projectId !== project.id || folderRoute !== (sourceBinding?.kind === "folder"));
   const editingBlocked = busy || !projectAccess.writable || openingProject;
   const { catalog, projects, unavailable } = useProjectCatalog();
-  const { openProject, openFolder, createFolder, transferStep } = useProjectNavigation(projectId, nav, setError, folderRoute);
+  const { openProject, openFolder, createFolder, transferStep, recoverFolder } = useProjectNavigation(projectId, nav, setError, folderRoute);
   const recovery = useQuery({
     queryKey: ["recovery"],
     queryFn: interruptedSessions,
@@ -504,15 +506,18 @@ export default function App() {
   }
   const historyAction = useHistoryAction(ask, refresh);
   const folderConfirmation = useFolderWriteConfirmation(sourceBinding);
+  const folderAvailability = useFolderWriteAvailability(sourceBinding);
   const folderWrite = useFolderWriteAction(
     sourceBinding,
     () => { void queryClient.invalidateQueries({ queryKey: ["model-history"] }); },
     setError,
+    folderAvailability.available,
   );
   const writeFolderHistory = folderHistoryAction(sourceBinding, folderWrite.write, folderConfirmation.confirm);
   const folderHistoryActive = sourceBinding?.kind === "folder";
   const folderCopy = useFolderCopy(sourceBinding, setNotice, setError);
-  const folderProgramBlocked = busy || openingProject || folderWrite.busy || !!folderWrite.uncertain || !!pending;
+  const folderProgramBlocked = !folderAvailability.available || busy || openingProject
+    || folderWrite.busy || !!folderWrite.uncertain || !!pending;
   async function ask(
     title: string,
     description: string,
@@ -1052,7 +1057,7 @@ export default function App() {
               project={project}
               sourceBinding={sourceBinding}
               blocked={(folderHistoryActive
-                ? busy || openingProject || folderWrite.busy || !!folderWrite.uncertain
+                ? folderProgramBlocked
                 : editingBlocked) || !!pending || !!modal || loadingModel}
               onAction={folderHistoryActive ? direction => void writeFolderHistory(direction) : historyAction}
             />
@@ -1096,7 +1101,14 @@ export default function App() {
           {t("Opening the selected project. The current model is kept until reading succeeds.")}
         </div>
       )}
-      {project && (
+      {folderHistoryActive ? (
+        <FolderWriteNotice
+          message={folderAvailability.message}
+          canCopy={folderAvailability.canCopy}
+          copying={folderCopy.copying}
+          copy={() => void folderCopy.save()}
+        />
+      ) : project && (
         <ProjectAccessNotice
           projectId={project.id}
           {...projectAccess}
@@ -1119,7 +1131,6 @@ export default function App() {
           }}
         />
       )}
-      {openingProject && <div className="error-inline" role="status">{t("Opening the selected project. The current model is kept until reading succeeds.")}</div>}
       {!project ? (
         <Dashboard
           projects={projects.data ?? []}
@@ -1132,6 +1143,9 @@ export default function App() {
           onImport={() => fileInput.current?.click()}
           onOpenFolder={projectId ? undefined : (location) => {
             void openFolder(location).then(() => queryClient.invalidateQueries({ queryKey: recentFoldersKey }));
+          }}
+          onRecoverFolder={projectId ? undefined : () => {
+            void recoverFolder().then(() => queryClient.invalidateQueries({ queryKey: recentFoldersKey }));
           }}
           onImportBundle={() =>
             void importProjectBundle()
