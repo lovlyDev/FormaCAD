@@ -4,6 +4,16 @@ use super::*;
 use crate::models::ProjectFile;
 use std::{fs, time::Duration};
 
+#[cfg(any(
+    windows,
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    )
+))]
+#[path = "process_tests.rs"]
+mod process_tests;
+
 fn project() -> Project {
     serde_json::from_value(serde_json::json!({
         "schemaVersion":1,"id":uuid::Uuid::new_v4().to_string(),"name":"session publication fixture",

@@ -434,3 +434,22 @@ target the current main baseline. lovlyDev separately authorized the six listed
 files on 29 October 2026, and the patch is applied in the task branch. Compilation
 and real-worker results remain required. Other Issue #3 files, worker protocol and
 Cargo remain outside task edits.
+
+## FCP1 publication and writer process contention
+
+| State | Durable project state |
+| --- | --- |
+| Staging | The writer verifies the captured session and obtains the OS lease. Pending files and metadata belong to the attempted operation. |
+| Validated | CAS objects are checked and flushed. A SQLite transaction validates the expected saved state, the new project and the history. Unreferenced CAS objects can remain after an interruption. |
+| Published | Successful SQLite `COMMIT` makes metadata, history and the head visible together. An ambiguous reply requires checking the attempted commit UUID from a fresh read. |
+| Indexed | The application can update its location and recent-project information. Opening the folder can reconstruct access if the index is missing. |
+
+The test `reader_can_copy_but_cannot_write_until_the_other_process_is_killed`
+starts a writer in a separate process and parks the real commit route after it
+acquires the lease, before CAS publication. The parent reads the saved commit,
+history and attachment through the folder host. It checks refusal with
+`PROJECT_READ_ONLY` and creates a copy with a new project ID. It then kills
+the writer, checks that the lock file and original SQL bytes remain, and
+publishes a new commit through the same reader opening. The fixture uses a
+local filesystem and a synthetic attachment. Later interruption points,
+explicit recovery and physical USB/NAS behavior have independent acceptance checks.
