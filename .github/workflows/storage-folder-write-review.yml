@@ -62,6 +62,8 @@ jobs:
           cargo test --manifest-path "$manifest" --locked --no-default-features --lib cadpack::export:: -- --nocapture | tee bundle-tests.log
           grep -F 'test cadpack::export::folder::tests::moved_folder_exports_full_and_share_bundles_without_writer_authority ... ok' bundle-tests.log
           grep -F 'test cadpack::export::folder::tests::folder_export_rejects_source_destinations_and_closed_openings ... ok' bundle-tests.log
+          cargo test --manifest-path "$manifest" --locked --no-default-features --lib project_repository::sqlite_folder::api::drafts::tests:: -- --nocapture | tee draft-tests.log
+          grep -F 'test result: ok. 3 passed; 0 failed;' draft-tests.log
           cargo test --manifest-path "$manifest" --locked --no-default-features --lib project_repository::folder_index::tests:: -- --nocapture | tee recents-tests.log
           grep -F 'test result: ok. 4 passed; 0 failed;' recents-tests.log
           cargo clippy --manifest-path "$manifest" --locked --all-targets --features native-worker-client -- -D warnings

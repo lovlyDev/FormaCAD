@@ -39,7 +39,8 @@ async fn explicit_draft_survives_close_without_modifying_the_saved_project() {
 
     let unfinished = "{ \"schemaVersion\": 2, \"features\": [";
     let saved = store.save(approval, unfinished.into()).unwrap();
-    let serialized = fs::read_to_string(store.path(saved.id()).unwrap()).unwrap();
+    let serialized =
+        fs::read_to_string(store.path(saved.provenance(), saved.id()).unwrap()).unwrap();
     for token in ["sourceId", "openingId", "approvalId", "taskScopeId"] {
         assert!(!serialized.contains(token));
     }
@@ -50,6 +51,15 @@ async fn explicit_draft_survives_close_without_modifying_the_saved_project() {
         .read_local_draft(&viewed, &store, saved.id())
         .await
         .unwrap();
+    assert_eq!(
+        reopened
+            .latest_local_draft(&viewed, &store)
+            .await
+            .unwrap()
+            .unwrap()
+            .id(),
+        saved.id()
+    );
     assert_eq!(draft.editor_text(), unfinished);
     assert_eq!(draft.provenance().project_id(), original.project().id);
     assert_eq!(draft.provenance().base_commit_id(), original.commit_id());
@@ -82,6 +92,11 @@ async fn draft_cannot_be_restored_to_another_repository_or_newer_commit() {
         .read_local_draft(&view, &store, saved.id())
         .await
         .is_err());
+    assert!(replacement
+        .latest_local_draft(&view, &store)
+        .await
+        .unwrap()
+        .is_none());
 
     let approval = source.approve_write(&original).await.unwrap();
     let mut renamed = original.project().clone();
@@ -102,6 +117,11 @@ async fn draft_cannot_be_restored_to_another_repository_or_newer_commit() {
         .read_local_draft(&latest, &store, saved.id())
         .await
         .is_err());
+    assert!(source
+        .latest_local_draft(&latest, &store)
+        .await
+        .unwrap()
+        .is_none());
 }
 
 #[tokio::test]

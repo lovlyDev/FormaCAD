@@ -12,6 +12,7 @@ use std::{
 };
 use uuid::Uuid;
 
+mod recent;
 const MAX_DRAFT_BYTES: usize = 1024 * 1024;
 const MAX_ENCODED_BYTES: u64 = 6 * MAX_DRAFT_BYTES as u64 + 4096;
 
@@ -106,15 +107,26 @@ impl LocalDraftStore {
         drop(file);
         // A no-replace link exposes only complete, flushed records. Workspace
         // cleanup owns the temporary file, including on failure.
-        fs::hard_link(staging, self.path(&draft.id)?)?;
+        let directory = self.base_directory(&draft.provenance)?;
+        fs::create_dir_all(&directory)?;
+        fs::hard_link(staging, self.path(&draft.provenance, &draft.id)?)?;
         Ok(draft)
     }
 
     fn load(&self, id: &str, provenance: DraftProvenance) -> Result<LocalDraft> {
         let mut bytes = Vec::new();
-        File::open(self.path(id)?)?
-            .take(MAX_ENCODED_BYTES + 1)
-            .read_to_end(&mut bytes)?;
+        let scoped = self.path(&provenance, id)?;
+        let file = match File::open(scoped) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                // Earlier versions stored records directly under the store.
+                File::open(crate::security::guarded(
+                    &self.root,
+                    Path::new(&format!("{id}.json")),
+                )?)?
+            }
+            other => other?,
+        };
+        file.take(MAX_ENCODED_BYTES + 1).read_to_end(&mut bytes)?;
         if bytes.len() as u64 > MAX_ENCODED_BYTES {
             return Err(limit());
         }
@@ -128,9 +140,14 @@ impl LocalDraftStore {
         Ok(draft)
     }
 
-    fn path(&self, id: &str) -> Result<PathBuf> {
+    fn path(&self, provenance: &DraftProvenance, id: &str) -> Result<PathBuf> {
         crate::security::valid_id(id)?;
-        crate::security::guarded(&self.root, Path::new(&format!("{id}.json")))
+        let relative = provenance.relative_base()?;
+        crate::security::guarded(&self.root, &relative.join(format!("{id}.json")))
+    }
+
+    fn base_directory(&self, provenance: &DraftProvenance) -> Result<PathBuf> {
+        crate::security::guarded(&self.root, &provenance.relative_base()?)
     }
 }
 

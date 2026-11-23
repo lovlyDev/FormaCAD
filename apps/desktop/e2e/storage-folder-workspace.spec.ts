@@ -199,7 +199,7 @@ test("offers STEP transfer from the dashboard after checking CAD availability on
     .toEqual([payload, payload]);
 });
 
-test("saves a draft then uses the reopened folder for Undo and Redo", async ({ page }) => {
+test("keeps and reviews a local draft before building and using folder Undo and Redo", async ({ page }) => {
   const projectId = "2cd42be8-acc3-4d24-934a-2f06f0736e2d";
   const now = "2026-11-20T00:00:00Z";
   const revision = "fixture-revision";
@@ -210,6 +210,7 @@ test("saves a draft then uses the reopened folder for Undo and Redo", async ({ p
     "4a145be4-e889-4d9b-bf57-1b1b2c7ace50",
   ];
   const approvalId = "a8106158-4c6c-43a0-859c-6d8799330912";
+  const unfinished = '{ "schemaVersion": 2, "features": [';
   const program = JSON.stringify({
     version: 1,
     features: [
@@ -223,6 +224,7 @@ test("saves a draft then uses the reopened folder for Undo and Redo", async ({ p
     const calls: { command: string; args: unknown }[] = [];
     let opening = 0;
     let head = 0;
+    let localDraft: { editorText: string; base: string } | null = null;
     const sourceId = () => `folder-window:${opening}:nonce`;
     const project = () => ({
       id: projectId, schemaVersion: 1, name: "Editable folder", units: "mm", agent: "codex",
@@ -249,6 +251,13 @@ test("saves a draft then uses the reopened folder for Undo and Redo", async ({ p
               opening += 1;
               return { sourceId: sourceId(), taskScopeId: `tasks-${opening}`, commitId: commits[head], project: project() };
             case "close_project_source": return true;
+            case "keep_folder_editor_draft": {
+              const { editorText, source } = args as { editorText: string; source: { expectedCommitId: string } };
+              localDraft = { editorText, base: source.expectedCommitId };
+              return null;
+            }
+            case "review_folder_editor_draft":
+              return localDraft?.base === commits[head] ? localDraft.editorText : null;
             case "detect_environment": return [{ name: "OpenCascade kernel", available: true, detail: "Fixture" }];
             case "request_permission": return { id: approvalId, requiresConfirmation: true };
             case "history_status": return { canUndo: head % 2 === 1, canRedo: head === 2, expectedRevision: project().currentRevision };
@@ -271,10 +280,27 @@ test("saves a draft then uses the reopened folder for Undo and Redo", async ({ p
 
   await open.click();
   await expect(page.locator(".project-switch")).toHaveText("Editable folder");
-  await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Edit model parameters", exact: true }).click();
+  const openEditor = async () => {
+    await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Edit model parameters", exact: true }).click();
+  };
+  await openEditor();
   const editor = page.getByRole("dialog", { name: "Model editor" });
-  await editor.getByRole("textbox", { name: "CAD source" }).fill(program);
+  const editorText = editor.getByRole("textbox", { name: "CAD source", exact: true });
+  await editorText.fill(unfinished);
+  await editor.getByRole("button", { name: "Keep draft on this device", exact: true }).click();
+  await expect(editor.getByText("Draft kept on this device.", { exact: true })).toBeVisible();
+  await editor.getByRole("button", { name: "Close", exact: true }).click();
+  await page.getByRole("button", { name: "forma", exact: true }).click();
+  await open.click();
+  await openEditor();
+  await expect(editorText).toHaveValue("");
+  await editor.getByRole("button", { name: "Review local draft", exact: true }).click();
+  await expect(editor.getByRole("textbox", { name: "Local draft text" })).toHaveValue(unfinished);
+  await expect(editorText).toHaveValue("");
+  await editor.getByRole("button", { name: "Replace editor text with draft", exact: true }).click();
+  await expect(editorText).toHaveValue(unfinished);
+  await editorText.fill(program);
   await editor.getByRole("button", { name: "Build", exact: true }).click();
   await confirm.click();
   await expect(undo).toBeEnabled();
@@ -292,10 +318,14 @@ test("saves a draft then uses the reopened folder for Undo and Redo", async ({ p
   );
   expect(calls.find(call => call.command === "close_project_source")?.args)
     .toEqual({ sourceId: "folder-window:1:nonce" });
+  expect(calls.filter(call => call.command === "keep_folder_editor_draft" || call.command === "review_folder_editor_draft")).toEqual([
+    { command: "keep_folder_editor_draft", args: { source: { projectId, sourceId: "folder-window:1:nonce", expectedCommitId: commits[0] }, editorText: unfinished } },
+    { command: "review_folder_editor_draft", args: { source: { projectId, sourceId: "folder-window:2:nonce", expectedCommitId: commits[0] } } },
+  ]);
   const writes = [
-    { command: "apply_program", sourceId: "folder-window:1:nonce", expectedCommitId: commits[0] },
-    { command: "undo_model", sourceId: "folder-window:2:nonce", expectedCommitId: commits[1] },
-    { command: "redo_model", sourceId: "folder-window:2:nonce", expectedCommitId: commits[2] },
+    { command: "apply_program", sourceId: "folder-window:2:nonce", expectedCommitId: commits[0] },
+    { command: "undo_model", sourceId: "folder-window:3:nonce", expectedCommitId: commits[1] },
+    { command: "redo_model", sourceId: "folder-window:3:nonce", expectedCommitId: commits[2] },
   ];
   expect(calls.filter(call => writes.some(write => write.command === call.command))).toEqual(
     writes.map(({ command, sourceId, expectedCommitId }) => ({
@@ -309,5 +339,7 @@ test("saves a draft then uses the reopened folder for Undo and Redo", async ({ p
     expect.objectContaining({ folderIntent: { kind: "history", direction: "redo", expectedRevision: null } }),
   ]);
   expect(calls.filter(call => call.command === "resolve_permission")).toHaveLength(3);
+  expect(calls.findIndex(call => call.command === "review_folder_editor_draft"))
+    .toBeLessThan(calls.findIndex(call => call.command === "request_permission"));
   expect(calls.some(call => call.command === "save_project" || call.command === "read_project_snapshot")).toBe(false);
 });

@@ -14,6 +14,7 @@ import { TypedFeatureTree } from "../../components/TypedFeatureTree";
 import { Button,Modal } from "../../components/ui";
 import { native } from "../../lib/api";
 import {useSourcePreference} from "../../features/project-sources/useSourcePreference";
+import { FolderDraftControls } from "../../features/project-sources/FolderDraftControls";
 import { useWorkspace } from "../../stores/workspace";
 import { readTypedCadDocument } from "../../lib/typedCadDocument";
 import { importStepHistory, hasImportedSource } from "../../features/import/importStepHistory";
@@ -40,6 +41,11 @@ export function ProgramDialog({open,close,source,disabled,nativeCadAvailable,nat
   <div className="model-editor-toolbar"><span><Box size={15}/>{typed?t("CAD IR v2"):t("CAD source")}</span><span className="model-editor-draft">{draft!==source?t("Unsaved draft"):t("Saved source")}</span>
    {document&&<span className="model-editor-counts"><Layers size={13}/>{t("{{value0}} operations · {{value1}} bodies",{value0:number(document.features.length,0),value1:number(document.bodies.length,0)})}</span>}
   </div>
+  {open&&native&&sourceBinding?.kind==="folder"&&<FolderDraftControls
+   key={sourceBinding.source.sourceId+":"+sourceBinding.source.commitId} opening={sourceBinding}
+   edited={draft!==source} editorText={draft} editingDisabled={disabled}
+   useDraft={text=>{setDraft(text);setSourceOpen(true);setFormatError(false);}}
+  />}
   <EditorScroll><div className={typed?"model-editor-layout":"model-editor-layout legacy"}>
    <div className="model-editor-main">
     <SketchBuildReview {...review} source={draft} disabled={disabled} onChange={setDraft}/>

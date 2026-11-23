@@ -771,6 +771,13 @@ saved base matches. The record carries no opening tokens, machine grants
 or commands to execute and cannot authorize publication. These records
 stay in the app profile and travel separately from an exported project.
 
+In the model editor, choose **Keep draft on this device** to retain the current
+text, including unfinished JSON. When you reopen the same saved base, choose
+**Review local draft** to see it, then **Replace editor text with draft** to
+copy it into the editor. Building remains a separate action. Drafts are indexed
+by repository, project and saved commit in the app profile. A newer commit,
+independent project copy or another device will not restore this text.
+
 If a folder write is timed out before CAS staging begins, the detached job
 keeps its OS lease until it exits and leaves the original SQL and assets
 intact. It never submits the write a second time. An abandoned operation

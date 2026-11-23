@@ -16,6 +16,7 @@ use crate::{
 use std::{path::Path, sync::Arc};
 
 mod bundle_destination;
+mod draft;
 pub(crate) use bundle_destination::BundleDestination;
 
 /// The original Arc and view cannot be replaced independently after an await.
