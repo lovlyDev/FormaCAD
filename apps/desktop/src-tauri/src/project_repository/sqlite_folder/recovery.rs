@@ -110,7 +110,7 @@ async fn recover_captured(
             }
             .await;
             match verified {
-                Ok(()) => Ok(format::CommitOutcome::Committed(saved)),
+                Ok(_) => Ok(format::CommitOutcome::Committed(saved)),
                 Err(error) => Ok(format::CommitOutcome::Indeterminate {
                     commit_id: saved.expectation().commit_id().to_owned(),
                     error,
