@@ -15,7 +15,7 @@ pub(super) struct BundlePlan<'a> {
 
 impl<'a> BundlePlan<'a> {
     pub(super) fn new(project: &Project, history: &'a [u8], redact: bool) -> Result<Self> {
-        let project = if redact {
+        let mut project = if redact {
             redaction::conversation_free(project)?
         } else {
             project.clone()
@@ -23,6 +23,18 @@ impl<'a> BundlePlan<'a> {
         if project.files.len() > MAX_FILES {
             return Err(invalid("Project has too many attachments for a bundle"));
         }
+        for file in &project.files {
+            if file.size > crate::artifacts::MAX_FILE_BYTES as u64 {
+                return Err(invalid("Project bundle entry is too large"));
+            }
+            if file.data.is_some() {
+                return Err(invalid(
+                    "Project bundle must store attachments as separate files",
+                ));
+            }
+        }
+        // Use the importer's descriptor checks before creating or replacing the archive.
+        crate::artifacts::normalize(&mut project)?;
         let project_size = serde_json::to_vec(&project)?.len() as u64;
         if project_size > MAX_PROJECT_BYTES {
             return Err(invalid("Project metadata exceeds bundle limit"));

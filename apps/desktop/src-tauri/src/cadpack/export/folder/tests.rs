@@ -10,7 +10,7 @@ const PART: &[u8] = b"saved geometry byte-for-byte";
 const INPUT: &[u8] = b"retained STEP fixture bytes";
 const NOTE: &[u8] = b"private optional folder attachment";
 
-async fn create_fixture(root: &Path) -> Project {
+async fn create_fixture(root: &Path, note_name: &str) -> Project {
     let mut project = privacy_tests::fixture();
     project.thumbnail = None;
     project.exports.clear();
@@ -18,7 +18,7 @@ async fn create_fixture(root: &Path) -> Project {
     let note_hash = crate::artifacts::digest(NOTE);
     for (name, kind, hash, bytes) in [
         ("dependency.STP", "model", &input_hash, INPUT),
-        ("notes.txt", "attachment", &note_hash, NOTE),
+        (note_name, "attachment", &note_hash, NOTE),
     ] {
         project.files.push(ProjectFile {
             name: name.into(),
@@ -58,7 +58,7 @@ async fn moved_folder_exports_full_and_share_bundles_without_writer_authority() 
     let outer = tempfile::tempdir().unwrap();
     let original = outer.path().join("old-location");
     fs::create_dir(&original).unwrap();
-    let project = create_fixture(&original).await;
+    let project = create_fixture(&original, "notes.pdf").await;
     let moved = outer.path().join("moved root");
     fs::rename(&original, &moved).unwrap();
     let windows = WindowSources::default();
@@ -108,7 +108,7 @@ async fn moved_folder_exports_full_and_share_bundles_without_writer_authority() 
 async fn folder_export_rejects_source_destinations_and_closed_openings() {
     let root = tempfile::tempdir().unwrap();
     let output = tempfile::tempdir().unwrap();
-    let project = create_fixture(root.path()).await;
+    let project = create_fixture(root.path(), "notes.pdf").await;
     let windows = WindowSources::default();
     let opened = windows.open_for_test("main", root.path()).await.unwrap();
     let key = opened.id.to_string();
@@ -134,4 +134,29 @@ async fn folder_export_rejects_source_destinations_and_closed_openings() {
         "PROJECT_SNAPSHOT_CHANGED"
     );
     assert_eq!(fs::read(outside).unwrap(), b"existing output");
+}
+
+#[tokio::test]
+async fn unsupported_attachment_refuses_full_export_before_replacing_the_destination() {
+    let root = tempfile::tempdir().unwrap();
+    let output = tempfile::tempdir().unwrap();
+    let project = create_fixture(root.path(), "notes.txt").await;
+    let windows = WindowSources::default();
+    let opened = windows.open_for_test("main", root.path()).await.unwrap();
+    let operation = windows
+        .capture_operation(
+            "main",
+            &opened.id.to_string(),
+            &project.id,
+            opened.snapshot.commit_id(),
+        )
+        .await
+        .unwrap();
+    let destination = output.path().join("existing.cadpack");
+    fs::write(&destination, b"existing output").unwrap();
+    let error = export(operation, destination.clone(), false)
+        .await
+        .unwrap_err();
+    assert_eq!(error.to_string(), "Unsupported attachment type");
+    assert_eq!(fs::read(destination).unwrap(), b"existing output");
 }

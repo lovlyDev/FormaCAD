@@ -809,3 +809,7 @@ cannot be inferred safely. Model code and geometry may contain private data.
 The export works while another application holds the source write lease. The
 source opening is verified after the save dialog, and grants and opening keys
 are never written to the bundle.
+
+Export checks each included attachment against the CADPACK import rules before
+replacing the destination. If a folder contains an unsupported attachment type,
+a full export reports the attachment error and preserves any existing bundle.
