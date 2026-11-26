@@ -160,7 +160,14 @@ async fn verify_target(path: &Path, project_id: &str, history: &[u8]) {
     let target = FolderSession::open(path).await.unwrap();
     let view = target.capture().await.unwrap();
     assert_eq!(view.project().id, project_id);
-    assert_eq!(target.read_history(&view).await.unwrap(), history);
+    let restored = target.read_history(&view).await.unwrap();
+    crate::project_history::validate_archive(view.project(), &restored).unwrap();
+    // The SQL export serializes its typed archive in field declaration order.
+    // The source fixture uses JSON map order. Compare every field and event.
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&restored).unwrap(),
+        serde_json::from_slice::<serde_json::Value>(history).unwrap()
+    );
     for (index, expected) in [(0, A), (1, B)] {
         assert_eq!(
             target
