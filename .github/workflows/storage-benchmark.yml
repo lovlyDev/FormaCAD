@@ -61,6 +61,7 @@ jobs:
           grep -F 'test project_repository::sqlite_folder::session::write::tests::process_tests::crash_tests::abrupt_exit_exposes_an_intact_head_or_read_only_recovery_state ... ok' storage-evidence/host-api-tests.log
           grep -F 'test project_repository::sqlite_folder::recovery::tests::explicit_recovery_replays_a_real_hot_journal_only_in_private_scratch ... ok' storage-evidence/host-api-tests.log
           grep -F 'test project_repository::sqlite_folder::recovery::tests::recovery_refuses_a_source_changed_to_a_newer_commit_after_capture ... ok' storage-evidence/host-api-tests.log
+          grep -F 'test project_repository::sqlite_folder::migration::tests::crash::interrupted_migration_preserves_verified_backup_and_can_be_reproduced ... ok' storage-evidence/host-api-tests.log
           grep -F 'test project_repository::sqlite_folder::api::drafts::tests::explicit_draft_survives_close_without_modifying_the_saved_project ... ok' storage-evidence/host-api-tests.log
           grep -F 'test project_repository::sqlite_folder::session::write::tests::timeout_before_staging_leaves_other_work_and_does_not_replay ... ok' storage-evidence/host-api-tests.log
       - name: Verify the application index is disposable
@@ -152,6 +153,7 @@ jobs:
             "abrupt_exit_exposes_an_intact_head_or_read_only_recovery_state",
             "explicit_recovery_replays_a_real_hot_journal_only_in_private_scratch",
             "recovery_refuses_a_source_changed_to_a_newer_commit_after_capture",
+            "interrupted_migration_preserves_verified_backup_and_can_be_reproduced",
             "explicit_draft_survives_close_without_modifying_the_saved_project",
             "timeout_before_staging_leaves_other_work_and_does_not_replay"
           )

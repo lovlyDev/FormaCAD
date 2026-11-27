@@ -48,8 +48,8 @@ for (const locale of ["en", "ru"] as const) {
         });
       }, { locale, theme, id, path });
       const labels = locale === "ru"
-        ? { create: /^Создать проект/, folder: "Создать в папке", readOnly: /другом экземпляре/i, copy: "Сохранить копию проекта в папку", bundle: "Экспортировать пакет проекта", redact: "Исключить переписку и текст действий", export: "Экспорт" }
-        : { create: /^Create a project/, folder: "Create in folder", readOnly: /another instance/i, copy: "Save project copy to folder", bundle: "Export project bundle", redact: "Exclude conversation and activity text", export: "Export" };
+        ? { create: /^Создать проект/, folder: "Создать в папке", readOnly: /другом экземпляре/i, copy: "Сохранить копию проекта в папку", bundle: "Экспортировать пакет проекта", redact: "Исключить переписку и текст действий", cancel: "Отмена", export: "Экспорт" }
+        : { create: /^Create a project/, folder: "Create in folder", readOnly: /another instance/i, copy: "Save project copy to folder", bundle: "Export project bundle", redact: "Exclude conversation and activity text", cancel: "Cancel", export: "Export" };
       await page.goto("/");
       await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
       await page.getByRole("button", { name: labels.create }).click();
@@ -60,10 +60,22 @@ for (const locale of ["en", "ru"] as const) {
       const readOnly = page.getByRole("status").filter({ hasText: labels.readOnly });
       await expect(readOnly).toBeVisible();
       await readOnly.getByRole("button", { name: labels.copy, exact: true }).click();
-      await page.getByRole("button", { name: labels.bundle, exact: true }).click();
+      const openBundle = page.getByRole("button", { name: labels.bundle, exact: true });
+      await openBundle.focus();
+      await expect(openBundle).toBeFocused();
+      await page.keyboard.press("Enter");
       const bundle = page.getByRole("dialog", { name: labels.bundle, exact: true });
-      await bundle.getByRole("checkbox", { name: labels.redact, exact: true }).check();
-      await bundle.getByRole("button", { name: labels.export, exact: true }).click();
+      const redact = bundle.getByRole("checkbox", { name: labels.redact, exact: true });
+      await redact.focus();
+      await expect(redact).toBeFocused();
+      await page.keyboard.press("Space");
+      await expect(redact).toBeChecked();
+      await page.keyboard.press("Tab");
+      await expect(bundle.getByRole("button", { name: labels.cancel, exact: true })).toBeFocused();
+      await page.keyboard.press("Tab");
+      await expect(bundle.getByRole("button", { name: labels.export, exact: true })).toBeFocused();
+      await page.keyboard.press("Enter");
+      await expect(bundle).toBeHidden();
       await page.getByRole("button", { name: "forma", exact: true }).click();
       await expect(page).toHaveURL(/#\/$/);
       const calls = () => page.evaluate(() => (window as unknown as { folderFixtureCalls: { command: string; args: unknown }[] }).folderFixtureCalls);
