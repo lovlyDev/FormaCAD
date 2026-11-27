@@ -1,4 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
+import type { FolderSourceRef } from "../project-sources/contract";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import { z } from "zod";
 import {
   topologyReferenceSchema,
@@ -62,12 +63,15 @@ export interface ExactSnapResult {
 export async function exactSnap(
   scope: { projectId: string; revisionId: string; bodyId: string },
   query: ExactSnapQuery,
+  source?: FolderSourceRef,
 ): Promise<ExactSnapResult> {
+  if(source&&!isTauri())throw Error("PROJECT_FOLDER_UNSUPPORTED");
   const raw: unknown = await invoke("snap_model_reference", {
     projectId: scope.projectId,
     expectedRevision: scope.revisionId,
     bodyId: scope.bodyId,
     query,
+    ...(source ? {sourceId:source.sourceId,expectedCommitId:source.commitId} : {}),
   });
   const parsed = confirmed.safeParse(raw);
   if (

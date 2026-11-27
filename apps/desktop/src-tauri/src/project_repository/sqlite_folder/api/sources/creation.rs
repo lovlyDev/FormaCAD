@@ -1,0 +1,93 @@
+use super::{stale, FolderProject, FolderSources, OpenedFolder, Opening};
+use crate::{
+    core::{AppError, Result},
+    models::Project,
+    project_repository::sqlite_folder::api::Publication,
+};
+use std::path::Path;
+
+/// A creation may be durable even when its live opening cannot be returned.
+pub enum FolderCreation {
+    Opened(Box<OpenedFolder>),
+    SavedWithoutOpening { commit_id: String, error: AppError },
+    Indeterminate { commit_id: String, error: AppError },
+}
+
+impl FolderSources {
+    /// Recover from an explicitly selected source into an independent target
+    /// and open only the verified commit in the original window registry.
+    pub async fn recover_copy(
+        &self,
+        source: &Path,
+        destination: &Path,
+        scratch: &Path,
+    ) -> Result<FolderCreation> {
+        let opening = self.reserve()?;
+        let publication = FolderProject::recover_to_copy(source, destination, scratch).await?;
+        opening.open_publication(destination, publication).await
+    }
+
+    /// Initialize a new project in an explicitly selected empty folder.
+    /// No live source or AppState is required to create it.
+    pub async fn create_blank(
+        &self,
+        root: &Path,
+        name: String,
+        units: String,
+        agent: String,
+    ) -> Result<FolderCreation> {
+        let opening = self.reserve()?;
+        let now = chrono::Utc::now().to_rfc3339();
+        let project_id = uuid::Uuid::new_v4().to_string();
+        let project = Project {
+            schema_version: 1,
+            id: project_id.clone(),
+            name: name.trim().to_owned(),
+            units,
+            agent,
+            pinned: false,
+            thumbnail: None,
+            thumbnail_revision: None,
+            created_at: now.clone(),
+            updated_at: now,
+            revisions: vec![],
+            current_revision: None,
+            messages: vec![],
+            files: vec![],
+            exports: vec![],
+        };
+        project.validate()?;
+        let publication = FolderProject::create(root, project, vec![], None).await?;
+        opening.open_publication(root, publication).await
+    }
+}
+
+impl Opening<'_> {
+    pub(super) async fn open_publication(
+        self,
+        root: &Path,
+        publication: Publication,
+    ) -> Result<FolderCreation> {
+        let (project_id, commit_id) = match publication {
+            Publication::Committed(saved) => {
+                (saved.project().id.clone(), saved.commit_id().to_owned())
+            }
+            Publication::RejectedBefore(error) => return Err(error),
+            Publication::Indeterminate { commit_id, error } => {
+                return Ok(FolderCreation::Indeterminate { commit_id, error });
+            }
+        };
+        let opened = self
+            .open(root, |snapshot| {
+                if snapshot.project().id != project_id || snapshot.commit_id() != commit_id {
+                    return Err(stale());
+                }
+                Ok(())
+            })
+            .await;
+        Ok(match opened {
+            Ok(source) => FolderCreation::Opened(Box::new(source)),
+            Err(error) => FolderCreation::SavedWithoutOpening { commit_id, error },
+        })
+    }
+}

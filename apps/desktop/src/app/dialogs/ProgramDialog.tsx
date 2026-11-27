@@ -13,7 +13,8 @@ import { CadFeatureEditor } from "../../components/CadFeatureEditor";
 import { TypedFeatureTree } from "../../components/TypedFeatureTree";
 import { Button,Modal } from "../../components/ui";
 import { native } from "../../lib/api";
-import { usePersistentState } from "../../lib/persistence";
+import {useSourcePreference} from "../../features/project-sources/useSourcePreference";
+import { FolderDraftControls } from "../../features/project-sources/FolderDraftControls";
 import { useWorkspace } from "../../stores/workspace";
 import { readTypedCadDocument } from "../../lib/typedCadDocument";
 import { importStepHistory, hasImportedSource } from "../../features/import/importStepHistory";
@@ -24,12 +25,13 @@ import { previewError } from "../../features/model-preview/previewError";
 import "./ProgramDialog.css";
 export function ProgramDialog({open,close,source,disabled,nativeCadAvailable,nativeCadChecked,importedSource,onApply}:{open:boolean;close:()=>void;source:string;disabled:boolean;nativeCadAvailable:boolean;nativeCadChecked:boolean;importedSource?:string;onApply:(source:string)=>void}){
  const project=useWorkspace(state=>state.project);
+ const sourceBinding=useWorkspace(state=>state.sourceBinding);
  const draftKey=`forma.ui.project.${project?.id??"home"}.source.${project?.currentRevision??"new"}`;
- const [draft,setDraft]=usePersistentState(draftKey,source),document=readTypedCadDocument(draft),typed=!!document;
+ const [draft,setDraft]=useSourcePreference(draftKey,source,sourceBinding),document=readTypedCadDocument(draft),typed=!!document;
  const [sourceOpen,setSourceOpen]=useEditorPreference("source.open",!readTypedCadDocument(source)),[formatError,setFormatError]=useState(false);
  const [autoPreview,setAutoPreview]=useEditorPreference("preview.auto",false),[refresh,setRefresh]=useState(0);
  const review=useSketchBuildReview(draft,open&&typed&&nativeCadAvailable&&!disabled);
- const preview=useModelPreview(project?.id??"",draft,project?.currentRevision??null,open&&autoPreview&&typed&&nativeCadAvailable&&!disabled,refresh);
+ const preview=useModelPreview(project?.id??"",draft,project?.currentRevision??null,open&&autoPreview&&typed&&nativeCadAvailable&&!disabled,refresh,sourceBinding);
  const importFile=project?.files.find(file=>file.name===importedSource);
  const importHistory=importStepHistory(importFile,project?.currentRevision??"draft");
  const importedOnly=!!importedSource&&!source.trim()&&!hasImportedSource(document,importFile);
@@ -39,6 +41,11 @@ export function ProgramDialog({open,close,source,disabled,nativeCadAvailable,nat
   <div className="model-editor-toolbar"><span><Box size={15}/>{typed?t("CAD IR v2"):t("CAD source")}</span><span className="model-editor-draft">{draft!==source?t("Unsaved draft"):t("Saved source")}</span>
    {document&&<span className="model-editor-counts"><Layers size={13}/>{t("{{value0}} operations · {{value1}} bodies",{value0:number(document.features.length,0),value1:number(document.bodies.length,0)})}</span>}
   </div>
+  {open&&native&&sourceBinding?.kind==="folder"&&<FolderDraftControls
+   key={sourceBinding.source.sourceId+":"+sourceBinding.source.commitId} opening={sourceBinding}
+   edited={draft!==source} editorText={draft} editingDisabled={disabled}
+   useDraft={text=>{setDraft(text);setSourceOpen(true);setFormatError(false);}}
+  />}
   <EditorScroll><div className={typed?"model-editor-layout":"model-editor-layout legacy"}>
    <div className="model-editor-main">
     <SketchBuildReview {...review} source={draft} disabled={disabled} onChange={setDraft}/>

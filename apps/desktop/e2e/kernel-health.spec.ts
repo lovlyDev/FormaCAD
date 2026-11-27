@@ -21,7 +21,8 @@ for (const locale of ["ru", "en"] as const) {
               if (command === "detect_environment") {
                 return [{ name: "OpenCascade kernel", available: false, detail: diagnostic }];
               }
-              if (["list_projects", "interrupted_sessions", "permission_audit"].includes(command)) return [];
+              if (command === "list_projects") return { entries: [], serializedProjectBytes: 0 };
+              if (["interrupted_sessions", "permission_audit"].includes(command)) return [];
               return null;
             },
           },

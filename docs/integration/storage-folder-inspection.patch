@@ -1,0 +1,468 @@
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/mod.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/mod.rs
+index e741859..d7bfdec 100644
+--- a/apps/desktop/src-tauri/src/project_repository/window_sources/mod.rs
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/mod.rs
+@@ -4,6 +4,7 @@ use crate::{
+     models::Project,
+ };
+ mod assets;
++mod capture;
+ pub mod ipc;
+ 
+ #[cfg(any(
+@@ -68,7 +69,7 @@ impl WindowSources {
+             )
+         ))]
+         {
+-            let read = self.capture_expected(label, key, id, expected).await?;
++            let read = self.capture_read(label, key, id, expected).await?;
+             let project = read.project().clone();
+             read.recheck().await?;
+             Ok(project)
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/supported.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/supported.rs
+index 4c36313..44d2b42 100644
+--- a/apps/desktop/src-tauri/src/project_repository/window_sources/supported.rs
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/supported.rs
+@@ -1,25 +1,11 @@
+ use super::{changed, WindowSources};
+ use crate::{
+     core::{AppError, Result},
+-    project_repository::{backend::RepositoryRead, sqlite_folder::api::FolderSources},
++    project_repository::sqlite_folder::api::FolderSources,
+ };
+ use std::sync::Arc;
+ 
+ impl WindowSources {
+-    pub(super) async fn capture_expected(
+-        &self,
+-        label: &str,
+-        key: &str,
+-        id: &str,
+-        expected: &str,
+-    ) -> Result<RepositoryRead<'static>> {
+-        let source = self.existing(label)?.lookup(key)?;
+-        let view = source.capture_metadata().await?;
+-        if view.project().id != id || view.commit_id() != expected {
+-            return Err(changed());
+-        }
+-        RepositoryRead::from_folder_view(source, view).await
+-    }
+     pub(super) fn for_window(&self, label: &str) -> Result<Arc<FolderSources>> {
+         let mut scopes = self.scopes.lock().map_err(|_| changed())?;
+         if let Some(scope) = scopes.get(label) {
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/assets.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/assets.rs
+index 8db8c52..63e4a3c 100644
+--- a/apps/desktop/src-tauri/src/project_repository/window_sources/assets.rs
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/assets.rs
+@@ -20,7 +20,7 @@ impl WindowSources {
+         ))]
+         {
+             crate::security::file_name(name)?;
+-            let read = self.capture_expected(label, key, id, expected).await?;
++            let read = self.capture_read(label, key, id, expected).await?;
+             let file = read
+                 .project()
+                 .files
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/assets/tests.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/assets/tests.rs
+index bb86381..feaa66f 100644
+--- a/apps/desktop/src-tauri/src/project_repository/window_sources/assets/tests.rs
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/assets/tests.rs
+@@ -76,11 +76,11 @@ async fn assets_bind_original_source_commit_and_descriptor_without_app_index() {
+         .is_err()
+     );
+     let closing_read = windows
+-        .capture_expected("assets", &key_a, &id, commit_a)
++        .capture_read("assets", &key_a, &id, commit_a)
+         .await
+         .unwrap();
+     let stale_read = windows
+-        .capture_expected("assets", &key_a, &id, commit_a)
++        .capture_read("assets", &key_a, &id, commit_a)
+         .await
+         .unwrap();
+     assert!(stale_read.read_history().await.unwrap().is_some());
+@@ -111,7 +111,7 @@ async fn assets_bind_original_source_commit_and_descriptor_without_app_index() {
+         .await
+         .is_err());
+     let closing_source = windows
+-        .capture_expected("assets", &key_b, &id, commit_b)
++        .capture_read("assets", &key_b, &id, commit_b)
+         .await
+         .unwrap();
+     assert!(windows.close_source("assets", &key_b).unwrap());
+diff --git a/apps/desktop/src-tauri/src/model_inspection.rs b/apps/desktop/src-tauri/src/model_inspection.rs
+index 60c76bc..25f4a1e 100644
+--- a/apps/desktop/src-tauri/src/model_inspection.rs
++++ b/apps/desktop/src-tauri/src/model_inspection.rs
+@@ -1,5 +1,5 @@
+ //! Read exact CAD properties for any saved STEP revision in the project.
+-use crate::core::{AppState, Result};
++use crate::core::{AppError, AppState, Result};
+ #[cfg(feature = "native-worker-client")]
+ mod read;
+ use tauri::State;
+@@ -18,15 +18,41 @@ pub struct ExactModelProperties {
+ pub async fn inspect_model(
+     project_id: String,
+     revision_id: String,
++    source_id: Option<String>,
++    expected_commit_id: Option<String>,
++    window: tauri::WebviewWindow,
++    sources: State<'_, crate::project_repository::window_sources::WindowSources>,
+     state: State<'_, AppState>,
+ ) -> Result<Option<ExactModelProperties>> {
++    if source_id.is_some() != expected_commit_id.is_some() {
++        return Err(AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into()));
++    }
+     #[cfg(not(feature = "native-worker-client"))]
+     {
+-        let _ = (project_id, revision_id, state);
++        let _ = (
++            project_id,
++            revision_id,
++            window,
++            sources,
++            state,
++            expected_commit_id,
++        );
++        if source_id.is_some() {
++            return Err(AppError::Invalid("PROJECT_FOLDER_UNSUPPORTED".into()));
++        }
+         Ok(None)
+     }
+     #[cfg(feature = "native-worker-client")]
+     {
+-        read::inspect(&state, &project_id, &revision_id).await
++        match (source_id, expected_commit_id) {
++            (None, None) => read::inspect(&state, &project_id, &revision_id).await,
++            (Some(source), Some(commit)) => {
++                let captured = sources
++                    .capture_read(window.label(), &source, &project_id, &commit)
++                    .await?;
++                read::inspect_bound(&state, captured, &revision_id).await
++            }
++            _ => Err(AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into())),
++        }
+     }
+ }
+diff --git a/apps/desktop/src-tauri/src/model_inspection/read.rs b/apps/desktop/src-tauri/src/model_inspection/read.rs
+index 0dccdcb..7d8d74b 100644
+--- a/apps/desktop/src-tauri/src/model_inspection/read.rs
++++ b/apps/desktop/src-tauri/src/model_inspection/read.rs
+@@ -3,7 +3,7 @@ use super::ExactModelProperties;
+ use crate::{
+     core::{AppError, AppState, Result},
+     native::inspection::ExactProperties,
+-    project_repository::legacy,
++    project_repository::backend::{ProjectRepository, RepositoryRead},
+ };
+ use std::{
+     future::Future,
+@@ -25,6 +25,17 @@ pub(super) async fn inspect(
+     .await
+ }
+ 
++pub(super) async fn inspect_bound(
++    state: &AppState,
++    read: RepositoryRead<'_>,
++    revision: &str,
++) -> Result<Option<ExactModelProperties>> {
++    run_bound(state, read, revision, |cwd, cancel| async move {
++        crate::native::inspection::inspect_step(&cwd, cancel).await
++    })
++    .await
++}
++
+ async fn run<F, Fut>(
+     state: &AppState,
+     id: &str,
+@@ -35,9 +46,23 @@ where
+     F: FnOnce(PathBuf, Arc<AtomicBool>) -> Fut,
+     Fut: Future<Output = Result<ExactProperties>>,
+ {
+-    let snapshot = legacy::capture_project(state, id).await?;
+-    let revision = snapshot
+-        .project
++    let read = RepositoryRead::capture(ProjectRepository::managed(state, id)?).await?;
++    run_bound(state, read, revision, worker).await
++}
++
++async fn run_bound<F, Fut>(
++    state: &AppState,
++    read: RepositoryRead<'_>,
++    revision: &str,
++    worker: F,
++) -> Result<Option<ExactModelProperties>>
++where
++    F: FnOnce(PathBuf, Arc<AtomicBool>) -> Fut,
++    Fut: Future<Output = Result<ExactProperties>>,
++{
++    let id = read.project().id.clone();
++    let revision = read
++        .project()
+         .revisions
+         .iter()
+         .find(|r| r.id == revision)
+@@ -54,34 +79,33 @@ where
+             source
+         }
+         _ => {
+-            legacy::recheck(state, &snapshot).await?;
++            read.recheck().await?;
+             return Ok(None);
+         }
+     };
+-    let file = snapshot
+-        .project
++    let file = read
++        .project()
+         .files
+         .iter()
+         .find(|f| f.name == source)
+         .ok_or_else(|| AppError::Invalid("Saved STEP model is missing".into()))?;
+-    let bytes = checked_bytes(state, id, file)?;
++    let bytes = checked_bytes(&read, file).await?;
+     let cancel = Arc::new(AtomicBool::new(false));
+     let _cad = state
+         .cad_tasks
+-        .acquire(id, "inspection", cancel.clone())
++        .acquire(&id, "inspection", cancel.clone())
+         .await?;
+-    legacy::recheck(state, &snapshot).await?;
++    read.recheck().await?;
+     let workspace = crate::project_access::transient::Workspace::create(&state.root)?;
+     crate::artifacts::immutable_write(&workspace.path, Path::new("source.step"), &bytes)?;
+     let properties = worker(workspace.path.clone(), cancel.clone()).await?;
+     if cancel.load(Ordering::Relaxed) {
+         return Err(AppError::Invalid("CAD_TASK_CANCELLED".into()));
+     }
+-    if checked_bytes(state, id, file)? != bytes {
++    if checked_bytes(&read, file).await? != bytes {
+         return Err(AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into()));
+     }
+-    // Full project fencing currently includes unrelated project metadata.
+-    legacy::recheck(state, &snapshot).await?;
++    read.recheck().await?;
+     if cancel.load(Ordering::Relaxed) {
+         return Err(AppError::Invalid("CAD_TASK_CANCELLED".into()));
+     }
+@@ -94,19 +118,30 @@ where
+     }))
+ }
+ 
+-fn checked_bytes(state: &AppState, id: &str, file: &crate::models::ProjectFile) -> Result<Vec<u8>> {
+-    let bytes = crate::artifacts::read(state, id, file)?;
+-    if bytes.len() as u64 != file.size
+-        || file
+-            .sha256
+-            .as_ref()
+-            .is_some_and(|hash| crate::artifacts::digest(&bytes) != *hash)
+-    {
+-        return Err(AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into()));
+-    }
+-    Ok(bytes)
++async fn checked_bytes(
++    read: &RepositoryRead<'_>,
++    file: &crate::models::ProjectFile,
++) -> Result<Vec<u8>> {
++    read.read_asset(file).await.map_err(|error| match error {
++        AppError::Invalid(code) if code == "Project file failed its integrity check" => {
++            AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into())
++        }
++        error => error,
++    })
+ }
+ 
+ // This fixture constructs STEP directly with OCCT; client-only coverage uses worker IPC.
++#[cfg(all(
++    test,
++    feature = "native-occt",
++    any(
++        windows,
++        all(
++            target_os = "linux",
++            any(target_arch = "x86_64", target_arch = "aarch64")
++        )
++    )
++))]
++mod folder_tests;
+ #[cfg(all(test, feature = "native-occt"))]
+ mod tests;
+diff --git a/apps/desktop/src-tauri/src/model_inspection/read/tests.rs b/apps/desktop/src-tauri/src/model_inspection/read/tests.rs
+index 475267f..8acba44 100644
+--- a/apps/desktop/src-tauri/src/model_inspection/read/tests.rs
++++ b/apps/desktop/src-tauri/src/model_inspection/read/tests.rs
+@@ -1,6 +1,6 @@
+ use super::*;
+ use crate::project_repository::legacy::read_test_fixture as fixture;
+-fn worker() -> PathBuf {
++pub(super) fn worker() -> PathBuf {
+     option_env!("CARGO_BIN_EXE_forma-cad-worker")
+         .map(PathBuf::from)
+         .unwrap_or_else(|| {
+@@ -13,7 +13,7 @@ fn worker() -> PathBuf {
+                 .join(format!("forma-cad-worker{}", std::env::consts::EXE_SUFFIX))
+         })
+ }
+-async fn saved_step(state: &AppState) -> crate::models::Project {
++pub(super) async fn saved_step(state: &AppState) -> crate::models::Project {
+     let mut project = fixture::project(state, 4).await;
+     // Generate the genuine STEP in an isolated process, as the desktop does.
+     // Worker exit closes its native IO before the host reads and removes staging.
+diff --git a/apps/desktop/src/lib/modelInspection.ts b/apps/desktop/src/lib/modelInspection.ts
+index 499257c..3bb6663 100644
+--- a/apps/desktop/src/lib/modelInspection.ts
++++ b/apps/desktop/src/lib/modelInspection.ts
+@@ -1,5 +1,7 @@
+ import { invoke } from "@tauri-apps/api/core";
+ import { native } from "./api";
++import { t } from "../i18n";
++import type { FolderSourceRef } from "../features/project-sources/contract";
+ 
+ export interface ExactModelProperties {
+   volumeMm3: number;
+@@ -12,7 +14,11 @@ export interface ExactModelProperties {
+ export async function inspectSavedModel(
+   projectId: string,
+   revisionId: string,
++  source?: FolderSourceRef,
+ ): Promise<ExactModelProperties | null> {
++  if (source && !native) throw new Error(t("PROJECT_FOLDER_UNSUPPORTED"));
+   if (!native) return null;
+-  return invoke("inspect_model", { projectId, revisionId });
++  return invoke("inspect_model", source
++    ? { projectId, revisionId, sourceId: source.sourceId, expectedCommitId: source.commitId }
++    : { projectId, revisionId });
+ }
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/capture.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/capture.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/capture.rs
+@@ -0,0 +1,42 @@
++//! Platform-stable host capture entry for common asynchronous read consumers.
++use super::WindowSources;
++use crate::{core::Result, project_repository::backend::RepositoryRead};
++
++impl WindowSources {
++    pub async fn capture_read(
++        &self,
++        label: &str,
++        key: &str,
++        id: &str,
++        expected: &str,
++    ) -> Result<RepositoryRead<'static>> {
++        #[cfg(any(
++            windows,
++            all(
++                target_os = "linux",
++                any(target_arch = "x86_64", target_arch = "aarch64")
++            )
++        ))]
++        {
++            let source = self.existing(label)?.lookup(key)?;
++            let view = source.capture_metadata().await?;
++            if view.project().id != id || view.commit_id() != expected {
++                return Err(super::changed());
++            }
++            RepositoryRead::from_folder_view(source, view).await
++        }
++        #[cfg(not(any(
++            windows,
++            all(
++                target_os = "linux",
++                any(target_arch = "x86_64", target_arch = "aarch64")
++            )
++        )))]
++        {
++            let _ = (label, key, id, expected);
++            Err(crate::core::AppError::Invalid(
++                "PROJECT_FOLDER_UNSUPPORTED".into(),
++            ))
++        }
++    }
++}
+diff --git a/apps/desktop/src-tauri/src/model_inspection/read/folder_tests.rs b/apps/desktop/src-tauri/src/model_inspection/read/folder_tests.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/model_inspection/read/folder_tests.rs
+@@ -0,0 +1,80 @@
++use super::*;
++use crate::{
++    models::Project,
++    project_repository::{
++        legacy::read_test_fixture as fixture,
++        sqlite_folder::api::{FolderProject, Publication},
++    },
++};
++
++async fn independent(state: &AppState, root: &Path) -> Arc<FolderProject> {
++    let mut project: Project = tests::saved_step(state).await;
++    let pending = crate::artifacts::normalize(&mut project).unwrap();
++    assert!(matches!(
++        FolderProject::create(root, project, pending, None)
++            .await
++            .unwrap(),
++        Publication::Committed(_)
++    ));
++    Arc::new(FolderProject::open(root).await.unwrap())
++}
++
++#[tokio::test]
++async fn independent_step_properties_use_original_folder_and_refuse_late_close() {
++    let app = tempfile::tempdir().unwrap();
++    let folder = tempfile::tempdir().unwrap();
++    let state = fixture::state(app.path()).await;
++    let source = independent(&state, folder.path()).await;
++    let original = source.capture_metadata().await.unwrap();
++    let id = original.project().id.clone();
++    let revision = original.project().current_revision.clone().unwrap();
++    // A conflicting managed row sharing the identity cannot supply our bytes.
++    let mut wrong_managed = original.project().clone();
++    let wrong = b"intentionally invalid managed STEP";
++    wrong_managed.files[0].data = Some(crate::artifacts::data_url(
++        &wrong_managed.files[0].name,
++        wrong,
++    ));
++    wrong_managed.files[0].size = wrong.len() as u64;
++    wrong_managed.files[0].sha256 = Some(crate::artifacts::digest(wrong));
++    fixture::replace(&state, &wrong_managed, false).await;
++    let before_app = fixture::logical(&state, &id).await;
++    let before_folder = std::fs::read(folder.path().join("project.sqlite")).unwrap();
++    let read = RepositoryRead::from_folder_view(Arc::clone(&source), original)
++        .await
++        .unwrap();
++    let properties = run_bound(&state, read, &revision, |p, c| async move {
++        crate::native::inspection::inspect_with_executable(&p, c, &tests::worker()).await
++    })
++    .await
++    .unwrap()
++    .unwrap();
++    assert!((properties.volume_mm3 - 8000.0).abs() < 1e-6);
++    for (actual, expected) in properties.bounds_mm.into_iter().zip([40.0, 20.0, 10.0]) {
++        assert!((actual - expected).abs() < 1e-6);
++    }
++    let read = RepositoryRead::from_folder_view(
++        Arc::clone(&source),
++        source.capture_metadata().await.unwrap(),
++    )
++    .await
++    .unwrap();
++    let result = run_bound(&state, read, &revision, |p, c| {
++        let source = Arc::clone(&source);
++        async move {
++            let properties =
++                crate::native::inspection::inspect_with_executable(&p, c, &tests::worker()).await?;
++            source.close();
++            Ok(properties)
++        }
++    })
++    .await;
++    assert!(
++        matches!(result,Err(AppError::Invalid(ref code)) if code == "PROJECT_SNAPSHOT_CHANGED")
++    );
++    assert_eq!(before_app, fixture::logical(&state, &id).await);
++    assert_eq!(
++        before_folder,
++        std::fs::read(folder.path().join("project.sqlite")).unwrap()
++    );
++}

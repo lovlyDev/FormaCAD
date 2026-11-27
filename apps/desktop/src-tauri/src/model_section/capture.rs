@@ -2,12 +2,12 @@
 use crate::{
     core::{AppError, AppState, Result},
     models::ProjectFile,
-    project_repository::legacy::{self, CommittedSnapshot},
+    project_repository::backend::{ProjectRepository, RepositoryRead},
 };
 use std::path::Path;
 
-pub(super) struct CapturedSection {
-    pub snapshot: CommittedSnapshot,
+pub(super) struct CapturedSection<'a> {
+    pub snapshot: RepositoryRead<'a>,
     pub hash: String,
     source: ProjectFile,
 }
@@ -23,15 +23,22 @@ fn snapshot_error(error: AppError) -> AppError {
     }
 }
 
-pub(super) async fn capture(
-    state: &AppState,
+pub(super) async fn capture<'a>(
+    state: &'a AppState,
     project_id: &str,
     expected_revision: &str,
-) -> Result<CapturedSection> {
-    let snapshot = legacy::capture_project(state, project_id)
+) -> Result<CapturedSection<'a>> {
+    let snapshot = RepositoryRead::capture(ProjectRepository::managed(state, project_id)?)
         .await
         .map_err(snapshot_error)?;
-    let project = &snapshot.project;
+    capture_bound(snapshot, expected_revision).await
+}
+
+pub(super) async fn capture_bound<'a>(
+    snapshot: RepositoryRead<'a>,
+    expected_revision: &str,
+) -> Result<CapturedSection<'a>> {
+    let project = snapshot.project();
     if project.current_revision.as_deref() != Some(expected_revision) {
         return Err(super::stale());
     }
@@ -78,23 +85,36 @@ pub(super) async fn capture(
         hash,
         source,
     };
-    recheck(state, &captured).await?;
+    recheck(&captured).await?;
     Ok(captured)
 }
 
 /// Verify both repository identity and original bytes, not only the staged worker copy.
-pub(super) async fn recheck(state: &AppState, captured: &CapturedSection) -> Result<()> {
-    legacy::recheck(state, &captured.snapshot)
-        .await
-        .map_err(snapshot_error)?;
+pub(super) async fn recheck(captured: &CapturedSection<'_>) -> Result<()> {
+    captured.snapshot.recheck().await.map_err(snapshot_error)?;
+    let _ = bytes(captured).await?;
+    captured.snapshot.recheck().await.map_err(snapshot_error)
+}
+
+pub(super) async fn bytes(captured: &CapturedSection<'_>) -> Result<Vec<u8>> {
     if captured.source.size == 0 || captured.source.size > crate::artifacts::MAX_FILE_BYTES as u64 {
         return Err(super::super::failure(
             "ASSET_LIMIT",
             "CAD section source size is invalid",
         ));
     }
-    let bytes = crate::artifacts::read(state, &captured.snapshot.project.id, &captured.source)
-        .map_err(|error| super::super::failure("ASSET_CHECKSUM_MISMATCH", &error.to_string()))?;
+    let bytes = captured
+        .snapshot
+        .read_asset(&captured.source)
+        .await
+        .map_err(|error| match error {
+            AppError::Invalid(ref code)
+                if code == "PROJECT_SNAPSHOT_CHANGED" || code == "PROJECT_SNAPSHOT_MISSING" =>
+            {
+                snapshot_error(error)
+            }
+            other => super::super::failure("ASSET_CHECKSUM_MISMATCH", &other.to_string()),
+        })?;
     if bytes.len() as u64 != captured.source.size
         || crate::artifacts::digest(&bytes) != captured.hash
     {
@@ -103,5 +123,6 @@ pub(super) async fn recheck(state: &AppState, captured: &CapturedSection) -> Res
             "CAD section source differs from its committed seal",
         ));
     }
-    Ok(())
+    captured.snapshot.recheck().await.map_err(snapshot_error)?;
+    Ok(bytes)
 }

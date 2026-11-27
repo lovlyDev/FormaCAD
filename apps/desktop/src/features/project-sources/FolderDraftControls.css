@@ -1,0 +1,15 @@
+.folder-draft-controls {
+  display: grid;
+  gap: 8px;
+  padding: 8px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.folder-draft-controls .modal-actions {
+  flex-wrap: wrap;
+}
+
+.folder-draft-controls .program-editor {
+  min-height: 96px;
+  max-height: 25vh;
+}

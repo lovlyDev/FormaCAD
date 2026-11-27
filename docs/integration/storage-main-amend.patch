@@ -1,0 +1,147 @@
+diff --git a/apps/desktop/src-tauri/src/modeling/apply.rs b/apps/desktop/src-tauri/src/modeling/apply.rs
+index 0ad8e5c..241b126 100644
+--- a/apps/desktop/src-tauri/src/modeling/apply.rs
++++ b/apps/desktop/src-tauri/src/modeling/apply.rs
+@@ -13,6 +13,7 @@ pub struct ApplyRequest {
+     pub expected_revision: Option<String>,
+     pub review_plan: Option<ReviewPlan>,
+     pub(super) next_revision: Option<String>,
++    pub(super) history_amend: Option<crate::project_history::AmendCapture>,
+ }
+ impl ApplyRequest {
+     pub fn new(
+@@ -28,6 +29,7 @@ impl ApplyRequest {
+             expected_revision,
+             review_plan: None,
+             next_revision: None,
++            history_amend: None,
+         }
+     }
+ }
+@@ -61,6 +63,7 @@ async fn run_managed(
+         state,
+         project_id: &project_id,
+         executable,
++        amend: request.history_amend.clone(),
+     };
+     match repository_apply::apply(ApplyRuntime::from_state(state), &host, request).await? {
+         RepositoryApply::NoOp(project) => Ok(ApplyOutcome {
+diff --git a/apps/desktop/src-tauri/src/modeling/commit.rs b/apps/desktop/src-tauri/src/modeling/commit.rs
+index 5761ea0..949f70e 100644
+--- a/apps/desktop/src-tauri/src/modeling/commit.rs
++++ b/apps/desktop/src-tauri/src/modeling/commit.rs
+@@ -19,13 +19,31 @@ pub(super) fn program_for_revision(
+     Ok(program.trim().to_string())
+ }
+ 
++pub(super) struct AmendContext<'a> {
++    pub before: &'a Project,
++    pub history: &'a crate::project_history::HistoryState,
++    pub capture: &'a crate::project_history::AmendCapture,
++}
++
+ /// Persist only a candidate assembled by the common orchestrator under its host locks.
+ pub(super) async fn persist_prepared(
+     state: &AppState,
+     prepared: PreparedModelChange,
++    amend: Option<AmendContext<'_>>,
+ ) -> Result<Project> {
+     let (project, pending) = prepared.into_parts();
+-    crate::projects::persist(state, project, pending, None).await
++    match amend {
++        Some(amend) => {
++            let intent = crate::project_history::prepare_amend(
++                amend.before,
++                &project,
++                amend.history,
++                amend.capture,
++            )?;
++            crate::projects::persist_with_history(state, project, pending, None, intent).await
++        }
++        None => crate::projects::persist(state, project, pending, None).await,
++    }
+ }
+ #[cfg(test)]
+ mod tests {
+diff --git a/apps/desktop/src-tauri/src/modeling/repository_apply/managed.rs b/apps/desktop/src-tauri/src/modeling/repository_apply/managed.rs
+index 443a80e..7b99b53 100644
+--- a/apps/desktop/src-tauri/src/modeling/repository_apply/managed.rs
++++ b/apps/desktop/src-tauri/src/modeling/repository_apply/managed.rs
+@@ -17,6 +17,7 @@ pub(in crate::modeling) struct ManagedHost<'a> {
+     pub state: &'a AppState,
+     pub project_id: &'a str,
+     pub executable: Option<&'a Path>,
++    pub amend: Option<crate::project_history::AmendCapture>,
+ }
+ 
+ impl<'state> ApplyHost for ManagedHost<'state> {
+@@ -86,9 +87,24 @@ impl<'state> ApplyHost for ManagedHost<'state> {
+         _guard: MutexGuard<'state, ()>,
+         prepared: PreparedModelChange,
+     ) -> Result<Project> {
++        let history = if self.amend.is_some() {
++            Some(crate::project_history::load_state(&self.state.pool, &latest.project).await?)
++        } else {
++            None
++        };
++        // Validate the retained source again after the history SQL await.
+         legacy::recheck_lifecycle(self.state, original)?;
+         legacy::recheck(self.state, latest).await?;
+         legacy::recheck_lifecycle(self.state, original)?;
+-        commit::persist_prepared(self.state, prepared).await
++        let amend = self
++            .amend
++            .as_ref()
++            .zip(history.as_ref())
++            .map(|(capture, history)| commit::AmendContext {
++                before: &latest.project,
++                history,
++                capture,
++            });
++        commit::persist_prepared(self.state, prepared, amend).await
+     }
+ }
+diff --git a/apps/desktop/src-tauri/src/modeling/repository_apply/tests.rs b/apps/desktop/src-tauri/src/modeling/repository_apply/tests.rs
+index b401239..65409fa 100644
+--- a/apps/desktop/src-tauri/src/modeling/repository_apply/tests.rs
++++ b/apps/desktop/src-tauri/src/modeling/repository_apply/tests.rs
+@@ -24,6 +24,7 @@ async fn publication_guard_outlives_temporary_host_and_keeps_real_state_locked()
+             state: &state,
+             project_id: &project.id,
+             executable: None,
++            amend: None,
+         };
+         host.lock_publication().await.unwrap()
+     };
+@@ -43,6 +44,7 @@ async fn no_op_needs_no_grant_or_task_and_future_is_send() {
+         state: &state,
+         project_id: &project.id,
+         executable: None,
++        amend: None,
+     };
+     assert_send(apply(
+         ApplyRuntime::from_state(&state),
+@@ -77,6 +79,7 @@ async fn latest_preserves_metadata_but_rejects_same_head_revision_tampering() {
+         state: &state,
+         project_id: &project.id,
+         executable: None,
++        amend: None,
+     };
+     let (_access, original) = host.capture().await.unwrap();
+     let mut renamed = project.clone();
+@@ -98,6 +101,7 @@ async fn history_seal_rejects_saved_head_aba_even_when_project_returns_to_origin
+         state: &state,
+         project_id: &project.id,
+         executable: None,
++        amend: None,
+     };
+     let (_access, original) = host.capture().await.unwrap();
+     fixture::next_head(&state, &project).await;
+@@ -116,6 +120,7 @@ async fn queued_stale_job_never_enters_worker_and_cleans_own_registration() {
+         state: &state,
+         project_id: &project.id,
+         executable: None,
++        amend: None,
+     };
+     state.grants.lock().await.insert(
+         uuid::Uuid::new_v4().to_string(),

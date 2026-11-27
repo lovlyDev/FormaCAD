@@ -1,3 +1,4 @@
+import {sourceRefFor,type ProjectSourceBinding} from "../project-sources/sourceBinding";
 import type { Project } from "../../types";
 import type { EdgeSelection } from "../viewer/edgeSelection";
 import type { FaceSelection } from "../viewer/faceSelection";
@@ -6,13 +7,15 @@ import { readTopologyReference,type TopologyReference } from "../viewer/topology
 import { matchesReferenceRoute } from "../viewer/topology/referenceRoute";
 import { pairQuerySchema,type PairKind,type PairReport } from "./pairSchema";
 
-export function capturePairScope(project:Project|null,bodyId:string|null,sceneToken:string,interactive:boolean){
+export function capturePairScope(project:Project|null,bodyId:string|null,sceneToken:string,interactive:boolean,sourceBinding?:ProjectSourceBinding|null){
  if(!interactive||!project?.currentRevision||!bodyId||!sceneToken)return null;
+ if(sourceBinding!==undefined&&(!sourceBinding||sourceBinding.projectId!==project.id))return null;
+ const folder=sourceBinding?sourceRefFor(sourceBinding,project.id):undefined;
  const revision=project.revisions.find(value=>value.id===project.currentRevision),rawProgram=revision?.program??"",document=readTypedCadDocument(rawProgram);
  const body=document?.bodies.find(value=>value.id===bodyId),source=project.files.find(value=>value.name===revision?.source&&/\.st(e)?p$/i.test(value.name));
  if(!document||document.revisionId!==project.currentRevision||!body||!source?.sha256||!/^[a-f0-9]{64}$/.test(source.sha256)||typeof source.size!=="number"||!Number.isInteger(source.size)||source.size<=0||source.size>40*1024*1024)return null;
- const binding={projectId:project.id,expectedRevision:project.currentRevision,bodyId,rawProgram,sourceSha256:source.sha256,sourceSize:source.size,sceneToken};
- return {...binding,key:JSON.stringify(binding),document,body};
+ const binding={sourceOpeningId:sourceBinding?.openingId,sourceId:folder?.sourceId,taskScopeId:folder?.taskScopeId,projectId:project.id,expectedRevision:project.currentRevision,bodyId,rawProgram,sourceSha256:source.sha256,sourceSize:source.size,sceneToken};
+ return {...binding,key:JSON.stringify(binding),source:folder,document,body};
 }
 export type PairScope=NonNullable<ReturnType<typeof capturePairScope>>;
 /** Copies ONLY the real current selection's validated authored identity. */
@@ -35,7 +38,7 @@ export function capturePair(scope:PairScope|null,first:TopologyReference|null,se
  if(!scope||!first||!second||!pairKinds(first,second).includes(kind)||![first,second].every(reference=>matchesReferenceRoute(scope.document,scope.body.sourceFeatureId,reference)))return null;
  const parsed=pairQuerySchema.safeParse({kind,first,second});if(!parsed.success)return null;
  const request={projectId:scope.projectId,expectedRevision:scope.expectedRevision,bodyId:scope.bodyId,query:parsed.data};
- return{key:JSON.stringify([scope.key,parsed.data]),request,rawProgram:scope.rawProgram,sourceSha256:scope.sourceSha256,sourceSize:scope.sourceSize};
+ return{...(scope.sourceOpeningId?{source:scope.source,sourceOpeningId:scope.sourceOpeningId}:{}),key:JSON.stringify([scope.key,parsed.data]),request,rawProgram:scope.rawProgram,sourceSha256:scope.sourceSha256,sourceSize:scope.sourceSize};
 }
 export type PairCapture=NonNullable<ReturnType<typeof capturePair>>;
 export function matchesPairReport(report:PairReport,capture:PairCapture){

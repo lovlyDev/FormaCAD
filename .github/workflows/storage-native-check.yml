@@ -1,0 +1,235 @@
+name: Storage native consumers
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/storage-native-check.yml'
+      - 'apps/desktop/src-tauri/src/model_measurement/**'
+      - 'apps/desktop/src-tauri/src/model_pair_measurement/**'
+      - 'apps/desktop/src-tauri/src/model_face_section/**'
+      - 'apps/desktop/src-tauri/src/model_inspection/**'
+      - 'apps/desktop/src-tauri/src/model_preview/**'
+      - 'apps/desktop/src-tauri/src/model_section/**'
+      - 'apps/desktop/src-tauri/tests/model_section_projects*'
+      - 'apps/desktop/src-tauri/tests/model_section_projects/**'
+      - 'apps/desktop/src-tauri/src/project_repository/**'
+      - 'apps/desktop/src-tauri/src/project_access/**'
+      - 'apps/desktop/src-tauri/src/project_storage_v2/**'
+      - 'apps/desktop/src-tauri/src/project_history/**'
+      - 'apps/desktop/src-tauri/tests/*measurements_host*'
+      - 'apps/desktop/src-tauri/tests/*measurements_host/**'
+      - 'apps/desktop/src-tauri/tests/face_sections_host*'
+      - 'apps/desktop/src-tauri/tests/face_sections_host/**'
+  workflow_dispatch:
+  push:
+    branches: [codex/storage-week]
+    paths-ignore: [docs/integration/**]
+concurrency:
+  group: storage-native-consumers-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  measurement-lifecycle:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          targets: x86_64-unknown-linux-gnu
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+          cache-on-failure: true
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .local/occt-build-unix-x86_64-unknown-linux-gnu
+            .local/occt-install-unix-x86_64-unknown-linux-gnu
+          key: occt-V8_0_1-x86_64-unknown-linux-gnu-v1
+      - name: Build prerequisites
+        run: sudo apt-get update && sudo apt-get install -y cmake g++ make libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - name: Existing native build and smoke route
+        id: native-build
+        env:
+          FORMA_NATIVE_TEST_ONLY: '1'
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          mkdir -p storage-native-evidence
+          set -o pipefail
+          bash scripts/build-native-unix.sh x86_64-unknown-linux-gnu app 2>&1 | tee storage-native-evidence/native-smoke.log
+      - name: Execute host consumers and accepted M2 integration with the real CAD worker
+        env:
+          FORMA_OCCT_ROOT: ${{ github.workspace }}/.local/occt-install-unix-x86_64-unknown-linux-gnu
+          FORMA_MEASUREMENT_TEST_WORKER: ${{ github.workspace }}/apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/forma-cad-worker
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          set -o pipefail
+          git rev-parse HEAD > storage-native-evidence/source-sha.txt
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target x86_64-unknown-linux-gnu --features native-occt --test reference_measurements_host --test pair_measurements_host --test face_sections_host --test model_apply_transaction --test transform_worker --test snap_host --test snap_worker -- --nocapture 2>&1 | tee storage-native-evidence/host-consumers.log
+      - name: Execute original-source folder measurements with the real worker
+        env:
+          FORMA_OCCT_ROOT: ${{ github.workspace }}/.local/occt-install-unix-x86_64-unknown-linux-gnu
+          FORMA_MEASUREMENT_TEST_WORKER: ${{ github.workspace }}/apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/forma-cad-worker
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          set -o pipefail
+          test -x "$FORMA_MEASUREMENT_TEST_WORKER"
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target x86_64-unknown-linux-gnu --features native-occt --lib model_measurement::build::folder_tests:: -- --nocapture 2>&1 | tee storage-native-evidence/folder-measurements.log
+          grep -F 'test result: ok. 2 passed; 0 failed;' storage-native-evidence/folder-measurements.log
+      - name: Execute raw folder STEP sections with the real worker
+        env:
+          FORMA_OCCT_ROOT: ${{ github.workspace }}/.local/occt-install-unix-x86_64-unknown-linux-gnu
+          FORMA_MEASUREMENT_TEST_WORKER: ${{ github.workspace }}/apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/forma-cad-worker
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          set -o pipefail
+          test -x "$FORMA_MEASUREMENT_TEST_WORKER"
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target x86_64-unknown-linux-gnu --features native-occt --lib model_section::build::folder_tests:: -- --nocapture 2>&1 | tee storage-native-evidence/folder-manual-sections.log
+          grep -F 'test result: ok. 1 passed; 0 failed;' storage-native-evidence/folder-manual-sections.log
+      - name: Execute original-source folder previews with the real worker
+        env:
+          FORMA_OCCT_ROOT: ${{ github.workspace }}/.local/occt-install-unix-x86_64-unknown-linux-gnu
+          FORMA_MEASUREMENT_TEST_WORKER: ${{ github.workspace }}/apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/forma-cad-worker
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          set -o pipefail
+          test -x "$FORMA_MEASUREMENT_TEST_WORKER"
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target x86_64-unknown-linux-gnu --features native-occt --lib model_preview::host::folder_tests:: -- --nocapture 2>&1 | tee storage-native-evidence/folder-previews.log
+          grep -F 'test result: ok. 3 passed; 0 failed;' storage-native-evidence/folder-previews.log
+      - name: Execute independent folder CAD roundtrip with the real worker
+        env:
+          FORMA_OCCT_ROOT: ${{ github.workspace }}/.local/occt-install-unix-x86_64-unknown-linux-gnu
+          FORMA_FOLDER_TEST_WORKER: ${{ github.workspace }}/apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/forma-cad-worker
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          set -o pipefail
+          test -x "$FORMA_FOLDER_TEST_WORKER"
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target x86_64-unknown-linux-gnu --features native-occt --lib project_repository::sqlite_folder::session::apply::tests::real_worker_folder_roundtrip -- --ignored --exact --nocapture 2>&1 | tee storage-native-evidence/folder-cad-roundtrip.log
+          grep -F 'test result: ok. 1 passed; 0 failed;' storage-native-evidence/folder-cad-roundtrip.log
+      - name: Execute public folder host API with the real CAD worker
+        env:
+          FORMA_OCCT_ROOT: ${{ github.workspace }}/.local/occt-install-unix-x86_64-unknown-linux-gnu
+          FORMA_FOLDER_TEST_WORKER: ${{ github.workspace }}/apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/forma-cad-worker
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          set -o pipefail
+          test -x "$FORMA_FOLDER_TEST_WORKER"
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target x86_64-unknown-linux-gnu --features native-occt --lib project_repository::sqlite_folder::api::worker_tests::real_worker_host_api_roundtrip -- --ignored --exact --nocapture 2>&1 | tee storage-native-evidence/folder-host-api-roundtrip.log
+          grep -F 'test result: ok. 1 passed; 0 failed;' storage-native-evidence/folder-host-api-roundtrip.log
+      - name: Execute retained folder commands and fresh-process history with the real CAD worker
+        env:
+          FORMA_OCCT_ROOT: ${{ github.workspace }}/.local/occt-install-unix-x86_64-unknown-linux-gnu
+          FORMA_FOLDER_TEST_WORKER: ${{ github.workspace }}/apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/forma-cad-worker
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          set -o pipefail
+          test -x "$FORMA_FOLDER_TEST_WORKER"
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target x86_64-unknown-linux-gnu --features native-occt --lib project_repository::window_sources::approval::tests::worker::real_command_decision_applies_original_cad_and_history -- --ignored --exact --nocapture 2>&1 | tee storage-native-evidence/folder-command-approval.log
+          grep -F 'test result: ok. 1 passed; 0 failed;' storage-native-evidence/folder-command-approval.log
+          grep -Fx 'FOLDER_CAD_REOPEN_HISTORY_OK' storage-native-evidence/folder-command-approval.log
+      - name: Execute source-bound permission host with actual CAD and history
+        env:
+          FORMA_OCCT_ROOT: ${{ github.workspace }}/.local/occt-install-unix-x86_64-unknown-linux-gnu
+          FORMA_FOLDER_TEST_WORKER: ${{ github.workspace }}/apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/forma-cad-worker
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          set -o pipefail
+          test -x "$FORMA_FOLDER_TEST_WORKER"
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target x86_64-unknown-linux-gnu --features native-occt --lib permissions::folder::host::tests::worker::real_permission_model_command_and_history -- --ignored --exact --nocapture 2>&1 | tee storage-native-evidence/permission-host-roundtrip.log
+          grep -F 'test result: ok. 1 passed; 0 failed;' storage-native-evidence/permission-host-roundtrip.log
+      - name: Compile the fixture writer from FormaCAD 1.1.0
+        run: |
+          set -euo pipefail
+          legacy_commit=1f5678b98d7461353013d0d78831eeeadf05c53c
+          git fetch --depth 1 origin refs/tags/v1.1.0:refs/tags/v1.1.0
+          test "$(git rev-parse 'refs/tags/v1.1.0^{commit}')" = "$legacy_commit"
+          legacy_tree="$(mktemp -d "$RUNNER_TEMP/forma-1.1-tree-XXXXXX")"
+          git archive "$legacy_commit" | tar -xf - -C "$legacy_tree"
+          legacy_manifest="$legacy_tree/apps/desktop/src-tauri/Cargo.toml"
+          mkdir -p "$legacy_tree/apps/desktop/src-tauri/tests"
+          cp scripts/fixtures/storage_legacy_1_1.rs "$legacy_tree/apps/desktop/src-tauri/tests/storage_legacy_1_1.rs"
+          cargo test --manifest-path "$legacy_manifest" --locked --test storage_legacy_1_1 --no-run --message-format json > "$RUNNER_TEMP/forma-1.1-build.jsonl"
+          fixture_writer="$(python3 - "$RUNNER_TEMP/forma-1.1-build.jsonl" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as messages:
+              artifacts = [
+                  item["executable"]
+                  for item in map(json.loads, messages)
+                  if item["reason"] == "compiler-artifact"
+                  and item["target"]["name"] == "storage_legacy_1_1"
+                  and item.get("executable")
+              ]
+          if len(artifacts) != 1:
+              sys.exit(f"Expected one FormaCAD 1.1 fixture writer artifact, got {len(artifacts)}")
+          print(artifacts[0])
+          PY
+          )"
+          test -x "$fixture_writer"
+          printf 'FORMA_LEGACY_1_1_GENERATOR=%s\n' "$fixture_writer" >> "$GITHUB_ENV"
+          printf '%s\n' "$legacy_commit" > storage-native-evidence/legacy-1.1-source-sha.txt
+      - name: Execute selected STEP transfer from a FormaCAD 1.1.0 project with the real worker
+        env:
+          FORMA_OCCT_ROOT: ${{ github.workspace }}/.local/occt-install-unix-x86_64-unknown-linux-gnu
+          FORMA_FOLDER_TEST_WORKER: ${{ github.workspace }}/apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/forma-cad-worker
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          set -o pipefail
+          test -x "$FORMA_FOLDER_TEST_WORKER"
+          test -x "$FORMA_LEGACY_1_1_GENERATOR"
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target x86_64-unknown-linux-gnu --features native-occt --lib project_repository::sqlite_folder::step_transfer::tests::real_worker_step_transfer_roundtrip -- --ignored --exact --nocapture 2>&1 | tee storage-native-evidence/step-transfer-roundtrip.log
+          grep -F 'test result: ok. 1 passed; 0 failed;' storage-native-evidence/step-transfer-roundtrip.log
+          grep -Fx 'FORMA_LEGACY_1_1_SOURCE_UNCHANGED' storage-native-evidence/step-transfer-roundtrip.log
+      - uses: actions/setup-node@v4
+        id: desktop-node
+        if: ${{ !cancelled() && steps.native-build.outcome == 'success' }}
+        with:
+          node-version: 22
+          cache: npm
+      - name: Identify the native desktop build inputs
+        id: desktop-inputs
+        if: ${{ !cancelled() && steps.desktop-node.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          fingerprint="$(git ls-tree -r HEAD -- .cargo .npmrc Cargo.lock Cargo.toml rust-toolchain.toml package.json package-lock.json apps/desktop packages crates cad-core plugins vendor | sha256sum | cut -d ' ' -f 1)"
+          printf 'key=storage-desktop-ubuntu22-v1-%s\n' "$fingerprint" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@v4
+        id: desktop-cache
+        if: ${{ !cancelled() && steps.desktop-inputs.outcome == 'success' }}
+        with:
+          path: .local/storage-desktop-bin
+          key: ${{ steps.desktop-inputs.outputs.key }}
+      - name: Build the native application without a package or installer
+        id: desktop-build
+        if: ${{ !cancelled() && steps.desktop-cache.outcome == 'success' && steps.desktop-cache.outputs.cache-hit != 'true' }}
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run tauri -w apps/desktop -- build --no-bundle --target x86_64-unknown-linux-gnu --features native-worker-client
+          install -D -m 755 apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/forma-cad .local/storage-desktop-bin/forma-cad
+      - uses: actions/cache/save@v4
+        if: ${{ !cancelled() && steps.desktop-build.outcome == 'success' }}
+        with:
+          path: .local/storage-desktop-bin
+          key: ${{ steps.desktop-inputs.outputs.key }}
+      - name: Exercise the native folder picker and real writes through Tauri WebView
+        if: ${{ !cancelled() && (steps.desktop-build.outcome == 'success' || steps.desktop-cache.outputs.cache-hit == 'true') }}
+        env:
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          set -euxo pipefail
+          sudo apt-get install -y webkit2gtk-driver xvfb xauth xdotool at-spi2-core python3-pyatspi
+          binary="$GITHUB_WORKSPACE/apps/desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/forma-cad"
+          install -m 755 .local/storage-desktop-bin/forma-cad "$binary"
+          test -x "$binary"
+          test -x "${binary%/*}/forma-cad-worker"
+          LC_ALL=C.UTF-8 NO_AT_BRIDGE=0 xvfb-run -a dbus-run-session -- /usr/bin/python3 scripts/test-storage-native-desktop.py "$binary" 2>&1 | tee storage-native-evidence/native-desktop.log
+          grep -Fx 'FORMA_NATIVE_STORAGE_DESKTOP_OK' storage-native-evidence/native-desktop.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: storage-native-consumers-${{ github.sha }}
+          path: storage-native-evidence/

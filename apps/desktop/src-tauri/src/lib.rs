@@ -57,9 +57,19 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_deep_link::init())
         .manage(account::AccountState::default())
+        .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                if let Some(sources) =
+                    window.try_state::<project_repository::window_sources::WindowSources>()
+                {
+                    sources.close_window(window.label());
+                }
+            }
+        })
         .setup(|app| {
             let data = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data)?;
+            app.manage(project_repository::window_sources::WindowSources::with_folder_index(&data));
             let root = data.join("projects");
             std::fs::create_dir_all(&root)?;
             let logs = data.join("logs");
@@ -92,6 +102,20 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             projects::list_projects,
+            projects::read_project_snapshot,
+            project_repository::window_sources::ipc::open_project_folder,
+            project_repository::window_sources::ipc::access::project_folder_write_availability,
+            project_repository::window_sources::ipc::recovery::recover_project_folder_copy,
+            project_repository::window_sources::ipc::draft::keep_folder_editor_draft,
+            project_repository::window_sources::ipc::draft::review_folder_editor_draft,
+            project_repository::window_sources::ipc::recents::list_recent_folders,
+            project_repository::window_sources::ipc::recents::pin_recent_folder,
+            project_repository::window_sources::ipc::recents::remember_recent_folders,
+            project_repository::window_sources::ipc::creation::create_project_folder,
+            project_repository::window_sources::ipc::step::transfer_step_to_folder,
+            project_repository::window_sources::ipc::copy::save_project_folder_copy,
+            project_repository::window_sources::ipc::close_project_source,
+            project_repository::window_sources::ipc::commit_query::observe_folder_commit,
             projects::save_project_thumbnail,
             projects::delete_project,
             projects::interrupted_sessions,
@@ -115,6 +139,7 @@ pub fn run() {
             model_pair_measurement::measure_model_pair,
             model_snap::snap_model_reference,
             cadpack::export::export_project_bundle,
+            cadpack::export::folder::export_folder_project_bundle,
             cadpack::import_project_bundle,
             permissions::request_permission,
             permissions::permission_audit,

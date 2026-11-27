@@ -12,6 +12,16 @@ Exact measurements and sections using their capture retain compatible `MEASUREME
 
 ## Route and storage boundary
 
+Late preview results recheck their original snapshot after the final cleanup
+mutex wait; the task-map mutex is released before SQL/recheck. Manual sections
+repeat full verification after reading sealed STEP input. Stale failure does
+not return geometry for adoption by another opening. Exact measurement retains
+separate geometry-seal comparison, so a message save with unchanged inputs does
+not cancel the query. Late close/reopen regressions for STEP properties, preview,
+manual section, pair and face measurement use actual workers; another preview
+test holds the real cleanup mutex after a verified worker packet. These new
+checks await execution on their own head.
+
 The shared adapter captures the project description and logical history from one consistent SQL snapshot, then checks the corresponding immutable folder generation. Copy and export consume this pair instead of separate reads between which the history cursor could move. A changed state or pending recovery causes an explicit failure without implicit reconciliation. Consumers retain their attachment and history validation; a consistent SQL snapshot alone does not verify files.
 
 Persisted attachments are opened through a bounded reader: the file must be regular and match its declared size before allocation, then at most that size plus one byte is read and its checksum is checked. This prevents a corrupted or growing attachment mirror from causing an unbounded read. The existing40MiB per-file limit remains. Copy also checks decoded inline legacy bytes against their declared size and any saved checksum. Package export prepares verified bytes within its existing150MiB archive budget and rechecks the snapshot before invoking the existing temporary-file archive publisher; an invalid source leaves an existing destination intact. These checks do not claim protection against every hostile filesystem race.
@@ -63,3 +73,9 @@ Copying a current managed project retains validated history and revision IDs und
 The frontend regression in `apps/desktop/src/i18n/errorText.test.ts` checks all three new codes in Russian and English, localized messages and separate preservation of raw diagnostics. Native shared-snapshot, copy, export and measurement-compatibility checks run separately; release evidence is recorded after they finish. A translation test does not prove OS locking or crash recovery. This step does not establish overall 2.0 storage readiness.
 
 Implementation: [project_repository/legacy](../../apps/desktop/src-tauri/src/project_repository/legacy/mod.rs), `capture_project` / `capture_with_history`.
+
+### Directory-only Unix opening
+
+The Unix identity adapter uses `O_DIRECTORY | O_NOFOLLOW`, rather than opening an arbitrary file and inspecting metadata afterward. This rejects symlinks and avoids the [SQLite-documented](https://www.sqlite.org/howtocorrupt.html) process-wide POSIX lock loss caused by closing an unrelated descriptor for the same database. Unsupported Unix ABIs do not get guessed numeric flags. Flags cover Linux x86-64/AArch64 and macOS; Windows retains its separate handle route.
+
+A regression holds a real SQLite `BEGIN IMMEDIATE`, rejects its database path through the directory adapter, and checks kernel contention from an owned child test process: busy before rejection, busy afterward, acquisition after rollback. It tests more than SQLite in-process bookkeeping. The child uses an exact test name, owned database and nonce; runtime PASS still requires new CI. This does not establish NAS/USB/power-loss or standalone folder commit support.

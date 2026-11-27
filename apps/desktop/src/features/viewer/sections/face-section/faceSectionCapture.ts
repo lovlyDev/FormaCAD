@@ -1,3 +1,4 @@
+import {sourceRefFor,type ProjectSourceBinding} from "../../../project-sources/sourceBinding";
 import type { Project } from "../../../../types";
 import type { FaceSelection } from "../../faceSelection";
 import { readTypedCadDocument } from "../../../../lib/typedCadDocument";
@@ -5,14 +6,17 @@ import { readTopologyReference } from "../../topology/topologyReference";
 import { matchesReferenceRoute } from "../../topology/referenceRoute";
 import type { FaceSectionReport } from "./faceSectionSchema";
 
-export function captureFaceSection(project:Project|null,selection:FaceSelection|null,offsetMm:number,active:boolean){
+export function captureFaceSection(project:Project|null,selection:FaceSelection|null,offsetMm:number,active:boolean,sourceBinding?:ProjectSourceBinding|null){
  if(!active||!project?.currentRevision||selection?.revisionId!==project.currentRevision||!Number.isFinite(offsetMm)||Math.abs(offsetMm)>10000)return null;
+ if(sourceBinding!==undefined&&(!sourceBinding||sourceBinding.projectId!==project.id))return null;
+ const folder=sourceBinding?sourceRefFor(sourceBinding,project.id):undefined;
+ const sourceOpeningId=sourceBinding?.openingId;
  const revision=project.revisions.find(item=>item.id===project.currentRevision),rawProgram=revision?.program??"",document=readTypedCadDocument(rawProgram);
  const body=document?.bodies.find(item=>item.id===selection.bodyId),reference=readTopologyReference(selection.topologyRef);
  const source=project.files.find(file=>file.name===revision?.source&&/\.st(e)?p$/i.test(file.name));
  if(!document||document.revisionId!==project.currentRevision||!body||!reference||reference.kind!=="face"||reference.role==="cylinder-face:side"||!matchesReferenceRoute(document,body.sourceFeatureId,reference)||!source?.sha256||!source.size)return null;
  const request={projectId:project.id,expectedRevision:project.currentRevision,bodyId:body.id,query:{reference,offsetMm,deflectionMm:0.01}};
- return{key:JSON.stringify({request,rawProgram,sourceSha256:source.sha256,sourceSize:source.size}),request,rawProgram,sourceSha256:source.sha256,sourceSize:source.size};
+ return{...(sourceOpeningId?{source:folder,sourceOpeningId}:{}),key:JSON.stringify({sourceOpeningId,sourceId:folder?.sourceId,taskScopeId:folder?.taskScopeId,request,rawProgram,sourceSha256:source.sha256,sourceSize:source.size}),request,rawProgram,sourceSha256:source.sha256,sourceSize:source.size};
 }
 export type FaceSectionCapture=NonNullable<ReturnType<typeof captureFaceSection>>;
 export function matchesFaceSection(report:FaceSectionReport,capture:FaceSectionCapture){

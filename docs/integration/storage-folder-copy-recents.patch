@@ -1,0 +1,1007 @@
+diff --git a/apps/desktop/src-tauri/src/lib.rs b/apps/desktop/src-tauri/src/lib.rs
+--- a/apps/desktop/src-tauri/src/lib.rs
++++ b/apps/desktop/src-tauri/src/lib.rs
+@@ -57,17 +57,19 @@ pub fn run() {
+         .plugin(tauri_plugin_window_state::Builder::default().build())
+         .plugin(tauri_plugin_deep_link::init())
+         .manage(account::AccountState::default())
+-        .manage(project_repository::window_sources::WindowSources::default())
+         .on_window_event(|window, event| {
+             if matches!(event, tauri::WindowEvent::Destroyed) {
+-                window
+-                    .state::<project_repository::window_sources::WindowSources>()
+-                    .close_window(window.label());
++                if let Some(sources) =
++                    window.try_state::<project_repository::window_sources::WindowSources>()
++                {
++                    sources.close_window(window.label());
++                }
+             }
+         })
+         .setup(|app| {
+             let data = app.path().app_data_dir()?;
+             std::fs::create_dir_all(&data)?;
++            app.manage(project_repository::window_sources::WindowSources::with_folder_index(&data));
+             let root = data.join("projects");
+             std::fs::create_dir_all(&root)?;
+             let logs = data.join("logs");
+@@ -102,7 +104,11 @@ pub fn run() {
+             projects::list_projects,
+             projects::read_project_snapshot,
+             project_repository::window_sources::ipc::open_project_folder,
++            project_repository::window_sources::ipc::recents::list_recent_folders,
++            project_repository::window_sources::ipc::recents::pin_recent_folder,
++            project_repository::window_sources::ipc::recents::remember_recent_folders,
+             project_repository::window_sources::ipc::creation::create_project_folder,
++            project_repository::window_sources::ipc::copy::save_project_folder_copy,
+             project_repository::window_sources::ipc::close_project_source,
+             project_repository::window_sources::ipc::commit_query::observe_folder_commit,
+             projects::save_project_thumbnail,
+diff --git a/apps/desktop/src-tauri/src/project_repository/folder_index.rs b/apps/desktop/src-tauri/src/project_repository/folder_index.rs
+--- a/apps/desktop/src-tauri/src/project_repository/folder_index.rs
++++ b/apps/desktop/src-tauri/src/project_repository/folder_index.rs
+@@ -12,6 +12,7 @@ use std::{
+ const APPLICATION_ID: i64 = 0x46434931; // FCI1
+ const FORMAT_VERSION: i64 = 1;
+
++#[derive(Clone)]
+ pub struct FolderIndex {
+     path: PathBuf,
+ }
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/ipc.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/ipc.rs
+--- a/apps/desktop/src-tauri/src/project_repository/window_sources/ipc.rs
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/ipc.rs
+@@ -4,7 +4,9 @@ use crate::{core::Result, models::Project};
+ use tauri::State;
+
+ pub mod commit_query;
++pub mod copy;
+ pub mod creation;
++pub mod recents;
+
+ #[derive(serde::Serialize)]
+ #[serde(rename_all = "camelCase")]
+@@ -17,6 +19,7 @@ pub struct FolderOpen {
+
+ #[tauri::command]
+ pub async fn open_project_folder(
++    recent_location: Option<String>,
+     window: tauri::WebviewWindow,
+     sources: State<'_, WindowSources>,
+ ) -> Result<Option<FolderOpen>> {
+@@ -31,7 +34,8 @@ pub async fn open_project_folder(
+         // Reserve the original window scope BEFORE the dialog await. Destroying
+         // this window closes it even if a late picker result arrives afterward.
+         let scope = sources.for_window(window.label())?;
+-        let Some(path) = pick_folder(&window).await? else {
++        let initial = recents::picker_location(&sources, recent_location.as_deref()).await;
++        let Some(path) = pick_folder(&window, initial).await? else {
+             return Ok(None);
+         };
+         let opened = scope.open(&path).await?;
+@@ -46,7 +50,7 @@ pub async fn open_project_folder(
+         )
+     )))]
+     {
+-        let _ = (window, sources);
++        let _ = (recent_location, window, sources);
+         Err(crate::core::AppError::Invalid(
+             "PROJECT_FOLDER_UNSUPPORTED".into(),
+         ))
+@@ -60,16 +64,20 @@ pub async fn open_project_folder(
+         any(target_arch = "x86_64", target_arch = "aarch64")
+     )
+ ))]
+-async fn pick_folder(window: &tauri::WebviewWindow) -> Result<Option<std::path::PathBuf>> {
++async fn pick_folder(
++    window: &tauri::WebviewWindow,
++    initial: Option<std::path::PathBuf>,
++) -> Result<Option<std::path::PathBuf>> {
+     use crate::core::AppError;
+     use tauri::Manager;
+     use tauri_plugin_dialog::DialogExt;
+     let app = window.app_handle().clone();
+     let picked = tokio::task::spawn_blocking(move || {
+-        app.dialog()
+-            .file()
+-            .set_title("Forma CAD")
+-            .blocking_pick_folder()
++        let dialog = app.dialog().file().set_title("Forma CAD");
++        match initial {
++            Some(initial) => dialog.set_directory(initial).blocking_pick_folder(),
++            None => dialog.blocking_pick_folder(),
++        }
+     })
+     .await
+     .map_err(|error| AppError::Invalid(error.to_string()))?;
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/ipc/copy.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/ipc/copy.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/ipc/copy.rs
+@@ -0,0 +1,61 @@
++use super::WindowSources;
++use crate::core::{AppError, Result};
++use tauri::State;
++
++#[derive(serde::Serialize)]
++#[serde(
++    tag = "status",
++    rename_all = "camelCase",
++    rename_all_fields = "camelCase"
++)]
++pub enum FolderCopyReply {
++    Saved { commit_id: String },
++    Indeterminate { commit_id: String, error: AppError },
++}
++
++#[tauri::command]
++pub async fn save_project_folder_copy(
++    project_id: String,
++    source_id: String,
++    expected_commit_id: String,
++    window: tauri::WebviewWindow,
++    sources: State<'_, WindowSources>,
++) -> Result<Option<FolderCopyReply>> {
++    #[cfg(any(
++        windows,
++        all(
++            target_os = "linux",
++            any(target_arch = "x86_64", target_arch = "aarch64")
++        )
++    ))]
++    {
++        use super::pick_folder;
++        use crate::project_repository::sqlite_folder::api::Publication;
++        let operation = sources
++            .capture_operation(window.label(), &source_id, &project_id, &expected_commit_id)
++            .await?;
++        let Some(destination) = pick_folder(&window, None).await? else {
++            return Ok(None);
++        };
++        Ok(Some(match operation.save_copy(&destination).await? {
++            Publication::Committed(saved) => FolderCopyReply::Saved {
++                commit_id: saved.commit_id().to_owned(),
++            },
++            Publication::RejectedBefore(error) => return Err(error),
++            Publication::Indeterminate { commit_id, error } => {
++                FolderCopyReply::Indeterminate { commit_id, error }
++            }
++        }))
++    }
++    #[cfg(not(any(
++        windows,
++        all(
++            target_os = "linux",
++            any(target_arch = "x86_64", target_arch = "aarch64")
++        )
++    )))]
++    {
++        let _ = (project_id, source_id, expected_commit_id, window, sources);
++        Err(AppError::Invalid("PROJECT_FOLDER_UNSUPPORTED".into()))
++    }
++}
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/ipc/creation.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/ipc/creation.rs
+--- a/apps/desktop/src-tauri/src/project_repository/window_sources/ipc/creation.rs
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/ipc/creation.rs
+@@ -40,7 +40,7 @@ pub async fn create_project_folder(
+         use super::{folder_open, pick_folder};
+         use crate::project_repository::sqlite_folder::api::FolderCreation;
+         let scope = sources.for_window(window.label())?;
+-        let Some(path) = pick_folder(&window).await? else {
++        let Some(path) = pick_folder(&window, None).await? else {
+             return Ok(None);
+         };
+         let created = scope.create_blank(&path, name, units, agent).await?;
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/ipc/recents.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/ipc/recents.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/ipc/recents.rs
+@@ -0,0 +1,91 @@
++use super::WindowSources;
++use crate::core::{AppError, Result};
++use std::path::{Path, PathBuf};
++use tauri::State;
++
++#[derive(serde::Serialize)]
++#[serde(rename_all = "camelCase")]
++pub struct RecentFolderItem {
++    location: PathBuf,
++    last_opened_at_ms: i64,
++    pinned: bool,
++}
++
++#[derive(serde::Serialize)]
++#[serde(rename_all = "camelCase")]
++pub struct RecentFolders {
++    items: Vec<RecentFolderItem>,
++    remember_recent: bool,
++}
++
++#[tauri::command]
++pub async fn list_recent_folders(
++    sources: State<'_, WindowSources>,
++) -> Result<Option<RecentFolders>> {
++    let Some(index) = &sources.index else {
++        return Ok(None);
++    };
++    Ok(Some(RecentFolders {
++        items: index
++            .recent()
++            .await?
++            .into_iter()
++            .map(|row| RecentFolderItem {
++                location: row.location,
++                last_opened_at_ms: row.last_opened_at_ms,
++                pinned: row.pinned,
++            })
++            .collect(),
++        remember_recent: index.remember_recent().await?,
++    }))
++}
++
++#[tauri::command]
++pub async fn pin_recent_folder(
++    location: String,
++    pinned: bool,
++    sources: State<'_, WindowSources>,
++) -> Result<bool> {
++    sources
++        .index
++        .as_ref()
++        .ok_or_else(unsupported)?
++        .set_pinned(Path::new(&location), pinned)
++        .await
++}
++
++#[tauri::command]
++pub async fn remember_recent_folders(
++    enabled: bool,
++    sources: State<'_, WindowSources>,
++) -> Result<()> {
++    sources
++        .index
++        .as_ref()
++        .ok_or_else(unsupported)?
++        .set_remember_recent(enabled)
++        .await
++}
++
++fn unsupported() -> AppError {
++    AppError::Invalid("PROJECT_FOLDER_UNSUPPORTED".into())
++}
++
++#[cfg(any(
++    windows,
++    all(
++        target_os = "linux",
++        any(target_arch = "x86_64", target_arch = "aarch64")
++    )
++))]
++pub(super) async fn picker_location(
++    sources: &WindowSources,
++    requested: Option<&str>,
++) -> Option<PathBuf> {
++    let requested = Path::new(requested?);
++    let items = sources.index.as_ref()?.recent().await.ok()?;
++    items
++        .into_iter()
++        .find(|row| row.location == requested)
++        .map(|row| row.location)
++}
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/mod.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/mod.rs
+--- a/apps/desktop/src-tauri/src/project_repository/window_sources/mod.rs
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/mod.rs
+@@ -2,6 +2,7 @@
+ use crate::{
+     core::{AppError, Result},
+     models::Project,
++    project_repository::folder_index::FolderIndex,
+ };
+ mod assets;
+ mod capture;
+@@ -35,6 +36,7 @@ pub mod approval;
+ mod supported;
+ #[derive(Default)]
+ pub struct WindowSources {
++    index: Option<FolderIndex>,
+     #[cfg(any(
+         windows,
+         all(
+@@ -59,6 +61,20 @@ fn changed() -> AppError {
+ }
+
+ impl WindowSources {
++    pub fn with_folder_index(app_data: &std::path::Path) -> Self {
++        let supported = cfg!(any(
++            windows,
++            all(
++                target_os = "linux",
++                any(target_arch = "x86_64", target_arch = "aarch64")
++            )
++        ));
++        let mut sources = Self::default();
++        sources.index = supported.then(|| FolderIndex::in_app_data(app_data));
++
++        sources
++    }
++
+     pub fn close_window(&self, label: &str) {
+         #[cfg(any(
+             windows,
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/supported.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/supported.rs
+--- a/apps/desktop/src-tauri/src/project_repository/window_sources/supported.rs
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/supported.rs
+@@ -22,7 +22,10 @@ impl WindowSources {
+         if scopes.len() >= 16 {
+             return Err(AppError::Invalid("PROJECT_SOURCE_LIMIT".into()));
+         }
+-        let scope = Arc::new(FolderSources::default());
++        let scope = Arc::new(match &self.index {
++            Some(index) => FolderSources::with_index(index.clone()),
++            None => FolderSources::default(),
++        });
+         scopes.insert(label.to_owned(), Arc::clone(&scope));
+         Ok(scope)
+     }
+diff --git a/apps/desktop/src/app/App.tsx b/apps/desktop/src/app/App.tsx
+--- a/apps/desktop/src/app/App.tsx
++++ b/apps/desktop/src/app/App.tsx
+@@ -60,6 +60,8 @@ import { folderHistoryAction } from "../features/project-history/folderHistoryAc
+ import { useFolderWriteAction } from "../features/project-sources/useFolderWriteAction";
+ import { useFolderWriteConfirmation } from "../features/project-sources/useFolderWriteConfirmation";
+ import { isFolderWriteOpeningCurrent } from "../features/project-sources/folderWriteResult";
++import { useFolderCopy } from "../features/project-sources/useFolderCopy";
++import { recentFoldersKey } from "../features/project-sources/recentFoldersApi";
+ import { isSourceCurrent } from "../features/project-sources/sourceBinding";
+ import { writeFolderModel } from "../features/model-apply/folderModelAction";
+ import { FolderHistoryObservation } from "../features/project-history/FolderHistoryObservation";
+@@ -419,6 +421,8 @@ export default function App() {
+   );
+   const writeFolderHistory = folderHistoryAction(sourceBinding, folderWrite.write, folderConfirmation.confirm);
+   const folderHistoryActive = sourceBinding?.kind === "folder";
++  const folderCopy = useFolderCopy(sourceBinding, setNotice, setError);
++  const folderProgramBlocked = busy || openingProject || folderWrite.busy || !!folderWrite.uncertain || !!pending;
+   async function ask(
+     title: string,
+     description: string,
+@@ -898,6 +902,11 @@ export default function App() {
+             },
+             !!project,
+             editingBlocked,
++            folderHistoryActive ? {
++              editProgramBlocked: folderProgramBlocked || !!(revision && !revision.program && !revision.source),
++              copyBlocked: busy || openingProject || folderCopy.copying,
++              saveCopy: () => void folderCopy.save(),
++            } : undefined,
+           )}
+         />
+         {project && (
+@@ -992,7 +1001,9 @@ export default function App() {
+           onSearch={setSearch}
+           onSettings={() => setModal("settings")}
+           onImport={() => fileInput.current?.click()}
+-          onOpenFolder={projectId ? undefined : () => void openFolder()}
++          onOpenFolder={projectId ? undefined : (location) => {
++            void openFolder(location).then(() => queryClient.invalidateQueries({ queryKey: recentFoldersKey }));
++          }}
+           onImportBundle={() =>
+             void importProjectBundle()
+               .then((item) => {
+@@ -1449,7 +1460,10 @@ export default function App() {
+         open={modal === "new"}
+         close={() => setModal(null)}
+         onCreateFolder={native && !attachments.length ? async draft => {
+-          if (await createFolder(draft)) setModal(current => current === "new" ? null : current);
++          if (await createFolder(draft)) {
++            setModal(current => current === "new" ? null : current);
++            void queryClient.invalidateQueries({ queryKey: recentFoldersKey });
++          }
+         } : undefined}
+         onCreate={async (p) => {
+           try {
+@@ -1483,7 +1497,7 @@ export default function App() {
+           source={revision?.program ?? ""}
+           importedSource={revision?.source}
+           disabled={sourceBinding?.kind === "folder"
+-            ? busy || openingProject || folderWrite.busy || !!folderWrite.uncertain || !!pending
++            ? folderProgramBlocked
+             : editingBlocked}
+           nativeCadAvailable={
+             agentEnvironment.data?.some(
+diff --git a/apps/desktop/src/app/Dashboard.tsx b/apps/desktop/src/app/Dashboard.tsx
+--- a/apps/desktop/src/app/Dashboard.tsx
++++ b/apps/desktop/src/app/Dashboard.tsx
+@@ -14,6 +14,7 @@ import { currentParameters } from "../stores/workspace";
+ import type { Project } from "../types";
+ import { ImportProjectFolderButton } from "../features/project-folder/ImportProjectFolderButton";
+ import { ExportProjectBundleControl } from "../features/project-bundle/ExportProjectBundleControl";
++import { RecentFoldersPanel } from "../features/project-sources/RecentFoldersPanel";
+
+ type Props = {
+   projects: Project[];
+@@ -24,7 +25,7 @@ type Props = {
+   onSearch: (value: string) => void;
+   onSettings: () => void;
+   onImport: () => void;
+-  onOpenFolder?: () => void;
++  onOpenFolder?: (recentLocation?: string) => void;
+   onImportBundle: () => void;
+   onExportBundle: (project: Project, redactConversation: boolean) => void;
+   onNew: () => void;
+@@ -68,12 +69,13 @@ export function Dashboard({ projects, unavailable, loading, error, search, onSea
+         <div className="dashboard-import-actions">
+           <Button onClick={onImport}><FolderOpen size={15} />{t("Import model")}</Button>
+           {native && <>
+-            {onOpenFolder && <Button onClick={onOpenFolder}><FolderOpen size={15} />{t("Open project in folder")}</Button>}
++            {onOpenFolder && <Button onClick={() => onOpenFolder()}><FolderOpen size={15} />{t("Open project in folder")}</Button>}
+             <Button onClick={onImportBundle}><PackageOpen size={15} />{t("Import project bundle")}</Button>
+             <ImportProjectFolderButton onImported={project => { onRefresh(); onOpen(project); }} onError={onError} />
+           </>}
+         </div>
+       </div>
++      {native && onOpenFolder && <RecentFoldersPanel openFolder={onOpenFolder} />}
+       <div className="section-heading">
+         <h2>{t("Projects")}</h2>
+         <div className="search-input"><Search size={14} /><input aria-label={t("Search projects")} placeholder={t("Find a project…")} value={search} onChange={(event) => onSearch(event.target.value)} /></div>
+diff --git a/apps/desktop/src/features/main-menu/applicationMenus.test.ts b/apps/desktop/src/features/main-menu/applicationMenus.test.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/main-menu/applicationMenus.test.ts
+@@ -0,0 +1,29 @@
++import { expect, it, vi } from "vitest";
++import { applicationMenus } from "./applicationMenus";
++
++const actions = {
++  duplicate: vi.fn(), create: vi.fn(), import: vi.fn(), export: vi.fn(),
++  parameters: vi.fn(), palette: vi.fn(), settings: vi.fn(), workspaces: vi.fn(),
++};
++
++it("offers a folder copy and source editor while managed writes remain blocked", () => {
++  const saveCopy = vi.fn();
++  const menus = applicationMenus(actions, true, true, {
++    editProgramBlocked: false, copyBlocked: false, saveCopy,
++  });
++  const action = (menuId: string, id: string) => menus.find(group => group.id === menuId)?.actions.find(item => item.id === id);
++  const copy = action("file", "folder-copy");
++  expect(copy?.disabled).toBe(false);
++  copy?.run();
++  expect(saveCopy).toHaveBeenCalledOnce();
++  expect(action("file", "duplicate")).toBeUndefined();
++  expect(action("file", "import")?.disabled).toBe(true);
++  expect(action("edit", "parameters")?.disabled).toBe(false);
++});
++
++it("keeps the existing managed file actions", () => {
++  const groups = applicationMenus(actions, true, false);
++  const file = groups.find(group => group.id === "file")?.actions;
++  expect(file?.find(item => item.id === "duplicate")?.run).toBe(actions.duplicate);
++  expect(file?.some(item => item.id === "folder-copy")).toBe(false);
++});
+diff --git a/apps/desktop/src/features/main-menu/applicationMenus.ts b/apps/desktop/src/features/main-menu/applicationMenus.ts
+--- a/apps/desktop/src/features/main-menu/applicationMenus.ts
++++ b/apps/desktop/src/features/main-menu/applicationMenus.ts
+@@ -14,6 +14,7 @@ export function applicationMenus(
+   actions: Actions,
+   projectOpen: boolean,
+   blocked: boolean,
++  folder?: { editProgramBlocked: boolean; copyBlocked: boolean; saveCopy: () => void },
+ ): MenuGroup[] {
+   return [
+     {
+@@ -40,7 +41,12 @@ export function applicationMenus(
+           run: actions.export,
+           disabled: !projectOpen || blocked,
+         },
+-        {
++        folder ? {
++          id: "folder-copy",
++          label: t("Save project copy to folder"),
++          run: folder.saveCopy,
++          disabled: folder.copyBlocked,
++        } : {
+           id: "duplicate",
+           label: t("Duplicate project"),
+           run: actions.duplicate,
+@@ -56,7 +62,7 @@ export function applicationMenus(
+           id: "parameters",
+           label: t("Edit model parameters"),
+           run: actions.parameters,
+-          disabled: !projectOpen || blocked,
++          disabled: !projectOpen || (folder?.editProgramBlocked ?? blocked),
+         },
+         {
+           id: "search",
+@@ -91,7 +97,7 @@ export function applicationMenus(
+           id: "feature",
+           label: t("Edit model parameters"),
+           run: actions.parameters,
+-          disabled: !projectOpen || blocked,
++          disabled: !projectOpen || (folder?.editProgramBlocked ?? blocked),
+         },
+         {
+           id: "import",
+diff --git a/apps/desktop/src/features/project-catalog/useProjectNavigation.ts b/apps/desktop/src/features/project-catalog/useProjectNavigation.ts
+--- a/apps/desktop/src/features/project-catalog/useProjectNavigation.ts
++++ b/apps/desktop/src/features/project-catalog/useProjectNavigation.ts
+@@ -94,7 +94,7 @@ export function useProjectNavigation(
+
+   return {
+     openProject,
+-    openFolder: () => selectFolder(openFolderSelection),
++    openFolder: (recentLocation?: string) => selectFolder(target => openFolderSelection(target, recentLocation)),
+     createFolder: (draft: BlankFolderDraft) =>
+       selectFolder(target => createFolderSelection(draft, target, onError)),
+   };
+diff --git a/apps/desktop/src/features/project-sources/folderCopy.test.ts b/apps/desktop/src/features/project-sources/folderCopy.test.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/folderCopy.test.ts
+@@ -0,0 +1,67 @@
++import { beforeEach, expect, it, vi } from "vitest";
++import { t } from "../../i18n";
++import { newProject, useWorkspace } from "../../stores/workspace";
++import { saveFolderCopy } from "./folderCopy";
++
++const mock = vi.hoisted(() => ({ invoke: vi.fn() }));
++vi.mock("@tauri-apps/api/core", async original => ({
++  ...await original<typeof import("@tauri-apps/api/core")>(),
++  invoke: mock.invoke,
++  isTauri: () => true,
++}));
++
++const source = { sourceId: "window:1:nonce", commitId: "source-commit", taskScopeId: "task" };
++
++beforeEach(() => {
++  useWorkspace.getState().setProject(null);
++  mock.invoke.mockReset();
++});
++
++function setup() {
++  const project = newProject("Folder", "blank", "mm", "codex");
++  useWorkspace.getState().openFolderProject(project, source);
++  const opening = useWorkspace.getState().sourceBinding;
++  if (opening?.kind !== "folder") throw new Error("Expected folder");
++  const saved = vi.fn(), error = vi.fn();
++  return { project, opening, saved, error, copy: () => saveFolderCopy(opening, saved, error) };
++}
++
++it("sends the captured source, keeps it open and reports the independent copy", async () => {
++  const f = setup();
++  mock.invoke.mockResolvedValueOnce({ status: "saved", commitId: "copy-commit" });
++  await f.copy();
++  expect(mock.invoke.mock.calls).toEqual([["save_project_folder_copy", {
++    projectId: f.project.id, sourceId: source.sourceId, expectedCommitId: source.commitId,
++  }]]);
++  expect(useWorkspace.getState().sourceBinding).toBe(f.opening);
++  expect(f.saved).toHaveBeenCalledExactlyOnceWith(t("Project copy saved"));
++  expect(f.error).not.toHaveBeenCalled();
++});
++
++it("leaves the current source alone on picker cancel", async () => {
++  const f = setup();
++  mock.invoke.mockResolvedValueOnce(null);
++  await f.copy();
++  expect(f.saved).not.toHaveBeenCalled();
++  expect(f.error).not.toHaveBeenCalled();
++  expect(useWorkspace.getState().sourceBinding).toBe(f.opening);
++});
++
++it("reports an uncertain destination commit without retrying", async () => {
++  const f = setup();
++  mock.invoke.mockResolvedValueOnce({ status: "indeterminate", commitId: "attempt", error: "Lost response" });
++  await f.copy();
++  expect(f.saved).not.toHaveBeenCalled();
++  expect(f.error).toHaveBeenCalledWith(expect.stringContaining("attempt\nLost response"));
++  expect(mock.invoke).toHaveBeenCalledOnce();
++});
++
++it("drops a late response after switching to another opening of the same project", async () => {
++  const f = setup();
++  mock.invoke.mockResolvedValueOnce({ status: "saved", commitId: "copy-commit" });
++  const pending = f.copy();
++  useWorkspace.getState().openFolderProject(f.project, { ...source, sourceId: "new-window:1:nonce" });
++  await pending;
++  expect(f.saved).not.toHaveBeenCalled();
++  expect(f.error).not.toHaveBeenCalled();
++});
+diff --git a/apps/desktop/src/features/project-sources/folderCopy.ts b/apps/desktop/src/features/project-sources/folderCopy.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/folderCopy.ts
+@@ -0,0 +1,35 @@
++import { invoke, isTauri } from "@tauri-apps/api/core";
++import { errorText, t } from "../../i18n";
++import { isFolderWriteOpeningCurrent } from "./folderWriteResult";
++import type { FolderWriteOpening } from "./useFolderWriteAction";
++
++type CopyReply =
++  | { status: "saved"; commitId: string }
++  | { status: "indeterminate"; commitId: string; error: string };
++
++export async function saveFolderCopy(
++  opening: FolderWriteOpening,
++  reportSaved: (message: string) => void,
++  reportError: (message: string) => void,
++) {
++  if (!isFolderWriteOpeningCurrent(opening)) return;
++  try {
++    if (!isTauri()) throw new Error("PROJECT_FOLDER_UNSUPPORTED");
++    const reply = await invoke<CopyReply | null>("save_project_folder_copy", {
++      projectId: opening.projectId,
++      sourceId: opening.source.sourceId,
++      expectedCommitId: opening.source.commitId,
++    });
++    if (!isFolderWriteOpeningCurrent(opening) || reply === null) return;
++    if (typeof reply.commitId !== "string" || !reply.commitId) throw new Error("PROJECT_SNAPSHOT_CHANGED");
++    if (reply.status === "saved") {
++      reportSaved(t("Project copy saved"));
++    } else if (reply.status === "indeterminate" && typeof reply.error === "string") {
++      reportError(`${t("The copy result is uncertain. Open the destination folder to check it.")}\n${reply.commitId}\n${errorText(reply.error)}`);
++    } else {
++      throw new Error("PROJECT_SNAPSHOT_CHANGED");
++    }
++  } catch (cause) {
++    if (isFolderWriteOpeningCurrent(opening)) reportError(errorText(cause));
++  }
++}
+diff --git a/apps/desktop/src/features/project-sources/openFolderSelection.test.ts b/apps/desktop/src/features/project-sources/openFolderSelection.test.ts
+--- a/apps/desktop/src/features/project-sources/openFolderSelection.test.ts
++++ b/apps/desktop/src/features/project-sources/openFolderSelection.test.ts
+@@ -33,6 +33,16 @@ it("leaves the current opening alone when the picker is cancelled", async () =>
+   expect(native.invoke).toHaveBeenCalledOnce();
+ });
+
++it("sends a recent location only as a hint to the native picker", async () => {
++  const target = setup();
++  native.invoke.mockResolvedValueOnce(null);
++  await openFolderSelection(target, "E:/Projects/Previous");
++  expect(native.invoke).toHaveBeenCalledExactlyOnceWith("open_project_folder", {
++    recentLocation: "E:/Projects/Previous",
++  });
++  expect(target.activate).not.toHaveBeenCalled();
++});
++
+ it("closes a late opening after navigation changes even for the same project ID", async () => {
+   const target = setup();
+   native.invoke.mockResolvedValueOnce(selected).mockResolvedValueOnce(true);
+diff --git a/apps/desktop/src/features/project-sources/openFolderSelection.ts b/apps/desktop/src/features/project-sources/openFolderSelection.ts
+--- a/apps/desktop/src/features/project-sources/openFolderSelection.ts
++++ b/apps/desktop/src/features/project-sources/openFolderSelection.ts
+@@ -13,13 +13,15 @@ export interface FolderSelectionTarget {
+ }
+
+ /** Adopt a native picker result only while the initiating navigation still owns it. */
+-export async function openFolderSelection(target: FolderSelectionTarget): Promise<void> {
++export async function openFolderSelection(target: FolderSelectionTarget, recentLocation?: string): Promise<void> {
+   if (!target.isCurrent()) return;
+   if (!isTauri()) throw new Error("PROJECT_FOLDER_UNSUPPORTED");
+
+   let selected: FolderSelection | null;
+   try {
+-    selected = await invoke<FolderSelection | null>("open_project_folder");
++    selected = recentLocation === undefined
++      ? await invoke<FolderSelection | null>("open_project_folder")
++      : await invoke<FolderSelection | null>("open_project_folder", { recentLocation });
+   } catch (cause) {
+     if (target.isCurrent()) throw cause;
+     return;
+diff --git a/apps/desktop/src/features/project-sources/recentFoldersApi.ts b/apps/desktop/src/features/project-sources/recentFoldersApi.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/recentFoldersApi.ts
+@@ -0,0 +1,19 @@
++import { invoke } from "@tauri-apps/api/core";
++
++export interface RecentFolder {
++  location: string;
++  lastOpenedAtMs: number;
++  pinned: boolean;
++}
++
++interface RecentFolders {
++  items: RecentFolder[];
++  rememberRecent: boolean;
++}
++
++export const recentFoldersKey = ["recent-project-folders"] as const;
++export const listRecentFolders = () => invoke<RecentFolders | null>("list_recent_folders");
++export const pinRecentFolder = (location: string, pinned: boolean) =>
++  invoke<boolean>("pin_recent_folder", { location, pinned });
++export const rememberRecentFolders = (enabled: boolean) =>
++  invoke<void>("remember_recent_folders", { enabled });
+diff --git a/apps/desktop/src/features/project-sources/RecentFoldersPanel.css b/apps/desktop/src/features/project-sources/RecentFoldersPanel.css
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/RecentFoldersPanel.css
+@@ -0,0 +1,33 @@
++.recent-folder-panel {
++  margin-block: 1.25rem;
++}
++
++.recent-folder-setting,
++.recent-folder-row {
++  display: flex;
++  align-items: center;
++  gap: .5rem;
++}
++
++.recent-folder-list {
++  list-style: none;
++  margin: 0;
++  padding: 0;
++}
++
++.recent-folder-row {
++  padding-block: .25rem;
++  border-bottom: 1px solid var(--line);
++}
++
++.recent-folder-location {
++  min-width: 0;
++  flex: 1;
++  justify-content: flex-start;
++}
++
++.recent-folder-location span {
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
+diff --git a/apps/desktop/src/features/project-sources/RecentFoldersPanel.test.tsx b/apps/desktop/src/features/project-sources/RecentFoldersPanel.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/RecentFoldersPanel.test.tsx
+@@ -0,0 +1,53 @@
++import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
++import { TooltipProvider } from "@radix-ui/react-tooltip";
++import { fireEvent, render, screen, waitFor } from "@testing-library/react";
++import { beforeEach, expect, it, vi } from "vitest";
++import { t } from "../../i18n";
++import { RecentFoldersPanel } from "./RecentFoldersPanel";
++
++const mock = vi.hoisted(() => ({ invoke: vi.fn() }));
++vi.mock("@tauri-apps/api/core", async original => ({
++  ...await original<typeof import("@tauri-apps/api/core")>(),
++  invoke: mock.invoke,
++}));
++
++const location = "E:/Projects/Bracket";
++const items = [{ location, lastOpenedAtMs: 1, pinned: false }];
++beforeEach(() => mock.invoke.mockReset());
++
++function setup() {
++  const open = vi.fn();
++  const query = new QueryClient({ defaultOptions: { queries: { retry: false } } });
++  const view = render(<QueryClientProvider client={query}>
++    <TooltipProvider><RecentFoldersPanel openFolder={open} /></TooltipProvider>
++  </QueryClientProvider>);
++  return { open, ...view };
++}
++
++it("routes a row through the picker callback and pins only the index entry", async () => {
++  mock.invoke.mockResolvedValueOnce({ items, rememberRecent: true });
++  mock.invoke.mockResolvedValueOnce(true);
++  mock.invoke.mockResolvedValueOnce({ items: [{ ...items[0], pinned: true }], rememberRecent: true });
++  const { open } = setup();
++  const row = await screen.findByRole("button", { name: location });
++  expect(open).not.toHaveBeenCalled();
++  fireEvent.click(row);
++  expect(open).toHaveBeenCalledExactlyOnceWith(location);
++  fireEvent.click(screen.getByRole("button", { name: t("Pin project folder") }));
++  await screen.findByRole("button", { name: t("Unpin project folder") });
++  expect(mock.invoke.mock.calls).toEqual([
++    ["list_recent_folders"], ["pin_recent_folder", { location, pinned: true }], ["list_recent_folders"],
++  ]);
++});
++
++it("saves the recording setting and refreshes it from the app index", async () => {
++  mock.invoke.mockResolvedValueOnce({ items: [], rememberRecent: true });
++  mock.invoke.mockResolvedValueOnce(undefined);
++  mock.invoke.mockResolvedValueOnce({ items: [], rememberRecent: false });
++  setup();
++  const checkbox = await screen.findByRole("checkbox", { name: t("Remember opened folders") }) as HTMLInputElement;
++  expect(checkbox.checked).toBe(true);
++  fireEvent.click(checkbox);
++  await waitFor(() => expect(checkbox.checked).toBe(false));
++  expect(mock.invoke).toHaveBeenCalledWith("remember_recent_folders", { enabled: false });
++});
+diff --git a/apps/desktop/src/features/project-sources/RecentFoldersPanel.tsx b/apps/desktop/src/features/project-sources/RecentFoldersPanel.tsx
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/RecentFoldersPanel.tsx
+@@ -0,0 +1,63 @@
++import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
++import { FolderOpen, Star } from "lucide-react";
++import { Button, IconButton } from "../../components/ui";
++import { errorText, getLocale, t } from "../../i18n";
++import {
++  listRecentFolders, pinRecentFolder, recentFoldersKey, rememberRecentFolders, type RecentFolder,
++} from "./recentFoldersApi";
++import "./RecentFoldersPanel.css";
++
++type Change = { location: string; pinned: boolean } | { remember: boolean };
++
++export function RecentFoldersPanel({ openFolder }: { openFolder: (location: string) => void }) {
++  const query = useQueryClient();
++  const recents = useQuery({ queryKey: recentFoldersKey, queryFn: listRecentFolders });
++  const change = useMutation({
++    mutationFn: async (value: Change) => {
++      if ("remember" in value) await rememberRecentFolders(value.remember);
++      else if (!await pinRecentFolder(value.location, value.pinned)) throw new Error("PROJECT_FOLDER_INDEX_ENTRY_MISSING");
++    },
++    onSettled: () => query.invalidateQueries({ queryKey: recentFoldersKey }),
++  });
++  if (recents.isPending || recents.data === null) return null;
++  const error = recents.error ?? change.error;
++  return <section className="recent-folder-panel">
++    <div className="section-heading">
++      <h2>{t("Recent project folders")}</h2>
++      {recents.data && <label className="recent-folder-setting">
++        <input
++          type="checkbox" checked={recents.data.rememberRecent} disabled={change.isPending}
++          onChange={event => change.mutate({ remember: event.target.checked })}
++        />
++        {t("Remember opened folders")}
++      </label>}
++    </div>
++    {error && <div className="error-inline">{errorText(error)}</div>}
++    {!!recents.data?.items.length && <ul className="recent-folder-list">
++      {recents.data.items.map(item => <RecentFolderRow
++        key={item.location} item={item} openFolder={openFolder} disabled={change.isPending}
++        pin={() => change.mutate({ location: item.location, pinned: !item.pinned })}
++      />)}
++    </ul>}
++  </section>;
++}
++
++function RecentFolderRow({ item, openFolder, pin, disabled }: {
++  item: RecentFolder;
++  openFolder: (location: string) => void;
++  pin: () => void;
++  disabled: boolean;
++}) {
++  return <li className="recent-folder-row">
++    <Button className="recent-folder-location" onClick={() => openFolder(item.location)}>
++      <FolderOpen size={15} /><span title={item.location}>{item.location}</span>
++    </Button>
++    <span>{new Date(item.lastOpenedAtMs).toLocaleString(getLocale())}</span>
++    <IconButton
++      label={item.pinned ? t("Unpin project folder") : t("Pin project folder")}
++      aria-pressed={item.pinned} active={item.pinned} onClick={pin} disabled={disabled}
++    >
++      <Star size={15} fill={item.pinned ? "currentColor" : "none"} />
++    </IconButton>
++  </li>;
++}
+diff --git a/apps/desktop/src/features/project-sources/useFolderCopy.ts b/apps/desktop/src/features/project-sources/useFolderCopy.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/useFolderCopy.ts
+@@ -0,0 +1,25 @@
++import { useRef, useState } from "react";
++import { saveFolderCopy } from "./folderCopy";
++import type { ProjectSourceBinding } from "./sourceBinding";
++
++export function useFolderCopy(
++  binding: ProjectSourceBinding | null,
++  reportSaved: (message: string) => void,
++  reportError: (message: string) => void,
++) {
++  const active = useRef(false);
++  const [copying, setCopying] = useState(false);
++
++  async function save() {
++    if (binding?.kind !== "folder" || active.current) return;
++    active.current = true;
++    setCopying(true);
++    try {
++      await saveFolderCopy(binding, reportSaved, reportError);
++    } finally {
++      active.current = false;
++      setCopying(false);
++    }
++  }
++  return { save, copying };
++}
+diff --git a/apps/desktop/src/i18n/en.json b/apps/desktop/src/i18n/en.json
+--- a/apps/desktop/src/i18n/en.json
++++ b/apps/desktop/src/i18n/en.json
+@@ -973,6 +973,16 @@
+   "INVALID_TRANSFORM": "Check the transform matrix, scale, axis, plane and angle.",
+   "Import project folder": "Import project folder",
+   "Open project in folder": "Open project in folder",
++  "Save project copy to folder": "Save project copy to folder",
++  "Recent project folders": "Recent project folders",
++  "Remember opened folders": "Remember opened folders",
++  "Pin project folder": "Pin project folder",
++  "Unpin project folder": "Unpin project folder",
++  "PROJECT_FOLDER_INDEX_LOCATION_INVALID": "This location cannot be saved in the project folder index.",
++  "PROJECT_FOLDER_INDEX_FORMAT_UNSUPPORTED": "This project folder index format is unsupported.",
++  "PROJECT_FOLDER_INDEX_ENTRY_MISSING": "This folder is no longer in the recent list.",
++  "Project copy saved": "Project copy saved",
++  "The copy result is uncertain. Open the destination folder to check it.": "The copy result is uncertain. Open the destination folder to check it.",
+   "Create in folder": "Create in folder",
+   "The project was saved. Open the selected folder to continue.": "The project was saved. Open the selected folder to continue.",
+   "The save result is uncertain. Open the selected folder to check it.": "The save result is uncertain. Open the selected folder to check it.",
+diff --git a/apps/desktop/src/i18n/ru.json b/apps/desktop/src/i18n/ru.json
+--- a/apps/desktop/src/i18n/ru.json
++++ b/apps/desktop/src/i18n/ru.json
+@@ -973,6 +973,16 @@
+   "INVALID_TRANSFORM": "Проверьте матрицу, масштаб, ось, плоскость и угол преобразования.",
+   "Import project folder": "Импортировать папку проекта",
+   "Open project in folder": "Открыть проект в папке",
++  "Save project copy to folder": "Сохранить копию проекта в папку",
++  "Recent project folders": "Недавние папки проектов",
++  "Remember opened folders": "Запоминать открытые папки",
++  "Pin project folder": "Закрепить папку проекта",
++  "Unpin project folder": "Открепить папку проекта",
++  "PROJECT_FOLDER_INDEX_LOCATION_INVALID": "Этот путь нельзя сохранить в индексе папок проектов.",
++  "PROJECT_FOLDER_INDEX_FORMAT_UNSUPPORTED": "Формат индекса папок проектов не поддерживается.",
++  "PROJECT_FOLDER_INDEX_ENTRY_MISSING": "Этой папки больше нет в списке недавних.",
++  "Project copy saved": "Копия проекта сохранена",
++  "The copy result is uncertain. Open the destination folder to check it.": "Результат копирования неизвестен. Откройте папку назначения, чтобы проверить его.",
+   "Create in folder": "Создать в папке",
+   "The project was saved. Open the selected folder to continue.": "Проект сохранён. Откройте выбранную папку, чтобы продолжить.",
+   "The save result is uncertain. Open the selected folder to check it.": "Результат сохранения неизвестен. Откройте выбранную папку, чтобы проверить его.",
+diff --git a/docs/en/storage-folder-host-api.md b/docs/en/storage-folder-host-api.md
+--- a/docs/en/storage-folder-host-api.md
++++ b/docs/en/storage-folder-host-api.md
+@@ -20,6 +20,13 @@ and the V2 reader remain separate.
+
+ ## Folder selection in the workspace
+
++Use **File → Save project copy to folder** to save the current FCP1 project
++in another empty directory. The original opening stays active and its files
++and history are unchanged. The copy preserves revisions and attachments
++and has a fresh project identity. The host captures the source before
++showing the picker and checks it again before destination publication.
++If the copy result is uncertain, open the destination to verify it.
++
+ For a blank project, choose **Create in folder** in the New Project dialog,
+ then select an empty directory. The native host creates the project and opens
+ its first commit. Cancel the picker to return to the form. If the save
+@@ -672,6 +679,13 @@ publication/new commit; the corresponding UI controls remain unfinished.
+
+ ## Disposable application index
+
++The dashboard's **Recent project folders** section shows the last open time
++and lets you pin a location. Clicking a location starts the native chooser in
++that folder. Confirm the folder in the chooser before the host opens it.
++Disabling **Remember opened folders** stops new entries and timestamps from
++being recorded. Existing entries and pins remain available. A missing or
++unreadable index does not prevent opening by selecting the folder directly.
++
+ The separate `folder-locations.sqlite` application index stores the selected
+ location, last open time, pin and an opt-out for recording recent folders.
+ The trusted host records a location after a successful explicit opening.
+diff --git a/docs/ru/storage-folder-host-api.md b/docs/ru/storage-folder-host-api.md
+--- a/docs/ru/storage-folder-host-api.md
++++ b/docs/ru/storage-folder-host-api.md
+@@ -19,6 +19,13 @@ Windows и Linux x86_64/aarch64. Текущая ревизия ещё требу
+
+ ## Выбор папки в рабочей области
+
++Команда **Файл → Сохранить копию проекта в папку** сохраняет текущий проект
++FCP1 в другом пустом каталоге. Исходное открытие остаётся активным, его файлы
++и история сохраняются. Копия получает новый ID и содержит исходные ревизии
++и вложения. Приложение фиксирует источник перед диалогом и снова проверяет
++его перед записью. Если результат копирования неизвестен, откройте папку
++назначения для проверки.
++
+ Чтобы начать с пустого проекта, нажмите **Создать в папке** в диалоге нового
+ проекта и выберите пустой каталог. Приложение создаст проект и откроет его
+ первый коммит. Отмена выбора вернёт к форме. Если сохранённый проект
+@@ -674,6 +681,13 @@ commit; соответствующие UI-кнопки остаются неза
+
+ ## Независимый индекс приложения
+
++Раздел **Недавние папки проектов** показывает время открытия и позволяет
++закрепить путь. Клик по записи открывает системный диалог в этой папке.
++Для открытия проекта подтвердите выбор в диалоге. Отключение настройки
++**Запоминать открытые папки** останавливает запись новых путей и времени.
++Существующие записи и закрепления сохраняются. При отсутствии или ошибке
++индекса папку можно выбрать напрямую.
++
+ Отдельный индекс приложения `folder-locations.sqlite` хранит путь, время
+ последнего открытия, закрепление и настройку записи недавних папок.
+ Приложение добавляет путь после успешного явного открытия. Модель, ревизии,

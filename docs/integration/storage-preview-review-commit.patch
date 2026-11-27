@@ -1,0 +1,30 @@
+diff --git a/apps/desktop/src/features/agents/review/CandidateReview.tsx b/apps/desktop/src/features/agents/review/CandidateReview.tsx
+index 383d421..f87025a 100644
+--- a/apps/desktop/src/features/agents/review/CandidateReview.tsx
++++ b/apps/desktop/src/features/agents/review/CandidateReview.tsx
+@@ -25,7 +25,8 @@ export function CandidateReview({ review, onDecision }: { review: CandidateRevie
+   const currentBinding=useWorkspace(state=>state.sourceBinding);
+   const legacyBinding=useRef(currentBinding);
+   const capturedBinding=review.sourceBinding===undefined?legacyBinding.current:review.sourceBinding;
+-  const validBase = !!current && !!capturedBinding && isSourceCurrent(currentBinding,capturedBinding) && candidateSourceStatus(current, review.base) === "valid";
++  const sameCommit=capturedBinding?.kind!=="folder"||(currentBinding?.kind==="folder"&&currentBinding.source.commitId===capturedBinding.source.commitId);
++  const validBase = sameCommit && !!current && !!capturedBinding && isSourceCurrent(currentBinding,capturedBinding) && candidateSourceStatus(current, review.base) === "valid";
+   const [refresh, setRefresh] = useState(0), [fit, setFit] = useState(0), [view, setView] = useState<"candidate" | "current">("candidate");
+   const preview = useModelPreview(review.base.id, review.source, review.base.currentRevision, validBase, refresh, capturedBinding);
+   const baseline = useSavedBaseline(review.base,validBase?capturedBinding:null);
+diff --git a/apps/desktop/src/features/project-sources/candidateSource.test.tsx b/apps/desktop/src/features/project-sources/candidateSource.test.tsx
+index 2065e34..480303e 100644
+--- a/apps/desktop/src/features/project-sources/candidateSource.test.tsx
++++ b/apps/desktop/src/features/project-sources/candidateSource.test.tsx
+@@ -33,3 +33,11 @@ it("does not turn a missing captured opening into current managed access",()=>{
+  expect(screen.getByRole("button",{name:"Accept candidate"})).toBeDisabled();
+  expect(mocks.preview.mock.calls[0][5]).toBeNull();
+ });
++it("invalidates a strict candidate review when its original folder commit changes",async()=>{
++ const review=fixture(),binding=review.sourceBinding;if(binding?.kind!=="folder")throw Error("fixture");
++ render(<CandidateReview review={review} onDecision={()=>{}}/>);
++ expect(screen.getByRole("button",{name:"Accept candidate"})).toBeEnabled();
++ await act(async()=>{expect(useWorkspace.getState().publishFolderSnapshot({...review.base,name:"Metadata changed"},binding,{...binding.source,commitId:"metadata"})).toBe(true);});
++ expect(screen.getByRole("button",{name:"Accept candidate"})).toBeDisabled();
++ expect(mocks.baseline).toHaveBeenLastCalledWith(review.base,null);
++});

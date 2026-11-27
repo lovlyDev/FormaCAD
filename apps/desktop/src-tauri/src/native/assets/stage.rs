@@ -12,6 +12,42 @@ pub fn stage_project_assets(
     document: &Document,
     cwd: &Path,
 ) -> Result<()> {
+    stage_assets_with(project, document, cwd, |file| {
+        let hash = file.sha256.as_deref().unwrap();
+        if file.data.is_none() {
+            let extension = Path::new(&file.name)
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap()
+                .to_ascii_lowercase();
+            let path = crate::security::guarded(
+                &state.root,
+                Path::new(&format!("{}/attachments/{hash}.{extension}", project.id)),
+            )?;
+            let size = std::fs::metadata(path)
+                .map_err(|e| app_error("ASSET_MISSING", e.to_string()))?
+                .len();
+            if size != file.size || size > crate::artifacts::MAX_FILE_BYTES as u64 {
+                return Err(app_error(
+                    "ASSET_LIMIT",
+                    "Stored STEP size differs from project metadata",
+                ));
+            }
+        }
+        let bytes = crate::artifacts::read(state, &project.id, file)
+            .map_err(|e| app_error("ASSET_CHECKSUM_MISMATCH", e.to_string()))?;
+        Ok(bytes)
+    })
+}
+
+/// Validate exactly the same references and staged bytes for any captured source.
+/// Reader failures (including stale opening/location) are returned unchanged.
+pub fn stage_assets_with(
+    project: &Project,
+    document: &Document,
+    cwd: &Path,
+    mut read: impl FnMut(&crate::models::ProjectFile) -> Result<Vec<u8>>,
+) -> Result<()> {
     document.validate().map_err(crate::cad_ir::app_error)?;
     let mut total = 0usize;
     let mut inputs = Vec::new();
@@ -43,28 +79,7 @@ pub fn stage_project_assets(
                 "Project STEP exceeds input limits",
             ));
         }
-        if file.data.is_none() {
-            let extension = Path::new(&file.name)
-                .extension()
-                .and_then(|e| e.to_str())
-                .unwrap()
-                .to_ascii_lowercase();
-            let path = crate::security::guarded(
-                &state.root,
-                Path::new(&format!("{}/attachments/{hash}.{extension}", project.id)),
-            )?;
-            let size = std::fs::metadata(path)
-                .map_err(|e| app_error("ASSET_MISSING", e.to_string()))?
-                .len();
-            if size != file.size || size > crate::artifacts::MAX_FILE_BYTES as u64 {
-                return Err(app_error(
-                    "ASSET_LIMIT",
-                    "Stored STEP size differs from project metadata",
-                ));
-            }
-        }
-        let bytes = crate::artifacts::read(state, &project.id, file)
-            .map_err(|e| app_error("ASSET_CHECKSUM_MISMATCH", e.to_string()))?;
+        let bytes = read(file)?;
         if bytes.len() != file.size as usize || crate::artifacts::digest(&bytes) != hash {
             return Err(app_error(
                 "ASSET_CHECKSUM_MISMATCH",

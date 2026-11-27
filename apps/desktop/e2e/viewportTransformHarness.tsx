@@ -159,7 +159,16 @@ export async function mountViewportTransformHarness(
       listeners.set(++eventId, { event: args.event, handler: args.handler });
       return eventId;
     }
-    if (command === "list_projects") return [project];
+    if (command === "list_projects") {
+      return {
+        entries: [{ kind: "ready", rowKey: `fixture:${project.id}`, project }],
+        serializedProjectBytes: new TextEncoder().encode(JSON.stringify(project)).length,
+      };
+    }
+    if (command === "read_project_snapshot") {
+      if (args.id !== project.id) throw Error("PROJECT_SNAPSHOT_MISSING");
+      return structuredClone(project);
+    }
     if (command === "project_activity") return args.projectId === project.id
       ? [{ id: 1, kind: "edit", toRevision: project.currentRevision, createdAt: "2026-01-01T00:00:00Z" }]
       : [];

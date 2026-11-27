@@ -2,6 +2,7 @@ use super::{
     packet::{encode, PreviewMetrics},
     workspace::Workspace,
 };
+use crate::project_repository::backend::RepositoryRead;
 use crate::{
     cad_ir::Document,
     core::{AppError, Result},
@@ -46,7 +47,35 @@ pub async fn build_with_project(
         program,
         cancel,
         executable,
-        Some((state, project)),
+        Some(Assets::Managed(state, project)),
+    )
+    .await
+}
+
+enum Assets<'a, 'source> {
+    Managed(&'a crate::core::AppState, &'a crate::models::Project),
+    Read(&'a RepositoryRead<'source>),
+}
+
+pub async fn build_with_read(
+    state: &crate::core::AppState,
+    read: &RepositoryRead<'_>,
+    program: &str,
+    cancel: Arc<AtomicBool>,
+    executable: &Path,
+) -> Result<Vec<u8>> {
+    let _cad = state
+        .cad_tasks
+        .acquire(read.task_scope_id(), "model_preview", cancel.clone())
+        .await?;
+    read.recheck().await?;
+    build_staged(
+        &state.root,
+        &read.project().id,
+        program,
+        cancel,
+        executable,
+        Some(Assets::Read(read)),
     )
     .await
 }
@@ -57,12 +86,18 @@ async fn build_staged(
     program: &str,
     cancel: Arc<AtomicBool>,
     executable: &Path,
-    assets: Option<(&crate::core::AppState, &crate::models::Project)>,
+    assets: Option<Assets<'_, '_>>,
 ) -> Result<Vec<u8>> {
     let document = validate_source(program)?;
     let workspace = Workspace::create(root, project_id)?;
-    if let Some((state, project)) = assets {
-        crate::native::assets::stage_project_assets(state, project, &document, &workspace.path)?;
+    match assets {
+        Some(Assets::Managed(state, project)) => {
+            crate::native::assets::stage_project_assets(state, project, &document, &workspace.path)?
+        }
+        Some(Assets::Read(read)) => {
+            super::imports::stage_read(read, &document, &workspace.path).await?
+        }
+        None => {}
     }
     if !crate::native::worker::build_with_executable(program, &workspace.path, cancel, executable)
         .await?

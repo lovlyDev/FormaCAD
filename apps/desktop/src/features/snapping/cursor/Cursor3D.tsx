@@ -8,6 +8,8 @@ import {
 } from "../../transform/viewport/renderBasis";
 import { findSnapCandidate } from "../snapCandidate";
 import { resolveSnap } from "../resolveSnap";
+import {captureDisplayedSnapSource} from "../snapRequest";
+import {useWorkspace} from "../../../stores/workspace";
 
 /**
  * 3D cursor used as a pivot. Shift+RMB places it on the nearest vertex or the
@@ -29,9 +31,12 @@ export function Cursor3D({
   );
   useEffect(() => {
     const element = gl.domElement;
+    let active=true,placement=0;
+    const view=captureDisplayedSnapSource(object),empty=!useWorkspace.getState().project;
+    const viewCurrent=()=>active&&(view?view.isCurrent():empty&&!useWorkspace.getState().project);
     const place = (event: PointerEvent) => {
       // Ctrl+Shift+RMB belongs to the lasso.
-      if (event.button !== 2 || !event.shiftKey || event.ctrlKey) return;
+      if (!viewCurrent() || event.button !== 2 || !event.shiftKey || event.ctrlKey) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       const rect = element.getBoundingClientRect();
@@ -43,12 +48,14 @@ export function Cursor3D({
         frame: cadWorldFrame(object),
       });
       if (!candidate) return;
+      const generation=++placement;
+      const current=()=>viewCurrent()&&generation===placement;
       const store = useTransformViewport.getState();
       store.setCursor(candidate.pointMm);
       invalidate();
-      void resolveSnap(candidate).then((resolved) => {
-        if (resolved) store.setCursor(resolved.pointMm);
-        invalidate();
+      void resolveSnap(candidate,current).then((resolved) => {
+        if (resolved&&current()&&resolved.isCurrent()) store.setCursor(resolved.pointMm);
+        if(active)invalidate();
       });
     };
     const menu = (event: MouseEvent) => {
@@ -57,6 +64,7 @@ export function Cursor3D({
     element.addEventListener("pointerdown", place, true);
     element.addEventListener("contextmenu", menu, true);
     return () => {
+      active=false;
       element.removeEventListener("pointerdown", place, true);
       element.removeEventListener("contextmenu", menu, true);
     };

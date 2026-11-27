@@ -1,0 +1,68 @@
+# FCP1 STEP transfer integration proposal
+
+## English
+
+Review the [patch](storage-step-transfer-ui.patch) and [15 paths](storage-step-transfer-ui.paths).
+The SHA-256 is `49f96915a5f98a4a1871a57509d1bef84a9f6843186e8c4db45dcd8f87ae3e0b`.
+Use base `7a21189e69a73b9ab188af88bef1bb13cf4a0452` with the
+[workspace](storage-folder-workspace.md) and [copy and recents](storage-folder-copy-recents.md)
+patches applied in that order. Together the three proposals touch 65 paths.
+
+The New Project dialog offers **Transfer STEP to folder** when the native CAD
+worker is available. The host prompts for a STEP/STP file, captures it read-only,
+then prompts for an empty destination. The renderer supplies the project name,
+agent and localized import description. The new FCP1 folder contains a fresh
+project and one imported geometry revision in millimeters. Original files stay
+untouched. STEP cannot supply the parametric editing history.
+
+The isolated workflow checks hashes and path manifests, applies all three
+patches, builds and tests the frontend, and compiles the Tauri handlers with
+and without the native worker feature. The real-worker backend test and
+the desktop picker flow are separate verification steps.
+
+The [browser regression follow-up](storage-folder-caption-browser.patch) applies
+after the three proposals and changes `App.tsx` and
+`e2e/storage-folder-workspace.spec.ts`. SHA-256
+`d8a5fae5df8d23064441c302d07b029100f701b7aefd6a6c322403d60743de67`.
+It fixes the folder title when a managed project has the same ID and checks
+CAD worker availability when the New Project dialog opens from the dashboard.
+Six local Chromium cases covered creation, close, reopen from recents,
+persistent theme, STEP transfer with picker cancellation, and saving a model
+then using Undo/Redo after reopening. The browser test checks original
+opening and commit IDs on the write commands. The folder cases covered
+Russian and English. Native IPC was mocked.
+
+## Русский
+
+Для согласования подготовлены [патч](storage-step-transfer-ui.patch) и
+[список 15 путей](storage-step-transfer-ui.paths). SHA-256 —
+`49f96915a5f98a4a1871a57509d1bef84a9f6843186e8c4db45dcd8f87ae3e0b`.
+На основу `7a21189e69a73b9ab188af88bef1bb13cf4a0452` сначала применяются
+[патч рабочей области](storage-folder-workspace.md) и
+[копирование и недавние](storage-folder-copy-recents.md). В сумме три
+предложения затрагивают 65 файлов.
+
+В диалоге нового проекта действие **Перенести STEP в папку** доступно при
+наличии нативного CAD worker. Приложение предлагает выбрать файл STEP/STP,
+открывает его только для чтения и затем предлагает выбрать пустую папку.
+Интерфейс передаёт название проекта, агента и локализованное описание
+импорта. В новой папке FCP1 создаётся новый проект с одной ревизией
+импортированной геометрии в миллиметрах. Исходные файлы сохраняются.
+Параметрическая история недоступна из STEP.
+
+Изолированный workflow проверяет хеши и перечни путей, применяет три
+патча, собирает и тестирует интерфейс и компилирует Tauri-обработчики
+с нативным worker и без него. Проверка backend с настоящим worker и
+проверка диалогов в настольном приложении проходят отдельно.
+
+[Дополнение с браузерным тестом](storage-folder-caption-browser.patch) применяется
+после трёх предложений и меняет `App.tsx` и
+`e2e/storage-folder-workspace.spec.ts`. SHA-256 —
+`d8a5fae5df8d23064441c302d07b029100f701b7aefd6a6c322403d60743de67`.
+Оно исправляет заголовок папки при совпадающем ID управляемого проекта
+и запускает проверку CAD worker при открытии диалога нового проекта с
+главного экрана. Шесть тестов Chromium с подменой нативного IPC проверили
+создание, закрытие, открытие из недавних, сохранение темы, перенос STEP с
+отменой выбора и сохранение модели с Undo/Redo после повторного открытия.
+Тест сверяет ключи открытий и коммиты в командах записи. Сценарии папки
+проверены на русском и английском.

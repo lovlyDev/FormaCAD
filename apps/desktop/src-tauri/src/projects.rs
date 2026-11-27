@@ -4,6 +4,7 @@ use crate::{
 };
 use std::path::Path;
 use tauri::State;
+mod catalog;
 mod events;
 mod mirrors;
 mod persistence;
@@ -51,18 +52,25 @@ pub async fn get(state: &AppState, id: &str) -> Result<Project> {
     crate::project_storage_v2::reconcile(state, p).await
 }
 #[tauri::command]
-pub async fn list_projects(state: State<'_, AppState>) -> Result<Vec<Project>> {
-    let rows: Vec<String> =
-        sqlx::query_scalar("SELECT payload FROM projects ORDER BY updated_at DESC")
-            .fetch_all(&state.pool)
-            .await?;
-    let mut result = Vec::new();
-    for raw in rows {
-        let p: Project = serde_json::from_str(&raw)?;
-        p.validate()?;
-        result.push(crate::project_storage_v2::reconcile(&state, p).await?);
+pub async fn list_projects(
+    state: State<'_, AppState>,
+) -> Result<crate::project_repository::catalog::CatalogReport> {
+    catalog::list(&state).await
+}
+#[tauri::command]
+pub async fn read_project_snapshot(
+    id: String,
+    source_id: Option<String>,
+    expected_commit_id: Option<String>,
+    window: tauri::WebviewWindow,
+    sources: State<'_, crate::project_repository::window_sources::WindowSources>,
+    state: State<'_, AppState>,
+) -> Result<Project> {
+    match (source_id, expected_commit_id) {
+        (None, None) => catalog::read(&state, &id).await,
+        (Some(source), Some(commit)) => sources.read(window.label(), &source, &id, &commit).await,
+        _ => Err(AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into())),
     }
-    Ok(result)
 }
 #[tauri::command]
 pub async fn save_project_thumbnail(

@@ -8,14 +8,24 @@ mod workspace;
 pub use crate::native::section::{SectionPlane, SectionReport};
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn section_model(
     project_id: String,
     expected_revision: String,
     origin_mm: [f64; 3],
     normal: [f64; 3],
     deflection_mm: Option<f64>,
+    source_id: Option<String>,
+    expected_commit_id: Option<String>,
+    window: tauri::WebviewWindow,
+    sources: tauri::State<'_, crate::project_repository::window_sources::WindowSources>,
     state: tauri::State<'_, AppState>,
 ) -> Result<serde_json::Value> {
+    if source_id.is_some() != expected_commit_id.is_some() {
+        return Err(crate::core::AppError::Invalid(
+            "PROJECT_SNAPSHOT_CHANGED".into(),
+        ));
+    }
     #[cfg(not(feature = "native-worker-client"))]
     {
         let _ = (
@@ -25,7 +35,15 @@ pub async fn section_model(
             normal,
             deflection_mm,
             state,
+            window,
+            sources,
+            expected_commit_id,
         );
+        if source_id.is_some() {
+            return Err(crate::core::AppError::Invalid(
+                "PROJECT_FOLDER_UNSUPPORTED".into(),
+            ));
+        }
         Err(failure(
             "SECTION_UNAVAILABLE",
             "Model section requires the native OpenCascade build",
@@ -38,7 +56,32 @@ pub async fn section_model(
             normal,
             deflection_mm: deflection_mm.unwrap_or(0.01),
         };
+        let source = match (source_id, expected_commit_id) {
+            (Some(key), Some(commit)) => Some(
+                sources
+                    .capture_read(window.label(), &key, &project_id, &commit)
+                    .await?,
+            ),
+            (None, None) => None,
+            _ => {
+                return Err(crate::core::AppError::Invalid(
+                    "PROJECT_SNAPSHOT_CHANGED".into(),
+                ))
+            }
+        };
         let executable = crate::native::worker::worker_executable()?;
+        if let Some(read) = source {
+            let report = build::section_source_with_executable(
+                &state,
+                read,
+                &expected_revision,
+                &plane,
+                std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+                &executable,
+            )
+            .await?;
+            return Ok(serde_json::to_value(report)?);
+        }
         let report = build::section_with_executable(
             &state,
             &project_id,

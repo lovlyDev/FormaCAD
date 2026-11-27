@@ -1,0 +1,1572 @@
+diff --git a/apps/desktop/src/features/project-sources/sourceBinding.ts b/apps/desktop/src/features/project-sources/sourceBinding.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/sourceBinding.ts
+@@ -0,0 +1,47 @@
++import type { FolderSourceRef } from "./contract";
++
++// Renderer request identity only. Host source references remain independently
++// validated; this local UUID never grants storage or writer access.
++interface Opening { readonly openingId: string; readonly projectId: string }
++export type ProjectSourceBinding =
++  | Readonly<Opening & { kind: "managed" }>
++  | Readonly<Opening & { kind: "folder"; source: Readonly<FolderSourceRef> }>;
++
++const changed = () => new Error("PROJECT_SNAPSHOT_CHANGED");
++function folderRef(source: FolderSourceRef): Readonly<FolderSourceRef> {
++  if (!source.sourceId || !source.commitId || !source.taskScopeId) throw changed();
++  return Object.freeze({ sourceId: source.sourceId, commitId: source.commitId, taskScopeId: source.taskScopeId });
++}
++
++/** Reuse only for metadata publication within the same managed opening. */
++export function managedSource(projectId: string, previous?: ProjectSourceBinding | null): ProjectSourceBinding {
++  if (!projectId) throw changed();
++  if (previous?.kind === "managed" && previous.projectId === projectId) return previous;
++  return Object.freeze({ kind: "managed", projectId, openingId: crypto.randomUUID() });
++}
++
++/** Explicit activation always starts a new renderer request family. */
++export function folderSource(projectId: string, source: FolderSourceRef): ProjectSourceBinding {
++  if (!projectId) throw changed();
++  return Object.freeze({ kind: "folder", projectId, openingId: crypto.randomUUID(), source: folderRef(source) });
++}
++
++/** Advance a validated commit reference without rebinding the original opening. */
++export function refreshFolderSource(current: ProjectSourceBinding, source: FolderSourceRef): ProjectSourceBinding {
++  const next = folderRef(source);
++  if (current.kind !== "folder" || current.source.sourceId !== next.sourceId || current.source.taskScopeId !== next.taskScopeId) throw changed();
++  return Object.freeze({ ...current, source: next });
++}
++
++/** Metadata-only refresh remains compatible; geometry consumers compare their seals too. */
++export function isSourceCurrent(active: ProjectSourceBinding | null, captured: ProjectSourceBinding): boolean {
++  return !!active && active.openingId === captured.openingId && active.projectId === captured.projectId &&
++    active.kind === captured.kind && (active.kind === "managed" || (captured.kind === "folder" &&
++      active.source.sourceId === captured.source.sourceId && active.source.taskScopeId === captured.source.taskScopeId));
++}
++
++/** A mismatched binding must never become an undefined (managed) fallback. */
++export function sourceRefFor(binding: ProjectSourceBinding, projectId: string): Readonly<FolderSourceRef> | undefined {
++  if (binding.projectId !== projectId) throw changed();
++  return binding.kind === "folder" ? binding.source : undefined;
++}
+diff --git a/apps/desktop/src/features/project-sources/sourceBinding.test.ts b/apps/desktop/src/features/project-sources/sourceBinding.test.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/sourceBinding.test.ts
+@@ -0,0 +1,49 @@
++import { describe, expect, it } from "vitest";
++import { folderSource, isSourceCurrent, managedSource, refreshFolderSource, sourceRefFor } from "./sourceBinding";
++
++const ref = (id = "source-a", commitId = "commit-a") => ({ sourceId: id, commitId, taskScopeId: `group-${id}` });
++describe("renderer source binding foundation", () => {
++  it("rejects a late result after equal-ID folder switch", async () => {
++    const captured = folderSource("shared-project", ref());
++    let active = captured;
++    let finish!: (value: number) => void;
++    const pending = new Promise<number>(resolve => { finish = resolve; }).then(value => isSourceCurrent(active, captured) ? value : null);
++    active = folderSource("shared-project", ref("source-b"));
++    finish(8000);
++    expect(await pending).toBeNull();
++  });
++  it("rejects capture-close-reopen even if the supplied reference strings match", () => {
++    const captured = folderSource("project", ref());
++    expect(isSourceCurrent(null, captured)).toBe(false);
++    expect(isSourceCurrent(folderSource("project", ref()), captured)).toBe(false);
++    expect(isSourceCurrent(managedSource("project"), captured)).toBe(false);
++  });
++  it("keeps queued geometry compatible with metadata commit refresh through one opening", () => {
++    const captured = folderSource("project", ref());
++    const active = refreshFolderSource(captured, ref("source-a", "metadata-commit"));
++    expect(isSourceCurrent(active, captured)).toBe(true);
++    expect(sourceRefFor(captured, "project")?.commitId).toBe("commit-a");
++    expect(sourceRefFor(active, "project")?.commitId).toBe("metadata-commit");
++    expect(() => refreshFolderSource(active, ref("other"))).toThrow("PROJECT_SNAPSHOT_CHANGED");
++  });
++  it("copies and freezes references without freezing or retaining mutable caller input", () => {
++    const input = ref();
++    const binding = folderSource("project", input);
++    input.sourceId = "changed";
++    input.commitId = "changed";
++    expect(sourceRefFor(binding, "project")).toEqual(ref());
++    expect(Object.isFrozen(binding)).toBe(true);
++    expect(Object.isFrozen(sourceRefFor(binding, "project"))).toBe(true);
++  });
++  it("preserves a managed publication family but gives explicit activation a fresh opening", () => {
++    const captured = managedSource("project");
++    expect(managedSource("project", captured)).toBe(captured);
++    expect(isSourceCurrent(managedSource("project"), captured)).toBe(false);
++    expect(isSourceCurrent(managedSource("other", captured), captured)).toBe(false);
++    expect(sourceRefFor(captured, "project")).toBeUndefined();
++  });
++  it("refuses wrong project IDs instead of falling back to managed storage", () => {
++    expect(() => sourceRefFor(folderSource("first", ref()), "second")).toThrow("PROJECT_SNAPSHOT_CHANGED");
++    expect(() => sourceRefFor(managedSource("first"), "second")).toThrow("PROJECT_SNAPSHOT_CHANGED");
++  });
++});
+diff --git a/apps/desktop/src/features/project-sources/sourceApi.ts b/apps/desktop/src/features/project-sources/sourceApi.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/sourceApi.ts
+@@ -0,0 +1,8 @@
++import { invoke, isTauri } from "@tauri-apps/api/core";
++import type { FolderSourceRef } from "./contract";
++
++/** Close the window-owned selector; never accept or resolve a renderer path. */
++export async function closeFolderSource(source: FolderSourceRef): Promise<boolean> {
++  if (!isTauri()) return false;
++  return invoke<boolean>("close_project_source", { sourceId: source.sourceId });
++}
+diff --git a/apps/desktop/src/features/project-sources/useWorkspaceSourceAccess.ts b/apps/desktop/src/features/project-sources/useWorkspaceSourceAccess.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/useWorkspaceSourceAccess.ts
+@@ -0,0 +1,14 @@
++import {useCallback} from "react";
++import {useWorkspace} from "../../stores/workspace";
++import {isSourceCurrent,type ProjectSourceBinding} from "./sourceBinding";
++import { useProjectAccess } from "../project-access/useProjectAccess";
++
++/** A read-only folder selector must never acquire managed editing for its ID. */
++export function useWorkspaceSourceAccess(projectId: string | undefined, source: ProjectSourceBinding | null, onError: (message: string) => void) {
++  const report=useCallback((message:string)=>{
++    const active=useWorkspace.getState().sourceBinding;
++    if(source?isSourceCurrent(active,source):!active)onError(message);
++  },[source,onError]);
++  const managed = useProjectAccess(source?.kind === "folder" ? undefined : projectId, report,source?.openingId);
++  return source?.kind === "folder" ? { ...managed, writable: false, checking: false, status: undefined, error: undefined } : managed;
++}
+diff --git a/apps/desktop/src/features/project-sources/sourceAction.ts b/apps/desktop/src/features/project-sources/sourceAction.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/sourceAction.ts
+@@ -0,0 +1,19 @@
++import { useWorkspace } from "../../stores/workspace";
++import { isSourceCurrent, type ProjectSourceBinding } from "./sourceBinding";
++
++/** Bind an existing managed action before any permission/agent await. */
++export function managedActionSource(projectId: string, captured: ProjectSourceBinding | null) {
++  const isCurrent = () => {
++    const active = useWorkspace.getState();
++    return !!captured && captured.projectId === projectId && active.project?.id === projectId &&
++      isSourceCurrent(active.sourceBinding, captured);
++  };
++  return {
++    openingId: captured?.openingId,
++    isCurrent,
++    assertCurrent() {
++      if (!isCurrent()) throw new Error("PROJECT_SNAPSHOT_CHANGED");
++      if (captured?.kind === "folder") throw new Error("PROJECT_SOURCE_WRITE_NOT_AUTHORIZED");
++    },
++  };
++}
+diff --git a/apps/desktop/src/features/project-sources/fileReadGuard.ts b/apps/desktop/src/features/project-sources/fileReadGuard.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/fileReadGuard.ts
+@@ -0,0 +1,12 @@
++import type { ProjectFile } from "../../types";
++import type { FolderSourceRef } from "./contract";
++import { readProjectSnapshot } from "../project-catalog/api";
++
++/** Parsing can outlive asset IO: recheck the same source/commit before publication. */
++export async function verifyFileSource(projectId: string, file: ProjectFile, source: FolderSourceRef): Promise<void> {
++  const snapshot = await readProjectSnapshot(projectId, source);
++  const saved = snapshot.files.find(entry => entry.name === file.name);
++  if (snapshot.id !== projectId || !file.sha256 || !saved || saved.sha256 !== file.sha256 || saved.size !== file.size) {
++    throw new Error("PROJECT_SNAPSHOT_CHANGED");
++  }
++}
+diff --git a/apps/desktop/src/features/project-sources/useSourcePreference.ts b/apps/desktop/src/features/project-sources/useSourcePreference.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/useSourcePreference.ts
+@@ -0,0 +1,23 @@
++import { useCallback, useRef, useState, type SetStateAction } from "react";
++import { usePersistentState } from "../../lib/persistence";
++import type { ProjectSourceBinding } from "./sourceBinding";
++
++/** Folder drafts stay in memory; process-local source IDs never enter preferences. */
++export function useSourcePreference<T>(key: string, fallback: T, binding: ProjectSourceBinding | null) {
++  const folder = binding?.kind === "folder";
++  const [persistent, savePersistent] = usePersistentState(key, fallback, !folder);
++  const family = JSON.stringify([binding?.openingId, key]);
++  const latest = useRef(family); latest.current = family;
++  const [memory, setMemory] = useState({ family, value: fallback });
++  const value = folder ? memory.family === family ? memory.value : fallback : persistent;
++  const save = useCallback((next: SetStateAction<T>) => {
++    if (latest.current !== family) return;
++    if (!folder) { savePersistent(next); return; }
++    setMemory(previous => {
++      if (latest.current !== family) return previous;
++      const current = previous.family === family ? previous.value : fallback;
++      return { family, value: typeof next === "function" ? (next as (value: T) => T)(current) : next };
++    });
++  }, [family, folder, fallback, savePersistent]);
++  return [value, save] as const;
++}
+diff --git a/apps/desktop/src/stores/workspaceProject.ts b/apps/desktop/src/stores/workspaceProject.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/stores/workspaceProject.ts
+@@ -0,0 +1,53 @@
++import type { Workspace } from "./workspace";
++import type { Project } from "../types";
++import { folderSource, isSourceCurrent, managedSource, refreshFolderSource, type ProjectSourceBinding } from "../features/project-sources/sourceBinding";
++import { closeFolderSource } from "../features/project-sources/sourceApi";
++import { readState } from "../lib/persistence";
++import { saveProject } from "../lib/api";
++
++type Actions = Pick<Workspace, "setProject" | "openManagedProject" | "openFolderProject" | "publishFolderSnapshot" | "update">;
++export function workspaceProjectActions(set: (patch: Partial<Workspace>) => void, get: () => Workspace): Actions {
++  function publish(project: Project | null, sourceBinding: ProjectSourceBinding | null) {
++    const before = get();
++    const sameSource = !!sourceBinding && !!before.sourceBinding && isSourceCurrent(sourceBinding, before.sourceBinding);
++    const sameRevision = sameSource && !!project && project.currentRevision === before.project?.currentRevision;
++    const selected = sameRevision ? before.selected : project && sourceBinding?.kind === "managed"
++      ? readState<string | null>(`forma.ui.project.${project.id}.selected`, null) : null;
++    set({ project, sourceBinding, selected,
++      selectedBodies: sameSource ? before.selectedBodies : selected ? [selected] : [],
++      selectedFace: sameRevision ? before.selectedFace : null,
++      selectedEdge: sameRevision ? before.selectedEdge : null, error: null });
++    const previous = before.sourceBinding;
++    if (previous?.kind === "folder" && !(sourceBinding?.kind === "folder" && sourceBinding.source.sourceId === previous.source.sourceId)) {
++      void closeFolderSource(previous.source).catch(cause => console.warn("Folder source could not be closed", cause));
++    }
++  }
++  return {
++    // Existing managed metadata publication preserves its renderer request family.
++    setProject(project) {
++      const before = get();
++      const previous = before.project?.id === project?.id ? before.sourceBinding : null;
++      publish(project, project ? managedSource(project.id, previous) : null);
++    },
++    openManagedProject(project) { publish(project, managedSource(project.id)); },
++    openFolderProject(project, source) { publish(project, folderSource(project.id, source)); },
++    publishFolderSnapshot(project, captured, source) {
++      const before = get();
++      if (!before.sourceBinding || !isSourceCurrent(before.sourceBinding, captured) ||
++          captured.kind !== "folder" || before.sourceBinding.kind !== "folder" ||
++          before.sourceBinding.source.commitId !== captured.source.commitId || project.id !== captured.projectId) return false;
++      publish(project, refreshFolderSource(before.sourceBinding, source));
++      return true;
++    },
++    async update(project) {
++      const before = get(), captured = before.sourceBinding;
++      if (captured?.kind === "folder") throw new Error("PROJECT_SOURCE_WRITE_NOT_AUTHORIZED");
++      if (!captured || captured.projectId !== project.id || before.project?.id !== project.id) throw new Error("PROJECT_SNAPSHOT_CHANGED");
++      const saved = await saveProject(project);
++      const active = get();
++      if (!isSourceCurrent(active.sourceBinding, captured) || saved.id !== captured.projectId) return;
++      const sameRevision = saved.currentRevision === active.project?.currentRevision;
++      set({ project: saved, selectedFace: sameRevision ? active.selectedFace : null, selectedEdge: sameRevision ? active.selectedEdge : null });
++    },
++  };
++}
+diff --git a/apps/desktop/src/stores/projectDefaults.ts b/apps/desktop/src/stores/projectDefaults.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/stores/projectDefaults.ts
+@@ -0,0 +1,33 @@
++import type {Project,Parameters} from "../types";
++import {defaults} from "../types";
++export function currentParameters(p: Project | null): Parameters {
++  return (
++    p?.revisions.find((r) => r.id === p.currentRevision)?.parameters ?? {
++      ...defaults,
++      kind: "blank",
++    }
++  );
++}
++export function newProject(
++  name: string,
++  _kind: Parameters["kind"],
++  units: Project["units"],
++  agent: Project["agent"],
++): Project {
++  const now = new Date().toISOString();
++  return {
++    schemaVersion: 1,
++    id: crypto.randomUUID(),
++    name: name.trim(),
++    units,
++    agent,
++    pinned: false,
++    createdAt: now,
++    updatedAt: now,
++    revisions: [],
++    currentRevision: null,
++    messages: [],
++    files: [],
++    exports: [],
++  };
++}
+diff --git a/apps/desktop/src/stores/workspace.ts b/apps/desktop/src/stores/workspace.ts
+index 1d27b34..7a867a0 100644
+--- a/apps/desktop/src/stores/workspace.ts
++++ b/apps/desktop/src/stores/workspace.ts
+@@ -1,12 +1,18 @@
+ import { create } from "zustand";
+ import type { Project, Parameters, Revision } from "../types";
+-import { defaults } from "../types";
+-import { saveProject } from "../lib/api";
+-import { persist, readState } from "../lib/persistence";
++export {currentParameters,newProject} from "./projectDefaults";
++import {workspaceProjectActions} from "./workspaceProject";
++import type {FolderSourceRef} from "../features/project-sources/contract";
++import type {ProjectSourceBinding} from "../features/project-sources/sourceBinding";
++import { persist } from "../lib/persistence";
+ import type { FaceSelection } from "../features/viewer/faceSelection";
+ import type { EdgeSelection } from "../features/viewer/edgeSelection";
+-interface Workspace {
++export interface Workspace {
+   project: Project | null;
++  sourceBinding: ProjectSourceBinding | null;
++  openManagedProject: (project:Project)=>void;
++  openFolderProject: (project:Project,source:FolderSourceRef)=>void;
++  publishFolderSnapshot: (project:Project,captured:ProjectSourceBinding,source:FolderSourceRef)=>boolean;
+   selected: string | null;
+   /** Ordered body selection; `selected` is its active element. */
+   selectedBodies: string[];
+@@ -34,6 +40,7 @@ interface Workspace {
+ }
+ export const useWorkspace = create<Workspace>((set, get) => ({
+   project: null,
++  sourceBinding: null,
+   selected: null,
+   selectedBodies: [],
+   selectedFace: null,
+@@ -41,26 +48,10 @@ export const useWorkspace = create<Workspace>((set, get) => ({
+   busy: false,
+   stage: "Ready",
+   error: null,
+-  setProject: (project) => {
+-    const current = get();
+-    const same = !!project && project.id === current.project?.id && project.currentRevision === current.project.currentRevision;
+-    const sameProject = !!project && project.id === current.project?.id;
+-    const selected = same ? current.selected : project
+-      ? readState<string | null>(`forma.ui.project.${project.id}.selected`, null)
+-      : null;
+-    set({
+-      project,
+-      selected,
+-      // Body ids survive a new revision of the same project; transforms keep the selection.
+-      selectedBodies: sameProject ? current.selectedBodies : selected ? [selected] : [],
+-      selectedFace: same ? current.selectedFace : null,
+-      selectedEdge: same ? current.selectedEdge : null,
+-      error: null,
+-    });
+-  },
++  ...workspaceProjectActions(set,get),
+   setSelected: (selected) => {
+     const id = get().project?.id;
+-    if (id)
++    if (id && get().sourceBinding?.kind !== "folder")
+       persist(`forma.ui.project.${id}.selected`, JSON.stringify(selected));
+     set({ selected, selectedBodies: selected ? [selected] : [], selectedFace: null, selectedEdge: null });
+   },
+@@ -68,29 +59,13 @@ export const useWorkspace = create<Workspace>((set, get) => ({
+     const unique = [...new Set(bodies)];
+     const selected = active && unique.includes(active) ? active : (unique.at(-1) ?? null);
+     const id = get().project?.id;
+-    if (id) persist(`forma.ui.project.${id}.selected`, JSON.stringify(selected));
++    if (id && get().sourceBinding?.kind !== "folder") persist(`forma.ui.project.${id}.selected`, JSON.stringify(selected));
+     set({ selected, selectedBodies: unique, selectedFace: null, selectedEdge: null });
+   },
+   setSelectedFace: (selectedFace) => set({ selectedFace, selectedEdge: null }),
+   setSelectedEdge: (selectedEdge) => set({ selectedEdge, selectedFace: null }),
+   setBusy: (busy, stage = "Ready") => set({ busy, stage }),
+   setError: (error) => set({ error }),
+-  update: async (project) => {
+-    const saved = await saveProject(project);
+-    // A delayed metadata save must not switch the user back to its original project.
+-    if (get().project?.id !== saved.id) return;
+-    set({
+-      project: saved,
+-      selectedFace:
+-        saved.id === get().project?.id && saved.currentRevision === get().project?.currentRevision
+-          ? get().selectedFace
+-          : null,
+-      selectedEdge:
+-        saved.id === get().project?.id && saved.currentRevision === get().project?.currentRevision
+-          ? get().selectedEdge
+-          : null,
+-    });
+-  },
+   revise: async (parameters, prompt, source, preview, program, programBase) => {
+     const p = get().project;
+     if (!p) throw new Error("No project is open.");
+@@ -114,34 +89,3 @@ export const useWorkspace = create<Workspace>((set, get) => ({
+     });
+   },
+ }));
+-export function currentParameters(p: Project | null): Parameters {
+-  return (
+-    p?.revisions.find((r) => r.id === p.currentRevision)?.parameters ?? {
+-      ...defaults,
+-      kind: "blank",
+-    }
+-  );
+-}
+-export function newProject(
+-  name: string,
+-  _kind: Parameters["kind"],
+-  units: Project["units"],
+-  agent: Project["agent"],
+-): Project {
+-  const now = new Date().toISOString();
+-  return {
+-    schemaVersion: 1,
+-    id: crypto.randomUUID(),
+-    name: name.trim(),
+-    units,
+-    agent,
+-    pinned: false,
+-    createdAt: now,
+-    updatedAt: now,
+-    revisions: [],
+-    currentRevision: null,
+-    messages: [],
+-    files: [],
+-    exports: [],
+-  };
+-}
+diff --git a/apps/desktop/src/lib/persistence.ts b/apps/desktop/src/lib/persistence.ts
+index 52c2eb3..636ff42 100644
+--- a/apps/desktop/src/lib/persistence.ts
++++ b/apps/desktop/src/lib/persistence.ts
+@@ -39,18 +39,20 @@ export function readState<T>(key: string, fallback: T): T {
+   catch { return fallback; }
+ }
+ 
+-export function usePersistentState<T>(key: string, fallback: T) {
++export function usePersistentState<T>(key: string, fallback: T,enabled=true) {
+   const subscribe = useCallback((listener: () => void) => {
++    if(!enabled)return()=>{};
+     listeners.add(listener);
+     return () => { listeners.delete(listener); };
+-  }, []);
+-  const raw = useSyncExternalStore(subscribe, () => localStorage.getItem(key), () => null);
++  }, [enabled]);
++  const raw = useSyncExternalStore(subscribe, () => enabled?localStorage.getItem(key):null, () => null);
+   const value: T = useMemo(() => {
+     try { return raw === null ? fallback : JSON.parse(raw); } catch { return fallback; }
+   }, [raw, fallback]);
+   const set = useCallback((next: SetStateAction<T>) => {
++    if(!enabled)return;
+     const current = readState(key, fallback);
+     persist(key, JSON.stringify(typeof next === "function" ? (next as (v: T) => T)(current) : next));
+-  }, [key, fallback]);
++  }, [key, fallback,enabled]);
+   return [value, set] as const;
+ }
+diff --git a/apps/desktop/src/features/project-access/useProjectAccess.ts b/apps/desktop/src/features/project-access/useProjectAccess.ts
+index 90761b7..f8235b6 100644
+--- a/apps/desktop/src/features/project-access/useProjectAccess.ts
++++ b/apps/desktop/src/features/project-access/useProjectAccess.ts
+@@ -4,19 +4,19 @@ import { errorText } from "../../i18n";
+ import { acquireAccess, retainAccess } from "./accessLifecycle";
+ import type { ProjectAccess } from "./projectAccessApi";
+ 
+-export function useProjectAccess(projectId: string | undefined, onError: (message: string) => void) {
+-  const [result, setResult] = useState<{ id: string; status?: ProjectAccess; error?: string } | null>(null);
++export function useProjectAccess(projectId: string | undefined, onError: (message: string) => void,scope=projectId) {
++  const [result, setResult] = useState<{ id: string; scope:string|undefined; status?: ProjectAccess; error?: string } | null>(null);
+   const [attempt, setAttempt] = useState(0);
+   useEffect(() => {
+     if (!native || !projectId) return;
+     let current = true;
+     const release = retainAccess(projectId, cause => onError(errorText(cause)));
+-    void acquireAccess(projectId).then(status => { if (current) setResult({ id: projectId, status }); })
+-      .catch(cause => { if (current) setResult({ id: projectId, error: errorText(cause) }); });
++    void acquireAccess(projectId).then(status => { if (current) setResult({ id: projectId, scope,status }); })
++      .catch(cause => { if (current) setResult({ id: projectId, scope,error: errorText(cause) }); });
+     return () => { current = false; release(); };
+-  }, [projectId, attempt, onError]);
++  }, [projectId, scope,attempt, onError]);
+   const retry = useCallback(() => { setResult(null); setAttempt(value => value + 1); }, []);
+-  const current = result?.id === projectId ? result : null;
++  const current = result && result.id === projectId && result.scope===scope ? result : null;
+   const checking = native && !!projectId && !current;
+   const writable = !native || !projectId || current?.status?.mode === "write";
+   return { writable, checking, status: current?.status, error: current?.error, retry };
+diff --git a/apps/desktop/src/lib/modelLoader.ts b/apps/desktop/src/lib/modelLoader.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/lib/modelLoader.ts
+@@ -0,0 +1,102 @@
++import * as THREE from "three";
++import {STLLoader} from "three/examples/jsm/loaders/STLLoader.js";
++import {OBJLoader} from "three/examples/jsm/loaders/OBJLoader.js";
++import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader.js";
++import {ThreeMFLoader} from "three/examples/jsm/loaders/3MFLoader.js";
++import {restoreCadTopology,hasCadTopology} from "./cadTopologyTransport";
++import {native,readProjectFile} from "./api";
++import {disposeModel} from "./model";
++import {verifyFileSource} from "../features/project-sources/fileReadGuard";
++import type {FolderSourceRef} from "../features/project-sources/contract";
++import type {ProjectFile} from "../types";
++export async function loadModel(
++  file: ProjectFile,
++  projectId?: string,
++  source?: FolderSourceRef,
++): Promise<THREE.Group> {
++  file={...file};
++  if(source){
++    if(!native)throw new Error("PROJECT_FOLDER_UNSUPPORTED");
++    if(!projectId)throw new Error("PROJECT_SNAPSHOT_CHANGED");
++    file={...file,data:await readProjectFile(projectId,file.name,source)};
++  }
++  if (!source && !file.data && native && projectId)
++    file = { ...file, data: await readProjectFile(projectId, file.name) };
++  if (!file.data) throw new Error("Model content is missing.");
++  const bytes = await (await fetch(file.data)).arrayBuffer();
++  if(source&&bytes.byteLength!==file.size)throw new Error("PROJECT_SNAPSHOT_CHANGED");
++  const ext = file.name.split(".").pop()?.toLowerCase();
++  let group: THREE.Group;
++  if (ext === "stl") {
++    group = new THREE.Group();
++    const geometry = new STLLoader().parse(bytes);
++    geometry.computeVertexNormals();
++    const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial());
++    mesh.name = file.name;
++    group.add(mesh);
++  } else if (ext === "obj") {
++    const text = new TextDecoder().decode(bytes);
++    if (/^mtllib\s/m.test(text))
++      throw new Error(
++        "Import a self-contained OBJ without external material libraries.",
++      );
++    group = new OBJLoader().parse(text);
++  } else if (ext === "glb") {
++    const view = new DataView(bytes);
++    if (bytes.byteLength < 20) throw new Error("Invalid GLB file.");
++    const len = view.getUint32(12, true);
++    const json = JSON.parse(
++      new TextDecoder().decode(new Uint8Array(bytes, 20, len)),
++    ) as { buffers?: { uri?: string }[]; images?: { uri?: string }[] };
++    if (
++      [...(json.buffers ?? []), ...(json.images ?? [])].some(
++        (x) => x.uri && !x.uri.startsWith("data:"),
++      )
++    )
++      throw new Error("External GLB resources are not allowed.");
++    const gltf = await new GLTFLoader().parseAsync(bytes, "");
++    group = new THREE.Group();
++    group.add(gltf.scene);
++    // glTF uses meters. The CAD workspace and all internal dimensions use millimeters.
++    group.scale.setScalar(1000);
++  } else if (ext === "3mf") {
++    group = new ThreeMFLoader().parse(bytes);
++    group.rotateX(-Math.PI / 2);
++  } else
++    throw new Error(
++      "STEP needs the native CAD converter. DXF is stored as a drawing attachment.",
++    );
++  let count = 0;
++  group.traverse((o) => {
++    if (o instanceof THREE.Mesh) {
++      restoreCadTopology(o);
++      count += o.geometry.getAttribute("position")?.count ?? 0;
++      if (!o.geometry.getAttribute("normal")) o.geometry.computeVertexNormals();
++      o.material = new THREE.MeshStandardMaterial({
++        color: "#b4bfc8",
++        metalness: 0.5,
++        roughness: 0.35,
++      });
++      if (!o.name) o.name = `Body ${++count}`;
++    }
++  });
++  group.userData.formaNativeCadPreview = hasCadTopology(group);
++  if (!count) throw new Error("The file does not contain readable geometry.");
++  const bounds = new THREE.Box3().setFromObject(group);
++  if (
++    ![...bounds.min.toArray(), ...bounds.max.toArray()].every(
++      Number.isFinite,
++    ) ||
++    bounds.isEmpty()
++  )
++    throw new Error("Invalid model bounds.");
++  // Native CAD previews keep CAD coordinates so viewport transforms and the
++  // 3D cursor stay where the model is; other files are centred on the grid.
++  if (!group.userData.formaNativeCadPreview) {
++    const center = bounds.getCenter(new THREE.Vector3());
++    group.position.set(-center.x, -bounds.min.y, -center.z);
++  }
++  group.updateMatrixWorld(true);
++  if(source){try{await verifyFileSource(projectId!,file,source);}catch(cause){disposeModel(group);throw cause;}}
++  return group;
++}
+diff --git a/apps/desktop/src/lib/files.ts b/apps/desktop/src/lib/files.ts
+index aa4bff8..0b36d87 100644
+--- a/apps/desktop/src/lib/files.ts
++++ b/apps/desktop/src/lib/files.ts
+@@ -1,11 +1,6 @@
+-import { restoreCadTopology, preserveCadTopology, hasCadTopology } from "./cadTopologyTransport";
++import { preserveCadTopology } from "./cadTopologyTransport";
+ import * as THREE from "three";
+-import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
+-import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
+-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+-import { ThreeMFLoader } from "three/examples/jsm/loaders/3MFLoader.js";
+ import type { ProjectFile } from "../types";
+-import { native, readProjectFile } from "./api";
+ import { isolateExportBody } from "./isolateExportBody";
+ import { stripViewerOverlays } from "../features/viewer/stripViewerOverlays";
+ import { restoreExportAppearance } from "../features/viewer/appearance/bodyAppearance";
+@@ -47,88 +42,7 @@ export async function readFile(file: File): Promise<ProjectFile> {
+     data,
+   };
+ }
+-export async function loadModel(
+-  file: ProjectFile,
+-  projectId?: string,
+-): Promise<THREE.Group> {
+-  if (!file.data && native && projectId)
+-    file = { ...file, data: await readProjectFile(projectId, file.name) };
+-  if (!file.data) throw new Error("Model content is missing.");
+-  const bytes = await (await fetch(file.data)).arrayBuffer();
+-  const ext = file.name.split(".").pop()?.toLowerCase();
+-  let group: THREE.Group;
+-  if (ext === "stl") {
+-    group = new THREE.Group();
+-    const geometry = new STLLoader().parse(bytes);
+-    geometry.computeVertexNormals();
+-    const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial());
+-    mesh.name = file.name;
+-    group.add(mesh);
+-  } else if (ext === "obj") {
+-    const text = new TextDecoder().decode(bytes);
+-    if (/^mtllib\s/m.test(text))
+-      throw new Error(
+-        "Import a self-contained OBJ without external material libraries.",
+-      );
+-    group = new OBJLoader().parse(text);
+-  } else if (ext === "glb") {
+-    const view = new DataView(bytes);
+-    if (bytes.byteLength < 20) throw new Error("Invalid GLB file.");
+-    const len = view.getUint32(12, true);
+-    const json = JSON.parse(
+-      new TextDecoder().decode(new Uint8Array(bytes, 20, len)),
+-    ) as { buffers?: { uri?: string }[]; images?: { uri?: string }[] };
+-    if (
+-      [...(json.buffers ?? []), ...(json.images ?? [])].some(
+-        (x) => x.uri && !x.uri.startsWith("data:"),
+-      )
+-    )
+-      throw new Error("External GLB resources are not allowed.");
+-    const gltf = await new GLTFLoader().parseAsync(bytes, "");
+-    group = new THREE.Group();
+-    group.add(gltf.scene);
+-    // glTF uses meters. The CAD workspace and all internal dimensions use millimeters.
+-    group.scale.setScalar(1000);
+-  } else if (ext === "3mf") {
+-    group = new ThreeMFLoader().parse(bytes);
+-    group.rotateX(-Math.PI / 2);
+-  } else
+-    throw new Error(
+-      "STEP needs the native CAD converter. DXF is stored as a drawing attachment.",
+-    );
+-  let count = 0;
+-  group.traverse((o) => {
+-    if (o instanceof THREE.Mesh) {
+-      restoreCadTopology(o);
+-      count += o.geometry.getAttribute("position")?.count ?? 0;
+-      if (!o.geometry.getAttribute("normal")) o.geometry.computeVertexNormals();
+-      o.material = new THREE.MeshStandardMaterial({
+-        color: "#b4bfc8",
+-        metalness: 0.5,
+-        roughness: 0.35,
+-      });
+-      if (!o.name) o.name = `Body ${++count}`;
+-    }
+-  });
+-  group.userData.formaNativeCadPreview = hasCadTopology(group);
+-  if (!count) throw new Error("The file does not contain readable geometry.");
+-  const bounds = new THREE.Box3().setFromObject(group);
+-  if (
+-    ![...bounds.min.toArray(), ...bounds.max.toArray()].every(
+-      Number.isFinite,
+-    ) ||
+-    bounds.isEmpty()
+-  )
+-    throw new Error("Invalid model bounds.");
+-  // Native CAD previews keep CAD coordinates so viewport transforms and the
+-  // 3D cursor stay where the model is; other files are centred on the grid.
+-  if (!group.userData.formaNativeCadPreview) {
+-    const center = bounds.getCenter(new THREE.Vector3());
+-    group.position.set(-center.x, -bounds.min.y, -center.z);
+-  }
+-  group.updateMatrixWorld(true);
+-  return group;
+-}
++export {loadModel} from "./modelLoader";
+ export async function exportMesh(
+   object: THREE.Group,
+   format: string,
+diff --git a/apps/desktop/src/features/model-apply/committedScene.ts b/apps/desktop/src/features/model-apply/committedScene.ts
+index 0ff8805..85b4e0a 100644
+--- a/apps/desktop/src/features/model-apply/committedScene.ts
++++ b/apps/desktop/src/features/model-apply/committedScene.ts
+@@ -1,5 +1,5 @@
+ /** Atomic committed geometry loading; renderer owns final disposal timing. */
+-export interface SceneIdentity { projectId: string; revisionId: string; sourceSeal: string }
++export interface SceneIdentity { projectId: string; revisionId: string; sourceSeal: string; sourceOpeningId?: string }
+ export interface SceneSnapshot<T> {
+   phase: "empty" | "loading" | "ready" | "failed";
+   target: SceneIdentity | null;
+@@ -7,7 +7,8 @@ export interface SceneSnapshot<T> {
+   object: T | null;
+   cause?: unknown;
+ }
+-const sameScene = (a: SceneIdentity | null, b: SceneIdentity | null) => !!a && !!b && a.projectId === b.projectId && a.revisionId === b.revisionId && a.sourceSeal === b.sourceSeal;
++export const sameSceneSource = (a:SceneIdentity|null,b:SceneIdentity|null)=>!!a&&!!b&&a.projectId===b.projectId&&a.sourceOpeningId===b.sourceOpeningId;
++const sameScene = (a: SceneIdentity | null, b: SceneIdentity | null) => !!a && !!b && sameSceneSource(a,b) && a.revisionId === b.revisionId && a.sourceSeal === b.sourceSeal;
+ 
+ export class CommittedScene<T> {
+   private value: SceneSnapshot<T> = { phase: "empty", target: null, displayed: null, object: null };
+@@ -28,7 +29,7 @@ export class CommittedScene<T> {
+     if (target && this.value.phase === "ready" && sameScene(this.value.displayed, target)) return;
+     const epoch = ++this.epoch;
+     this.pending?.abort(); this.pending = null;
+-    const retained = target && this.value.displayed?.projectId === target.projectId ? this.value.object : null;
++    const retained = target && sameSceneSource(this.value.displayed,target) ? this.value.object : null;
+     if (retained === null) this.retire(this.value.object);
+     if (!target) { this.publish({ phase: "empty", target: null, displayed: null, object: null }); return; }
+     const captured = Object.freeze({ ...target });
+@@ -41,6 +42,7 @@ export class CommittedScene<T> {
+         return;
+       }
+       if (this.value.object !== object) this.retire(this.value.object);
++      this.retired=this.retired.filter(retired=>retired!==object);
+       this.pending = null;
+       this.publish({ phase: "ready", target: captured, displayed: captured, object });
+     } catch (cause) {
+diff --git a/apps/desktop/src/features/model-apply/committedSelectionScene.ts b/apps/desktop/src/features/model-apply/committedSelectionScene.ts
+index 3a41f9c..d4f1ecf 100644
+--- a/apps/desktop/src/features/model-apply/committedSelectionScene.ts
++++ b/apps/desktop/src/features/model-apply/committedSelectionScene.ts
+@@ -1,3 +1,4 @@
++import {sameSceneSource} from "./committedScene";
+ import type { SceneIdentity, SceneSnapshot } from "./committedScene";
+ 
+ interface DisplayedObject { uuid: string; userData: { formaNativeCadPreview?: unknown } }
+@@ -5,7 +6,7 @@ interface DisplayedObject { uuid: string; userData: { formaNativeCadPreview?: un
+ export function committedSelectionScene<T extends DisplayedObject>(snapshot: SceneSnapshot<T>, current: SceneIdentity | null) {
+   const displayed = snapshot.displayed;
+   const object = snapshot.object;
+-  const aligned = !!current && !!displayed && current.projectId === displayed.projectId &&
++  const aligned = !!current && !!displayed && sameSceneSource(current,displayed) &&
+     current.revisionId === displayed.revisionId && current.sourceSeal === displayed.sourceSeal;
+   const interactive = aligned && snapshot.phase === "ready" && !!object?.userData.formaNativeCadPreview;
+   return { token: interactive ? object!.uuid : "", interactive };
+diff --git a/apps/desktop/src/features/model-apply/useCommittedScene.ts b/apps/desktop/src/features/model-apply/useCommittedScene.ts
+index 47bbd5b..cefcbfe 100644
+--- a/apps/desktop/src/features/model-apply/useCommittedScene.ts
++++ b/apps/desktop/src/features/model-apply/useCommittedScene.ts
+@@ -1,13 +1,18 @@
++import type {ProjectSourceBinding} from "../project-sources/sourceBinding";
++import {sourceRefFor} from "../project-sources/sourceBinding";
+ import { useEffect, useRef, useSyncExternalStore, useState, useMemo } from "react";
+ import * as THREE from "three";
+ import { loadModel } from "../../lib/files";
+ import { disposeModel } from "../../lib/model";
+ import type { Project, Revision } from "../../types";
+-import { CommittedScene, type SceneIdentity } from "./committedScene";
++import { CommittedScene, sameSceneSource, type SceneIdentity } from "./committedScene";
+ import { committedSelectionScene } from "./committedSelectionScene";
+ 
+ /** Geometry never falls back to a parameter primitive while a committed file loads or fails. */
+-export function useCommittedScene(project: Project | null, revision: Revision | undefined) {
++export function useCommittedScene(project: Project | null, revision: Revision | undefined, sourceBinding?:ProjectSourceBinding|null) {
++  const sourceReady=sourceBinding===undefined||!!sourceBinding&&sourceBinding.projectId===project?.id;
++  const sourceOpeningId=sourceReady?sourceBinding?.openingId:undefined;
++  const folder=sourceReady&&project&&sourceBinding?sourceRefFor(sourceBinding,project.id):undefined;
+   const [scene] = useState(() => new CommittedScene<THREE.Group>(disposeModel));
+   const snapshot = useSyncExternalStore(scene.subscribe, scene.snapshot, scene.snapshot);
+   const fileName = revision?.preview ?? revision?.source;
+@@ -17,20 +22,20 @@ export function useCommittedScene(project: Project | null, revision: Revision |
+   // Inline strings are immutable. A changed value gets a new opaque local token;
+   // never copy/base64-hash a 40MB preview during camera/store renders.
+   const seal = useMemo(() => file ? `${file.name}:${file.sha256 ?? "unsealed"}:${file.size}${file.data ? `:inline-${++inlineVersion.current}` : ""}` : `missing:${fileName ?? ""}`, [file?.name, file?.sha256, file?.size, file?.data, fileName]);
+-  const identity: SceneIdentity | null = project && revision && requiresFile ? { projectId: project.id, revisionId: revision.id, sourceSeal: seal } : null;
+-  const key = useMemo(() => project && revision && requiresFile ? JSON.stringify({ projectId: project.id, revisionId: revision.id, sourceSeal: seal }) : "", [project?.id, revision?.id, requiresFile, seal]);
+-  const request = useRef({ identity, file, source: revision?.source, previewName: revision?.preview });
+-  request.current = { identity, file, source: revision?.source, previewName: revision?.preview };
++  const identity: SceneIdentity | null = project && revision && requiresFile && sourceReady ? { projectId: project.id, revisionId: revision.id, sourceSeal: seal,...(sourceOpeningId?{sourceOpeningId}:{}) } : null;
++  const key = useMemo(() => project && revision && requiresFile && sourceReady ? JSON.stringify({ projectId: project.id, revisionId: revision.id, sourceSeal: seal,...(sourceOpeningId?{sourceOpeningId}:{}) }) : "", [project?.id, revision?.id, requiresFile, seal,sourceOpeningId,sourceReady]);
++  const request = useRef({ identity, file, folder, source: revision?.source, previewName: revision?.preview });
++  request.current = { identity, file, folder, source: revision?.source, previewName: revision?.preview };
+   const [retry, setRetry] = useState(0);
+   useEffect(() => {
+     const captured = request.current;
+     void scene.load(captured.identity, async () => {
+       if (!captured.file || !captured.identity) throw new Error("MODEL_PREVIEW_MISSING");
+-      const object = await loadModel(captured.file, captured.identity.projectId);
++      const object = captured.folder?await loadModel(captured.file,captured.identity.projectId,captured.folder):await loadModel(captured.file,captured.identity.projectId);
+       object.userData.formaNativeCadPreview ||= captured.file.name === captured.previewName && /\.st(e)?p$/i.test(captured.source ?? "");
+       return object;
+     });
+-  }, [key, retry, scene]);
++  }, [key, retry, scene,project,folder?.commitId]);
+   // Model/section restore borrowed source materials in passive effect cleanups.
+   // Release ownership only after the entire passive cleanup batch has finished.
+   useEffect(() => { queueMicrotask(() => scene.releaseRetired()); }, [scene, snapshot]);
+@@ -40,7 +45,7 @@ export function useCommittedScene(project: Project | null, revision: Revision |
+     mounted.current = true;
+     return () => { mounted.current = false; queueMicrotask(() => { if (!mounted.current) scene.close(); }); };
+   }, [scene]);
+-  const displayedHere = snapshot.displayed?.projectId === project?.id;
++  const displayedHere = sameSceneSource(snapshot.displayed,identity);
+   const aligned = displayedHere && snapshot.displayed?.revisionId === revision?.id && snapshot.target?.sourceSeal === seal;
+   return { ...snapshot, selectionScene: committedSelectionScene(snapshot, identity), object: displayedHere && requiresFile ? snapshot.object : null,
+     interactive: aligned && scene.interactive(), loading: !!identity && (!aligned || snapshot.phase === "loading") && snapshot.phase !== "failed",
+diff --git a/apps/desktop/src/features/project-catalog/useProjectNavigation.ts b/apps/desktop/src/features/project-catalog/useProjectNavigation.ts
+index 63dc7a6..3eb9540 100644
+--- a/apps/desktop/src/features/project-catalog/useProjectNavigation.ts
++++ b/apps/desktop/src/features/project-catalog/useProjectNavigation.ts
+@@ -1,3 +1,4 @@
++import {isSourceCurrent} from "../project-sources/sourceBinding";
+ import { useCallback, useEffect, useRef } from "react";
+ import { errorText, t } from "../../i18n";
+ import { useWorkspace } from "../../stores/workspace";
+@@ -12,23 +13,24 @@ export function useProjectNavigation(projectId: string | undefined, navigate: (p
+   useEffect(() => {
+     const request = ++generation.current;
+     const before = useWorkspace.getState().project;
++    const beforeSource=useWorkspace.getState().sourceBinding;
+     if (!projectId) {
+       if (before) useWorkspace.getState().setProject(null);
+       return;
+     }
+     if (before?.id === projectId) return;
+     const fail = (cause: unknown) => {
+-      if (generation.current !== request) return;
++      if (generation.current !== request || (beforeSource?!isSourceCurrent(useWorkspace.getState().sourceBinding,beforeSource):!!useWorkspace.getState().sourceBinding)) return;
+       onError(errorText(cause));
+       const active = useWorkspace.getState().project;
+       if (active && active.id !== projectId) navigate("/project/" + active.id);
+     };
+     void readProjectSnapshot(projectId).then(latest => {
+-      if (generation.current !== request) return;
++      if (generation.current !== request || (beforeSource?!isSourceCurrent(useWorkspace.getState().sourceBinding,beforeSource):!!useWorkspace.getState().sourceBinding)) return;
+       if (useWorkspace.getState().project !== before || useWorkspace.getState().busy) {
+         fail(new Error(t("The project changed while opening. Retry opening it."))); return;
+       }
+-      useWorkspace.getState().setProject(latest);
++      useWorkspace.getState().openManagedProject(latest);
+     }).catch(fail);
+     return () => { generation.current++; };
+   }, [projectId, navigate, onError]);
+@@ -37,14 +39,15 @@ export function useProjectNavigation(projectId: string | undefined, navigate: (p
+     if (useWorkspace.getState().busy) return;
+     const request = ++generation.current;
+     const before = useWorkspace.getState().project;
++    const beforeSource=useWorkspace.getState().sourceBinding;
+     try {
+       const latest = await readProjectSnapshot(selected.id);
+-      if (generation.current !== request) return;
++      if (generation.current !== request || (beforeSource?!isSourceCurrent(useWorkspace.getState().sourceBinding,beforeSource):!!useWorkspace.getState().sourceBinding)) return;
+       if (useWorkspace.getState().project !== before || useWorkspace.getState().busy) {
+         onError(t("The project changed while opening. Retry opening it.")); return;
+       }
+-      useWorkspace.getState().setProject(latest);
++      useWorkspace.getState().openManagedProject(latest);
+       navigate("/project/" + latest.id);
+-    } catch (cause) { if (generation.current === request) onError(errorText(cause)); }
++    } catch (cause) { if (generation.current === request && (beforeSource?isSourceCurrent(useWorkspace.getState().sourceBinding,beforeSource):!useWorkspace.getState().sourceBinding)) onError(errorText(cause)); }
+   }, [navigate, onError]);
+ }
+diff --git a/apps/desktop/src/features/model-apply/useRevisionEvents.ts b/apps/desktop/src/features/model-apply/useRevisionEvents.ts
+index 8b38496..6ca87fd 100644
+--- a/apps/desktop/src/features/model-apply/useRevisionEvents.ts
++++ b/apps/desktop/src/features/model-apply/useRevisionEvents.ts
+@@ -1,3 +1,4 @@
++import {isSourceCurrent} from "../project-sources/sourceBinding";
+ import { readProjectSnapshot } from "../project-catalog/api";
+ import { invalidateProjectCatalog } from "../project-catalog/cache";
+ import { useEffect } from "react";
+@@ -18,12 +19,14 @@ export function useRevisionEvents() {
+       if (typeof id !== "string" || !/^[A-Za-z0-9_-]{1,80}$/.test(id)) return;
+       const epoch = (generations.get(id) ?? 0) + 1; generations.set(id, epoch);
+       const before = useWorkspace.getState().project;
++      const beforeSource=useWorkspace.getState().sourceBinding;
++      if(before?.id===id&&beforeSource?.kind==="folder"){invalidateProjectCatalog(query);return;}
+       const cachedBefore = query.getQueryData<Project[]>(["projects"])?.find(project => project.id === id);
+       void readProjectSnapshot(id).then(latest => {
+         if (!alive || generations.get(id) !== epoch) return;
+         const current = useWorkspace.getState().project;
+         // A newer invoke result or project switch during this fetch wins.
+-        if (current !== before || query.getQueryData<Project[]>(["projects"])?.find(project => project.id === id) !== cachedBefore) {
++        if (current !== before || (beforeSource?!isSourceCurrent(useWorkspace.getState().sourceBinding,beforeSource):!!useWorkspace.getState().sourceBinding) || query.getQueryData<Project[]>(["projects"])?.find(project => project.id === id) !== cachedBefore) {
+           invalidateProjectCatalog(query); return;
+         }
+         query.setQueryData<Project[]>(["projects"], cached => {
+diff --git a/apps/desktop/src/features/model-apply/capturedApply.ts b/apps/desktop/src/features/model-apply/capturedApply.ts
+index 8dc0f5d..07582b4 100644
+--- a/apps/desktop/src/features/model-apply/capturedApply.ts
++++ b/apps/desktop/src/features/model-apply/capturedApply.ts
+@@ -4,15 +4,16 @@ export interface CapturedApply {
+   readonly base: Readonly<ApplyIdentity>;
+   readonly program: string;
+   readonly prompt: string;
++  readonly sourceOpeningId?:string;
+ }
+ export type Adoption = "orphaned" | "conflict" | "unchanged" | "alreadyAdopted" | "committed";
+ 
+-export function captureApply(base: ApplyIdentity, program: string, prompt: string): CapturedApply {
+-  return Object.freeze({ base: Object.freeze({ id: base.id, currentRevision: base.currentRevision }), program, prompt });
++export function captureApply(base: ApplyIdentity, program: string, prompt: string,sourceOpeningId?:string): CapturedApply {
++  return Object.freeze({ base: Object.freeze({ id: base.id, currentRevision: base.currentRevision }), program, prompt,...(sourceOpeningId?{sourceOpeningId}:{}) });
+ }
+ 
+-export function assertApplyBase(current: ApplyIdentity | null, captured: CapturedApply): void {
+-  if (!current || current.id !== captured.base.id || current.currentRevision !== captured.base.currentRevision)
++export function assertApplyBase(current: ApplyIdentity | null, captured: CapturedApply,currentOpeningId?:string): void {
++  if (!current || current.id !== captured.base.id || current.currentRevision !== captured.base.currentRevision || (captured.sourceOpeningId!==undefined&&captured.sourceOpeningId!==currentOpeningId))
+     throw new Error("MODEL_APPLY_BASE_CHANGED");
+ }
+ 
+@@ -29,6 +30,7 @@ export function applyAdoption(current: ApplyIdentity | null, captured: CapturedA
+ 
+ export interface ApplyRoute<P extends ApplyIdentity> {
+   getCurrent(): P | null;
++  getSourceOpeningId?():string|undefined;
+   invoke(request: CapturedApply): Promise<P>;
+   adopt(result: P, disposition: "unchanged" | "alreadyAdopted" | "committed"): void;
+   reconcileTarget(result: P, disposition: "orphaned" | "conflict"): Promise<void>;
+@@ -40,9 +42,9 @@ export interface ApplyRoute<P extends ApplyIdentity> {
+ 
+ /** Call inside approved callback, not when merely opening the confirmation dialog. */
+ export async function executeCapturedApply<P extends ApplyIdentity>(captured: CapturedApply, route: ApplyRoute<P>): Promise<{ result: P; disposition: Adoption; adoptionFailure?: unknown; metadataFailure?: unknown; refreshFailure?: unknown }> {
+-  assertApplyBase(route.getCurrent(), captured);
++  assertApplyBase(route.getCurrent(), captured,route.getSourceOpeningId?.());
+   const result = await route.invoke(captured);
+-  const disposition = applyAdoption(route.getCurrent(), captured, result);
++  const disposition:Adoption=captured.sourceOpeningId!==undefined&&captured.sourceOpeningId!==route.getSourceOpeningId?.()?"orphaned":applyAdoption(route.getCurrent(), captured, result);
+   // Adopt durable geometry before any optional conversation save. No-op/alreadyAdopted adoption preserves selection.
+   let adoptionFailure: unknown, metadataFailure: unknown, refreshFailure: unknown;
+   try {
+diff --git a/apps/desktop/src/features/model-apply/useModelApply.ts b/apps/desktop/src/features/model-apply/useModelApply.ts
+index 02c195d..401699d 100644
+--- a/apps/desktop/src/features/model-apply/useModelApply.ts
++++ b/apps/desktop/src/features/model-apply/useModelApply.ts
+@@ -1,3 +1,4 @@
++import {isSourceCurrent} from "../project-sources/sourceBinding";
+ import { readProjectSnapshot } from "../project-catalog/api";
+ import { invalidateProjectCatalog } from "../project-catalog/cache";
+ import { useQueryClient } from "@tanstack/react-query";
+@@ -12,17 +13,21 @@ import { executeCapturedApply, type CapturedApply } from "./capturedApply";
+ export function useModelApply() {
+   const query = useQueryClient();
+   return async (captured: CapturedApply, options?: { reviewPlan?: ReviewPlan | null; assistantMessage?: string }) => {
++    const origin=useWorkspace.getState().sourceBinding;
++    const sameOrigin=()=>origin?isSourceCurrent(useWorkspace.getState().sourceBinding,origin):!useWorkspace.getState().sourceBinding;
+     const cache = (project: Project) => query.setQueryData<Project[]>(["projects"], current => {
+       const items = current ?? [];
+       return items.some(item => item.id === project.id) ? items.map(item => item.id === project.id ? project : item) : [...items, project];
+     });
+-    const adopt = (project: Project) => { cache(project); useWorkspace.getState().setProject(project); };
++    const adopt = (project: Project) => { cache(project); if(sameOrigin())useWorkspace.getState().setProject(project); };
+     const targetError = (message: string) => {
+-      if (useWorkspace.getState().project?.id === captured.base.id) useWorkspace.getState().setError(message);
++      if (sameOrigin()&&useWorkspace.getState().project?.id === captured.base.id&&(captured.sourceOpeningId===undefined||captured.sourceOpeningId===useWorkspace.getState().sourceBinding?.openingId)) useWorkspace.getState().setError(message);
+     };
+     try {
++      if(origin?.kind==="folder")throw new Error("PROJECT_SOURCE_WRITE_NOT_AUTHORIZED");
+       const outcome = await executeCapturedApply(captured, {
+-        getCurrent: () => useWorkspace.getState().project,
++        getCurrent: () => sameOrigin()?useWorkspace.getState().project:null,
++        getSourceOpeningId:()=>useWorkspace.getState().sourceBinding?.openingId,
+         invoke: request => applyProgram(request.base, request.program, request.prompt, options?.reviewPlan),
+         adopt,
+         reconcileTarget: async result => {
+@@ -30,16 +35,18 @@ export function useModelApply() {
+           const latest = await readProjectSnapshot(result.id);
+           cache(latest);
+           const current = useWorkspace.getState().project;
+-          if (current?.id === latest.id && current.currentRevision === before?.currentRevision && current.id === before?.id) adopt(latest);
++          if (sameOrigin()&&current?.id === latest.id && current.currentRevision === before?.currentRevision && current.id === before?.id) adopt(latest);
+         },
+         saveCommittedMetadata: options?.assistantMessage === undefined ? undefined : async result => {
++          if(useWorkspace.getState().project?.id===result.id&&!sameOrigin())throw new Error("PROJECT_SNAPSHOT_CHANGED");
+           const latest = await readProjectSnapshot(result.id);
++          if(useWorkspace.getState().project?.id===result.id&&!sameOrigin())throw new Error("PROJECT_SNAPSHOT_CHANGED");
+           const saved = await saveProject({ ...latest, messages: [...latest.messages, {
+             id: crypto.randomUUID(), role: "assistant", text: options.assistantMessage!, createdAt: new Date().toISOString(),
+           }] });
+           cache(saved);
+           const current = useWorkspace.getState().project;
+-          if (current?.id === saved.id && current.currentRevision === saved.currentRevision) adopt(saved);
++          if (sameOrigin()&&current?.id === saved.id && current.currentRevision === saved.currentRevision) adopt(saved);
+         },
+         metadataFailed: (_result, cause) => targetError(`${t("The model was saved, but the assistant message could not be saved.")}\n${errorText(cause)}`),
+         refreshTarget: () => {
+diff --git a/apps/desktop/src/app/App.tsx b/apps/desktop/src/app/App.tsx
+index 46f71c6..461c113 100644
+--- a/apps/desktop/src/app/App.tsx
++++ b/apps/desktop/src/app/App.tsx
+@@ -49,7 +49,9 @@ import {
+   usePlugins,
+ } from "../features/plugins/usePluginCommands";
+ import { ProjectAccessNotice } from "../features/project-access/ProjectAccessNotice";
+-import { useProjectAccess } from "../features/project-access/useProjectAccess";
++import {useWorkspaceSourceAccess} from "../features/project-sources/useWorkspaceSourceAccess";
++import {managedActionSource} from "../features/project-sources/sourceAction";
++import {useSourcePreference} from "../features/project-sources/useSourcePreference";
+ import { ProjectFilesPanel } from "../features/project-files/ProjectFilesPanel";
+ import { ModelHistoryControls } from "../features/project-history/ModelHistoryControls";
+ import { RevisionList } from "../features/project-history/RevisionList";
+@@ -125,6 +127,7 @@ export default function App() {
+   useRevisionEvents();
+   const {
+     project,
++    sourceBinding,
+     setProject,
+     update,
+     revise,
+@@ -137,7 +140,7 @@ export default function App() {
+     selectedEdge,
+     setSelected,
+   } = useWorkspace();
+-  const projectAccess = useProjectAccess(project?.id, setError);
++  const projectAccess = useWorkspaceSourceAccess(project?.id, sourceBinding, setError);
+   const openingProject = !!projectId && !!project && projectId !== project.id;
+   const editingBlocked = busy || !projectAccess.writable || openingProject;
+   const { catalog, projects, unavailable } = useProjectCatalog();
+@@ -161,11 +164,11 @@ export default function App() {
+   const [renameName, setRenameName] = useState("");
+   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
+   const [deleteName, setDeleteName] = useState("");
+-  const [prompt, setPrompt] = usePersistentState(`${stateKey}.prompt`, "");
++  const [prompt, setPrompt] = useSourcePreference(`${stateKey}.prompt`, "",sourceBinding);
+   const [pending, setPending] = useState<PendingAction | null>(null);
+-  const [attachments, setAttachments] = usePersistentState<ProjectFile[]>(
++  const [attachments, setAttachments] = useSourcePreference<ProjectFile[]>(
+     `${stateKey}.attachments`,
+-    [],
++    [],sourceBinding,
+   );
+   const [notice, setNotice] = useState("");
+   const plugins = usePlugins(modal === "palette");
+@@ -179,16 +182,16 @@ export default function App() {
+   const [exportInfo, setExportInfo] = useState<
+     Project["exports"][number] | null
+   >(null);
+-  const [lockedBodies, setLockedBodies] = usePersistentState<string[]>(
++  const [lockedBodies, setLockedBodies] = useSourcePreference<string[]>(
+     `${stateKey}.lockedBodies`,
+-    [],
++    [],sourceBinding,
+   );
+   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(
+     null,
+   );
+-  const [compare, setCompare] = usePersistentState<string | null>(
++  const [compare, setCompare] = useSourcePreference<string | null>(
+     `${stateKey}.compare`,
+-    null,
++    null,sourceBinding,
+   );
+   const fileInput = useRef<HTMLInputElement>(null);
+   const chatInput = useRef<HTMLTextAreaElement>(null);
+@@ -196,7 +199,7 @@ export default function App() {
+   const revision = project?.revisions.find(
+     (r) => r.id === project.currentRevision,
+   );
+-  const committedScene = useCommittedScene(project, revision);
++  const committedScene = useCommittedScene(project, revision,sourceBinding);
+   const loadingModel = committedScene.loading;
+   const emptyScene = useMemo(() => new THREE.Group(), []);
+   const generatedFiles = new Set(
+@@ -376,13 +379,15 @@ export default function App() {
+         fileInput.current?.click();
+       } else if (e.code === "KeyS") {
+         e.preventDefault();
+-        if (project && !openingProject)
+-          saveProject(project)
++        if (project && !openingProject&&!editingBlocked){
++          const action=managedActionSource(project.id,sourceBinding);if(!action.isCurrent())return;
++          update(project)
+             .then(() => {
++              if(!action.isCurrent())return;
+               refresh();
+               setNotice(t("Project saved"));
+             })
+-            .catch((e) => setError(errorText(e)));
++            .catch((e) => {if(action.isCurrent())setError(errorText(e));});}
+       } else if (e.code === "KeyE" && e.shiftKey) {
+         e.preventDefault();
+         setModal("export");
+@@ -552,11 +557,14 @@ export default function App() {
+     if (!project || editingBlocked || !request.trim()) return;
+     const text = request.trim();
+     const p = project;
++    const sourceAction=managedActionSource(p.id,sourceBinding);
+     let agentPreview: { description: string; detail: string };
+     try {
++      sourceAction.assertCurrent();
+       agentPreview = await agentPermissionPreview(p, text);
++      sourceAction.assertCurrent();
+     } catch (cause) {
+-      if (useWorkspace.getState().project?.id === p.id)
++      if (sourceAction.isCurrent())
+         setError(errorText(cause));
+       return;
+     }
+@@ -565,6 +573,7 @@ export default function App() {
+       agentPreview.description,
+       agentPreview.detail,
+       async () => {
++        sourceAction.assertCurrent();
+         setPrompt("");
+         liveRef.current = [];
+         setLiveEvents([]);
+@@ -583,6 +592,7 @@ export default function App() {
+               },
+             ],
+           });
++          sourceAction.assertCurrent();
+           const result = await plan(
+             p,
+             text,
+@@ -593,6 +603,7 @@ export default function App() {
+                 ? selectedFace
+                 : null,
+           );
++          sourceAction.assertCurrent();
+           setAttachments([]);
+           const latest = useWorkspace.getState().project;
+           if (!latest || candidateSourceStatus(latest, p) === "projectChanged")
+@@ -619,6 +630,7 @@ export default function App() {
+               },
+             ],
+           });
++          sourceAction.assertCurrent();
+           liveRef.current = [];
+           setLiveEvents([]);
+           setChatBusy(false);
+@@ -629,6 +641,7 @@ export default function App() {
+             result.message,
+             result.program,
+             async () => {
++              sourceAction.assertCurrent();
+               setBusy(true, t("Построение и проверка геометрии"));
+               try {
+                 const current = useWorkspace.getState().project;
+@@ -641,13 +654,13 @@ export default function App() {
+                   throw new Error(
+                     t("Модель изменилась во время ответа. Повторите запрос."),
+                   );
+-                await applyModel(captureApply(p, result.program!, text), {
++                await applyModel(captureApply(p, result.program!, text,sourceAction.openingId), {
+                   reviewPlan: result.reviewPlan,
+                   assistantMessage: result.message,
+                 });
+               } catch (error) {
+                 const current = useWorkspace.getState().project;
+-                if (current?.id === p.id)
++                if (sourceAction.isCurrent()&&current?.id === p.id)
+                   await update({
+                     ...current,
+                     messages: [
+@@ -676,7 +689,7 @@ export default function App() {
+           );
+         } catch (e) {
+           const latest = useWorkspace.getState().project;
+-          if (latest?.id === p.id)
++          if (sourceAction.isCurrent()&&latest?.id === p.id)
+             await update({
+               ...latest,
+               messages: [
+@@ -1445,7 +1458,7 @@ export default function App() {
+             const captured = captureApply(
+               base,
+               program,
+-              t("Изменён исходный код модели"),
++              t("Изменён исходный код модели"),useWorkspace.getState().sourceBinding?.openingId,
+             );
+             setModal(null);
+             void ask(
+@@ -1453,7 +1466,7 @@ export default function App() {
+               t("Проверить геометрию и сохранить ревизию."),
+               program,
+               async () => {
+-                assertApplyBase(useWorkspace.getState().project, captured);
++                assertApplyBase(useWorkspace.getState().project, captured,useWorkspace.getState().sourceBinding?.openingId);
+                 setBusy(true, t("Построение геометрии"));
+                 try {
+                   await applyModel(captured);
+diff --git a/apps/desktop/src/i18n/ru.json b/apps/desktop/src/i18n/ru.json
+index cfecce9..0569aa9 100644
+--- a/apps/desktop/src/i18n/ru.json
++++ b/apps/desktop/src/i18n/ru.json
+@@ -1480,5 +1480,6 @@
+   "This project could not be verified. Its saved files were not changed.": "Не удалось проверить проект. Его сохранённые файлы не изменены.",
+   "This project exceeds the catalog response budget. Its saved files were not changed.": "Проект превышает лимит ответа каталога. Его сохранённые файлы не изменены.",
+   "The project changed while opening. Retry opening it.": "Проект изменился во время открытия. Повторите открытие.",
+-  "Opening the selected project. The current model is kept until reading succeeds.": "Открывается выбранный проект. Текущая модель сохраняется до успешного завершения чтения."
++  "Opening the selected project. The current model is kept until reading succeeds.": "Открывается выбранный проект. Текущая модель сохраняется до успешного завершения чтения.",
++  "PROJECT_SOURCE_WRITE_NOT_AUTHORIZED": "Этот источник не открыт для редактирования."
+ }
+diff --git a/apps/desktop/src/i18n/en.json b/apps/desktop/src/i18n/en.json
+index 251a505..36bc915 100644
+--- a/apps/desktop/src/i18n/en.json
++++ b/apps/desktop/src/i18n/en.json
+@@ -1480,5 +1480,6 @@
+   "This project could not be verified. Its saved files were not changed.": "This project could not be verified. Its saved files were not changed.",
+   "This project exceeds the catalog response budget. Its saved files were not changed.": "This project exceeds the catalog response budget. Its saved files were not changed.",
+   "The project changed while opening. Retry opening it.": "The project changed while opening. Retry opening it.",
+-  "Opening the selected project. The current model is kept until reading succeeds.": "Opening the selected project. The current model is kept until reading succeeds."
++  "Opening the selected project. The current model is kept until reading succeeds.": "Opening the selected project. The current model is kept until reading succeeds.",
++  "PROJECT_SOURCE_WRITE_NOT_AUTHORIZED": "This source has not been opened for editing."
+ }
+diff --git a/apps/desktop/src/stores/workspaceSource.test.ts b/apps/desktop/src/stores/workspaceSource.test.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/stores/workspaceSource.test.ts
+@@ -0,0 +1,67 @@
++import { beforeEach, expect, it, vi } from "vitest";
++import { newProject, useWorkspace } from "./workspace";
++const mock=vi.hoisted(()=>({save:vi.fn(),close:vi.fn()}));
++vi.mock("../lib/api",()=>({saveProject:mock.save}));
++vi.mock("../features/project-sources/sourceApi",()=>({closeFolderSource:mock.close}));
++const ref=(id="first",commitId="commit")=>({sourceId:id,commitId,taskScopeId:`group-${id}`});
++const project=()=>({...newProject("Source","blank","mm","codex"),id:"shared",currentRevision:"head"});
++beforeEach(()=>{
++  mock.close.mockResolvedValue(true);useWorkspace.getState().setProject(null);
++  localStorage.clear();mock.close.mockClear();mock.save.mockReset().mockImplementation(async p=>p);
++});
++it("clears topology/body selection when equal-ID source openings change",()=>{
++  const p=project();useWorkspace.getState().openFolderProject(p,ref());
++  useWorkspace.getState().setSelected("body");useWorkspace.getState().setSelectedFace({bodyId:"body",faceOrdinal:2,revisionId:"head"});
++  const first=useWorkspace.getState().sourceBinding;
++  useWorkspace.getState().openFolderProject(p,ref("second"));
++  expect(useWorkspace.getState().project).toBe(p);
++  expect(useWorkspace.getState().sourceBinding?.openingId).not.toBe(first?.openingId);
++  expect(useWorkspace.getState().selectedBodies).toEqual([]);expect(useWorkspace.getState().selectedFace).toBeNull();
++  expect(mock.close).toHaveBeenCalledWith(ref());
++});
++it("a delayed managed save cannot replace an equal-ID folder view",async()=>{
++  const p=project();useWorkspace.getState().setProject(p);
++  let finish!:(value:typeof p)=>void;mock.save.mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));
++  const pending=useWorkspace.getState().update({...p,name:"managed write"});
++  useWorkspace.getState().openFolderProject(p,ref());const opening=useWorkspace.getState().sourceBinding;
++  finish({...p,name:"late managed result"});await pending;
++  expect(useWorkspace.getState().project).toBe(p);expect(useWorkspace.getState().sourceBinding).toBe(opening);
++});
++it("does not invoke managed persistence for a folder read reference",async()=>{
++  const p=project();useWorkspace.getState().openFolderProject(p,ref());
++  await expect(useWorkspace.getState().update({...p,name:"attempt"})).rejects.toThrow("PROJECT_SOURCE_WRITE_NOT_AUTHORIZED");
++  expect(mock.save).not.toHaveBeenCalled();expect(useWorkspace.getState().project).toBe(p);
++});
++it("refreshes folder metadata through the same family and rejects an older publication",()=>{
++  const p=project();useWorkspace.getState().openFolderProject(p,ref());useWorkspace.getState().setSelected("body");
++  useWorkspace.getState().setSelectedFace({bodyId:"body",faceOrdinal:2,revisionId:"head"});
++  const original=useWorkspace.getState().sourceBinding!,face=useWorkspace.getState().selectedFace;
++  const metadata={...p,name:"metadata winner"};
++  expect(useWorkspace.getState().publishFolderSnapshot(metadata,original,ref("first","new-commit"))).toBe(true);
++  expect(useWorkspace.getState().sourceBinding?.openingId).toBe(original.openingId);
++  expect(useWorkspace.getState().selectedFace).toBe(face);
++  expect(useWorkspace.getState().publishFolderSnapshot(p,original,ref("first","older"))).toBe(false);
++  expect(useWorkspace.getState().project).toBe(metadata);expect(mock.close).not.toHaveBeenCalled();
++});
++it("rejects a folder refresh that tries to change the original selector",()=>{
++  const p=project();useWorkspace.getState().openFolderProject(p,ref());const original=useWorkspace.getState().sourceBinding!;
++  expect(()=>useWorkspace.getState().publishFolderSnapshot(p,original,ref("other"))).toThrow("PROJECT_SNAPSHOT_CHANGED");
++  expect(useWorkspace.getState().sourceBinding).toBe(original);
++});
++it("keeps managed metadata stable but explicit equal-ID reopen starts a fresh family",()=>{
++  const p=project();useWorkspace.getState().setProject(p);const original=useWorkspace.getState().sourceBinding!;
++  useWorkspace.getState().setProject({...p,name:"metadata"});expect(useWorkspace.getState().sourceBinding).toBe(original);
++  useWorkspace.getState().openManagedProject(p);expect(useWorkspace.getState().sourceBinding?.openingId).not.toBe(original.openingId);
++});
++it("does not read or overwrite managed selection preferences for a folder",()=>{
++  const p=project(),key=`forma.ui.project.${p.id}.selected`;localStorage.setItem(key,JSON.stringify("managed-body"));
++  useWorkspace.getState().openFolderProject(p,ref());expect(useWorkspace.getState().selected).toBeNull();
++  useWorkspace.getState().setSelected("folder-body");
++  expect(localStorage.getItem(key)).toBe(JSON.stringify("managed-body"));
++  expect(JSON.stringify({...localStorage})).not.toContain(useWorkspace.getState().sourceBinding!.openingId);
++});
++it("releases each replaced folder selector once and never closes the replacement",()=>{
++  const p=project();useWorkspace.getState().openFolderProject(p,ref());useWorkspace.getState().openFolderProject(p,ref("second"));
++  useWorkspace.getState().setProject(null);useWorkspace.getState().setProject(null);
++  expect(mock.close.mock.calls.map(call=>call[0].sourceId)).toEqual(["first","second"]);
++});
+diff --git a/apps/desktop/src/features/project-sources/sceneSource.test.tsx b/apps/desktop/src/features/project-sources/sceneSource.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/sceneSource.test.tsx
+@@ -0,0 +1,65 @@
++import {act,render,waitFor} from "@testing-library/react";
++import {beforeEach,expect,it,vi} from "vitest";
++import * as THREE from "three";
++import {CommittedScene} from "../model-apply/committedScene";
++import {committedSelectionScene} from "../model-apply/committedSelectionScene";
++import {useCommittedScene} from "../model-apply/useCommittedScene";
++import {folderSource,refreshFolderSource,type ProjectSourceBinding} from "./sourceBinding";
++import {newProject} from "../../stores/workspace";
++import {defaults,type Project} from "../../types";
++const mock=vi.hoisted(()=>({load:vi.fn()}));
++vi.mock("../../lib/files",()=>({loadModel:mock.load}));
++const ref=(id="first",commitId="commit")=>({sourceId:id,commitId,taskScopeId:`group-${id}`});
++const identity={projectId:"shared",revisionId:"head",sourceSeal:"seal"};
++const fixture=()=>{const project={...newProject("Scene","blank","mm","codex"),id:"shared",currentRevision:"head"};
++  const revision={id:"head",parent:null,createdAt:project.createdAt,prompt:"fixture",parameters:defaults,program:"{}",source:"source.step",preview:"mesh.glb"};
++  return {...project,revisions:[revision],files:[{name:"mesh.glb",kind:"model" as const,size:100,sha256:"a".repeat(64)}]};};
++function Host({project,binding}:{project:Project;binding:ProjectSourceBinding}){
++  const scene=useCommittedScene(project,project.revisions[0],binding);
++  return <div data-testid="scene">{scene.object?.uuid??"empty"}:{String(scene.interactive)}</div>;
++}
++beforeEach(()=>mock.load.mockReset());
++it("does not retain geometry when only the source opening changes",async()=>{
++  const dispose=vi.fn(),scene=new CommittedScene<string>(dispose);
++  const first={...identity,sourceOpeningId:"first"},second={...identity,sourceOpeningId:"second"};
++  await scene.load(first,async()=>"first mesh");let finish!:(v:string)=>void;
++  const pending=scene.load(second,()=>new Promise(resolve=>{finish=resolve;}));
++  expect(scene.snapshot().object).toBeNull();expect(scene.interactive()).toBe(false);
++  expect(committedSelectionScene({phase:"ready",displayed:first,target:first,object:{uuid:"old",userData:{formaNativeCadPreview:true}}},second).interactive).toBe(false);
++  finish("second mesh");await pending;scene.releaseRetired();expect(dispose).toHaveBeenCalledWith("first mesh");scene.close();
++});
++it("disposes a late result from an equal-ID previous source opening",async()=>{
++  const dispose=vi.fn(),scene=new CommittedScene<string>(dispose);let finish!:(v:string)=>void;
++  const old=scene.load({...identity,sourceOpeningId:"first"},()=>new Promise(resolve=>{finish=resolve;}));
++  await scene.load({...identity,sourceOpeningId:"second"},async()=>"current");finish("late");await old;
++  expect(scene.snapshot().object).toBe("current");expect(dispose).toHaveBeenCalledWith("late");scene.close();
++});
++it("does not dispose a cached alias that is adopted by the replacement opening",async()=>{
++  const dispose=vi.fn(),scene=new CommittedScene<object>(dispose),object={};
++  await scene.load({...identity,sourceOpeningId:"first"},async()=>object);
++  await scene.load({...identity,sourceOpeningId:"second"},async()=>object);scene.releaseRetired();expect(dispose).not.toHaveBeenCalled();
++  scene.close();expect(dispose).toHaveBeenCalledTimes(1);
++});
++it("passes the folder reference and hides same-ID old geometry during replacement",async()=>{
++  const project=fixture(),first=folderSource(project.id,ref()),second=folderSource(project.id,ref("second"));
++  const old=new THREE.Group(),next=new THREE.Group();let finish!:(g:THREE.Group)=>void;
++  mock.load.mockResolvedValueOnce(old).mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));
++  const view=render(<Host project={project} binding={first}/>);await waitFor(()=>expect(view.getByTestId("scene")).toHaveTextContent(old.uuid));
++  view.rerender(<Host project={project} binding={second}/>);expect(view.getByTestId("scene")).toHaveTextContent("empty:false");
++  expect(mock.load.mock.calls[1][2]).toEqual(ref("second"));await act(async()=>{finish(next);await Promise.resolve();});
++  await waitFor(()=>expect(view.getByTestId("scene")).toHaveTextContent(next.uuid));view.unmount();
++});
++it("retains ready geometry without loading again on metadata-only commit refresh",async()=>{
++  const project=fixture(),first=folderSource(project.id,ref()),object=new THREE.Group();mock.load.mockResolvedValue(object);
++  const view=render(<Host project={project} binding={first}/>);await waitFor(()=>expect(view.getByTestId("scene")).toHaveTextContent(object.uuid));
++  view.rerender(<Host project={{...project,name:"metadata"}} binding={refreshFolderSource(first,ref("first","new-commit"))}/>);
++  await act(async()=>{await Promise.resolve();});expect(mock.load).toHaveBeenCalledTimes(1);expect(view.getByTestId("scene")).toHaveTextContent(object.uuid);view.unmount();
++});
++it("restarts pending asset IO with the new commit without accepting the older object",async()=>{
++  const project=fixture(),first=folderSource(project.id,ref());let finish!:(g:THREE.Group)=>void;
++  const fresh=new THREE.Group(),late=new THREE.Group();mock.load.mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;})).mockResolvedValueOnce(fresh);
++  const view=render(<Host project={project} binding={first}/>);await waitFor(()=>expect(mock.load).toHaveBeenCalledTimes(1));
++  view.rerender(<Host project={{...project,name:"metadata"}} binding={refreshFolderSource(first,ref("first","new-commit"))}/>);
++  await waitFor(()=>expect(view.getByTestId("scene")).toHaveTextContent(fresh.uuid));await act(async()=>{finish(late);await Promise.resolve();});
++  expect(mock.load.mock.calls[1][2]).toEqual(ref("first","new-commit"));expect(view.getByTestId("scene")).toHaveTextContent(fresh.uuid);view.unmount();
++});
+diff --git a/apps/desktop/src/features/project-sources/sourcePreference.test.tsx b/apps/desktop/src/features/project-sources/sourcePreference.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/sourcePreference.test.tsx
+@@ -0,0 +1,41 @@
++import { act,renderHook } from "@testing-library/react";
++import { afterEach,expect,it } from "vitest";
++import { folderSource,managedSource,refreshFolderSource } from "./sourceBinding";
++import {useSourcePreference} from "./useSourcePreference";
++const ref=(id="first",commitId="commit")=>({sourceId:id,commitId,taskScopeId:`group-${id}`});
++afterEach(()=>localStorage.clear());
++it("keeps folder drafts in memory and out of stored managed values",()=>{
++  const key="forma.ui.project.shared.prompt";localStorage.setItem(key,JSON.stringify("managed draft"));
++  const first=folderSource("shared",ref()),second=folderSource("shared",ref("second"));
++  const view=renderHook(({binding})=>useSourcePreference(key,"",binding),{initialProps:{binding:first}});
++  expect(view.result.current[0]).toBe("");act(()=>view.result.current[1]("folder draft"));expect(view.result.current[0]).toBe("folder draft");
++  const stale=view.result.current[1];view.rerender({binding:second});expect(view.result.current[0]).toBe("");
++  act(()=>view.result.current[1]("second draft"));act(()=>stale("late first mutation"));
++  expect(view.result.current[0]).toBe("second draft");expect(localStorage.getItem(key)).toBe(JSON.stringify("managed draft"));
++  expect(JSON.stringify({...localStorage})).not.toContain(first.openingId);view.unmount();
++});
++it("preserves folder drafts across metadata refresh of the same opening",()=>{
++  const before=Object.fromEntries(Object.keys(localStorage).map(key=>[key,localStorage.getItem(key)]));
++  const first=folderSource("shared",ref());const view=renderHook(({binding})=>useSourcePreference("forma.ui.project.shared.prompt","",binding),{initialProps:{binding:first}});
++  act(()=>view.result.current[1]("draft"));view.rerender({binding:refreshFolderSource(first,ref("first","metadata"))});
++  expect(view.result.current[0]).toBe("draft");expect(Object.fromEntries(Object.keys(localStorage).map(key=>[key,localStorage.getItem(key)]))).toEqual(before);
++  expect(localStorage.getItem("forma.ui.project.shared.prompt")).toBeNull();view.unmount();
++});
++it("ignores a setter captured before explicit managed reopen with the same ID",()=>{
++  const first=managedSource("shared"),second=managedSource("shared");
++  const view=renderHook(({binding})=>useSourcePreference("forma.ui.project.shared.prompt","",binding),{initialProps:{binding:first}});
++  const stale=view.result.current[1];view.rerender({binding:second});act(()=>view.result.current[1]("new draft"));act(()=>stale("stale"));
++  expect(view.result.current[0]).toBe("new draft");view.unmount();
++});
++
++it("resets a folder draft when its revision key changes within the same opening",()=>{
++ const binding=folderSource("shared",ref());const view=renderHook(({key})=>useSourcePreference(key,"saved source",binding),{initialProps:{key:"revision-a"}});
++ act(()=>view.result.current[1]("draft a"));const stale=view.result.current[1];view.rerender({key:"revision-b"});
++ expect(view.result.current[0]).toBe("saved source");act(()=>view.result.current[1]("draft b"));act(()=>stale("late a"));
++ expect(view.result.current[0]).toBe("draft b");expect(localStorage.getItem("revision-a")).toBeNull();expect(localStorage.getItem("revision-b")).toBeNull();view.unmount();
++});
++it("ignores a managed setter from a retired preference key",()=>{
++ const binding=managedSource("shared");const view=renderHook(({key})=>useSourcePreference(key,"",binding),{initialProps:{key:"revision-a"}});
++ const stale=view.result.current[1];view.rerender({key:"revision-b"});act(()=>view.result.current[1]("new draft"));act(()=>stale("late a"));
++ expect(view.result.current[0]).toBe("new draft");expect(localStorage.getItem("revision-a")).toBeNull();view.unmount();
++});
+diff --git a/apps/desktop/src/features/project-sources/managedRequests.test.tsx b/apps/desktop/src/features/project-sources/managedRequests.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/managedRequests.test.tsx
+@@ -0,0 +1,67 @@
++import {act,cleanup,renderHook,waitFor} from "@testing-library/react";
++import {QueryClient,QueryClientProvider} from "@tanstack/react-query";
++import type {ReactNode} from "react";
++import {afterEach,beforeEach,expect,it,vi} from "vitest";
++import {captureApply,executeCapturedApply} from "../model-apply/capturedApply";
++import {useProjectNavigation} from "../project-catalog/useProjectNavigation";
++import {useRevisionEvents} from "../model-apply/useRevisionEvents";
++import {useModelApply} from "../model-apply/useModelApply";
++import {newProject,useWorkspace} from "../../stores/workspace";
++import type {Project} from "../../types";
++const mock=vi.hoisted(()=>({read:vi.fn(),apply:vi.fn(),save:vi.fn(),listen:vi.fn(),close:vi.fn()}));
++vi.mock("../../lib/api",()=>({native:true,applyProgram:mock.apply,saveProject:mock.save}));
++vi.mock("../project-catalog/api",()=>({readProjectSnapshot:mock.read}));
++vi.mock("@tauri-apps/api/event",()=>({listen:mock.listen}));
++vi.mock("./sourceApi",()=>({closeFolderSource:mock.close}));
++const ref={sourceId:"folder",commitId:"commit",taskScopeId:"group"};
++const project=()=>({...newProject("Source","blank","mm","codex"),id:"shared",currentRevision:"head"});
++function harness(){const query=new QueryClient({defaultOptions:{queries:{retry:false}}});return{query,wrapper:({children}:{children:ReactNode})=><QueryClientProvider client={query}>{children}</QueryClientProvider>};}
++beforeEach(()=>{mock.close.mockResolvedValue(true);useWorkspace.getState().setProject(null);useWorkspace.getState().setBusy(false);localStorage.clear();mock.read.mockReset();mock.apply.mockReset();mock.save.mockReset();mock.listen.mockReset();});
++afterEach(()=>cleanup());
++it("refuses an old approval after equal-ID reopen before invoking CAD",async()=>{
++  const base={id:"shared",currentRevision:"head"},request=captureApply(base,"draft","edit","old");const invoke=vi.fn();
++  await expect(executeCapturedApply(request,{getCurrent:()=>base,getSourceOpeningId:()=>"new",invoke,adopt:vi.fn(),reconcileTarget:vi.fn(),refreshTarget:vi.fn()})).rejects.toThrow("MODEL_APPLY_BASE_CHANGED");
++  expect(invoke).not.toHaveBeenCalled();
++});
++it("keeps an accepted native result orphaned after source-family change with equal IDs",async()=>{
++  const base={id:"shared",currentRevision:"head"},request=captureApply(base,"draft","edit","old");let opening="old";
++  const adopt=vi.fn(),reconcile=vi.fn(async()=>{});
++  const outcome=await executeCapturedApply(request,{getCurrent:()=>base,getSourceOpeningId:()=>opening,invoke:async()=>{opening="new";return{...base,currentRevision:"accepted"};},adopt,reconcileTarget:reconcile,refreshTarget:vi.fn()});
++  expect(outcome.disposition).toBe("orphaned");expect(outcome.result.currentRevision).toBe("accepted");expect(adopt).not.toHaveBeenCalled();expect(reconcile).toHaveBeenCalledTimes(1);
++});
++it("does not replace a folder view with a late equal-ID managed card read",async()=>{
++  const p=project(),navigate=vi.fn(),error=vi.fn();useWorkspace.getState().setProject(p);
++  let finish!:(p:Project)=>void;mock.read.mockImplementation(()=>new Promise(resolve=>{finish=resolve;}));
++  const view=renderHook(()=>useProjectNavigation(p.id,navigate,error));let pending!:Promise<void>;
++  act(()=>{pending=view.result.current(p);});act(()=>useWorkspace.getState().openFolderProject(p,ref));const binding=useWorkspace.getState().sourceBinding;
++  await act(async()=>{finish({...p,name:"managed response"});await pending;});
++  expect(useWorkspace.getState().project).toBe(p);expect(useWorkspace.getState().sourceBinding).toBe(binding);expect(navigate).not.toHaveBeenCalled();expect(error).not.toHaveBeenCalled();view.unmount();
++});
++it("does not read a managed snapshot for an ID-only revision event targeting the active folder",async()=>{
++  const p=project();useWorkspace.getState().openFolderProject(p,ref);let event!:(e:{payload:string})=>void;
++  mock.listen.mockImplementation(async(_name,listener)=>{event=listener;return vi.fn();});const {query,wrapper}=harness();
++  const view=renderHook(()=>useRevisionEvents(),{wrapper});await waitFor(()=>expect(event).toBeDefined());act(()=>event({payload:p.id}));
++  expect(mock.read).not.toHaveBeenCalled();expect(useWorkspace.getState().project).toBe(p);view.unmount();query.clear();
++});
++it("does not adopt an in-flight managed revision event after equal-ID folder switch",async()=>{
++  const p=project();useWorkspace.getState().setProject(p);let event!:(e:{payload:string})=>void,finish!:(p:Project)=>void;
++  mock.listen.mockImplementation(async(_name,listener)=>{event=listener;return vi.fn();});mock.read.mockImplementation(()=>new Promise(resolve=>{finish=resolve;}));
++  const {query,wrapper}=harness();const view=renderHook(()=>useRevisionEvents(),{wrapper});await waitFor(()=>expect(event).toBeDefined());act(()=>event({payload:p.id}));
++  act(()=>useWorkspace.getState().openFolderProject(p,ref));const binding=useWorkspace.getState().sourceBinding;
++  await act(async()=>{finish({...p,currentRevision:"managed-new"});await Promise.resolve();});
++  expect(useWorkspace.getState().project).toBe(p);expect(useWorkspace.getState().sourceBinding).toBe(binding);view.unmount();query.clear();
++});
++it("keeps a completed managed CAD result out of an equal-ID folder and skips its metadata save",async()=>{
++  const p=project();useWorkspace.getState().setProject(p);const request=captureApply(p,"draft","edit",useWorkspace.getState().sourceBinding!.openingId);
++  let finish!:(p:Project)=>void;mock.apply.mockImplementation(()=>new Promise(resolve=>{finish=resolve;}));mock.read.mockResolvedValue({...p,currentRevision:"accepted"});
++  const {query,wrapper}=harness();const view=renderHook(()=>useModelApply(),{wrapper});let pending!:ReturnType<ReturnType<typeof useModelApply>>;
++  act(()=>{pending=view.result.current(request,{assistantMessage:"message"});});act(()=>useWorkspace.getState().openFolderProject(p,ref));const binding=useWorkspace.getState().sourceBinding;
++  let outcome!:Awaited<typeof pending>;await act(async()=>{finish({...p,currentRevision:"accepted"});outcome=await pending;});
++  expect(outcome.disposition).toBe("orphaned");expect(outcome.metadataFailure).toBeDefined();expect(mock.save).not.toHaveBeenCalled();expect(useWorkspace.getState().project).toBe(p);expect(useWorkspace.getState().sourceBinding).toBe(binding);
++  view.unmount();query.clear();
++});
++it("does not invoke the managed CAD route for an active folder reference",async()=>{
++  const p=project();useWorkspace.getState().openFolderProject(p,ref);const request=captureApply(p,"draft","edit",useWorkspace.getState().sourceBinding!.openingId);
++  const {query,wrapper}=harness();const view=renderHook(()=>useModelApply(),{wrapper});
++  await act(async()=>{await expect(view.result.current(request)).rejects.toThrow("PROJECT_SOURCE_WRITE_NOT_AUTHORIZED");});expect(mock.apply).not.toHaveBeenCalled();view.unmount();query.clear();
++});
+diff --git a/apps/desktop/src/features/project-sources/fileSource.test.ts b/apps/desktop/src/features/project-sources/fileSource.test.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/fileSource.test.ts
+@@ -0,0 +1,29 @@
++import {beforeEach,expect,it,vi} from "vitest";
++import {waitFor} from "@testing-library/react";
++import {loadModel} from "../../lib/modelLoader";
++import {newProject} from "../../stores/workspace";
++const mock=vi.hoisted(()=>({read:vi.fn(),snapshot:vi.fn(),dispose:vi.fn()}));
++vi.mock("../../lib/api",()=>({native:true,readProjectFile:mock.read,saveProject:vi.fn()}));
++vi.mock("../project-catalog/api",()=>({readProjectSnapshot:mock.snapshot}));
++vi.mock("../../lib/model",()=>({disposeModel:mock.dispose}));
++const source={sourceId:"folder",commitId:"commit",taskScopeId:"group"};
++// Renderer decoder fixture only; this triangle is not a native CAD acceptance model.
++const stl="solid fixture\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid fixture\n";
++const file={name:"source.stl",kind:"model" as const,size:new TextEncoder().encode(stl).length,sha256:"a".repeat(64),data:"managed-inline-must-not-be-used"};
++const project=()=>({...newProject("File","blank","mm","codex"),id:"shared",files:[file]});
++beforeEach(()=>{mock.read.mockReset().mockResolvedValue(`data:model/stl;base64,${btoa(stl)}`);mock.snapshot.mockReset();mock.dispose.mockReset();});
++it("reads folder bytes even when an inline managed candidate exists and rechecks the original source after decoding",async()=>{
++  mock.snapshot.mockResolvedValue(project());const object=await loadModel(file,"shared",source);
++  expect(mock.read).toHaveBeenCalledWith("shared",file.name,source);expect(mock.snapshot).toHaveBeenCalledWith("shared",source);
++  expect(object.children).toHaveLength(1);expect(mock.dispose).not.toHaveBeenCalled();
++});
++it("refuses metadata from an equal-ID source with a different seal and disposes the decoded object",async()=>{
++  mock.snapshot.mockResolvedValue({...project(),files:[{...file,sha256:"b".repeat(64)}]});
++  await expect(loadModel(file,"shared",source)).rejects.toThrow("PROJECT_SNAPSHOT_CHANGED");expect(mock.dispose).toHaveBeenCalledTimes(1);
++});
++it("refuses close during the final source recheck after the real decoder finishes",async()=>{
++  let reject!:(cause:Error)=>void;mock.snapshot.mockImplementation(()=>new Promise((_resolve,no)=>{reject=no;}));
++  const pending=loadModel(file,"shared",source);const result=expect(pending).rejects.toThrow("PROJECT_SNAPSHOT_CHANGED");
++  await waitFor(()=>expect(mock.snapshot).toHaveBeenCalledTimes(1));reject(new Error("PROJECT_SNAPSHOT_CHANGED"));await result;
++  expect(mock.dispose).toHaveBeenCalledTimes(1);expect(mock.dispose.mock.calls[0][0].children).toHaveLength(1);
++});
+diff --git a/apps/desktop/src/features/project-sources/sourceAccess.test.tsx b/apps/desktop/src/features/project-sources/sourceAccess.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/sourceAccess.test.tsx
+@@ -0,0 +1,24 @@
++import {renderHook} from "@testing-library/react";
++import {expect,it,vi} from "vitest";
++import {useWorkspaceSourceAccess} from "./useWorkspaceSourceAccess";
++import {folderSource,managedSource} from "./sourceBinding";
++import {newProject,useWorkspace} from "../../stores/workspace";
++const mock=vi.hoisted(()=>({access:vi.fn((_id?:string,_onError?:(message:string)=>void)=>({writable:true,checking:false,status:{mode:"write"},retry:vi.fn()}))}));
++vi.mock("../project-access/useProjectAccess",()=>({useProjectAccess:mock.access}));
++it("does not acquire managed editing for a read-only folder sharing its project ID",()=>{
++  const binding=folderSource("shared",{sourceId:"folder",commitId:"commit",taskScopeId:"group"});
++  const view=renderHook(()=>useWorkspaceSourceAccess("shared",binding,vi.fn()));expect(mock.access.mock.lastCall?.[0]).toBeUndefined();
++  expect(view.result.current.writable).toBe(false);expect(view.result.current.status).toBeUndefined();view.unmount();
++});
++it("retains existing managed access behavior",()=>{
++  const view=renderHook(()=>useWorkspaceSourceAccess("shared",managedSource("shared"),vi.fn()));
++  expect(mock.access.mock.lastCall?.[0]).toBe("shared");expect(view.result.current.writable).toBe(true);view.unmount();
++});
++it("does not report an old managed release error into an equal-ID folder view",()=>{
++  const project={...newProject("Access","blank","mm","codex"),id:"shared"};useWorkspace.getState().setProject(project);
++  const source=useWorkspace.getState().sourceBinding!,error=vi.fn();
++  const view=renderHook(()=>useWorkspaceSourceAccess(project.id,source,error));const report=mock.access.mock.lastCall![1]!;
++  useWorkspace.getState().setProject({...project,name:"metadata"});report("current opening error");expect(error).toHaveBeenCalledWith("current opening error");error.mockClear();
++  useWorkspace.getState().openFolderProject(project,{sourceId:"folder",commitId:"commit",taskScopeId:"group"});report("late release error");expect(error).not.toHaveBeenCalled();
++  view.unmount();useWorkspace.getState().setProject(null);
++});
+diff --git a/apps/desktop/src/features/project-sources/managedAccessScope.test.tsx b/apps/desktop/src/features/project-sources/managedAccessScope.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/managedAccessScope.test.tsx
+@@ -0,0 +1,21 @@
++import {act,renderHook,waitFor} from "@testing-library/react";
++import {expect,it,vi} from "vitest";
++import {useProjectAccess} from "../project-access/useProjectAccess";
++import type {ProjectAccess} from "../project-access/projectAccessApi";
++const mock=vi.hoisted(()=>({acquire:vi.fn(),retain:vi.fn(()=>vi.fn())}));
++vi.mock("../../lib/api",()=>({native:true}));
++vi.mock("../project-access/accessLifecycle",()=>({acquireAccess:mock.acquire,retainAccess:mock.retain}));
++it("does not reuse a previous opening's write status while checking an equal-ID reopen",async()=>{
++  let finish!:(status:ProjectAccess)=>void;const error=vi.fn();
++  mock.acquire.mockResolvedValueOnce({projectId:"shared",mode:"write",ownerPid:1}).mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));
++  const view=renderHook(({scope})=>useProjectAccess("shared",error,scope),{initialProps:{scope:"first-opening"}});
++  await waitFor(()=>expect(view.result.current.writable).toBe(true));
++  view.rerender({scope:"reopened"});expect(view.result.current.checking).toBe(true);expect(view.result.current.writable).toBe(false);expect(view.result.current.status).toBeUndefined();
++  await act(async()=>{finish({projectId:"shared",mode:"read_only",ownerPid:2});await Promise.resolve();});
++  await waitFor(()=>expect(view.result.current.checking).toBe(false));expect(view.result.current.writable).toBe(false);expect(view.result.current.status?.ownerPid).toBe(2);
++  expect(mock.acquire).toHaveBeenCalledTimes(2);view.unmount();
++});
++it("keeps an absent managed project safe when a folder opening scope is supplied",()=>{
++  mock.acquire.mockClear();const view=renderHook(()=>useProjectAccess(undefined,vi.fn(),"folder-opening"));
++  expect(view.result.current.checking).toBe(false);expect(view.result.current.status).toBeUndefined();expect(mock.acquire).not.toHaveBeenCalled();view.unmount();
++});

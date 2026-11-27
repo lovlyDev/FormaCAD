@@ -1,12 +1,18 @@
 import { create } from "zustand";
 import type { Project, Parameters, Revision } from "../types";
-import { defaults } from "../types";
-import { saveProject } from "../lib/api";
-import { persist, readState } from "../lib/persistence";
+export {currentParameters,newProject} from "./projectDefaults";
+import {workspaceProjectActions} from "./workspaceProject";
+import type {FolderSourceRef} from "../features/project-sources/contract";
+import type {ProjectSourceBinding} from "../features/project-sources/sourceBinding";
+import { persist } from "../lib/persistence";
 import type { FaceSelection } from "../features/viewer/faceSelection";
 import type { EdgeSelection } from "../features/viewer/edgeSelection";
-interface Workspace {
+export interface Workspace {
   project: Project | null;
+  sourceBinding: ProjectSourceBinding | null;
+  openManagedProject: (project:Project)=>void;
+  openFolderProject: (project:Project,source:FolderSourceRef)=>void;
+  publishFolderSnapshot: (project:Project,captured:ProjectSourceBinding,source:FolderSourceRef)=>boolean;
   selected: string | null;
   /** Ordered body selection; `selected` is its active element. */
   selectedBodies: string[];
@@ -39,6 +45,7 @@ interface Workspace {
 }
 export const useWorkspace = create<Workspace>((set, get) => ({
   project: null,
+  sourceBinding: null,
   selected: null,
   selectedBodies: [],
   selectedFace: null,
@@ -48,28 +55,10 @@ export const useWorkspace = create<Workspace>((set, get) => ({
   busy: false,
   stage: "Ready",
   error: null,
-  setProject: (project) => {
-    const current = get();
-    const same = !!project && project.id === current.project?.id && project.currentRevision === current.project.currentRevision;
-    const sameProject = !!project && project.id === current.project?.id;
-    const selected = same ? current.selected : project
-      ? readState<string | null>(`forma.ui.project.${project.id}.selected`, null)
-      : null;
-    set({
-      project,
-      selected,
-      // Body ids survive a new revision of the same project; transforms keep the selection.
-      selectedBodies: sameProject ? current.selectedBodies : selected ? [selected] : [],
-      selectedFace: same ? current.selectedFace : null,
-      selectedFaces: same ? current.selectedFaces : [],
-      selectedEdge: same ? current.selectedEdge : null,
-      selectedEdges: same ? current.selectedEdges : [],
-      error: null,
-    });
-  },
+  ...workspaceProjectActions(set,get),
   setSelected: (selected) => {
     const id = get().project?.id;
-    if (id)
+    if (id && get().sourceBinding?.kind !== "folder")
       persist(`forma.ui.project.${id}.selected`, JSON.stringify(selected));
     set({ selected, selectedBodies: selected ? [selected] : [], selectedFace: null, selectedFaces: [], selectedEdge: null, selectedEdges: [] });
   },
@@ -77,7 +66,7 @@ export const useWorkspace = create<Workspace>((set, get) => ({
     const unique = [...new Set(bodies)];
     const selected = active && unique.includes(active) ? active : (unique.at(-1) ?? null);
     const id = get().project?.id;
-    if (id) persist(`forma.ui.project.${id}.selected`, JSON.stringify(selected));
+    if (id && get().sourceBinding?.kind !== "folder") persist(`forma.ui.project.${id}.selected`, JSON.stringify(selected));
     set({ selected, selectedBodies: unique, selectedFace: null, selectedFaces: [], selectedEdge: null, selectedEdges: [] });
   },
   setSelectedFace: (selectedFace) => set({ selectedFace, selectedFaces: selectedFace ? [selectedFace] : [], selectedEdge: null, selectedEdges: [] }),
@@ -95,24 +84,6 @@ export const useWorkspace = create<Workspace>((set, get) => ({
   },
   setBusy: (busy, stage = "Ready") => set({ busy, stage }),
   setError: (error) => set({ error }),
-  update: async (project) => {
-    const saved = await saveProject(project);
-    // A delayed metadata save must not switch the user back to its original project.
-    if (get().project?.id !== saved.id) return;
-    set({
-      project: saved,
-      selectedFace:
-        saved.id === get().project?.id && saved.currentRevision === get().project?.currentRevision
-          ? get().selectedFace
-          : null,
-      selectedFaces: saved.currentRevision === get().project?.currentRevision ? get().selectedFaces : [],
-      selectedEdge:
-        saved.id === get().project?.id && saved.currentRevision === get().project?.currentRevision
-          ? get().selectedEdge
-          : null,
-      selectedEdges: saved.currentRevision === get().project?.currentRevision ? get().selectedEdges : [],
-    });
-  },
   revise: async (parameters, prompt, source, preview, program, programBase) => {
     const p = get().project;
     if (!p) throw new Error("No project is open.");
@@ -136,34 +107,3 @@ export const useWorkspace = create<Workspace>((set, get) => ({
     });
   },
 }));
-export function currentParameters(p: Project | null): Parameters {
-  return (
-    p?.revisions.find((r) => r.id === p.currentRevision)?.parameters ?? {
-      ...defaults,
-      kind: "blank",
-    }
-  );
-}
-export function newProject(
-  name: string,
-  _kind: Parameters["kind"],
-  units: Project["units"],
-  agent: Project["agent"],
-): Project {
-  const now = new Date().toISOString();
-  return {
-    schemaVersion: 1,
-    id: crypto.randomUUID(),
-    name: name.trim(),
-    units,
-    agent,
-    pinned: false,
-    createdAt: now,
-    updatedAt: now,
-    revisions: [],
-    currentRevision: null,
-    messages: [],
-    files: [],
-    exports: [],
-  };
-}

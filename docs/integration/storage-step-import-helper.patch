@@ -1,0 +1,17 @@
+diff --git a/apps/desktop/src-tauri/src/conversion.rs b/apps/desktop/src-tauri/src/conversion.rs
+--- a/apps/desktop/src-tauri/src/conversion.rs
++++ b/apps/desktop/src-tauri/src/conversion.rs
+@@ -16,4 +16,4 @@
+ use tauri::State;
+ #[cfg(feature = "native-worker-client")]
+-mod import_document;
++pub(crate) mod import_document;
+ 
+diff --git a/apps/desktop/src-tauri/src/conversion/import_document.rs b/apps/desktop/src-tauri/src/conversion/import_document.rs
+--- a/apps/desktop/src-tauri/src/conversion/import_document.rs
++++ b/apps/desktop/src-tauri/src/conversion/import_document.rs
+@@ -7,3 +7,3 @@
+ 
+-pub(super) fn source(revision_id: &str, name: &str, bytes: &[u8]) -> Result<String> {
++pub(crate) fn source(revision_id: &str, name: &str, bytes: &[u8]) -> Result<String> {
+     let sha256 = format!("{:x}", Sha256::digest(bytes));

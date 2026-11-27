@@ -15,7 +15,7 @@ export function SelectionModelProperties({ selectedBodyId, interactive, hostAvai
   const bodyId = inspector.selectedEdge?.bodyId ?? inspector.selectedFace?.bodyId ?? selectedBodyId;
   return <div className="selection-model-properties">
     <ModelInspector {...inspector} />
-    <ExactReferenceMeasurement project={inspector.project} bodyId={bodyId}
+    <ExactReferenceMeasurement sourceBinding={inspector.sourceBinding} project={inspector.project} bodyId={bodyId}
       edge={inspector.selectedEdge} face={inspector.selectedFace}
       interactive={interactive} hostAvailable={hostAvailable} />
     <PairMeasurement bodyId={bodyId} sceneToken={sceneToken} interactive={interactive} hostAvailable={hostAvailable} />

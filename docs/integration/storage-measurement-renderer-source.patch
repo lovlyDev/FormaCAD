@@ -1,0 +1,509 @@
+diff --git a/apps/desktop/src/features/reference-measurements/measurementCapture.ts b/apps/desktop/src/features/reference-measurements/measurementCapture.ts
+index 4acf83d..81b8e20 100644
+--- a/apps/desktop/src/features/reference-measurements/measurementCapture.ts
++++ b/apps/desktop/src/features/reference-measurements/measurementCapture.ts
+@@ -1,23 +1,29 @@
++import {sourceRefFor,type ProjectSourceBinding} from "../project-sources/sourceBinding";
++import type {FolderSourceRef} from "../project-sources/contract";
+ import type { Project } from "../../types";
+ import { readTypedCadDocument } from "../../lib/typedCadDocument";
+ import { measurementQuerySchema,type MeasurementQuery,type MeasurementReport } from "./measurementSchema";
+ 
+-export interface MeasurementContext {project:Project|null;bodyId:string|null;query:MeasurementQuery;selectionToken:string;interactive:boolean}
++export interface MeasurementContext {project:Project|null;bodyId:string|null;query:MeasurementQuery;selectionToken:string;interactive:boolean;sourceBinding?:ProjectSourceBinding|null}
+ export interface MeasurementCapture {
++  source?:Readonly<FolderSourceRef>;sourceOpeningId?:string;
+   key:string;request:{projectId:string;expectedRevision:string;bodyId:string;query:MeasurementQuery};
+   sourceSha256:string;sourceSize:number;rawProgram:string;selectionToken:string;
+ }
+ export function captureMeasurement(context:MeasurementContext):MeasurementCapture|null {
+   const {project,bodyId,selectionToken,interactive}=context;
+   if(!project?.currentRevision||!bodyId||!interactive)return null;
++  if(context.sourceBinding!==undefined&&(!context.sourceBinding||context.sourceBinding.projectId!==project.id))return null;
++  const folder=context.sourceBinding?sourceRefFor(context.sourceBinding,project.id):undefined;
++  const sourceOpeningId=context.sourceBinding?.openingId;
+   const revision=project.revisions.find(item=>item.id===project.currentRevision),document=readTypedCadDocument(revision?.program??"");
+   const source=project.files.find(file=>file.name===revision?.source&&/\.st(e)?p$/i.test(file.name));
+   const query=measurementQuerySchema.safeParse(context.query);
+   if(!document||document.revisionId!==revision?.id||!document.bodies.some(body=>body.id===bodyId)||!query.success||!source?.sha256||!source.size)return null;
+   const request={projectId:project.id,expectedRevision:project.currentRevision,bodyId,query:query.data};
+   const rawProgram=revision!.program!;
+-  const key=JSON.stringify({request,sourceSha256:source.sha256,sourceSize:source.size,rawProgram,selectionToken});
+-  return Object.freeze({key,request,sourceSha256:source.sha256,sourceSize:source.size,rawProgram,selectionToken});
++  const key=JSON.stringify({sourceOpeningId,sourceId:folder?.sourceId,taskScopeId:folder?.taskScopeId,request,sourceSha256:source.sha256,sourceSize:source.size,rawProgram,selectionToken});
++  return Object.freeze({source:folder,sourceOpeningId,key,request,sourceSha256:source.sha256,sourceSize:source.size,rawProgram,selectionToken});
+ }
+ export function reportMatchesCapture(report:MeasurementReport,captured:MeasurementCapture):boolean {
+   return report.projectId===captured.request.projectId&&report.revisionId===captured.request.expectedRevision&&report.bodyId===captured.request.bodyId
+diff --git a/apps/desktop/src/features/reference-measurements/measurementSession.ts b/apps/desktop/src/features/reference-measurements/measurementSession.ts
+index 7f880ee..cc7ae63 100644
+--- a/apps/desktop/src/features/reference-measurements/measurementSession.ts
++++ b/apps/desktop/src/features/reference-measurements/measurementSession.ts
+@@ -11,7 +11,7 @@ export class MeasurementSession {
+   snapshot=()=>this.value;
+   private publish(value:MeasurementState){this.value=value;this.listeners.forEach(listener=>listener());}
+   setContext(context:MeasurementCapture|null){
+-    if(context?.key===this.context?.key)return;
++    if(context?.key===this.context?.key){this.context=context;return;}
+     this.epoch++;this.context=context;this.publish({key:context?.key??"",phase:"idle",working:this.inFlight,report:null});
+   }
+   stopWaiting(){this.epoch++;this.publish({...this.value,phase:this.value.report?"ready":"idle",error:undefined});}
+diff --git a/apps/desktop/src/features/reference-measurements/useExactReferenceMeasurement.ts b/apps/desktop/src/features/reference-measurements/useExactReferenceMeasurement.ts
+index 1233e98..9e80b51 100644
+--- a/apps/desktop/src/features/reference-measurements/useExactReferenceMeasurement.ts
++++ b/apps/desktop/src/features/reference-measurements/useExactReferenceMeasurement.ts
+@@ -5,7 +5,7 @@ import { measureReference } from "./measurementApi";
+ 
+ export function useExactReferenceMeasurement(context:MeasurementContext) {
+   const [session]=useState(()=>new MeasurementSession());
+-  const captured=useMemo(()=>captureMeasurement(context),[context.project,context.bodyId,context.query,context.selectionToken,context.interactive]);
++  const captured=useMemo(()=>captureMeasurement(context),[context.project,context.bodyId,context.query,context.selectionToken,context.interactive,context.sourceBinding]);
+   const snapshot=useSyncExternalStore(session.subscribe,session.snapshot,session.snapshot);
+   useEffect(()=>{session.setContext(captured);},[captured,session]);
+   const mounted=useRef(false);
+diff --git a/apps/desktop/src/features/reference-measurements/measurementApi.ts b/apps/desktop/src/features/reference-measurements/measurementApi.ts
+index 309ce82..ea63fdf 100644
+--- a/apps/desktop/src/features/reference-measurements/measurementApi.ts
++++ b/apps/desktop/src/features/reference-measurements/measurementApi.ts
+@@ -5,7 +5,8 @@ import { readMeasurementReport } from "./measurementSchema";
+ import { reportMatchesCapture,type MeasurementCapture } from "./measurementCapture";
+ 
+ /** No renderer document, path, hash or measured value is sent to native IPC. */
+-export async function measureReference(captured:MeasurementCapture, source?:FolderSourceRef) {
++export async function measureReference(captured:MeasurementCapture, source:FolderSourceRef|undefined=captured.source) {
++  if(captured.sourceOpeningId&&(source?.sourceId!==captured.source?.sourceId||source?.commitId!==captured.source?.commitId||source?.taskScopeId!==captured.source?.taskScopeId))throw Error("MEASUREMENT_STALE");
+   if(source&&!native)throw Error("PROJECT_FOLDER_UNSUPPORTED");
+   if(!native)throw Error("MEASUREMENT_NATIVE_REQUIRED");
+   const report=readMeasurementReport(await invoke("measure_model_reference",source ? {...captured.request, sourceId:source.sourceId, expectedCommitId:source.commitId} : captured.request));
+diff --git a/apps/desktop/src/features/project-sources/measurementSource.test.tsx b/apps/desktop/src/features/project-sources/measurementSource.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/measurementSource.test.tsx
+@@ -0,0 +1,78 @@
++import {afterEach,expect,it,vi} from "vitest";
++import {act,cleanup,renderHook} from "@testing-library/react";
++import {newProject} from "../../stores/workspace";
++import {defaults} from "../../types";
++import {folderSource,refreshFolderSource} from "./sourceBinding";
++import {captureMeasurement,type MeasurementCapture,type MeasurementContext} from "../reference-measurements/measurementCapture";
++import {MeasurementSession} from "../reference-measurements/measurementSession";
++import type {MeasurementReport} from "../reference-measurements/measurementSchema";
++import {measureReference} from "../reference-measurements/measurementApi";
++import {useExactReferenceMeasurement} from "../reference-measurements/useExactReferenceMeasurement";
++const mocks=vi.hoisted(()=>({invoke:vi.fn()}));
++vi.mock("@tauri-apps/api/core",()=>({invoke:mocks.invoke}));
++vi.mock("../../lib/api",()=>({native:true}));
++afterEach(()=>{cleanup();vi.resetAllMocks();});
++const head="c661482b-378a-4fa3-a426-ad9bf6621478",sha="a".repeat(64);
++function fixture():MeasurementContext{
++ const project=newProject("Measurement","blank","mm","codex");project.currentRevision=head;
++ const program=JSON.stringify({schemaVersion:2,revisionId:head,parameters:[],features:[{id:"profile",name:"Profile",operation:{type:"rectangle",width:{kind:"literal",mm:40},depth:{kind:"literal",mm:20}}},{id:"pad",name:"Pad",operation:{type:"extrude",sketchId:"profile",distance:{kind:"literal",mm:10}}}],bodies:[{id:"body",name:"Body",sourceFeatureId:"pad"}]});
++ project.revisions=[{id:head,parent:null,createdAt:project.createdAt,prompt:"Source",parameters:defaults,program,source:"source.step"}];
++ project.files=[{name:"source.step",kind:"model",sha256:sha,size:100}];
++ return{project,bodyId:"body",query:{kind:"bodyMetrics"},selectionToken:"body",interactive:true};
++}
++function source(context:MeasurementContext,id="first"){
++ return folderSource(context.project!.id,{sourceId:id,commitId:"commit",taskScopeId:`task-${id}`});
++}
++function report(capture:MeasurementCapture):MeasurementReport{
++ return{projectId:capture.request.projectId,schemaVersion:1,requestId:"0fdca3bb-60ac-4014-99e9-28b8306687c7",engine:{name:"occt",protocolVersion:1},evaluationSource:"rebuiltAuthoredBody",revisionId:head,bodyId:"body",sourceSha256:sha,sourceSize:100,documentSha256:sha,importedAssetSeals:[],query:capture.request.query,result:{kind:"bodyMetrics",volumeMm3:8000,areaMm2:2800,faceCount:6,edgeCount:12,extentsMm:[40,20,10]}};
++}
++async function nativeReport(capture:MeasurementCapture){
++ const hash=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(capture.rawProgram));
++ return{...report(capture),documentSha256:Array.from(new Uint8Array(hash),value=>value.toString(16).padStart(2,"0")).join("")};
++}
++it("distinguishes equal-ID sources/reopens while preserving metadata-compatible geometry identity",()=>{
++ const base=fixture(),first=source(base);if(first.kind!=="folder")throw Error("fixture");
++ const captured=captureMeasurement({...base,sourceBinding:first})!;
++ expect(captureMeasurement({...base,sourceBinding:source(base,"second")})!.key).not.toBe(captured.key);
++ expect(captureMeasurement({...base,sourceBinding:source(base)})!.key).not.toBe(captured.key);
++ const updated=captureMeasurement({...base,project:{...base.project!,name:"Metadata"},sourceBinding:refreshFolderSource(first,{...first.source,commitId:"metadata"})})!;
++ expect(updated.key).toBe(captured.key);expect(updated.source?.commitId).toBe("metadata");expect(captured.source?.commitId).toBe("commit");
++});
++it("refuses missing/mismatched explicit bindings without managed fallback",()=>{
++ const base=fixture();expect(captureMeasurement({...base,sourceBinding:null})).toBeNull();
++ expect(captureMeasurement({...base,sourceBinding:folderSource("other",{sourceId:"source",commitId:"commit",taskScopeId:"task"})})).toBeNull();
++ expect(captureMeasurement(base)).not.toBeNull();
++});
++it("does not adopt an old measurement after equal-ID reopen",async()=>{
++ const base=fixture(),first=captureMeasurement({...base,sourceBinding:source(base)})!;
++ const session=new MeasurementSession();session.setContext(first);let resolve!:(value:MeasurementReport)=>void;
++ const pending=session.run(()=>new Promise(done=>{resolve=done;}));
++ const reopened=captureMeasurement({...base,sourceBinding:source(base)})!;session.setContext(reopened);resolve(report(first));await pending;
++ expect(session.snapshot().report).toBeNull();expect(session.snapshot().key).toBe(reopened.key);
++});
++it("preserves a compatible pending result while advancing only the next request reference",async()=>{
++ const base=fixture(),binding=source(base);if(binding.kind!=="folder")throw Error("fixture");
++ const first=captureMeasurement({...base,sourceBinding:binding})!;
++ const next=captureMeasurement({...base,sourceBinding:refreshFolderSource(binding,{...binding.source,commitId:"metadata"})})!;
++ const session=new MeasurementSession();session.setContext(first);let resolve!:(value:MeasurementReport)=>void;
++ const pending=session.run(()=>new Promise(done=>{resolve=done;}));session.setContext(next);resolve(report(first));await pending;
++ expect(session.snapshot().report).toEqual(report(first));
++ const load=vi.fn(async(capture:MeasurementCapture)=>report(capture));await session.run(load);
++ expect(load.mock.calls[0][0]).toBe(next);expect(first.source?.commitId).toBe("commit");
++});
++it("uses captured folder authority in IPC and refuses an explicit foreign override",async()=>{
++ const base=fixture(),captured=captureMeasurement({...base,sourceBinding:source(base)})!;
++ mocks.invoke.mockResolvedValue(await nativeReport(captured));await measureReference(captured);
++ expect(mocks.invoke).toHaveBeenCalledWith("measure_model_reference",{...captured.request,sourceId:"first",expectedCommitId:"commit"});
++ mocks.invoke.mockClear();await expect(measureReference(captured,{sourceId:"other",commitId:"commit",taskScopeId:"task-other"})).rejects.toThrow("MEASUREMENT_STALE");
++ expect(mocks.invoke).not.toHaveBeenCalled();
++});
++it("refreshes hook IPC commit after metadata without hiding a compatible report",async()=>{
++ const base=fixture(),binding=source(base);if(binding.kind!=="folder")throw Error("fixture");
++ const captured=captureMeasurement({...base,sourceBinding:binding})!;mocks.invoke.mockResolvedValue(await nativeReport(captured));
++ const hook=renderHook(({binding})=>useExactReferenceMeasurement({...base,sourceBinding:binding}),{initialProps:{binding}});
++ await act(async()=>{await hook.result.current.request();});expect(hook.result.current.report).not.toBeNull();
++ hook.rerender({binding:refreshFolderSource(binding,{...binding.source,commitId:"metadata"}) as typeof binding});
++ expect(hook.result.current.report).not.toBeNull();await act(async()=>{await hook.result.current.request();});
++ expect(mocks.invoke.mock.calls[1][1].expectedCommitId).toBe("metadata");
++});
+diff --git a/apps/desktop/src/app/ModelInspector.tsx b/apps/desktop/src/app/ModelInspector.tsx
+index 2ce73eb..71c26ac 100644
+--- a/apps/desktop/src/app/ModelInspector.tsx
++++ b/apps/desktop/src/app/ModelInspector.tsx
+@@ -1,6 +1,7 @@
+ import { useQuery } from "@tanstack/react-query";
+ import { AlertCircle, Box, SlidersHorizontal } from "lucide-react";
+ import { t, fixedNumber, getLocale } from "../i18n";
++import {sourceRefFor,type ProjectSourceBinding} from "../features/project-sources/sourceBinding";
+ import { native } from "../lib/api";
+ import { inspectSavedModel } from "../lib/modelInspection";
+ import type { inspectModel } from "../lib/model";
+@@ -10,6 +11,7 @@ import type { EdgeSelection } from "../features/viewer/edgeSelection";
+ import "./ModelInspector.css";
+ 
+ interface Props {
++  sourceBinding?:ProjectSourceBinding|null;
+   project: Project;
+   revision: Revision | undefined;
+   selectedLabel: string | null;
+@@ -24,6 +26,7 @@ interface Props {
+ }
+ 
+ export function ModelInspector({
++  sourceBinding,
+   project,
+   revision,
+   selectedLabel,
+@@ -37,14 +40,16 @@ export function ModelInspector({
+   onEditParameters,
+ }: Props) {
+   const source = revision?.source ?? "";
++  const validSource=sourceBinding===undefined||!!sourceBinding&&sourceBinding.projectId===project.id;
++  const folder=validSource&&sourceBinding?sourceRefFor(sourceBinding,project.id):undefined;
+   const exact = useQuery({
+-    queryKey: ["exact-model-properties", project.id, revision?.id],
+-    queryFn: () => inspectSavedModel(project.id, revision!.id),
+-    enabled: native && !!revision && /\.st(e)?p$/i.test(source),
++    queryKey: ["exact-model-properties", project.id, revision?.id,sourceBinding?.openingId,folder?.sourceId,folder?.taskScopeId,folder?.commitId,validSource],
++    queryFn: () => folder?inspectSavedModel(project.id,revision!.id,folder):inspectSavedModel(project.id,revision!.id),
++    enabled: validSource && native && !!revision && /\.st(e)?p$/i.test(source),
+     retry: false,
+     staleTime: Infinity,
+   });
+-  const properties = exact.data;
++  const properties = validSource?exact.data:undefined;
+   const dimensions = properties?.boundsMm ?? stats.size;
+   const unitFactor =
+     project.units === "inch" ? 25.4 : project.units === "cm" ? 10 : 1;
+diff --git a/apps/desktop/src/features/reference-measurements/ExactReferenceMeasurement.tsx b/apps/desktop/src/features/reference-measurements/ExactReferenceMeasurement.tsx
+index 4589b5c..ff947ba 100644
+--- a/apps/desktop/src/features/reference-measurements/ExactReferenceMeasurement.tsx
++++ b/apps/desktop/src/features/reference-measurements/ExactReferenceMeasurement.tsx
+@@ -6,21 +6,22 @@ import type { Project } from "../../types";
+ import type { EdgeSelection } from "../viewer/edgeSelection";
+ import type { FaceSelection } from "../viewer/faceSelection";
+ import { EditorDisclosure } from "../model-editor/EditorDisclosure";
+-import { usePersistentState } from "../../lib/persistence";
++import {useSourcePreference} from "../project-sources/useSourcePreference";
++import type {ProjectSourceBinding} from "../project-sources/sourceBinding";
+ import { supportedMeasurementQueries } from "./measurementCapabilities";
+ import { useExactReferenceMeasurement } from "./useExactReferenceMeasurement";
+ import { measurementRows } from "./measurementRows";
+ import type { MeasurementQuery } from "./measurementSchema";
+ import "./ExactReferenceMeasurement.css";
+ 
+-export function ExactReferenceMeasurement({project,bodyId,edge,face,interactive,hostAvailable}:{project:Project|null;bodyId:string|null;edge:EdgeSelection|null;face:FaceSelection|null;interactive:boolean;hostAvailable:boolean}){
+-  const [open,setOpen]=usePersistentState(`forma.ui.project.${project?.id??"empty"}.referenceMeasurement.open`,false);
++export function ExactReferenceMeasurement({project,bodyId,edge,face,interactive,hostAvailable,sourceBinding}:{sourceBinding?:ProjectSourceBinding|null;project:Project|null;bodyId:string|null;edge:EdgeSelection|null;face:FaceSelection|null;interactive:boolean;hostAvailable:boolean}){
++  const [open,setOpen]=useSourcePreference(`forma.ui.project.${project?.id??"empty"}.referenceMeasurement.open`,false,sourceBinding??null);
+   const [kind,setKind]=useState<MeasurementQuery["kind"]>("bodyMetrics");
+   const [diagnosticsOpen,setDiagnosticsOpen]=useState(false);
+   const queries=useMemo(()=>supportedMeasurementQueries(project,bodyId,edge,face),[project,bodyId,edge,face]);
+   const query=queries.find(query=>query.kind===kind)??queries[0]??{kind:"bodyMetrics" as const};
+   const selectionToken=JSON.stringify({edge,face,bodyId});
+-  const measurement=useExactReferenceMeasurement({project,bodyId,query,selectionToken,interactive:interactive&&hostAvailable&&queries.length>0});
++  const measurement=useExactReferenceMeasurement({project,bodyId,query,selectionToken,sourceBinding,interactive:interactive&&hostAvailable&&queries.length>0});
+   const labels:Record<MeasurementQuery["kind"],string>={bodyMetrics:t("Selected body metrics"),edgeLength:t("Selected edge length"),edgeRadius:t("Selected edge radius"),edgeDiameter:t("Selected edge diameter"),faceArea:t("Selected face area"),planarFace:t("Selected planar face")};
+   const pending=measurement.phase==="pending",previous=!!measurement.report&&(pending||measurement.phase==="failed");
+   const rows=measurement.report?measurementRows(measurement.report.result,project?.units??"mm"):[];
+diff --git a/apps/desktop/src/features/reference-measurements/SelectionModelProperties.tsx b/apps/desktop/src/features/reference-measurements/SelectionModelProperties.tsx
+index 07452ca..89d7f13 100644
+--- a/apps/desktop/src/features/reference-measurements/SelectionModelProperties.tsx
++++ b/apps/desktop/src/features/reference-measurements/SelectionModelProperties.tsx
+@@ -15,7 +15,7 @@ export function SelectionModelProperties({ selectedBodyId, interactive, hostAvai
+   const bodyId = inspector.selectedEdge?.bodyId ?? inspector.selectedFace?.bodyId ?? selectedBodyId;
+   return <div className="selection-model-properties">
+     <ModelInspector {...inspector} />
+-    <ExactReferenceMeasurement project={inspector.project} bodyId={bodyId}
++    <ExactReferenceMeasurement sourceBinding={inspector.sourceBinding} project={inspector.project} bodyId={bodyId}
+       edge={inspector.selectedEdge} face={inspector.selectedFace}
+       interactive={interactive} hostAvailable={hostAvailable} />
+     <PairMeasurement bodyId={bodyId} sceneToken={sceneToken} interactive={interactive} hostAvailable={hostAvailable} />
+diff --git a/apps/desktop/src/app/App.tsx b/apps/desktop/src/app/App.tsx
+index 8a8b396..9b79542 100644
+--- a/apps/desktop/src/app/App.tsx
++++ b/apps/desktop/src/app/App.tsx
+@@ -1118,6 +1118,7 @@ export default function App() {
+                   onEdit={() => setModal("parameters")}
+                 >
+                   <SelectionModelProperties
++                    sourceBinding={sourceBinding}
+                     selectedBodyId={selected}
+                     sceneToken={committedScene.selectionScene.token}
+                     interactive={committedScene.interactive && !compare}
+diff --git a/apps/desktop/src/features/project-sources/inspectionSource.test.tsx b/apps/desktop/src/features/project-sources/inspectionSource.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/inspectionSource.test.tsx
+@@ -0,0 +1,47 @@
++import {afterEach,expect,it,vi} from "vitest";
++import {act,cleanup,render,screen,waitFor} from "@testing-library/react";
++import {QueryClient,QueryClientProvider} from "@tanstack/react-query";
++import {Group} from "three";
++import {ModelInspector} from "../../app/ModelInspector";
++import {newProject} from "../../stores/workspace";
++import {defaults} from "../../types";
++import {inspectModel} from "../../lib/model";
++import type {ExactModelProperties} from "../../lib/modelInspection";
++import {folderSource} from "./sourceBinding";
++const mocks=vi.hoisted(()=>({inspect:vi.fn()}));
++vi.mock("../../lib/api",()=>({native:true}));
++vi.mock("../../lib/modelInspection",()=>({inspectSavedModel:mocks.inspect}));
++afterEach(()=>{cleanup();vi.resetAllMocks();});
++function fixture(){
++ const project=newProject("Source properties","blank","mm","codex");project.currentRevision="head";
++ project.revisions=[{id:"head",parent:null,createdAt:project.createdAt,prompt:"",parameters:defaults,source:"body.step"}];
++ const props={project,revision:project.revisions[0],selectedLabel:null,selectedFace:null,selectedFaceAreaMm2:null,selectedEdge:null,selectedEdgeLengthMm:null,selectedEdgeRadiusMm:null,stats:inspectModel(new Group()),thickness:2,onEditParameters:()=>{}};
++ const binding=()=>folderSource(project.id,{sourceId:"source",commitId:"commit",taskScopeId:"task"});
++ const client=new QueryClient({defaultOptions:{queries:{retry:false,gcTime:0}}});
++ const wrapper=({children}:{children:React.ReactNode})=><QueryClientProvider client={client}>{children}</QueryClientProvider>;
++ return{props,binding,wrapper};
++}
++const report=(boundsMm:[number,number,number]):ExactModelProperties=>({boundsMm,volumeMm3:8000,areaMm2:2800,faceCount:6,edgeCount:12});
++it("requests exact inspection from the captured host source",async()=>{
++ const{props,binding,wrapper}=fixture(),source=binding();mocks.inspect.mockResolvedValue(report([40,20,10]));
++ render(<ModelInspector {...props} sourceBinding={source}/>,{wrapper});
++ await waitFor(()=>expect(mocks.inspect).toHaveBeenCalledTimes(1));
++ expect(mocks.inspect).toHaveBeenCalledWith(props.project.id,"head",source.kind==="folder"?source.source:null);
++ await screen.findByText("CAD dimensions (X × Y × Z)");
++});
++it("does not share cached or late properties across identical project/revision/source IDs after reopen",async()=>{
++ const{props,binding,wrapper}=fixture();let resolve!:(value:ExactModelProperties)=>void;
++ mocks.inspect.mockImplementationOnce(()=>new Promise<ExactModelProperties>(done=>{resolve=done;})).mockResolvedValueOnce(report([2,3,4]));
++ const view=render(<ModelInspector {...props} sourceBinding={binding()}/>,{wrapper});
++ await waitFor(()=>expect(mocks.inspect).toHaveBeenCalledTimes(1));view.rerender(<ModelInspector {...props} sourceBinding={binding()}/>);
++ await waitFor(()=>expect(screen.getByText("CAD dimensions (X × Y × Z)").closest("div")).toHaveTextContent("2.00 × 3.00 × 4.00"));
++ await act(async()=>resolve(report([40,20,10])));
++ expect(screen.getByText("CAD dimensions (X × Y × Z)").closest("div")).toHaveTextContent("2.00 × 3.00 × 4.00");
++ expect(mocks.inspect).toHaveBeenCalledTimes(2);
++});
++it("never makes a managed inspection call for missing or mismatched explicit binding",async()=>{
++ const{props,wrapper}=fixture();const source=folderSource("other",{sourceId:"source",commitId:"commit",taskScopeId:"task"});
++ const view=render(<ModelInspector {...props} sourceBinding={source}/>,{wrapper});
++ await act(async()=>{});view.rerender(<ModelInspector {...props} sourceBinding={null}/>);await act(async()=>{});
++ expect(mocks.inspect).not.toHaveBeenCalled();expect(screen.queryByText("CAD dimensions (X × Y × Z)")).toBeNull();
++});
+diff --git a/apps/desktop/src/features/pair-measurements/pairCapture.ts b/apps/desktop/src/features/pair-measurements/pairCapture.ts
+index 5794269..5608924 100644
+--- a/apps/desktop/src/features/pair-measurements/pairCapture.ts
++++ b/apps/desktop/src/features/pair-measurements/pairCapture.ts
+@@ -1,3 +1,4 @@
++import {sourceRefFor,type ProjectSourceBinding} from "../project-sources/sourceBinding";
+ import type { Project } from "../../types";
+ import type { EdgeSelection } from "../viewer/edgeSelection";
+ import type { FaceSelection } from "../viewer/faceSelection";
+@@ -6,13 +7,15 @@ import { readTopologyReference,type TopologyReference } from "../viewer/topology
+ import { matchesReferenceRoute } from "../viewer/topology/referenceRoute";
+ import { pairQuerySchema,type PairKind,type PairReport } from "./pairSchema";
+ 
+-export function capturePairScope(project:Project|null,bodyId:string|null,sceneToken:string,interactive:boolean){
++export function capturePairScope(project:Project|null,bodyId:string|null,sceneToken:string,interactive:boolean,sourceBinding?:ProjectSourceBinding|null){
+  if(!interactive||!project?.currentRevision||!bodyId||!sceneToken)return null;
++ if(sourceBinding!==undefined&&(!sourceBinding||sourceBinding.projectId!==project.id))return null;
++ const folder=sourceBinding?sourceRefFor(sourceBinding,project.id):undefined;
+  const revision=project.revisions.find(value=>value.id===project.currentRevision),rawProgram=revision?.program??"",document=readTypedCadDocument(rawProgram);
+  const body=document?.bodies.find(value=>value.id===bodyId),source=project.files.find(value=>value.name===revision?.source&&/\.st(e)?p$/i.test(value.name));
+  if(!document||document.revisionId!==project.currentRevision||!body||!source?.sha256||!/^[a-f0-9]{64}$/.test(source.sha256)||typeof source.size!=="number"||!Number.isInteger(source.size)||source.size<=0||source.size>40*1024*1024)return null;
+- const binding={projectId:project.id,expectedRevision:project.currentRevision,bodyId,rawProgram,sourceSha256:source.sha256,sourceSize:source.size,sceneToken};
+- return {...binding,key:JSON.stringify(binding),document,body};
++ const binding={sourceOpeningId:sourceBinding?.openingId,sourceId:folder?.sourceId,taskScopeId:folder?.taskScopeId,projectId:project.id,expectedRevision:project.currentRevision,bodyId,rawProgram,sourceSha256:source.sha256,sourceSize:source.size,sceneToken};
++ return {...binding,key:JSON.stringify(binding),source:folder,document,body};
+ }
+ export type PairScope=NonNullable<ReturnType<typeof capturePairScope>>;
+ /** Copies ONLY the real current selection's validated authored identity. */
+@@ -35,7 +38,7 @@ export function capturePair(scope:PairScope|null,first:TopologyReference|null,se
+  if(!scope||!first||!second||!pairKinds(first,second).includes(kind)||![first,second].every(reference=>matchesReferenceRoute(scope.document,scope.body.sourceFeatureId,reference)))return null;
+  const parsed=pairQuerySchema.safeParse({kind,first,second});if(!parsed.success)return null;
+  const request={projectId:scope.projectId,expectedRevision:scope.expectedRevision,bodyId:scope.bodyId,query:parsed.data};
+- return{key:JSON.stringify([scope.key,parsed.data]),request,rawProgram:scope.rawProgram,sourceSha256:scope.sourceSha256,sourceSize:scope.sourceSize};
++ return{...(scope.sourceOpeningId?{source:scope.source,sourceOpeningId:scope.sourceOpeningId}:{}),key:JSON.stringify([scope.key,parsed.data]),request,rawProgram:scope.rawProgram,sourceSha256:scope.sourceSha256,sourceSize:scope.sourceSize};
+ }
+ export type PairCapture=NonNullable<ReturnType<typeof capturePair>>;
+ export function matchesPairReport(report:PairReport,capture:PairCapture){
+diff --git a/apps/desktop/src/features/pair-measurements/pairApi.ts b/apps/desktop/src/features/pair-measurements/pairApi.ts
+index 6fe2897..7d371ed 100644
+--- a/apps/desktop/src/features/pair-measurements/pairApi.ts
++++ b/apps/desktop/src/features/pair-measurements/pairApi.ts
+@@ -3,7 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
+ import { native } from "../../lib/api";
+ import { matchesPairReport,type PairCapture } from "./pairCapture";
+ import { readPairReport } from "./pairSchema";
+-export async function measurePair(capture:PairCapture, source?:FolderSourceRef){
++export async function measurePair(capture:PairCapture, source:FolderSourceRef|undefined=capture.source){
++ if(capture.sourceOpeningId&&(source?.sourceId!==capture.source?.sourceId||source?.commitId!==capture.source?.commitId||source?.taskScopeId!==capture.source?.taskScopeId))throw Error("MEASUREMENT_STALE");
+  if(source&&!native)throw Error("PROJECT_FOLDER_UNSUPPORTED");
+   if(!native)throw Error("MEASUREMENT_UNSUPPORTED");
+  const report=readPairReport(await invoke("measure_model_pair",source ? {...capture.request, sourceId:source.sourceId, expectedCommitId:source.commitId} : capture.request));
+diff --git a/apps/desktop/src/features/pair-measurements/pairSession.ts b/apps/desktop/src/features/pair-measurements/pairSession.ts
+index 7808bdf..47750cf 100644
+--- a/apps/desktop/src/features/pair-measurements/pairSession.ts
++++ b/apps/desktop/src/features/pair-measurements/pairSession.ts
+@@ -8,7 +8,7 @@ export class PairSession {
+  subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener);};};
+  snapshot=()=>this.value;
+  private publish(value:PairState){this.value=value;this.listeners.forEach(listener=>listener());}
+- setContext(context:PairCapture|null){if(this.closed||context?.key===this.context?.key)return;this.epoch++;this.context=context;this.publish({key:context?.key??"",phase:"idle",working:this.inFlight,report:null});}
++ setContext(context:PairCapture|null){if(this.closed)return;if(context?.key===this.context?.key){this.context=context;return;}this.epoch++;this.context=context;this.publish({key:context?.key??"",phase:"idle",working:this.inFlight,report:null});}
+  stopWaiting(){if(this.closed)return;this.epoch++;this.publish({...this.value,phase:this.value.report?"ready":"idle",error:undefined});}
+  async run(load:(capture:PairCapture)=>Promise<PairReport>){
+   const capture=this.context;if(this.closed||!capture||this.inFlight)return;
+diff --git a/apps/desktop/src/features/pair-measurements/usePairSlots.ts b/apps/desktop/src/features/pair-measurements/usePairSlots.ts
+index 1cfa488..a7fce05 100644
+--- a/apps/desktop/src/features/pair-measurements/usePairSlots.ts
++++ b/apps/desktop/src/features/pair-measurements/usePairSlots.ts
+@@ -1,19 +1,20 @@
+-import { useEffect,useMemo,useState } from "react";
++import { useEffect,useMemo,useState,useRef } from "react";
++import type {ProjectSourceBinding} from "../project-sources/sourceBinding";
+ import type { Project } from "../../types";
+ import type { EdgeSelection } from "../viewer/edgeSelection";
+ import type { FaceSelection } from "../viewer/faceSelection";
+ import type { TopologyReference } from "../viewer/topology/topologyReference";
+ import { capturePairScope,currentPairReference } from "./pairCapture";
+ interface Slots {key:string;first:TopologyReference|null;second:TopologyReference|null}
+-export function usePairSlots(project:Project|null,bodyId:string|null,sceneToken:string,interactive:boolean,edge:EdgeSelection|null,face:FaceSelection|null){
+- const scope=useMemo(()=>capturePairScope(project,bodyId,sceneToken,interactive),[project,bodyId,sceneToken,interactive]);
++export function usePairSlots(project:Project|null,bodyId:string|null,sceneToken:string,interactive:boolean,edge:EdgeSelection|null,face:FaceSelection|null,sourceBinding?:ProjectSourceBinding|null){
++ const scope=useMemo(()=>capturePairScope(project,bodyId,sceneToken,interactive,sourceBinding),[project,bodyId,sceneToken,interactive,sourceBinding]);
+  const [slots,setSlots]=useState<Slots>({key:"",first:null,second:null});
+- const key=scope?.key??"";
++ const key=scope?.key??"";const latest=useRef(key);latest.current=key;
+  // Aligned values disappear in the first render, before this housekeeping effect.
+  const aligned=!!scope&&slots.key===key;
+  useEffect(()=>{setSlots(value=>value.key===key?value:{key,first:null,second:null});},[key]);
+  const current=useMemo(()=>currentPairReference(scope,edge,face),[scope,edge,face]);
+- const capture=(slot:"first"|"second")=>{if(!scope||!current)return;setSlots(value=>({...(value.key===key?value:{key,first:null,second:null}),[slot]:current}));};
++ const capture=(slot:"first"|"second")=>{if(!scope||!current||latest.current!==key)return;setSlots(value=>latest.current!==key?value:({...(value.key===key?value:{key,first:null,second:null}),[slot]:current}));};
+  return{scope,first:aligned?slots.first:null,second:aligned?slots.second:null,current,
+-  captureFirst:()=>capture("first"),captureSecond:()=>capture("second"),clear:()=>setSlots({key,first:null,second:null})};
++  captureFirst:()=>capture("first"),captureSecond:()=>capture("second"),clear:()=>{if(latest.current===key)setSlots({key,first:null,second:null});}};
+ }
+diff --git a/apps/desktop/src/features/pair-measurements/PairMeasurement.tsx b/apps/desktop/src/features/pair-measurements/PairMeasurement.tsx
+index 2be2a9e..4ca597c 100644
+--- a/apps/desktop/src/features/pair-measurements/PairMeasurement.tsx
++++ b/apps/desktop/src/features/pair-measurements/PairMeasurement.tsx
+@@ -3,7 +3,7 @@ import { Ruler,MousePointer2,RefreshCw,X,CheckCircle2,LoaderCircle,AlertCircle }
+ import { Button,Select } from "../../components/ui";
+ import { t,errorText } from "../../i18n";
+ import { useWorkspace } from "../../stores/workspace";
+-import { usePersistentState } from "../../lib/persistence";
++import {useSourcePreference} from "../project-sources/useSourcePreference";
+ import { EditorDisclosure } from "../model-editor/EditorDisclosure";
+ import { pairKinds } from "./pairCapture";
+ import type { PairKind } from "./pairSchema";
+@@ -15,11 +15,12 @@ import "./PairMeasurement.css";
+ /** Uses actual workspace selections; capture buttons never fabricate selection or geometry. */
+ export function PairMeasurement({bodyId,sceneToken,interactive,hostAvailable}:{bodyId:string|null;sceneToken:string;interactive:boolean;hostAvailable:boolean}){
+  const project=useWorkspace(state=>state.project),edge=useWorkspace(state=>state.selectedEdge),face=useWorkspace(state=>state.selectedFace);
+- const slots=usePairSlots(project,bodyId,sceneToken,interactive&&hostAvailable,edge,face);
++ const sourceBinding=useWorkspace(state=>state.sourceBinding);
++ const slots=usePairSlots(project,bodyId,sceneToken,interactive&&hostAvailable,edge,face,sourceBinding);
+  const [kind,setKind]=useState<PairKind>("minimumDistance");
+  const kinds=pairKinds(slots.first,slots.second),activeKind=kinds.includes(kind)?kind:(kinds[0]??"minimumDistance");
+  const measurement=usePairMeasurement(slots.scope,slots.first,slots.second,activeKind);
+- const [open,setOpen]=usePersistentState(`forma.ui.project.${project?.id??"empty"}.pairMeasurement.open`,false);
++ const [open,setOpen]=useSourcePreference(`forma.ui.project.${project?.id??"empty"}.pairMeasurement.open`,false,sourceBinding);
+  const labels:Record<PairKind,string>={minimumDistance:t("Minimum distance between references"),faceNormalAngle:t("Outward face-normal angle (0–180°)"),edgeAcuteAngle:t("Acute straight-edge angle (0–90°)")};
+  const pending=measurement.phase==="pending",previous=!!measurement.report&&(pending||measurement.phase==="failed");
+  const rows=measurement.report?pairRows(measurement.report.result,project?.units??"mm"):[];
+diff --git a/apps/desktop/src/features/project-sources/pairSource.test.tsx b/apps/desktop/src/features/project-sources/pairSource.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/pairSource.test.tsx
+@@ -0,0 +1,64 @@
++import {afterEach,expect,it,vi} from "vitest";
++import {act,cleanup,renderHook} from "@testing-library/react";
++import {folderSource,refreshFolderSource,type ProjectSourceBinding} from "./sourceBinding";
++import {pairTestContext,pairTestReport} from "../pair-measurements/pairTestContext";
++import {capturePairScope,capturePair,type PairCapture} from "../pair-measurements/pairCapture";
++import {usePairSlots} from "../pair-measurements/usePairSlots";
++import {PairSession} from "../pair-measurements/pairSession";
++import {measurePair} from "../pair-measurements/pairApi";
++import type {PairReport} from "../pair-measurements/pairSchema";
++const mocks=vi.hoisted(()=>({invoke:vi.fn()}));
++vi.mock("@tauri-apps/api/core",()=>({invoke:mocks.invoke}));
++vi.mock("../../lib/api",()=>({native:true}));
++afterEach(()=>{cleanup();vi.resetAllMocks();});
++function fixture(){
++ const context=pairTestContext();
++ const binding=(id="first")=>folderSource(context.project.id,{sourceId:id,commitId:"commit",taskScopeId:`task-${id}`});
++ const capture=(source:ProjectSourceBinding)=>capturePair(capturePairScope(context.project,context.bodyId,context.sceneToken,true,source),context.face.topologyRef!,context.second.topologyRef!,"minimumDistance")!;
++ return{context,binding,capture};
++}
++it("binds pair identity to original source/opening while advancing compatible commit references",()=>{
++ const{binding,capture}=fixture(),first=binding();if(first.kind!=="folder")throw Error("fixture");
++ const original=capture(first),next=capture(refreshFolderSource(first,{...first.source,commitId:"metadata"}));
++ expect(capture(binding("second")).key).not.toBe(original.key);expect(capture(binding()).key).not.toBe(original.key);
++ expect(next.key).toBe(original.key);expect(next.source?.commitId).toBe("metadata");expect(original.source?.commitId).toBe("commit");
++});
++it("retains slot choices through metadata but rejects setters and clear from retired openings",()=>{
++ const{context,binding}=fixture(),first=binding();if(first.kind!=="folder")throw Error("fixture");
++ const hook=renderHook(({source})=>usePairSlots(context.project,context.bodyId,context.sceneToken,true,null,context.face,source),{initialProps:{source:first as ProjectSourceBinding}});
++ act(()=>hook.result.current.captureFirst());expect(hook.result.current.first).toEqual(context.face.topologyRef);
++ hook.rerender({source:refreshFolderSource(first,{...first.source,commitId:"metadata"})});expect(hook.result.current.first).toEqual(context.face.topologyRef);
++ const staleCapture=hook.result.current.captureSecond,staleClear=hook.result.current.clear;
++ hook.rerender({source:binding("second")});expect(hook.result.current.first).toBeNull();
++ act(()=>hook.result.current.captureFirst());act(()=>{staleCapture();staleClear();});
++ expect(hook.result.current.first).toEqual(context.face.topologyRef);expect(hook.result.current.second).toBeNull();
++});
++it("never substitutes managed scope for missing or mismatched explicit source",()=>{
++ const{context}=fixture();
++ expect(capturePairScope(context.project,context.bodyId,context.sceneToken,true,null)).toBeNull();
++ const wrong=folderSource("other",{sourceId:"source",commitId:"commit",taskScopeId:"task"});
++ expect(capturePairScope(context.project,context.bodyId,context.sceneToken,true,wrong)).toBeNull();
++ expect(capturePairScope(context.project,context.bodyId,context.sceneToken,true)).not.toBeNull();
++});
++it("rejects a late pair result after equal-ID reopen",async()=>{
++ const{binding,capture}=fixture(),first=capture(binding()),next=capture(binding());
++ const session=new PairSession();session.setContext(first);let resolve!:(value:PairReport)=>void;
++ const pending=session.run(()=>new Promise(done=>{resolve=done;}));session.setContext(next);resolve(pairTestReport(first));await pending;
++ expect(session.snapshot().report).toBeNull();expect(session.snapshot().key).toBe(next.key);
++});
++it("preserves compatible pending results and refreshes only the next request capture",async()=>{
++ const{binding,capture}=fixture(),source=binding();if(source.kind!=="folder")throw Error("fixture");
++ const first=capture(source),next=capture(refreshFolderSource(source,{...source.source,commitId:"metadata"}));
++ const session=new PairSession();session.setContext(first);let resolve!:(value:PairReport)=>void;
++ const pending=session.run(()=>new Promise(done=>{resolve=done;}));session.setContext(next);resolve(pairTestReport(first));await pending;
++ expect(session.snapshot().report).toEqual(pairTestReport(first));
++ const load=vi.fn(async(value:PairCapture)=>pairTestReport(value));await session.run(load);expect(load.mock.calls[0][0]).toBe(next);
++});
++it("routes native pair IPC through its captured folder and refuses foreign overrides",async()=>{
++ const{binding,capture}=fixture(),captured=capture(binding());
++ const hash=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(captured.rawProgram));
++ mocks.invoke.mockResolvedValue({...pairTestReport(captured),documentSha256:Array.from(new Uint8Array(hash),value=>value.toString(16).padStart(2,"0")).join("")});
++ await measurePair(captured);expect(mocks.invoke).toHaveBeenCalledWith("measure_model_pair",{...captured.request,sourceId:"first",expectedCommitId:"commit"});
++ mocks.invoke.mockClear();await expect(measurePair(captured,{sourceId:"other",commitId:"commit",taskScopeId:"other-task"})).rejects.toThrow("MEASUREMENT_STALE");
++ expect(mocks.invoke).not.toHaveBeenCalled();
++});

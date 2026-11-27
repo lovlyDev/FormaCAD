@@ -1,0 +1,2923 @@
+diff --git a/.github/workflows/storage-benchmark.yml b/.github/workflows/storage-benchmark.yml
+--- a/.github/workflows/storage-benchmark.yml
++++ b/.github/workflows/storage-benchmark.yml
+@@ -59,7 +59,10 @@ jobs:
+         run: |
+           set -o pipefail
+           cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-default-features --lib project_repository::window_sources:: -- --nocapture 2>&1 | tee storage-evidence/window-source-tests.log
+-          grep -F 'test result: ok. 18 passed; 0 failed;' storage-evidence/window-source-tests.log
++          grep -F 'test result: ok. 21 passed; 0 failed;' storage-evidence/window-source-tests.log
++          grep -F 'test project_repository::window_sources::write_ipc::tests::folder_write_accepts_the_key_issued_by_the_registry ... ok' storage-evidence/window-source-tests.log
++          grep -E 'test project_repository::window_sources::write_ipc::tests::folder_write_requires_all_selectors_and_excludes_managed_payload \.\.\. ok' storage-evidence/window-source-tests.log
++          grep -E 'test project_repository::window_sources::write_ipc::tests::managed_reply_keeps_the_existing_project_json_shape \.\.\. ok' storage-evidence/window-source-tests.log
+           grep -E 'test project_repository::window_sources::approval::tests::wrong_write_command_leaves_the_original_approval_available \.\.\. ok' storage-evidence/window-source-tests.log
+           grep -E 'test project_repository::window_sources::approval::tests::write_reply_identifies_its_base_and_distinguishes_every_publication_status \.\.\. ok' storage-evidence/window-source-tests.log
+           grep -E 'test project_repository::window_sources::approval::tests::retained_prepared_request_cannot_substitute_project_or_revision \.\.\. ok' storage-evidence/window-source-tests.log
+diff --git a/apps/desktop/src-tauri/src/lib.rs b/apps/desktop/src-tauri/src/lib.rs
+--- a/apps/desktop/src-tauri/src/lib.rs
++++ b/apps/desktop/src-tauri/src/lib.rs
+@@ -102,7 +102,9 @@ pub fn run() {
+             projects::list_projects,
+             projects::read_project_snapshot,
+             project_repository::window_sources::ipc::open_project_folder,
++            project_repository::window_sources::ipc::creation::create_project_folder,
+             project_repository::window_sources::ipc::close_project_source,
++            project_repository::window_sources::ipc::commit_query::observe_folder_commit,
+             projects::save_project_thumbnail,
+             projects::delete_project,
+             projects::interrupted_sessions,
+diff --git a/apps/desktop/src-tauri/src/modeling.rs b/apps/desktop/src-tauri/src/modeling.rs
+--- a/apps/desktop/src-tauri/src/modeling.rs
++++ b/apps/desktop/src-tauri/src/modeling.rs
+@@ -1,6 +1,10 @@
+ use crate::{
+-    core::{AppState, Result},
++    core::{AppError, AppState, Result},
+     models::Project,
++    project_repository::window_sources::{
++        write_ipc::{self, Command as FolderCommand, FolderWriteRequest, WriteReply},
++        WindowSources,
++    },
+ };
+ use tauri::{Emitter, State};
+ pub mod amend_transform;
+@@ -25,30 +29,77 @@ fn publish(outcome: apply::ApplyOutcome, app: &tauri::AppHandle) -> Project {
+ }
+
+ #[tauri::command]
++#[allow(clippy::too_many_arguments)]
+ pub async fn apply_program(
+     project_id: String,
+-    program: String,
+-    prompt: String,
++    program: Option<String>,
++    prompt: Option<String>,
+     expected_revision: Option<String>,
+     review_plan: Option<crate::agents::review_plan::ReviewPlan>,
++    folder_write: Option<FolderWriteRequest>,
++    window: tauri::WebviewWindow,
++    sources: State<'_, WindowSources>,
+     state: State<'_, AppState>,
+     app: tauri::AppHandle,
+-) -> Result<Project> {
++) -> Result<WriteReply> {
++    if let Some(request) = folder_write {
++        return write_ipc::execute(
++            &sources,
++            &state,
++            window.label(),
++            &project_id,
++            request,
++            FolderCommand::Program,
++            program.is_some()
++                || prompt.is_some()
++                || expected_revision.is_some()
++                || review_plan.is_some(),
++        )
++        .await;
++    }
++    let (Some(program), Some(prompt)) = (program, prompt) else {
++        return Err(missing_payload());
++    };
+     let mut request = apply::ApplyRequest::new(project_id, program, prompt, expected_revision);
+     request.review_plan = review_plan;
+-    Ok(publish(apply::apply(&state, request).await?, &app))
++    Ok(publish(apply::apply(&state, request).await?, &app).into())
+ }
+
+ #[tauri::command]
++#[allow(clippy::too_many_arguments)]
+ pub async fn apply_ir_commands(
+     project_id: String,
+-    commands: Vec<crate::cad_ir::Command>,
+-    prompt: String,
+-    expected_revision: String,
++    commands: Option<Vec<crate::cad_ir::Command>>,
++    prompt: Option<String>,
++    expected_revision: Option<String>,
++    folder_write: Option<FolderWriteRequest>,
++    window: tauri::WebviewWindow,
++    sources: State<'_, WindowSources>,
+     state: State<'_, AppState>,
+     app: tauri::AppHandle,
+-) -> Result<Project> {
++) -> Result<WriteReply> {
++    if let Some(request) = folder_write {
++        return write_ipc::execute(
++            &sources,
++            &state,
++            window.label(),
++            &project_id,
++            request,
++            FolderCommand::Commands,
++            commands.is_some() || prompt.is_some() || expected_revision.is_some(),
++        )
++        .await;
++    }
++    let (Some(commands), Some(prompt), Some(expected_revision)) =
++        (commands, prompt, expected_revision)
++    else {
++        return Err(missing_payload());
++    };
+     let request =
+         commands::prepare(&state, project_id, commands, prompt, expected_revision).await?;
+-    Ok(publish(apply::apply(&state, request).await?, &app))
++    Ok(publish(apply::apply(&state, request).await?, &app).into())
++}
++
++fn missing_payload() -> AppError {
++    AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into())
+ }
+diff --git a/apps/desktop/src-tauri/src/project_history/mod.rs b/apps/desktop/src-tauri/src/project_history/mod.rs
+--- a/apps/desktop/src-tauri/src/project_history/mod.rs
++++ b/apps/desktop/src-tauri/src/project_history/mod.rs
+@@ -21,6 +21,10 @@ pub(crate) use state::{prepare_amend, AmendCapture};
+ use crate::{
+     core::{AppError, AppState, Result},
+     models::Project,
++    project_repository::window_sources::{
++        write_ipc::{self, Command as FolderCommand, FolderWriteRequest, WriteReply},
++        WindowSources,
++    },
+ };
+ use serde::Serialize;
+ use tauri::State;
+@@ -36,9 +40,21 @@ pub struct HistoryStatus {
+ #[tauri::command]
+ pub async fn history_status(
+     project_id: String,
++    source_id: Option<String>,
++    expected_commit_id: Option<String>,
++    window: tauri::WebviewWindow,
++    sources: State<'_, crate::project_repository::window_sources::WindowSources>,
+     state: State<'_, AppState>,
+ ) -> Result<HistoryStatus> {
+-    status_for(&state, &project_id).await
++    match (source_id, expected_commit_id) {
++        (None, None) => status_for(&state, &project_id).await,
++        (Some(source_id), Some(commit)) => {
++            sources
++                .folder_history_status(window.label(), &source_id, &project_id, &commit)
++                .await
++        }
++        _ => Err(AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into())),
++    }
+ }
+
+ pub async fn apply_history(
+@@ -78,9 +94,24 @@ pub async fn apply_history(
+ pub async fn undo_model(
+     project_id: String,
+     expected_revision: Option<String>,
++    folder_write: Option<FolderWriteRequest>,
++    window: tauri::WebviewWindow,
++    sources: State<'_, WindowSources>,
+     state: State<'_, AppState>,
+     app: tauri::AppHandle,
+-) -> Result<Project> {
++) -> Result<WriteReply> {
++    if let Some(request) = folder_write {
++        return write_ipc::execute(
++            &sources,
++            &state,
++            window.label(),
++            &project_id,
++            request,
++            FolderCommand::History(Direction::Undo),
++            expected_revision.is_some(),
++        )
++        .await;
++    }
+     apply_history(
+         &state,
+         &project_id,
+@@ -89,15 +120,31 @@ pub async fn undo_model(
+         Some(&app),
+     )
+     .await
++    .map(WriteReply::from)
+ }
+
+ #[tauri::command]
+ pub async fn redo_model(
+     project_id: String,
+     expected_revision: Option<String>,
++    folder_write: Option<FolderWriteRequest>,
++    window: tauri::WebviewWindow,
++    sources: State<'_, WindowSources>,
+     state: State<'_, AppState>,
+     app: tauri::AppHandle,
+-) -> Result<Project> {
++) -> Result<WriteReply> {
++    if let Some(request) = folder_write {
++        return write_ipc::execute(
++            &sources,
++            &state,
++            window.label(),
++            &project_id,
++            request,
++            FolderCommand::History(Direction::Redo),
++            expected_revision.is_some(),
++        )
++        .await;
++    }
+     apply_history(
+         &state,
+         &project_id,
+@@ -106,4 +153,5 @@ pub async fn redo_model(
+         Some(&app),
+     )
+     .await
++    .map(WriteReply::from)
+ }
+diff --git a/apps/desktop/src-tauri/src/project_repository/sqlite_folder/api.rs b/apps/desktop/src-tauri/src/project_repository/sqlite_folder/api.rs
+--- a/apps/desktop/src-tauri/src/project_repository/sqlite_folder/api.rs
++++ b/apps/desktop/src-tauri/src/project_repository/sqlite_folder/api.rs
+@@ -18,7 +18,9 @@ mod sources;
+ mod write;
+ pub use model::{ModelChange, ModelIntent, ModelRuntime};
+ pub use publication::{CommitPresence, Publication, SavedCommit};
+-pub use sources::{FolderCreation, FolderSourceId, FolderSources, OpenedFolder, MAX_FOLDER_SOURCES};
++pub use sources::{
++    FolderCreation, FolderSourceId, FolderSources, OpenedFolder, MAX_FOLDER_SOURCES,
++};
+ pub use write::WriteApproval;
+ #[cfg(feature = "native-worker-client")]
+ mod step;
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/capture.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/capture.rs
+--- a/apps/desktop/src-tauri/src/project_repository/window_sources/capture.rs
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/capture.rs
+@@ -3,6 +3,41 @@ use super::WindowSources;
+ use crate::{core::Result, project_repository::backend::RepositoryRead};
+
+ impl WindowSources {
++    pub async fn folder_history_status(
++        &self,
++        label: &str,
++        key: &str,
++        id: &str,
++        expected: &str,
++    ) -> Result<crate::project_history::HistoryStatus> {
++        #[cfg(any(
++            windows,
++            all(
++                target_os = "linux",
++                any(target_arch = "x86_64", target_arch = "aarch64")
++            )
++        ))]
++        {
++            self.capture_operation(label, key, id, expected)
++                .await?
++                .history_status()
++                .await
++        }
++        #[cfg(not(any(
++            windows,
++            all(
++                target_os = "linux",
++                any(target_arch = "x86_64", target_arch = "aarch64")
++            )
++        )))]
++        {
++            let _ = (label, key, id, expected);
++            Err(crate::core::AppError::Invalid(
++                "PROJECT_FOLDER_UNSUPPORTED".into(),
++            ))
++        }
++    }
++
+     pub async fn capture_read(
+         &self,
+         label: &str,
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/ipc.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/ipc.rs
+--- a/apps/desktop/src-tauri/src/project_repository/window_sources/ipc.rs
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/ipc.rs
+@@ -3,6 +3,9 @@ use super::WindowSources;
+ use crate::{core::Result, models::Project};
+ use tauri::State;
+
++pub mod commit_query;
++pub mod creation;
++
+ #[derive(serde::Serialize)]
+ #[serde(rename_all = "camelCase")]
+ pub struct FolderOpen {
+@@ -25,34 +28,15 @@ pub async fn open_project_folder(
+         )
+     ))]
+     {
+-        use tauri::Manager;
+-        use tauri_plugin_dialog::DialogExt;
+         // Reserve the original window scope BEFORE the dialog await. Destroying
+         // this window closes it even if a late picker result arrives afterward.
+         let scope = sources.for_window(window.label())?;
+-        let app = window.app_handle().clone();
+-        let picked = tokio::task::spawn_blocking(move || {
+-            app.dialog()
+-                .file()
+-                .set_title("Forma CAD")
+-                .blocking_pick_folder()
+-        })
+-        .await
+-        .map_err(|error| crate::core::AppError::Invalid(error.to_string()))?;
+-        let Some(picked) = picked else {
++        let Some(path) = pick_folder(&window).await? else {
+             return Ok(None);
+         };
+-        let path = picked
+-            .into_path()
+-            .map_err(|error| crate::core::AppError::Invalid(error.to_string()))?;
+         let opened = scope.open(&path).await?;
+         // No further await after the registry's cancellation-protected recheck.
+-        Ok(Some(FolderOpen {
+-            source_id: opened.id.to_string(),
+-            commit_id: opened.snapshot.commit_id().into(),
+-            task_scope_id: opened.snapshot.task_scope_id().into(),
+-            project: opened.snapshot.project().clone(),
+-        }))
++        Ok(Some(folder_open(opened)))
+     }
+     #[cfg(not(any(
+         windows,
+@@ -69,6 +53,50 @@ pub async fn open_project_folder(
+     }
+ }
+
++#[cfg(any(
++    windows,
++    all(
++        target_os = "linux",
++        any(target_arch = "x86_64", target_arch = "aarch64")
++    )
++))]
++async fn pick_folder(window: &tauri::WebviewWindow) -> Result<Option<std::path::PathBuf>> {
++    use crate::core::AppError;
++    use tauri::Manager;
++    use tauri_plugin_dialog::DialogExt;
++    let app = window.app_handle().clone();
++    let picked = tokio::task::spawn_blocking(move || {
++        app.dialog()
++            .file()
++            .set_title("Forma CAD")
++            .blocking_pick_folder()
++    })
++    .await
++    .map_err(|error| AppError::Invalid(error.to_string()))?;
++    picked
++        .map(|path| {
++            path.into_path()
++                .map_err(|error| AppError::Invalid(error.to_string()))
++        })
++        .transpose()
++}
++
++#[cfg(any(
++    windows,
++    all(
++        target_os = "linux",
++        any(target_arch = "x86_64", target_arch = "aarch64")
++    )
++))]
++fn folder_open(opened: crate::project_repository::sqlite_folder::api::OpenedFolder) -> FolderOpen {
++    FolderOpen {
++        source_id: opened.id.to_string(),
++        commit_id: opened.snapshot.commit_id().into(),
++        task_scope_id: opened.snapshot.task_scope_id().into(),
++        project: opened.snapshot.project().clone(),
++    }
++}
++
+ #[tauri::command]
+ pub fn close_project_source(
+     source_id: String,
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/ipc/commit_query.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/ipc/commit_query.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/ipc/commit_query.rs
+@@ -0,0 +1,75 @@
++use super::{Result, State, WindowSources};
++
++#[derive(serde::Serialize)]
++#[serde(rename_all = "camelCase")]
++pub struct CommitObservation {
++    project_id: String,
++    source_id: String,
++    commit_id: String,
++    status: CommitStatus,
++}
++
++#[cfg_attr(
++    not(any(
++        windows,
++        all(
++            target_os = "linux",
++            any(target_arch = "x86_64", target_arch = "aarch64")
++        )
++    )),
++    allow(dead_code)
++)]
++#[derive(serde::Serialize)]
++#[serde(rename_all = "camelCase")]
++enum CommitStatus {
++    Current,
++    Historical,
++    Absent,
++}
++
++#[tauri::command]
++pub async fn observe_folder_commit(
++    project_id: String,
++    source_id: String,
++    commit_id: String,
++    window: tauri::WebviewWindow,
++    sources: State<'_, WindowSources>,
++) -> Result<CommitObservation> {
++    #[cfg(any(
++        windows,
++        all(
++            target_os = "linux",
++            any(target_arch = "x86_64", target_arch = "aarch64")
++        )
++    ))]
++    {
++        use crate::project_repository::sqlite_folder::api::CommitPresence;
++        let status = match sources
++            .observe_folder_commit(window.label(), &source_id, &project_id, &commit_id)
++            .await?
++        {
++            CommitPresence::Present { is_head: true } => CommitStatus::Current,
++            CommitPresence::Present { is_head: false } => CommitStatus::Historical,
++            CommitPresence::Absent => CommitStatus::Absent,
++        };
++        Ok(CommitObservation {
++            project_id,
++            source_id,
++            commit_id,
++            status,
++        })
++    }
++    #[cfg(not(any(
++        windows,
++        all(
++            target_os = "linux",
++            any(target_arch = "x86_64", target_arch = "aarch64")
++        )
++    )))]
++    {
++        let _ = (project_id, source_id, commit_id, window, sources);
++        Err(crate::core::AppError::Invalid(
++            "PROJECT_FOLDER_UNSUPPORTED".into(),
++        ))
++    }
++}
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/ipc/creation.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/ipc/creation.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/ipc/creation.rs
+@@ -0,0 +1,70 @@
++use super::{FolderOpen, WindowSources};
++use crate::core::{AppError, Result};
++use tauri::State;
++
++#[derive(serde::Deserialize)]
++#[serde(deny_unknown_fields)]
++pub struct BlankFolderProject {
++    name: String,
++    units: String,
++    agent: String,
++}
++
++#[derive(serde::Serialize)]
++#[serde(
++    tag = "status",
++    rename_all = "camelCase",
++    rename_all_fields = "camelCase"
++)]
++pub enum FolderCreationReply {
++    Opened { source: Box<FolderOpen> },
++    SavedWithoutOpening { commit_id: String, error: AppError },
++    Indeterminate { commit_id: String, error: AppError },
++}
++
++#[tauri::command]
++pub async fn create_project_folder(
++    draft: BlankFolderProject,
++    window: tauri::WebviewWindow,
++    sources: State<'_, WindowSources>,
++) -> Result<Option<FolderCreationReply>> {
++    let BlankFolderProject { name, units, agent } = draft;
++    #[cfg(any(
++        windows,
++        all(
++            target_os = "linux",
++            any(target_arch = "x86_64", target_arch = "aarch64")
++        )
++    ))]
++    {
++        use super::{folder_open, pick_folder};
++        use crate::project_repository::sqlite_folder::api::FolderCreation;
++        let scope = sources.for_window(window.label())?;
++        let Some(path) = pick_folder(&window).await? else {
++            return Ok(None);
++        };
++        let created = scope.create_blank(&path, name, units, agent).await?;
++        Ok(Some(match created {
++            FolderCreation::Opened(opened) => FolderCreationReply::Opened {
++                source: Box::new(folder_open(*opened)),
++            },
++            FolderCreation::SavedWithoutOpening { commit_id, error } => {
++                FolderCreationReply::SavedWithoutOpening { commit_id, error }
++            }
++            FolderCreation::Indeterminate { commit_id, error } => {
++                FolderCreationReply::Indeterminate { commit_id, error }
++            }
++        }))
++    }
++    #[cfg(not(any(
++        windows,
++        all(
++            target_os = "linux",
++            any(target_arch = "x86_64", target_arch = "aarch64")
++        )
++    )))]
++    {
++        let _ = (name, units, agent, window, sources);
++        Err(AppError::Invalid("PROJECT_FOLDER_UNSUPPORTED".into()))
++    }
++}
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/mod.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/mod.rs
+--- a/apps/desktop/src-tauri/src/project_repository/window_sources/mod.rs
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/mod.rs
+@@ -14,6 +14,7 @@ pub mod ipc;
+     )
+ ))]
+ pub mod operation;
++pub mod write_ipc;
+
+ #[cfg(any(
+     windows,
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/write_ipc.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/write_ipc.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/write_ipc.rs
+@@ -0,0 +1,122 @@
++//! Transport bridge for the existing model and history write commands.
++use super::WindowSources;
++use crate::{
++    core::{AppError, AppState, Result},
++    models::Project,
++};
++
++#[derive(serde::Deserialize)]
++#[serde(rename_all = "camelCase", deny_unknown_fields)]
++pub struct FolderWriteRequest {
++    source_id: String,
++    expected_commit_id: String,
++    approval_id: String,
++}
++
++/// Selected by the command handler. The renderer cannot change which
++/// operation an IPC endpoint is allowed to execute.
++#[derive(Clone, Copy)]
++pub enum Command {
++    Program,
++    Commands,
++    History(crate::project_history::Direction),
++}
++
++/// Managed callers continue to receive the bare Project object.
++#[derive(serde::Serialize)]
++#[serde(untagged)]
++pub enum WriteReply {
++    Managed(Box<Project>),
++    #[cfg(any(
++        windows,
++        all(
++            target_os = "linux",
++            any(target_arch = "x86_64", target_arch = "aarch64")
++        )
++    ))]
++    Folder(super::approval::FolderWriteReply),
++}
++
++impl From<Project> for WriteReply {
++    fn from(project: Project) -> Self {
++        Self::Managed(Box::new(project))
++    }
++}
++
++impl FolderWriteRequest {
++    fn validate(&self, project_id: &str, has_managed_payload: bool) -> Result<()> {
++        if has_managed_payload
++            || self.source_id.is_empty()
++            || self.source_id.len() > 128
++            || [project_id, &self.expected_commit_id, &self.approval_id]
++                .into_iter()
++                .any(|id| crate::security::valid_id(id).is_err())
++        {
++            return Err(AppError::Invalid("PROJECT_SNAPSHOT_CHANGED".into()));
++        }
++        Ok(())
++    }
++}
++
++pub async fn execute(
++    sources: &WindowSources,
++    state: &AppState,
++    window: &str,
++    project_id: &str,
++    request: FolderWriteRequest,
++    command: Command,
++    has_managed_payload: bool,
++) -> Result<WriteReply> {
++    request.validate(project_id, has_managed_payload)?;
++    #[cfg(any(
++        windows,
++        all(
++            target_os = "linux",
++            any(target_arch = "x86_64", target_arch = "aarch64")
++        )
++    ))]
++    {
++        use super::approval::{ApprovalSource, WriteCommand};
++        use crate::project_repository::sqlite_folder::api::ModelRuntime;
++        let command = match command {
++            Command::Program => WriteCommand::Program,
++            Command::Commands => WriteCommand::Commands,
++            Command::History(direction) => WriteCommand::History(direction),
++        };
++        let source = ApprovalSource {
++            window,
++            source_id: &request.source_id,
++            project_id,
++            commit_id: &request.expected_commit_id,
++        };
++        sources
++            .execute_write(
++                &request.approval_id,
++                source,
++                command,
++                ModelRuntime {
++                    tasks: &state.tasks,
++                    gate: &state.cad_tasks,
++                    runtime_root: &state.root,
++                    transient_root: &state.root,
++                    executable: None,
++                },
++            )
++            .await
++            .map(WriteReply::Folder)
++    }
++    #[cfg(not(any(
++        windows,
++        all(
++            target_os = "linux",
++            any(target_arch = "x86_64", target_arch = "aarch64")
++        )
++    )))]
++    {
++        let _ = (sources, state, window, command);
++        Err(AppError::Invalid("PROJECT_FOLDER_UNSUPPORTED".into()))
++    }
++}
++
++#[cfg(test)]
++mod tests;
+diff --git a/apps/desktop/src-tauri/src/project_repository/window_sources/write_ipc/tests.rs b/apps/desktop/src-tauri/src/project_repository/window_sources/write_ipc/tests.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src-tauri/src/project_repository/window_sources/write_ipc/tests.rs
+@@ -0,0 +1,89 @@
++use super::*;
++use serde_json::{json, Value};
++
++fn request(source_id: String) -> Value {
++    json!({
++        "sourceId": source_id,
++        "expectedCommitId": uuid::Uuid::new_v4().to_string(),
++        "approvalId": uuid::Uuid::new_v4().to_string()
++    })
++}
++
++#[test]
++fn folder_write_requires_all_selectors_and_excludes_managed_payload() {
++    let project_id = uuid::Uuid::new_v4().to_string();
++    let valid = request(format!(
++        "{}:1:{}",
++        uuid::Uuid::new_v4(),
++        uuid::Uuid::new_v4()
++    ));
++    let decoded: FolderWriteRequest = serde_json::from_value(valid.clone()).unwrap();
++    assert!(decoded.validate(&project_id, false).is_ok());
++    assert!(decoded.validate(&project_id, true).is_err());
++    assert!(decoded.validate("invalid project", false).is_err());
++
++    for key in ["sourceId", "expectedCommitId", "approvalId"] {
++        let mut missing = valid.clone();
++        missing.as_object_mut().unwrap().remove(key);
++        assert!(serde_json::from_value::<FolderWriteRequest>(missing).is_err());
++
++        let mut invalid = valid.clone();
++        invalid[key] = json!("");
++        let decoded: FolderWriteRequest = serde_json::from_value(invalid).unwrap();
++        assert!(decoded.validate(&project_id, false).is_err());
++    }
++
++    let mut replacement = valid;
++    replacement["program"] = json!("replacement program");
++    assert!(serde_json::from_value::<FolderWriteRequest>(replacement).is_err());
++}
++
++#[cfg(any(
++    windows,
++    all(
++        target_os = "linux",
++        any(target_arch = "x86_64", target_arch = "aarch64")
++    )
++))]
++#[tokio::test]
++async fn folder_write_accepts_the_key_issued_by_the_registry() {
++    use crate::project_repository::sqlite_folder::api::{
++        FolderProject, FolderSources, Publication,
++    };
++    let root = tempfile::tempdir().unwrap();
++    let project = fixture_project();
++    let project_id = project.id.clone();
++    assert!(matches!(
++        FolderProject::create(root.path(), project, vec![], None)
++            .await
++            .unwrap(),
++        Publication::Committed(_)
++    ));
++    let registry = FolderSources::default();
++    let opened = registry.open(root.path()).await.unwrap();
++    let mut payload = request(opened.id.to_string());
++    payload["expectedCommitId"] = json!(opened.snapshot.commit_id());
++    let decoded: FolderWriteRequest = serde_json::from_value(payload).unwrap();
++    decoded.validate(&project_id, false).unwrap();
++    assert!(registry.lookup(&decoded.source_id).is_ok());
++}
++
++#[test]
++fn managed_reply_keeps_the_existing_project_json_shape() {
++    let project = fixture_project();
++    let expected = serde_json::to_value(&project).unwrap();
++    assert_eq!(
++        serde_json::to_value(WriteReply::from(project)).unwrap(),
++        expected
++    );
++}
++
++fn fixture_project() -> Project {
++    serde_json::from_value(json!({
++        "schemaVersion": 1, "id": uuid::Uuid::new_v4().to_string(),
++        "name": "Managed", "units": "mm", "agent": "codex", "pinned": false,
++        "createdAt": "2026-11-20T00:00:00Z", "updatedAt": "2026-11-20T00:00:00Z",
++        "currentRevision": null, "messages": [], "exports": [], "files": [], "revisions": []
++    }))
++    .unwrap()
++}
+diff --git a/apps/desktop/src/app/App.tsx b/apps/desktop/src/app/App.tsx
+--- a/apps/desktop/src/app/App.tsx
++++ b/apps/desktop/src/app/App.tsx
+@@ -56,6 +56,13 @@ import { ProjectFilesPanel } from "../features/project-files/ProjectFilesPanel";
+ import { ModelHistoryControls } from "../features/project-history/ModelHistoryControls";
+ import { RevisionList } from "../features/project-history/RevisionList";
+ import { useHistoryAction } from "../features/project-history/useHistoryAction";
++import { folderHistoryAction } from "../features/project-history/folderHistoryAction";
++import { useFolderWriteAction } from "../features/project-sources/useFolderWriteAction";
++import { useFolderWriteConfirmation } from "../features/project-sources/useFolderWriteConfirmation";
++import { isFolderWriteOpeningCurrent } from "../features/project-sources/folderWriteResult";
++import { isSourceCurrent } from "../features/project-sources/sourceBinding";
++import { writeFolderModel } from "../features/model-apply/folderModelAction";
++import { FolderHistoryObservation } from "../features/project-history/FolderHistoryObservation";
+ import { PropertiesPanel } from "../features/properties/PropertiesPanel";
+ import { SelectionModelProperties } from "../features/reference-measurements/SelectionModelProperties";
+ import { StatusBar } from "../features/status-bar/StatusBar";
+@@ -121,7 +128,9 @@ const legacyMotionPrompt = (text: string) =>
+ export default function App() {
+   useLocale();
+   const nav = useNavigate();
+-  const { projectId } = useParams();
++  const route = useParams();
++  const projectId = route.folderProjectId ?? route.projectId;
++  const folderRoute = route.folderProjectId !== undefined;
+   const queryClient = useQueryClient();
+   const applyModel = useModelApply();
+   useRevisionEvents();
+@@ -141,10 +150,11 @@ export default function App() {
+     setSelected,
+   } = useWorkspace();
+   const projectAccess = useWorkspaceSourceAccess(project?.id, sourceBinding, setError);
+-  const openingProject = !!projectId && !!project && projectId !== project.id;
++  const openingProject = !!projectId && !!project &&
++    (projectId !== project.id || folderRoute !== (sourceBinding?.kind === "folder"));
+   const editingBlocked = busy || !projectAccess.writable || openingProject;
+   const { catalog, projects, unavailable } = useProjectCatalog();
+-  const openProject = useProjectNavigation(projectId, nav, setError);
++  const { openProject, openFolder, createFolder } = useProjectNavigation(projectId, nav, setError, folderRoute);
+   const recovery = useQuery({
+     queryKey: ["recovery"],
+     queryFn: interruptedSessions,
+@@ -401,6 +411,14 @@ export default function App() {
+     void queryClient.invalidateQueries({ queryKey: ["model-history"] });
+   }
+   const historyAction = useHistoryAction(ask, refresh);
++  const folderConfirmation = useFolderWriteConfirmation(sourceBinding);
++  const folderWrite = useFolderWriteAction(
++    sourceBinding,
++    () => { void queryClient.invalidateQueries({ queryKey: ["model-history"] }); },
++    setError,
++  );
++  const writeFolderHistory = folderHistoryAction(sourceBinding, folderWrite.write, folderConfirmation.confirm);
++  const folderHistoryActive = sourceBinding?.kind === "folder";
+   async function ask(
+     title: string,
+     description: string,
+@@ -895,8 +913,11 @@ export default function App() {
+           {project && (
+             <ModelHistoryControls
+               project={project}
+-              blocked={editingBlocked || !!pending || !!modal || loadingModel}
+-              onAction={historyAction}
++              sourceBinding={sourceBinding}
++              blocked={(folderHistoryActive
++                ? busy || openingProject || folderWrite.busy || !!folderWrite.uncertain
++                : editingBlocked) || !!pending || !!modal || loadingModel}
++              onAction={folderHistoryActive ? direction => void writeFolderHistory(direction) : historyAction}
+             />
+           )}
+           <Updates blocked={busy || !!pending || !!modal || loadingModel} />
+@@ -971,6 +992,7 @@ export default function App() {
+           onSearch={setSearch}
+           onSettings={() => setModal("settings")}
+           onImport={() => fileInput.current?.click()}
++          onOpenFolder={projectId ? undefined : () => void openFolder()}
+           onImportBundle={() =>
+             void importProjectBundle()
+               .then((item) => {
+@@ -1286,9 +1308,19 @@ export default function App() {
+         </div>
+       )}
+       <ActionReviewDialog
+-        pending={pending}
+-        onDecision={(allow) => void approve(allow)}
++        pending={folderConfirmation.pending ?? pending}
++        onDecision={(allow) => {
++          if (folderConfirmation.pending) folderConfirmation.decide(allow);
++          else if (pending) void approve(allow);
++        }}
+       />
++      {folderWrite.uncertain && (
++        <FolderHistoryObservation
++          observation={folderWrite.uncertain.observation}
++          busy={folderWrite.busy}
++          onCheck={() => void folderWrite.check()}
++        />
++      )}
+       <Modal
+         open={!!exportInfo}
+         onClose={() => setExportInfo(null)}
+@@ -1416,6 +1448,9 @@ export default function App() {
+         importNames={attachments.map((file) => file.name)}
+         open={modal === "new"}
+         close={() => setModal(null)}
++        onCreateFolder={native && !attachments.length ? async draft => {
++          if (await createFolder(draft)) setModal(current => current === "new" ? null : current);
++        } : undefined}
+         onCreate={async (p) => {
+           try {
+             if (attachments.length)
+@@ -1447,7 +1482,9 @@ export default function App() {
+           close={() => setModal(null)}
+           source={revision?.program ?? ""}
+           importedSource={revision?.source}
+-          disabled={editingBlocked}
++          disabled={sourceBinding?.kind === "folder"
++            ? busy || openingProject || folderWrite.busy || !!folderWrite.uncertain || !!pending
++            : editingBlocked}
+           nativeCadAvailable={
+             agentEnvironment.data?.some(
+               (item) => item.name === "OpenCascade kernel" && item.available,
+@@ -1455,7 +1492,22 @@ export default function App() {
+           }
+           nativeCadChecked={!!agentEnvironment.data}
+           onApply={(program) => {
+-            const base = useWorkspace.getState().project;
++            const active = useWorkspace.getState();
++            if (sourceBinding ? !isSourceCurrent(active.sourceBinding, sourceBinding) : !!active.sourceBinding) return;
++            if (sourceBinding?.kind === "folder" && project) {
++              const opening = sourceBinding;
++              const captured = captureApply(project, program, t("Изменён исходный код модели"), opening.openingId);
++              setModal(null);
++              void writeFolderModel(opening, captured, undefined, folderWrite.write, () =>
++                folderConfirmation.confirm(opening, {
++                  title: t("Построить модель"),
++                  description: t("Проверить геометрию и сохранить ревизию."),
++                  detail: program,
++                }),
++              ).catch(cause => { if (isFolderWriteOpeningCurrent(opening)) setError(errorText(cause)); });
++              return;
++            }
++            const base = active.project;
+             if (!base) return;
+             const captured = captureApply(
+               base,
+diff --git a/apps/desktop/src/app/Dashboard.tsx b/apps/desktop/src/app/Dashboard.tsx
+--- a/apps/desktop/src/app/Dashboard.tsx
++++ b/apps/desktop/src/app/Dashboard.tsx
+@@ -24,6 +24,7 @@ type Props = {
+   onSearch: (value: string) => void;
+   onSettings: () => void;
+   onImport: () => void;
++  onOpenFolder?: () => void;
+   onImportBundle: () => void;
+   onExportBundle: (project: Project, redactConversation: boolean) => void;
+   onNew: () => void;
+@@ -34,7 +35,7 @@ type Props = {
+   onError: (message: string) => void;
+ };
+
+-export function Dashboard({ projects, unavailable, loading, error, search, onSearch, onSettings, onImport, onImportBundle, onExportBundle, onNew, onOpen, onRename, onDelete, onRefresh, onError }: Props) {
++export function Dashboard({ projects, unavailable, loading, error, search, onSearch, onSettings, onImport, onOpenFolder, onImportBundle, onExportBundle, onNew, onOpen, onRename, onDelete, onRefresh, onError }: Props) {
+   const pinRequests = useRef(new Set<string>());
+   const visible = [...projects]
+     .sort((a, b) => Number(b.pinned) - Number(a.pinned))
+@@ -64,7 +65,14 @@ export function Dashboard({ projects, unavailable, loading, error, search, onSea
+       <div className="eyebrow">{t("YOUR IDEAS, IN DIMENSIONS")}</div>
+       <div className="dashboard-title">
+         <div><h1>{t("A place to make things.")}</h1><p>{t("Give your next idea a little more shape.")}</p></div>
+-        <div className="dashboard-import-actions"><Button onClick={onImport}><FolderOpen size={15} />{t("Import model")}</Button>{native && <><Button onClick={onImportBundle}><PackageOpen size={15} />{t("Import project bundle")}</Button><ImportProjectFolderButton onImported={project => { onRefresh(); onOpen(project); }} onError={onError} /></>}</div>
++        <div className="dashboard-import-actions">
++          <Button onClick={onImport}><FolderOpen size={15} />{t("Import model")}</Button>
++          {native && <>
++            {onOpenFolder && <Button onClick={onOpenFolder}><FolderOpen size={15} />{t("Open project in folder")}</Button>}
++            <Button onClick={onImportBundle}><PackageOpen size={15} />{t("Import project bundle")}</Button>
++            <ImportProjectFolderButton onImported={project => { onRefresh(); onOpen(project); }} onError={onError} />
++          </>}
++        </div>
+       </div>
+       <div className="section-heading">
+         <h2>{t("Projects")}</h2>
+diff --git a/apps/desktop/src/app/dialogs/ActionReviewDialog.tsx b/apps/desktop/src/app/dialogs/ActionReviewDialog.tsx
+--- a/apps/desktop/src/app/dialogs/ActionReviewDialog.tsx
++++ b/apps/desktop/src/app/dialogs/ActionReviewDialog.tsx
+@@ -11,7 +11,9 @@ export type PendingAction = {
+   cancelled?: () => void;
+ };
+
+-export function ActionReviewDialog({ pending, onDecision }: { pending: PendingAction | null; onDecision: (allow: boolean) => void }) {
++export type ActionReviewContent = Pick<PendingAction, "title" | "description" | "detail" | "review">;
++
++export function ActionReviewDialog({ pending, onDecision }: { pending: ActionReviewContent | null; onDecision: (allow: boolean) => void }) {
+   // Keep the same content through Radix's exit animation instead of flashing a generic dialog.
+   const [retained, setRetained] = useState(pending);
+   useEffect(() => {
+diff --git a/apps/desktop/src/app/dialogs/NewProjectDialog.tsx b/apps/desktop/src/app/dialogs/NewProjectDialog.tsx
+--- a/apps/desktop/src/app/dialogs/NewProjectDialog.tsx
++++ b/apps/desktop/src/app/dialogs/NewProjectDialog.tsx
+@@ -1,28 +1,41 @@
+-import { useState } from "react";
++import { useRef, useState } from "react";
+ import { LoaderCircle, Plus, FileBox } from "lucide-react";
+ import { t } from "../../i18n";
+ import { Button, Modal, Select } from "../../components/ui";
+ import { newProject } from "../../stores/workspace";
+ import type { Agent, Project } from "../../types";
++import type { BlankFolderDraft } from "../../features/project-sources/createFolderSelection";
+ export function NewProjectDialog({
+   open,
+   close,
+   onCreate,
++  onCreateFolder,
+   importNames = [],
+ }: {
+   importNames?: string[];
+   open: boolean;
+   close: () => void;
+   onCreate: (p: Project) => Promise<void>;
++  onCreateFolder?: (draft: BlankFolderDraft) => Promise<void>;
+ }) {
+   const [name, setName] = useState(t("Untitled part"));
+   const [units, setUnits] = useState<Project["units"]>("mm");
+   const [agent, setAgent] = useState<Agent>("codex");
+   const [saving, setSaving] = useState(false);
++  const inFlight = useRef(false);
++  function submit(save: () => Promise<void>) {
++    if (!name.trim() || inFlight.current) return;
++    inFlight.current = true;
++    setSaving(true);
++    void save().finally(() => {
++      inFlight.current = false;
++      setSaving(false);
++    });
++  }
+   return (
+     <Modal
+       open={open}
+-      onClose={close}
++      onClose={() => { if (!inFlight.current) close(); }}
+       title={importNames.length ? t("Create a project from selected files") : t("Make room for an idea")}
+       description={importNames.length ? t("Selected models will be imported. STEP files need local conversion before they appear in the scene.") : t("Start with an empty workspace.")}
+     >
+@@ -30,11 +43,7 @@ export function NewProjectDialog({
+       <form
+         onSubmit={(e) => {
+           e.preventDefault();
+-          if (!name.trim() || saving) return;
+-          setSaving(true);
+-          void onCreate(newProject(name, "blank", units, agent)).finally(() =>
+-            setSaving(false),
+-          );
++          submit(() => onCreate(newProject(name, "blank", units, agent)));
+         }}
+       >
+         <label>
+@@ -72,9 +81,15 @@ export function NewProjectDialog({
+           </label>
+         </div>
+         <div className="modal-actions">
+-          <Button type="button" onClick={close}>
++          <Button type="button" onClick={close} disabled={saving}>
+             {t("Cancel")}
+           </Button>
++          {onCreateFolder && importNames.length === 0 && <Button
++            type="button" disabled={saving || !name.trim()}
++            onClick={() => submit(() => onCreateFolder({ name, units, agent }))}
++          >
++            {t("Create in folder")}
++          </Button>}
+           <Button
+             className="primary"
+             type="submit"
+diff --git a/apps/desktop/src/features/model-apply/folderModelAction.test.tsx b/apps/desktop/src/features/model-apply/folderModelAction.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/model-apply/folderModelAction.test.tsx
+@@ -0,0 +1,96 @@
++import { act, renderHook, waitFor } from "@testing-library/react";
++import { beforeEach, expect, it, vi } from "vitest";
++import { newProject, useWorkspace } from "../../stores/workspace";
++import { useFolderWriteAction } from "../project-sources/useFolderWriteAction";
++import { useFolderWriteConfirmation } from "../project-sources/useFolderWriteConfirmation";
++import { captureApply } from "./capturedApply";
++import { writeFolderModel } from "./folderModelAction";
++
++const mock = vi.hoisted(() => ({ invoke: vi.fn() }));
++vi.mock("@tauri-apps/api/core", async original => ({
++  ...await original<typeof import("@tauri-apps/api/core")>(),
++  invoke: mock.invoke,
++  isTauri: () => true,
++}));
++
++const source = {
++  sourceId: "340f0083-c50f-4e15-b633-5cc4753ffb5c:1:8c45ccab-969f-4b94-a565-73db75eae0ef",
++  commitId: "78b94346-f162-44e8-85c6-9cb64b8be739",
++  taskScopeId: "340f0083-c50f-4e15-b633-5cc4753ffb5c",
++};
++const nextCommit = "7c6c3844-bdbe-4132-91ff-8e52a46a97ec";
++const approval = "0fdca3bb-60ac-4014-99e9-28b8306687c7";
++const content = { title: "Build model", description: "Check geometry", detail: "draft program" };
++
++beforeEach(() => {
++  useWorkspace.getState().setProject(null);
++  mock.invoke.mockReset();
++});
++
++function setup() {
++  const project = newProject("Folder", "blank", "mm", "codex");
++  useWorkspace.getState().openFolderProject(project, source);
++  const opening = useWorkspace.getState().sourceBinding;
++  if (opening?.kind !== "folder") throw new Error("Expected a folder opening");
++  const captured = captureApply(project, content.detail, "Update", opening.openingId);
++  const onCommit = vi.fn(), reportError = vi.fn();
++  const view = renderHook(() => {
++    const active = useWorkspace(state => state.sourceBinding);
++    return {
++      action: useFolderWriteAction(active, onCommit, reportError),
++      review: useFolderWriteConfirmation(active),
++    };
++  });
++  const submit = () => {
++    const { action, review } = view.result.current;
++    return writeFolderModel(opening, captured, undefined, action.write, () => review.confirm(opening, content));
++  };
++  return { ...view, project, onCommit, reportError, submit };
++}
++
++it("reviews the original program, sends only its approval to apply and adopts the confirmed commit", async () => {
++  const f = setup();
++  const saved = { ...f.project, currentRevision: "6b0806c3-96db-42b2-b2e5-764a51a18907" };
++  mock.invoke.mockResolvedValueOnce({ id: approval, requiresConfirmation: true });
++  mock.invoke.mockResolvedValueOnce(undefined);
++  mock.invoke.mockResolvedValueOnce({
++    status: "committed", sourceId: source.sourceId, projectId: f.project.id,
++    baseCommitId: source.commitId, commitId: nextCommit, project: saved,
++  });
++
++  let pending!: Promise<void>;
++  act(() => { pending = f.submit(); });
++  await waitFor(() => expect(f.result.current.review.pending).toEqual(content));
++  expect(mock.invoke.mock.calls.map(([command]) => command)).toEqual(["request_permission"]);
++  await act(async () => {
++    f.result.current.review.decide(true);
++    await pending;
++  });
++  expect(mock.invoke.mock.calls.map(([command]) => command)).toEqual(["request_permission", "resolve_permission", "apply_program"]);
++  expect(mock.invoke.mock.calls[0]?.[1]).toMatchObject({
++    projectId: f.project.id, sourceId: source.sourceId, expectedCommitId: source.commitId,
++    folderIntent: { kind: "model", program: content.detail, expectedRevision: null },
++  });
++  expect(mock.invoke.mock.calls[2]?.[1]).toEqual({
++    projectId: f.project.id,
++    folderWrite: { sourceId: source.sourceId, expectedCommitId: source.commitId, approvalId: approval },
++  });
++  expect(useWorkspace.getState().project).toEqual(saved);
++  expect(useWorkspace.getState().sourceBinding).toMatchObject({ kind: "folder", source: { ...source, commitId: nextCommit } });
++  expect(f.onCommit).toHaveBeenCalledOnce();
++  expect(f.reportError).not.toHaveBeenCalled();
++});
++
++it("discards the approval after reopening another folder with the same project ID", async () => {
++  const f = setup();
++  mock.invoke.mockResolvedValueOnce({ id: approval, requiresConfirmation: true });
++  let pending!: Promise<void>;
++  act(() => { pending = f.submit(); });
++  await waitFor(() => expect(f.result.current.review.pending).toEqual(content));
++  act(() => useWorkspace.getState().openFolderProject(f.project, { ...source, sourceId: "other-opening" }));
++  await act(async () => { await pending; });
++  expect(mock.invoke.mock.calls.map(([command]) => command)).toEqual(["request_permission", "close_project_source", "resolve_permission"]);
++  expect(mock.invoke.mock.calls[2]?.[1]).toMatchObject({ id: approval, allow: false, sourceId: source.sourceId });
++  expect(f.result.current.review.pending).toBeNull();
++  expect(f.onCommit).not.toHaveBeenCalled();
++});
+diff --git a/apps/desktop/src/features/model-apply/folderModelAction.ts b/apps/desktop/src/features/model-apply/folderModelAction.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/model-apply/folderModelAction.ts
+@@ -0,0 +1,25 @@
++import { useWorkspace } from "../../stores/workspace";
++import type { ReviewPlan } from "../agents/review/plan/reviewPlan";
++import { isFolderWriteOpeningCurrent } from "../project-sources/folderWriteResult";
++import type { FolderWriteAction, FolderWriteOpening } from "../project-sources/useFolderWriteAction";
++import { assertApplyBase, type CapturedApply } from "./capturedApply";
++
++export async function writeFolderModel(
++  opening: FolderWriteOpening,
++  captured: CapturedApply,
++  reviewPlan: ReviewPlan | null | undefined,
++  write: FolderWriteAction["write"],
++  confirm: () => Promise<boolean>,
++) {
++  if (!isFolderWriteOpeningCurrent(opening) || captured.sourceOpeningId !== opening.openingId) {
++    throw new Error("MODEL_APPLY_BASE_CHANGED");
++  }
++  assertApplyBase(useWorkspace.getState().project, captured, opening.openingId);
++  await write(opening, {
++    kind: "model",
++    program: captured.program,
++    prompt: captured.prompt,
++    expectedRevision: captured.base.currentRevision,
++    ...(reviewPlan === undefined ? {} : { reviewPlan }),
++  }, captured.program, confirm);
++}
+diff --git a/apps/desktop/src/features/project-catalog/useFolderNavigation.test.tsx b/apps/desktop/src/features/project-catalog/useFolderNavigation.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-catalog/useFolderNavigation.test.tsx
+@@ -0,0 +1,78 @@
++import { act, renderHook, waitFor } from "@testing-library/react";
++import { beforeEach, expect, it, vi } from "vitest";
++import { newProject, useWorkspace } from "../../stores/workspace";
++import { useProjectNavigation } from "./useProjectNavigation";
++
++const mocks = vi.hoisted(() => ({ invoke: vi.fn(), read: vi.fn() }));
++vi.mock("@tauri-apps/api/core", async original => ({
++  ...await original<typeof import("@tauri-apps/api/core")>(),
++  invoke: mocks.invoke,
++  isTauri: () => true,
++}));
++vi.mock("./api", () => ({ readProjectSnapshot: mocks.read }));
++
++const managed = newProject("Managed", "blank", "mm", "codex");
++const folder = { ...managed, name: "From the folder" };
++const source = { sourceId: "window:1:nonce", commitId: "commit", taskScopeId: "tasks" };
++
++beforeEach(() => {
++  useWorkspace.getState().setProject(null);
++  useWorkspace.getState().setBusy(false);
++  vi.resetAllMocks();
++});
++
++it("installs the selected folder and keeps it active when its route is entered", async () => {
++  const navigate = vi.fn(), error = vi.fn();
++  const view = renderHook(
++    ({ id }) => useProjectNavigation(id, navigate, error, id !== undefined),
++    { initialProps: { id: undefined as string | undefined } },
++  );
++  mocks.invoke.mockResolvedValueOnce({ project: folder, ...source });
++  await act(async () => { await view.result.current.openFolder(); });
++  expect(navigate).toHaveBeenCalledWith("/folder/" + folder.id);
++  view.rerender({ id: folder.id });
++  expect(useWorkspace.getState().project).toBe(folder);
++  expect(useWorkspace.getState().sourceBinding).toMatchObject({ kind: "folder", source });
++  expect(mocks.read).not.toHaveBeenCalled();
++});
++
++it("redirects a reloaded folder route home even if a managed project matches the ID", () => {
++  const navigate = vi.fn(), error = vi.fn();
++  useWorkspace.getState().openManagedProject(managed);
++  renderHook(() => useProjectNavigation(folder.id, navigate, error, true));
++  expect(navigate).toHaveBeenCalledWith("/");
++  expect(mocks.read).not.toHaveBeenCalled();
++});
++
++it("reads the managed snapshot when navigating from a folder to the same managed ID", async () => {
++  const navigate = vi.fn(), error = vi.fn();
++  useWorkspace.getState().openFolderProject(folder, source);
++  mocks.read.mockResolvedValueOnce(managed);
++  renderHook(() => useProjectNavigation(folder.id, navigate, error));
++  await waitFor(() => expect(useWorkspace.getState().project).toBe(managed));
++  expect(useWorkspace.getState().sourceBinding).toMatchObject({ kind: "managed" });
++  expect(mocks.read).toHaveBeenCalledWith(managed.id);
++  expect(mocks.invoke).toHaveBeenCalledWith("close_project_source", { sourceId: source.sourceId });
++});
++
++it("coalesces picker clicks and releases the selection if a managed card wins navigation", async () => {
++  const navigate = vi.fn(), error = vi.fn();
++  let finish!: (selection: unknown) => void;
++  mocks.invoke.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
++  mocks.read.mockResolvedValueOnce(managed);
++  const view = renderHook(() => useProjectNavigation(undefined, navigate, error));
++  let pending!: Promise<void>;
++  act(() => { pending = view.result.current.openFolder(); });
++  await act(async () => {
++    await view.result.current.openFolder();
++    await view.result.current.openProject(managed);
++    finish({ project: folder, ...source });
++    await pending;
++  });
++  expect(navigate.mock.calls).toEqual([["/project/" + managed.id]]);
++  expect(useWorkspace.getState().project).toBe(managed);
++  expect(mocks.invoke.mock.calls).toEqual([
++    ["open_project_folder"],
++    ["close_project_source", { sourceId: source.sourceId }],
++  ]);
++});
+diff --git a/apps/desktop/src/features/project-catalog/useProjectNavigation.test.tsx b/apps/desktop/src/features/project-catalog/useProjectNavigation.test.tsx
+--- a/apps/desktop/src/features/project-catalog/useProjectNavigation.test.tsx
++++ b/apps/desktop/src/features/project-catalog/useProjectNavigation.test.tsx
+@@ -42,7 +42,7 @@ it("opens a fresh target instead of adopting the card snapshot", async () => {
+   const old = project("A"), latest = { ...old, name: "fresh metadata" }, navigate = vi.fn(), error = vi.fn();
+   mock.read.mockResolvedValue(latest);
+   const view = renderHook(() => useProjectNavigation(undefined, navigate, error));
+-  await act(async () => { await view.result.current(old); });
++  await act(async () => { await view.result.current.openProject(old); });
+   expect(mock.read).toHaveBeenCalledWith("A");
+   expect(useWorkspace.getState().project).toBe(latest);
+   expect(navigate).toHaveBeenCalledWith("/project/A");
+@@ -56,7 +56,7 @@ it("cannot adopt an explicit opening after the hook unmounts", async () => {
+   mock.read.mockImplementation(() => new Promise<Project>(resolve => { finish = resolve; }));
+   const view = renderHook(() => useProjectNavigation("A", navigate, error));
+   let pending!: Promise<void>;
+-  act(() => { pending = view.result.current(next); });
++  act(() => { pending = view.result.current.openProject(next); });
+   view.unmount();
+   await act(async () => { finish(next); await pending; });
+   expect(useWorkspace.getState().project).toBe(active);
+diff --git a/apps/desktop/src/features/project-catalog/useProjectNavigation.ts b/apps/desktop/src/features/project-catalog/useProjectNavigation.ts
+--- a/apps/desktop/src/features/project-catalog/useProjectNavigation.ts
++++ b/apps/desktop/src/features/project-catalog/useProjectNavigation.ts
+@@ -1,4 +1,6 @@
+-import {isSourceCurrent} from "../project-sources/sourceBinding";
++import { openFolderSelection, type FolderSelectionTarget } from "../project-sources/openFolderSelection";
++import { createFolderSelection, type BlankFolderDraft } from "../project-sources/createFolderSelection";
++import { isSourceCurrent, type ProjectSourceBinding } from "../project-sources/sourceBinding";
+ import { useCallback, useEffect, useRef } from "react";
+ import { errorText, t } from "../../i18n";
+ import { useWorkspace } from "../../stores/workspace";
+@@ -7,23 +9,36 @@ import { readProjectSnapshot } from "./api";
+
+ // Route reads and explicit card selections share one generation. Neither a late
+ // response nor a failed catalog read may clear or overwrite a newer workspace.
+-export function useProjectNavigation(projectId: string | undefined, navigate: (path: string) => void, onError: (message: string) => void) {
++export function useProjectNavigation(
++  projectId: string | undefined,
++  navigate: (path: string) => void,
++  onError: (message: string) => void,
++  folderRoute = false,
++) {
+   const generation = useRef(0);
++  const pickerActive = useRef(false);
+   useEffect(() => () => { generation.current++; }, []);
+   useEffect(() => {
+     const request = ++generation.current;
+     const before = useWorkspace.getState().project;
+-    const beforeSource=useWorkspace.getState().sourceBinding;
++    const beforeSource = useWorkspace.getState().sourceBinding;
++    if (folderRoute) {
++      if (before?.id && before.id === projectId && beforeSource?.kind === "folder" && beforeSource.projectId === projectId) return;
++      // Only an explicit selection may restore a folder after a renderer reload.
++      navigate("/");
++      return;
++    }
+     if (!projectId) {
+       if (before) useWorkspace.getState().setProject(null);
+       return;
+     }
+-    if (before?.id === projectId) return;
++    if (before?.id === projectId && beforeSource?.kind !== "folder") return;
+     const fail = (cause: unknown) => {
+       if (generation.current !== request || (beforeSource?!isSourceCurrent(useWorkspace.getState().sourceBinding,beforeSource):!!useWorkspace.getState().sourceBinding)) return;
+       onError(errorText(cause));
+       const active = useWorkspace.getState().project;
+-      if (active && active.id !== projectId) navigate("/project/" + active.id);
++      if (active && beforeSource?.kind === "folder") navigate("/folder/" + active.id);
++      else if (active && active.id !== projectId) navigate("/project/" + active.id);
+     };
+     void readProjectSnapshot(projectId).then(latest => {
+       if (generation.current !== request || (beforeSource?!isSourceCurrent(useWorkspace.getState().sourceBinding,beforeSource):!!useWorkspace.getState().sourceBinding)) return;
+@@ -33,9 +48,9 @@ export function useProjectNavigation(projectId: string | undefined, navigate: (p
+       useWorkspace.getState().openManagedProject(latest);
+     }).catch(fail);
+     return () => { generation.current++; };
+-  }, [projectId, navigate, onError]);
++  }, [projectId, navigate, onError, folderRoute]);
+
+-  return useCallback(async (selected: Project) => {
++  const openProject = useCallback(async (selected: Project) => {
+     if (useWorkspace.getState().busy) return;
+     const request = ++generation.current;
+     const before = useWorkspace.getState().project;
+@@ -50,4 +65,41 @@ export function useProjectNavigation(projectId: string | undefined, navigate: (p
+       navigate("/project/" + latest.id);
+     } catch (cause) { if (generation.current === request && (beforeSource?isSourceCurrent(useWorkspace.getState().sourceBinding,beforeSource):!useWorkspace.getState().sourceBinding)) onError(errorText(cause)); }
+   }, [navigate, onError]);
++
++  const selectFolder = useCallback(async <Result,>(select: (target: FolderSelectionTarget) => Promise<Result>) => {
++    const before = useWorkspace.getState();
++    if (before.busy || pickerActive.current) return;
++    const request = ++generation.current;
++    const isCurrent = () => {
++      const active = useWorkspace.getState();
++      return request === generation.current && !active.busy &&
++        active.project === before.project && sameOpening(active.sourceBinding, before.sourceBinding);
++    };
++
++    pickerActive.current = true;
++    try {
++      return await select({
++        isCurrent,
++        activate(project, source) {
++          useWorkspace.getState().openFolderProject(project, source);
++          navigate("/folder/" + project.id);
++        },
++      });
++    } catch (cause) {
++      if (isCurrent()) onError(errorText(cause));
++    } finally {
++      pickerActive.current = false;
++    }
++  }, [navigate, onError]);
++
++  return {
++    openProject,
++    openFolder: () => selectFolder(openFolderSelection),
++    createFolder: (draft: BlankFolderDraft) =>
++      selectFolder(target => createFolderSelection(draft, target, onError)),
++  };
++}
++
++function sameOpening(active: ProjectSourceBinding | null, captured: ProjectSourceBinding | null) {
++  return captured ? isSourceCurrent(active, captured) : !active;
+ }
+diff --git a/apps/desktop/src/features/project-history/folderHistoryAction.ts b/apps/desktop/src/features/project-history/folderHistoryAction.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-history/folderHistoryAction.ts
+@@ -0,0 +1,29 @@
++import { useWorkspace } from "../../stores/workspace";
++import { t } from "../../i18n";
++import type { ProjectSourceBinding } from "../project-sources/sourceBinding";
++import type { FolderWriteAction } from "../project-sources/useFolderWriteAction";
++import type { HistoryDirection } from "./historyApi";
++import type { useFolderWriteConfirmation } from "../project-sources/useFolderWriteConfirmation";
++
++type Confirm = ReturnType<typeof useFolderWriteConfirmation>["confirm"];
++
++export function folderHistoryAction(
++  binding: ProjectSourceBinding | null,
++  write: FolderWriteAction["write"],
++  confirm: Confirm,
++) {
++  return async (direction: HistoryDirection) => {
++    const project = useWorkspace.getState().project;
++    if (!project || binding?.kind !== "folder" || project.id !== binding.projectId) return;
++    const detail = `${project.name}\n${project.currentRevision ?? ""}`;
++    await write(binding, {
++      kind: "history",
++      direction,
++      expectedRevision: project.currentRevision,
++    }, detail, () => confirm(binding, {
++      title: t(direction === "undo" ? "Undo model change" : "Redo model change"),
++      description: t("This changes the current model as one history step. Saved revisions stay available."),
++      detail,
++    }));
++  };
++}
+diff --git a/apps/desktop/src/features/project-history/FolderHistoryObservation.tsx b/apps/desktop/src/features/project-history/FolderHistoryObservation.tsx
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-history/FolderHistoryObservation.tsx
+@@ -0,0 +1,18 @@
++import { Button } from "../../components/ui";
++import { t } from "../../i18n";
++
++export function FolderHistoryObservation({ observation, busy, onCheck }: {
++  observation?: "historical" | "absent";
++  busy: boolean;
++  onCheck: () => void;
++}) {
++  const message = observation === "historical"
++    ? t("The commit is saved in history. Reopen the folder to load its current model.")
++    : observation === "absent"
++      ? t("The commit was not found. Reopen the folder before making further changes.")
++      : t("The result of the last model history action could not be confirmed.");
++  return <div className="error-inline">
++    <span role="status">{message}</span>
++    <Button disabled={busy} onClick={onCheck}>{t("Check saved commit")}</Button>
++  </div>;
++}
+diff --git a/apps/desktop/src/features/project-history/historyApi.source.test.ts b/apps/desktop/src/features/project-history/historyApi.source.test.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-history/historyApi.source.test.ts
+@@ -0,0 +1,31 @@
++import { afterEach, expect, it, vi } from "vitest";
++import { modelHistoryStatus } from "./historyApi";
++
++const mock = vi.hoisted(() => ({ invoke: vi.fn() }));
++vi.mock("@tauri-apps/api/core", () => mock);
++afterEach(() => mock.invoke.mockReset());
++
++const source = { sourceId: "scope:1:nonce", commitId: "stored", taskScopeId: "tasks" };
++const status = { canUndo: true, canRedo: false, expectedRevision: "revision" };
++
++it("keeps the managed request shape and reads folder history at an exact commit", async () => {
++  mock.invoke.mockResolvedValue(status);
++  expect(await modelHistoryStatus("project")).toEqual(status);
++  expect(await modelHistoryStatus("project", source)).toEqual(status);
++  expect(mock.invoke.mock.calls).toEqual([
++    ["history_status", { projectId: "project" }],
++    ["history_status", { projectId: "project", sourceId: source.sourceId, expectedCommitId: source.commitId }],
++  ]);
++});
++
++it("does not fall back to managed history for an incomplete folder selector", async () => {
++  await expect(modelHistoryStatus("project", { ...source, commitId: "" }))
++    .rejects.toThrow("PROJECT_SNAPSHOT_CHANGED");
++  expect(mock.invoke).not.toHaveBeenCalled();
++});
++
++it("does not retry against managed history if the folder snapshot is stale", async () => {
++  mock.invoke.mockRejectedValue(new Error("PROJECT_SNAPSHOT_CHANGED"));
++  await expect(modelHistoryStatus("project", source)).rejects.toThrow("PROJECT_SNAPSHOT_CHANGED");
++  expect(mock.invoke).toHaveBeenCalledTimes(1);
++});
+diff --git a/apps/desktop/src/features/project-history/historyApi.ts b/apps/desktop/src/features/project-history/historyApi.ts
+--- a/apps/desktop/src/features/project-history/historyApi.ts
++++ b/apps/desktop/src/features/project-history/historyApi.ts
+@@ -1,12 +1,22 @@
+ import { invoke } from "@tauri-apps/api/core";
+ import { z } from "zod";
+ import type { Project } from "../../types";
++import type { FolderSourceRef } from "../project-sources/contract";
+
+ const statusSchema = z.object({ canUndo: z.boolean(), canRedo: z.boolean(), expectedRevision: z.string().regex(/^[A-Za-z0-9_-]{1,80}$/).nullable() });
+ export type ModelHistoryStatus = z.infer<typeof statusSchema>;
+ export type HistoryDirection = "undo" | "redo";
+-export async function modelHistoryStatus(projectId: string): Promise<ModelHistoryStatus> {
+-  return statusSchema.parse(await invoke("history_status", { projectId }));
++export async function modelHistoryStatus(
++  projectId: string,
++  source?: FolderSourceRef,
++): Promise<ModelHistoryStatus> {
++  if (source !== undefined && (!source?.sourceId || !source.commitId)) {
++    throw new Error("PROJECT_SNAPSHOT_CHANGED");
++  }
++  const args = source
++    ? { projectId, sourceId: source.sourceId, expectedCommitId: source.commitId }
++    : { projectId };
++  return statusSchema.parse(await invoke("history_status", args));
+ }
+ export async function moveModelHistory(project: Project, direction: HistoryDirection): Promise<Project> {
+   return invoke(direction === "undo" ? "undo_model" : "redo_model", { projectId: project.id, expectedRevision: project.currentRevision });
+diff --git a/apps/desktop/src/features/project-history/ModelHistoryControls.test.tsx b/apps/desktop/src/features/project-history/ModelHistoryControls.test.tsx
+--- a/apps/desktop/src/features/project-history/ModelHistoryControls.test.tsx
++++ b/apps/desktop/src/features/project-history/ModelHistoryControls.test.tsx
+@@ -1,9 +1,10 @@
+-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
++import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+ import { afterEach, beforeEach, expect, it, vi } from "vitest";
+ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+ import * as Tooltip from "@radix-ui/react-tooltip";
+ import type { Project } from "../../types";
+ import { ModelHistoryControls } from "./ModelHistoryControls";
++import { folderSource, refreshFolderSource, type ProjectSourceBinding } from "../project-sources/sourceBinding";
+
+ const status = vi.hoisted(() => vi.fn());
+ vi.mock("./historyApi", () => ({ modelHistoryStatus: status }));
+@@ -11,10 +12,15 @@ vi.mock("../../lib/api", () => ({ native: true }));
+ const project = { id: "project", currentRevision: "rev", revisions: [{ id: "rev" }] } as Project;
+ afterEach(cleanup);
+ beforeEach(() => { status.mockReset(); });
+-function mount(blocked = false) {
++function mount(blocked = false, sourceBinding?: ProjectSourceBinding) {
+   const action = vi.fn(); const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+-  const view = render(<QueryClientProvider client={client}><Tooltip.Provider><ModelHistoryControls project={project} blocked={blocked} onAction={action} /></Tooltip.Provider></QueryClientProvider>);
+-  return { ...view, action };
++  const content = (binding?: ProjectSourceBinding) => <QueryClientProvider client={client}>
++    <Tooltip.Provider>
++      <ModelHistoryControls project={project} sourceBinding={binding} blocked={blocked} onAction={action} />
++    </Tooltip.Provider>
++  </QueryClientProvider>;
++  const view = render(content(sourceBinding));
++  return { ...view, action, changeSource: (binding: ProjectSourceBinding) => view.rerender(content(binding)) };
+ }
+ it("runs only available model actions and respects keyboard ownership", async () => {
+   status.mockResolvedValue({ canUndo: true, canRedo: false, expectedRevision: "rev" }); const view = mount();
+@@ -41,3 +47,34 @@ it("reports a failed history check and leaves model actions disabled", async ()
+   expect(await view.findByRole("status")).toHaveTextContent("Model history is unavailable");
+   expect(view.getByRole("button", { name: "Undo model (Ctrl+Z)" })).toBeDisabled();
+ });
++
++it("cannot enable Undo using a late result from an equal-ID folder", async () => {
++  const ref = { sourceId: "first", commitId: "base", taskScopeId: "first-tasks" };
++  const first = folderSource(project.id, ref);
++  const second = folderSource(project.id, { ...ref, sourceId: "second", taskScopeId: "second-tasks" });
++  let finish!: (value: object) => void;
++  status.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
++  status.mockResolvedValueOnce({ canUndo: false, canRedo: true, expectedRevision: "rev" });
++  const view = mount(false, first);
++  await waitFor(() => expect(status).toHaveBeenCalledWith(project.id, ref));
++  view.changeSource(second);
++  await waitFor(() => expect(view.getByRole("button", { name: "Redo model (Ctrl+Y)" })).toBeEnabled());
++  await act(async () => finish({ canUndo: true, canRedo: false, expectedRevision: "rev" }));
++  expect(view.getByRole("button", { name: "Undo model (Ctrl+Z)" })).toBeDisabled();
++  fireEvent.keyDown(window, { key: "z", ctrlKey: true });
++  expect(view.action).not.toHaveBeenCalled();
++});
++
++it("refreshes the cursor when a folder commit changes without a revision change", async () => {
++  const ref = { sourceId: "first", commitId: "base", taskScopeId: "tasks" };
++  const first = folderSource(project.id, ref);
++  const next = { ...ref, commitId: "next" };
++  status.mockResolvedValueOnce({ canUndo: true, canRedo: false, expectedRevision: "rev" });
++  status.mockResolvedValueOnce({ canUndo: false, canRedo: true, expectedRevision: "rev" });
++  const view = mount(false, first);
++  await waitFor(() => expect(view.getByRole("button", { name: "Undo model (Ctrl+Z)" })).toBeEnabled());
++  view.changeSource(refreshFolderSource(first, next));
++  await waitFor(() => expect(view.getByRole("button", { name: "Redo model (Ctrl+Y)" })).toBeEnabled());
++  expect(status).toHaveBeenLastCalledWith(project.id, next);
++  expect(view.getByRole("button", { name: "Undo model (Ctrl+Z)" })).toBeDisabled();
++});
+diff --git a/apps/desktop/src/features/project-history/ModelHistoryControls.tsx b/apps/desktop/src/features/project-history/ModelHistoryControls.tsx
+--- a/apps/desktop/src/features/project-history/ModelHistoryControls.tsx
++++ b/apps/desktop/src/features/project-history/ModelHistoryControls.tsx
+@@ -5,13 +5,32 @@ import { IconButton } from "../../components/ui";
+ import { native } from "../../lib/api";
+ import { t, errorText } from "../../i18n";
+ import type { Project } from "../../types";
++import type { ProjectSourceBinding } from "../project-sources/sourceBinding";
+ import { modelHistoryStatus, type HistoryDirection } from "./historyApi";
+ import { historyShortcut } from "./historyShortcut";
+ import "./ModelHistoryControls.css";
+
+-export function ModelHistoryControls({ project, blocked, onAction }: { project: Project; blocked: boolean; onAction: (direction: HistoryDirection) => void }) {
+-  const status = useQuery({ queryKey: ["model-history", project.id, project.currentRevision, project.revisions.length], queryFn: () => modelHistoryStatus(project.id), enabled: native, retry: false });
+-  const fresh = status.data?.expectedRevision === project.currentRevision && !status.isFetching;
++interface Props {
++  project: Project;
++  sourceBinding?: ProjectSourceBinding | null;
++  blocked: boolean;
++  onAction: (direction: HistoryDirection) => void;
++}
++
++export function ModelHistoryControls({ project, sourceBinding, blocked, onAction }: Props) {
++  const source = sourceBinding?.kind === "folder" ? sourceBinding.source : undefined;
++  const matchesProject = sourceBinding === undefined || sourceBinding?.projectId === project.id;
++  const status = useQuery({
++    queryKey: [
++      "model-history", project.id, project.currentRevision, project.revisions.length,
++      sourceBinding?.openingId, source?.sourceId, source?.commitId,
++    ],
++    queryFn: () => modelHistoryStatus(project.id, source),
++    enabled: native && matchesProject,
++    retry: false,
++  });
++  const fresh = matchesProject && status.isSuccess && !status.isFetching
++    && status.data.expectedRevision === project.currentRevision;
+   const undo = native && fresh && !!status.data?.canUndo && !blocked;
+   const redo = native && fresh && !!status.data?.canRedo && !blocked;
+   useEffect(() => {
+diff --git a/apps/desktop/src/features/project-history/useFolderHistoryAction.test.tsx b/apps/desktop/src/features/project-history/useFolderHistoryAction.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-history/useFolderHistoryAction.test.tsx
+@@ -0,0 +1,124 @@
++import { act, renderHook } from "@testing-library/react";
++import { beforeEach, expect, it, vi } from "vitest";
++import { newProject, useWorkspace } from "../../stores/workspace";
++import { folderHistoryAction } from "./folderHistoryAction";
++import { useFolderWriteAction } from "../project-sources/useFolderWriteAction";
++import { writeFolderModel } from "../model-apply/folderModelAction";
++import { captureApply } from "../model-apply/capturedApply";
++
++const mock = vi.hoisted(() => ({ run: vi.fn(), check: vi.fn(), close: vi.fn() }));
++vi.mock("../project-sources/runFolderWrite", () => ({ runFolderWrite: mock.run }));
++vi.mock("../project-sources/folderWriteResult", async (original) => ({
++  ...await original<typeof import("../project-sources/folderWriteResult")>(),
++  checkUncertainFolderWrite: mock.check,
++}));
++vi.mock("../project-sources/sourceApi", () => ({ closeFolderSource: mock.close }));
++
++const source = { sourceId: "source", commitId: "base", taskScopeId: "tasks" };
++
++beforeEach(() => {
++  mock.close.mockResolvedValue(true);
++  useWorkspace.getState().setProject(null);
++  mock.run.mockReset();
++  mock.check.mockReset();
++});
++
++function fixture() {
++  const project = newProject("Folder", "blank", "mm", "codex");
++  useWorkspace.getState().openFolderProject(project, source);
++  const binding = useWorkspace.getState().sourceBinding!;
++  const confirm = vi.fn(async () => true);
++  const refresh = vi.fn();
++  const report = vi.fn();
++  const hook = renderHook(({ opening }) => {
++    const write = useFolderWriteAction(opening, refresh, report);
++    return { ...write, act: folderHistoryAction(opening, write.write, confirm) };
++  }, {
++    initialProps: { opening: binding },
++  });
++  return { project, binding, ...hook, refresh, report };
++}
++
++it("locks the history action before the first host response", async () => {
++  const f = fixture();
++  let finish!: (value: { status: "committed" }) => void;
++  mock.run.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
++  await act(async () => {
++    const pending = f.result.current.act("undo");
++    await f.result.current.act("redo");
++    finish({ status: "committed" });
++    await pending;
++  });
++  expect(mock.run).toHaveBeenCalledTimes(1);
++  expect(mock.run.mock.calls[0]?.slice(0, 2)).toEqual([f.binding, {
++    kind: "history", direction: "undo", expectedRevision: f.project.currentRevision,
++  }]);
++  expect(f.refresh).toHaveBeenCalledOnce();
++  expect(f.result.current.busy).toBe(false);
++});
++
++it("blocks a model apply while a history publication is unresolved", async () => {
++  const f = fixture();
++  if (f.binding.kind !== "folder") throw new Error("Expected a folder opening");
++  const opening = f.binding;
++  const captured = captureApply(f.project, "program", "change", opening.openingId);
++  const confirm = vi.fn(async () => true);
++  const plan = { assumptions: [], dimensions: [], affectedBodyIds: [], expectedChecks: [] };
++  mock.run.mockResolvedValueOnce({
++    status: "indeterminate", projectId: f.project.id, sourceId: source.sourceId,
++    baseCommitId: source.commitId, commitId: "attempt", error: "Uncertain",
++  });
++  await act(() => f.result.current.act("undo"));
++  const submit = () => writeFolderModel(opening, captured, plan, f.result.current.write, confirm);
++  await act(submit);
++  expect(mock.run).toHaveBeenCalledTimes(1);
++
++  mock.check.mockResolvedValueOnce("current");
++  await act(() => f.result.current.check());
++  mock.run.mockResolvedValueOnce({ status: "noOp" });
++  await act(submit);
++  expect(mock.run).toHaveBeenCalledTimes(2);
++  expect(mock.run.mock.calls[1]).toEqual([opening, {
++    kind: "model", program: "program", prompt: "change", expectedRevision: null, reviewPlan: plan,
++  }, "program", confirm]);
++});
++
++it("refuses a captured model after a same-ID replacement folder", async () => {
++  const f = fixture();
++  if (f.binding.kind !== "folder") throw new Error("Expected a folder opening");
++  const opening = f.binding;
++  const captured = captureApply(f.project, "program", "change", opening.openingId);
++  act(() => useWorkspace.getState().openFolderProject(f.project, { ...source, sourceId: "other" }));
++  await expect(writeFolderModel(opening, captured, undefined, f.result.current.write, async () => true))
++    .rejects.toThrow("MODEL_APPLY_BASE_CHANGED");
++  expect(mock.run).not.toHaveBeenCalled();
++});
++
++it("keeps an unresolved history write blocked and checks it only on request", async () => {
++  const f = fixture();
++  mock.run.mockResolvedValue({
++    status: "indeterminate", projectId: f.project.id, sourceId: source.sourceId,
++    baseCommitId: source.commitId, commitId: "attempt", error: "Uncertain",
++  });
++  await act(() => f.result.current.act("undo"));
++  await act(() => f.result.current.act("redo"));
++  expect(mock.run).toHaveBeenCalledTimes(1);
++  expect(mock.check).not.toHaveBeenCalled();
++  mock.check.mockResolvedValueOnce("absent").mockResolvedValueOnce("current");
++  await act(() => f.result.current.check());
++  expect(f.result.current.uncertain?.observation).toBe("absent");
++  await act(() => f.result.current.check());
++  expect(f.result.current.uncertain).toBeNull();
++  expect(f.refresh).toHaveBeenCalledOnce();
++});
++
++it("does not report a late failure against a replacement folder", async () => {
++  const f = fixture();
++  mock.run.mockImplementationOnce(async () => {
++    useWorkspace.getState().openFolderProject(f.project, { ...source, sourceId: "other" });
++    throw new Error("old failure");
++  });
++  await act(() => f.result.current.act("undo"));
++  expect(f.report).not.toHaveBeenCalled();
++  expect(f.refresh).not.toHaveBeenCalled();
++});
+diff --git a/apps/desktop/src/features/project-sources/commitObservation.test.ts b/apps/desktop/src/features/project-sources/commitObservation.test.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/commitObservation.test.ts
+@@ -0,0 +1,54 @@
++import { afterEach, expect, it, vi } from "vitest";
++import { observeFolderCommit } from "./commitObservation";
++
++const mocks = vi.hoisted(() => ({ invoke: vi.fn(), isTauri: vi.fn(() => true) }));
++vi.mock("@tauri-apps/api/core", () => mocks);
++afterEach(() => {
++  mocks.invoke.mockReset();
++  mocks.isTauri.mockReset().mockReturnValue(true);
++});
++
++const projectId = "9ef4f985-695a-4a73-b8de-b10468bfc450";
++const sourceId = "340f0083-c50f-4e15-b633-5cc4753ffb5c:1:8c45ccab-969f-4b94-a565-73db75eae0ef";
++const baseCommitId = "78b94346-f162-44e8-85c6-9cb64b8be739";
++const commitId = "7c6c3844-bdbe-4132-91ff-8e52a46a97ec";
++const source = () => ({ sourceId, commitId: baseCommitId, taskScopeId: projectId });
++const query = { projectId, sourceId, commitId };
++
++it.each(["current", "historical", "absent"])("returns %s from one read", async (status) => {
++  const reply = { ...query, status };
++  mocks.invoke.mockResolvedValue(reply);
++  expect(await observeFolderCommit(projectId, source(), commitId)).toEqual(reply);
++  expect(mocks.invoke).toHaveBeenCalledExactlyOnceWith("observe_folder_commit", query);
++});
++
++it.each([
++  { ...query, sourceId: "another source", status: "current" },
++  { ...query, projectId: baseCommitId, status: "current" },
++  { ...query, commitId: baseCommitId, status: "current" },
++  { ...query, status: "replay" },
++])("rejects an unrelated or malformed reply", async (reply) => {
++  mocks.invoke.mockResolvedValue(reply);
++  await expect(observeFolderCommit(projectId, source(), commitId))
++    .rejects.toThrow("PROJECT_SNAPSHOT_CHANGED");
++  expect(mocks.invoke).toHaveBeenCalledTimes(1);
++});
++
++it("tracks the source at request time while the lookup is in flight", async () => {
++  let finish!: (value: unknown) => void;
++  mocks.invoke.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
++  const opened = source();
++  const answer = observeFolderCommit(projectId, opened, commitId);
++  opened.sourceId = "new opening";
++  finish({ ...query, status: "historical" });
++  expect(await answer).toMatchObject({ sourceId, status: "historical" });
++});
++
++it("does not query for unsupported hosts or malformed commit IDs", async () => {
++  mocks.isTauri.mockReturnValueOnce(false);
++  await expect(observeFolderCommit(projectId, source(), commitId))
++    .rejects.toThrow("PROJECT_FOLDER_UNSUPPORTED");
++  await expect(observeFolderCommit(projectId, source(), "unknown"))
++    .rejects.toThrow("PROJECT_SNAPSHOT_CHANGED");
++  expect(mocks.invoke).not.toHaveBeenCalled();
++});
+diff --git a/apps/desktop/src/features/project-sources/commitObservation.ts b/apps/desktop/src/features/project-sources/commitObservation.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/commitObservation.ts
+@@ -0,0 +1,39 @@
++import { invoke, isTauri } from "@tauri-apps/api/core";
++import { z } from "zod";
++import type { FolderSourceRef } from "./contract";
++
++const id = z.string().uuid();
++const requestSchema = z.object({
++  projectId: id,
++  sourceId: z.string().min(1).max(128),
++  commitId: id,
++});
++const replySchema = requestSchema.extend({
++  status: z.enum(["current", "historical", "absent"]),
++});
++
++export async function observeFolderCommit(
++  projectId: string,
++  source: FolderSourceRef,
++  attemptedCommitId: string,
++): Promise<z.infer<typeof replySchema>> {
++  if (!isTauri()) throw new Error("PROJECT_FOLDER_UNSUPPORTED");
++  const request = requestSchema.safeParse({
++    projectId,
++    sourceId: source.sourceId,
++    commitId: attemptedCommitId,
++  });
++  if (!request.success) throw new Error("PROJECT_SNAPSHOT_CHANGED");
++  const reply = replySchema.safeParse(
++    await invoke<unknown>("observe_folder_commit", request.data),
++  );
++  if (
++    !reply.success
++    || reply.data.projectId !== request.data.projectId
++    || reply.data.sourceId !== request.data.sourceId
++    || reply.data.commitId !== request.data.commitId
++  ) {
++    throw new Error("PROJECT_SNAPSHOT_CHANGED");
++  }
++  return reply.data;
++}
+diff --git a/apps/desktop/src/features/project-sources/createFolderSelection.test.ts b/apps/desktop/src/features/project-sources/createFolderSelection.test.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/createFolderSelection.test.ts
+@@ -0,0 +1,60 @@
++import { beforeEach, expect, it, vi } from "vitest";
++import { t } from "../../i18n";
++import { createFolderSelection, type BlankFolderDraft } from "./createFolderSelection";
++
++const mocks = vi.hoisted(() => ({ invoke: vi.fn() }));
++vi.mock("@tauri-apps/api/core", async original => ({
++  ...await original<typeof import("@tauri-apps/api/core")>(),
++  invoke: mocks.invoke,
++  isTauri: () => true,
++}));
++
++const draft: BlankFolderDraft = { name: "A new part", units: "mm", agent: "codex" };
++const project = { id: "new-project" };
++const source = { sourceId: "window:1:nonce", commitId: "written", taskScopeId: "task" };
++
++beforeEach(() => { mocks.invoke.mockReset(); });
++
++function setup() {
++  return { target: { isCurrent: vi.fn(() => true), activate: vi.fn() }, report: vi.fn() };
++}
++
++it("sends only draft metadata to the native picker and adopts the returned project", async () => {
++  const { target, report } = setup();
++  mocks.invoke.mockResolvedValueOnce({ status: "opened", source: { project, ...source } });
++  expect(await createFolderSelection(draft, target, report)).toBe(true);
++  expect(mocks.invoke).toHaveBeenCalledExactlyOnceWith("create_project_folder", { draft });
++  expect(target.activate).toHaveBeenCalledExactlyOnceWith(project, source);
++  expect(report).not.toHaveBeenCalled();
++});
++
++it("leaves the dialog open after the native picker is cancelled", async () => {
++  const { target, report } = setup();
++  mocks.invoke.mockResolvedValueOnce(null);
++  expect(await createFolderSelection(draft, target, report)).toBe(false);
++  expect(target.activate).not.toHaveBeenCalled();
++  expect(report).not.toHaveBeenCalled();
++});
++
++it.each([
++  ["savedWithoutOpening", "The project was saved. Open the selected folder to continue."],
++  ["indeterminate", "The save result is uncertain. Open the selected folder to check it."],
++] as const)("reports %s and asks the user to open the folder without another write", async (status, label) => {
++  const { target, report } = setup();
++  mocks.invoke.mockResolvedValueOnce({ status, commitId: "attempt", error: "Disk failure" });
++  expect(await createFolderSelection(draft, target, report)).toBe(true);
++  expect(report).toHaveBeenCalledExactlyOnceWith(`${t(label)}\nattempt\nDisk failure`);
++  expect(target.activate).not.toHaveBeenCalled();
++  expect(mocks.invoke).toHaveBeenCalledTimes(1);
++});
++
++it("releases a new live source from a late creation without switching view", async () => {
++  const { target, report } = setup();
++  mocks.invoke.mockResolvedValueOnce({ status: "opened", source: { project, ...source } });
++  const pending = createFolderSelection(draft, target, report);
++  target.isCurrent.mockReturnValue(false);
++  expect(await pending).toBe(false);
++  expect(mocks.invoke).toHaveBeenLastCalledWith("close_project_source", { sourceId: source.sourceId });
++  expect(target.activate).not.toHaveBeenCalled();
++  expect(report).not.toHaveBeenCalled();
++});
+diff --git a/apps/desktop/src/features/project-sources/createFolderSelection.ts b/apps/desktop/src/features/project-sources/createFolderSelection.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/createFolderSelection.ts
+@@ -0,0 +1,40 @@
++import { invoke, isTauri } from "@tauri-apps/api/core";
++import { t, errorText } from "../../i18n";
++import type { Project } from "../../types";
++import {
++  adoptFolderSelection, type FolderSelection, type FolderSelectionTarget,
++} from "./openFolderSelection";
++
++export type BlankFolderDraft = Pick<Project, "name" | "units" | "agent">;
++
++type FolderCreationReply =
++  | { status: "opened"; source: FolderSelection }
++  | { status: "savedWithoutOpening" | "indeterminate"; commitId: string; error: string };
++
++export async function createFolderSelection(
++  { name, units, agent }: BlankFolderDraft,
++  target: FolderSelectionTarget,
++  report: (message: string) => void,
++): Promise<boolean> {
++  if (!target.isCurrent()) return false;
++  if (!isTauri()) throw new Error("PROJECT_FOLDER_UNSUPPORTED");
++  let reply: FolderCreationReply | null;
++  try {
++    reply = await invoke<FolderCreationReply | null>("create_project_folder", { draft: { name, units, agent } });
++  } catch (cause) {
++    if (target.isCurrent()) throw cause;
++    return false;
++  }
++  if (reply === null) return false;
++  if (reply.status === "opened") return adoptFolderSelection(reply.source, target);
++  if (!target.isCurrent()) return false;
++  if ((reply.status !== "savedWithoutOpening" && reply.status !== "indeterminate") ||
++      typeof reply.commitId !== "string" || !reply.commitId || typeof reply.error !== "string") {
++    throw new Error("PROJECT_SNAPSHOT_CHANGED");
++  }
++  const message = reply.status === "savedWithoutOpening"
++    ? t("The project was saved. Open the selected folder to continue.")
++    : t("The save result is uncertain. Open the selected folder to check it.");
++  report(`${message}\n${reply.commitId}\n${errorText(reply.error)}`);
++  return true;
++}
+diff --git a/apps/desktop/src/features/project-sources/folderWriteResult.test.ts b/apps/desktop/src/features/project-sources/folderWriteResult.test.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/folderWriteResult.test.ts
+@@ -0,0 +1,95 @@
++import { beforeEach, expect, it, vi } from "vitest";
++import { newProject, useWorkspace } from "../../stores/workspace";
++import { checkUncertainFolderWrite, handleFolderWriteResult } from "./folderWriteResult";
++
++const mock = vi.hoisted(() => ({ read: vi.fn(), observe: vi.fn(), close: vi.fn() }));
++vi.mock("../project-catalog/api", () => ({ readProjectSnapshot: mock.read }));
++vi.mock("./commitObservation", () => ({ observeFolderCommit: mock.observe }));
++vi.mock("./sourceApi", () => ({ closeFolderSource: mock.close }));
++
++const source = { sourceId: "source", commitId: "base", taskScopeId: "task" };
++beforeEach(() => {
++  mock.close.mockResolvedValue(true);
++  useWorkspace.getState().setProject(null);
++  mock.read.mockReset();
++  mock.observe.mockReset();
++});
++
++function fixture() {
++  const previous = newProject("Original", "blank", "mm", "codex");
++  useWorkspace.getState().openFolderProject(previous, source);
++  const captured = useWorkspace.getState().sourceBinding;
++  if (captured?.kind !== "folder") throw new Error("Expected an open folder");
++  const result = {
++    projectId: previous.id, sourceId: source.sourceId, baseCommitId: source.commitId,
++    commitId: "next",
++  };
++  const next = { ...previous, name: "Committed" };
++  const uncertain = { ...result, status: "indeterminate" as const, error: "Uncertain" };
++  return { previous, captured, result, next, uncertain };
++}
++
++it("adopts a confirmed commit within the original opening", () => {
++  const f = fixture();
++  expect(handleFolderWriteResult(f.captured, { ...f.result, status: "committed", project: f.next }).status)
++    .toBe("committed");
++  expect(useWorkspace.getState().project).toBe(f.next);
++  expect(useWorkspace.getState().sourceBinding).toMatchObject({
++    openingId: f.captured.openingId, source: { ...source, commitId: "next" },
++  });
++});
++
++it("leaves an uncertain write untouched until an explicit lookup", () => {
++  const f = fixture();
++  expect(handleFolderWriteResult(f.captured, f.uncertain)).toBe(f.uncertain);
++  expect(mock.observe).not.toHaveBeenCalled();
++  expect(useWorkspace.getState().project).toBe(f.previous);
++});
++
++it.each(["historical", "absent"])("leaves the model untouched if the attempted commit is %s", async (status) => {
++  const f = fixture();
++  mock.observe.mockResolvedValue({ status });
++  expect(await checkUncertainFolderWrite(f.captured, f.uncertain)).toBe(status);
++  expect(mock.read).not.toHaveBeenCalled();
++  expect(useWorkspace.getState().project).toBe(f.previous);
++});
++
++it("adopts a proven current commit only after reading that exact snapshot", async () => {
++  const f = fixture();
++  mock.observe.mockResolvedValue({ status: "current" });
++  mock.read.mockResolvedValue(f.next);
++  expect(await checkUncertainFolderWrite(f.captured, f.uncertain)).toBe("current");
++  expect(mock.read).toHaveBeenCalledWith(f.previous.id, { ...source, commitId: "next" });
++  expect(useWorkspace.getState().project).toBe(f.next);
++});
++
++it("rejects a late snapshot after replacing the opening with an equal-ID project", async () => {
++  const f = fixture();
++  mock.observe.mockResolvedValue({ status: "current" });
++  let finish!: (project: typeof f.next) => void;
++  mock.read.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
++  const pending = checkUncertainFolderWrite(f.captured, f.uncertain);
++  await vi.waitFor(() => expect(mock.read).toHaveBeenCalledOnce());
++  const replacement = { ...f.previous, name: "Reopened" };
++  useWorkspace.getState().openFolderProject(replacement, { ...source, sourceId: "replacement" });
++  finish(f.next);
++  expect(await pending).toBe("stale");
++  expect(useWorkspace.getState().project).toBe(replacement);
++  expect(await checkUncertainFolderWrite(f.captured, f.uncertain)).toBe("stale");
++  expect(mock.observe).toHaveBeenCalledTimes(1);
++});
++
++it("does not read a stale commit when the same opening has advanced", async () => {
++  const f = fixture();
++  let finish!: (value: { status: string }) => void;
++  mock.observe.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
++  const pending = checkUncertainFolderWrite(f.captured, f.uncertain);
++  const replacement = { ...f.previous, name: "Newer commit" };
++  expect(useWorkspace.getState().publishFolderSnapshot(
++    replacement, f.captured, { ...source, commitId: "newer" },
++  )).toBe(true);
++  finish({ status: "current" });
++  expect(await pending).toBe("stale");
++  expect(mock.read).not.toHaveBeenCalled();
++  expect(useWorkspace.getState().project).toBe(replacement);
++});
+diff --git a/apps/desktop/src/features/project-sources/folderWriteResult.ts b/apps/desktop/src/features/project-sources/folderWriteResult.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/folderWriteResult.ts
+@@ -0,0 +1,53 @@
++import { useWorkspace } from "../../stores/workspace";
++import { readProjectSnapshot } from "../project-catalog/api";
++import { observeFolderCommit } from "./commitObservation";
++import { isSourceCurrent, type ProjectSourceBinding } from "./sourceBinding";
++import type { FolderWriteResult } from "./writeApi";
++
++type Opening = Extract<ProjectSourceBinding, { kind: "folder" }>;
++type UncertainWrite = Extract<FolderWriteResult, { status: "indeterminate" }>;
++
++export function isFolderWriteOpeningCurrent(captured: Opening): boolean {
++  const { project, sourceBinding } = useWorkspace.getState();
++  return sourceBinding?.kind === "folder"
++    && isSourceCurrent(sourceBinding, captured)
++    && project?.id === captured.projectId
++    && sourceBinding.source.commitId === captured.source.commitId;
++}
++
++function matchesOpening(captured: Opening, reply: FolderWriteResult): boolean {
++  return isFolderWriteOpeningCurrent(captured)
++    && reply.projectId === captured.projectId
++    && reply.sourceId === captured.source.sourceId
++    && reply.baseCommitId === captured.source.commitId;
++}
++
++/** Adopt confirmed writes and let the caller present all other outcomes. */
++export function handleFolderWriteResult(
++  captured: Opening,
++  reply: FolderWriteResult,
++): FolderWriteResult | { status: "stale" } {
++  if (!matchesOpening(captured, reply)) return { status: "stale" };
++  if (reply.status === "committed") {
++    const next = { ...captured.source, commitId: reply.commitId };
++    if (!useWorkspace.getState().publishFolderSnapshot(reply.project, captured, next)) {
++      return { status: "stale" };
++    }
++  }
++  return reply;
++}
++
++/** User-initiated lookup of an uncertain write, with no mutation on the host. */
++export async function checkUncertainFolderWrite(captured: Opening, reply: UncertainWrite) {
++  if (!matchesOpening(captured, reply)) return "stale" as const;
++  const observation = await observeFolderCommit(captured.projectId, captured.source, reply.commitId);
++  if (!matchesOpening(captured, reply)) return "stale" as const;
++  if (observation.status !== "current") return observation.status;
++
++  const next = { ...captured.source, commitId: reply.commitId };
++  const project = await readProjectSnapshot(captured.projectId, next);
++  if (!matchesOpening(captured, reply)) return "stale" as const;
++  return useWorkspace.getState().publishFolderSnapshot(project, captured, next)
++    ? "current" as const
++    : "stale" as const;
++}
+diff --git a/apps/desktop/src/features/project-sources/managedRequests.test.tsx b/apps/desktop/src/features/project-sources/managedRequests.test.tsx
+--- a/apps/desktop/src/features/project-sources/managedRequests.test.tsx
++++ b/apps/desktop/src/features/project-sources/managedRequests.test.tsx
+@@ -33,7 +33,7 @@ it("does not replace a folder view with a late equal-ID managed card read",async
+   const p=project(),navigate=vi.fn(),error=vi.fn();useWorkspace.getState().setProject(p);
+   let finish!:(p:Project)=>void;mock.read.mockImplementation(()=>new Promise(resolve=>{finish=resolve;}));
+   const view=renderHook(()=>useProjectNavigation(p.id,navigate,error));let pending!:Promise<void>;
+-  act(()=>{pending=view.result.current(p);});act(()=>useWorkspace.getState().openFolderProject(p,ref));const binding=useWorkspace.getState().sourceBinding;
++  act(()=>{pending=view.result.current.openProject(p);});act(()=>useWorkspace.getState().openFolderProject(p,ref));const binding=useWorkspace.getState().sourceBinding;
+   await act(async()=>{finish({...p,name:"managed response"});await pending;});
+   expect(useWorkspace.getState().project).toBe(p);expect(useWorkspace.getState().sourceBinding).toBe(binding);expect(navigate).not.toHaveBeenCalled();expect(error).not.toHaveBeenCalled();view.unmount();
+ });
+diff --git a/apps/desktop/src/features/project-sources/openFolderSelection.test.ts b/apps/desktop/src/features/project-sources/openFolderSelection.test.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/openFolderSelection.test.ts
+@@ -0,0 +1,75 @@
++import { afterEach, expect, it, vi } from "vitest";
++import { openFolderSelection } from "./openFolderSelection";
++
++const native = vi.hoisted(() => ({ invoke: vi.fn(), isTauri: vi.fn() }));
++vi.mock("@tauri-apps/api/core", () => native);
++
++const project = { id: "same-project-id" };
++const selected = { project, sourceId: "folder-opening", commitId: "saved", taskScopeId: "tasks" };
++
++afterEach(() => vi.resetAllMocks());
++
++function setup() {
++  native.isTauri.mockReturnValue(true);
++  return { isCurrent: vi.fn(() => true), activate: vi.fn() };
++}
++
++it("activates the selected snapshot with its window-local source and sends no path", async () => {
++  const target = setup();
++  native.invoke.mockResolvedValueOnce(selected);
++  await openFolderSelection(target);
++  expect(native.invoke.mock.calls).toEqual([["open_project_folder"]]);
++  expect(target.activate).toHaveBeenCalledOnce();
++  expect(target.activate).toHaveBeenCalledWith(project, {
++    sourceId: "folder-opening", commitId: "saved", taskScopeId: "tasks",
++  });
++});
++
++it("leaves the current opening alone when the picker is cancelled", async () => {
++  const target = setup();
++  native.invoke.mockResolvedValueOnce(null);
++  await openFolderSelection(target);
++  expect(target.activate).not.toHaveBeenCalled();
++  expect(native.invoke).toHaveBeenCalledOnce();
++});
++
++it("closes a late opening after navigation changes even for the same project ID", async () => {
++  const target = setup();
++  native.invoke.mockResolvedValueOnce(selected).mockResolvedValueOnce(true);
++  const opening = openFolderSelection(target);
++  target.isCurrent.mockReturnValue(false);
++  await opening;
++  expect(target.activate).not.toHaveBeenCalled();
++  expect(native.invoke).toHaveBeenLastCalledWith("close_project_source", { sourceId: "folder-opening" });
++  expect(native.invoke).toHaveBeenCalledTimes(2);
++});
++
++it("ignores a late picker error after navigation changes", async () => {
++  const target = setup();
++  native.invoke.mockRejectedValueOnce(new Error("late error"));
++  const opening = openFolderSelection(target);
++  target.isCurrent.mockReturnValue(false);
++  await expect(opening).resolves.toBeUndefined();
++  expect(target.activate).not.toHaveBeenCalled();
++});
++
++it("surfaces an error for the current navigation", async () => {
++  const target = setup();
++  native.invoke.mockRejectedValueOnce(new Error("PICKER_FAILED"));
++  await expect(openFolderSelection(target)).rejects.toThrow("PICKER_FAILED");
++});
++
++it("releases an opening whose reply is missing the commit", async () => {
++  const target = setup();
++  native.invoke.mockResolvedValueOnce({ ...selected, commitId: "" }).mockResolvedValueOnce(true);
++  await expect(openFolderSelection(target)).rejects.toThrow("PROJECT_SNAPSHOT_CHANGED");
++  expect(target.activate).not.toHaveBeenCalled();
++  expect(native.invoke).toHaveBeenLastCalledWith("close_project_source", { sourceId: "folder-opening" });
++});
++
++it("keeps the folder picker unavailable outside the desktop host", async () => {
++  const target = setup();
++  native.isTauri.mockReturnValue(false);
++  await expect(openFolderSelection(target)).rejects.toThrow("PROJECT_FOLDER_UNSUPPORTED");
++  expect(native.invoke).not.toHaveBeenCalled();
++});
+diff --git a/apps/desktop/src/features/project-sources/openFolderSelection.ts b/apps/desktop/src/features/project-sources/openFolderSelection.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/openFolderSelection.ts
+@@ -0,0 +1,52 @@
++import { invoke, isTauri } from "@tauri-apps/api/core";
++import type { Project } from "../../types";
++import type { FolderSourceRef } from "./contract";
++import { closeFolderSource } from "./sourceApi";
++
++export interface FolderSelection extends FolderSourceRef {
++  readonly project: Project;
++}
++
++export interface FolderSelectionTarget {
++  isCurrent(): boolean;
++  activate(project: Project, source: FolderSourceRef): void;
++}
++
++/** Adopt a native picker result only while the initiating navigation still owns it. */
++export async function openFolderSelection(target: FolderSelectionTarget): Promise<void> {
++  if (!target.isCurrent()) return;
++  if (!isTauri()) throw new Error("PROJECT_FOLDER_UNSUPPORTED");
++
++  let selected: FolderSelection | null;
++  try {
++    selected = await invoke<FolderSelection | null>("open_project_folder");
++  } catch (cause) {
++    if (target.isCurrent()) throw cause;
++    return;
++  }
++  if (!selected) return;
++  await adoptFolderSelection(selected, target);
++}
++
++export async function adoptFolderSelection(selected: FolderSelection, target: FolderSelectionTarget): Promise<boolean> {
++  const { project, sourceId, commitId, taskScopeId } = selected;
++  const source = { sourceId, commitId, taskScopeId };
++  let adopted = false;
++  try {
++    if (!target.isCurrent()) return false;
++    if (!project?.id || !sourceId || !commitId || !taskScopeId) {
++      throw new Error("PROJECT_SNAPSHOT_CHANGED");
++    }
++    target.activate(project, source);
++    adopted = true;
++    return true;
++  } finally {
++    if (!adopted && sourceId) {
++      try {
++        await closeFolderSource(source);
++      } catch (cause) {
++        console.warn("Folder source could not be closed", cause);
++      }
++    }
++  }
++}
+diff --git a/apps/desktop/src/features/project-sources/runFolderWrite.test.ts b/apps/desktop/src/features/project-sources/runFolderWrite.test.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/runFolderWrite.test.ts
+@@ -0,0 +1,76 @@
++import { beforeEach, expect, it, vi } from "vitest";
++import { newProject, useWorkspace } from "../../stores/workspace";
++import { runFolderWrite } from "./runFolderWrite";
++
++const mock = vi.hoisted(() => ({ request: vi.fn(), resolve: vi.fn(), execute: vi.fn(), close: vi.fn() }));
++vi.mock("../../lib/api", () => ({
++  requestNativePermission: mock.request,
++  resolveNativePermission: mock.resolve,
++}));
++vi.mock("./writeApi", () => ({ executeFolderWrite: mock.execute }));
++vi.mock("./sourceApi", () => ({ closeFolderSource: mock.close }));
++
++const source = { sourceId: "source", commitId: "base", taskScopeId: "task" };
++const intent = { kind: "history", direction: "undo", expectedRevision: null } as const;
++
++beforeEach(() => {
++  mock.close.mockResolvedValue(true);
++  useWorkspace.getState().setProject(null);
++  mock.request.mockReset();
++  mock.resolve.mockReset().mockResolvedValue(undefined);
++  mock.execute.mockReset();
++});
++
++function fixture(requiresConfirmation: boolean) {
++  const project = newProject("Original", "blank", "mm", "codex");
++  useWorkspace.getState().openFolderProject(project, source);
++  const captured = useWorkspace.getState().sourceBinding;
++  if (captured?.kind !== "folder") throw new Error("Expected an open folder");
++  const ticket = { id: "approval", projectId: project.id, source, requiresConfirmation };
++  mock.request.mockResolvedValue(ticket);
++  mock.execute.mockResolvedValue({
++    status: "committed", projectId: project.id, sourceId: source.sourceId,
++    baseCommitId: source.commitId, commitId: "next", project: { ...project, name: "Updated" },
++  });
++  return { project, captured, ticket };
++}
++
++it.each([true, false])("executes only the retained Undo after approval (dialog: %s)", async (requiresConfirmation) => {
++  const f = fixture(requiresConfirmation);
++  const confirm = vi.fn(async () => true);
++  expect(await runFolderWrite(f.captured, intent, "Undo", confirm)).toMatchObject({ status: "committed" });
++  expect(mock.request).toHaveBeenCalledExactlyOnceWith(f.project.id, "modify_project", "Undo", { source, intent });
++  expect(mock.execute).toHaveBeenCalledExactlyOnceWith(f.ticket, "undo");
++  expect(confirm).toHaveBeenCalledTimes(requiresConfirmation ? 1 : 0);
++  expect(mock.resolve).toHaveBeenCalledTimes(requiresConfirmation ? 1 : 0);
++  if (requiresConfirmation) expect(mock.resolve).toHaveBeenCalledWith(f.ticket.id, true, f.ticket);
++  expect(useWorkspace.getState().project?.name).toBe("Updated");
++});
++
++it("records denial without executing the approved intent", async () => {
++  const f = fixture(true);
++  expect(await runFolderWrite(f.captured, intent, "Undo", async () => false)).toEqual({ status: "denied" });
++  expect(mock.resolve).toHaveBeenCalledExactlyOnceWith(f.ticket.id, false, f.ticket);
++  expect(mock.execute).not.toHaveBeenCalled();
++});
++
++it("discards approval if the original opening was replaced during confirmation", async () => {
++  const f = fixture(true);
++  const result = await runFolderWrite(f.captured, intent, "Undo", async () => {
++    useWorkspace.getState().openFolderProject(f.project, { ...source, sourceId: "replacement" });
++    return true;
++  });
++  expect(result).toEqual({ status: "stale" });
++  expect(mock.resolve).toHaveBeenCalledExactlyOnceWith(f.ticket.id, false, f.ticket);
++  expect(mock.execute).not.toHaveBeenCalled();
++});
++
++it("drops the result if the opening changes while execution is pending", async () => {
++  const f = fixture(false);
++  mock.execute.mockImplementationOnce(async () => {
++    useWorkspace.getState().openFolderProject(f.project, { ...source, sourceId: "replacement" });
++    return { status: "noOp", projectId: f.project.id, sourceId: source.sourceId, baseCommitId: source.commitId, project: f.project };
++  });
++  expect(await runFolderWrite(f.captured, intent, "Undo", async () => true)).toEqual({ status: "stale" });
++  expect(useWorkspace.getState().project).toBe(f.project);
++});
+diff --git a/apps/desktop/src/features/project-sources/runFolderWrite.ts b/apps/desktop/src/features/project-sources/runFolderWrite.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/runFolderWrite.ts
+@@ -0,0 +1,56 @@
++import { requestNativePermission, resolveNativePermission } from "../../lib/api";
++import { handleFolderWriteResult, isFolderWriteOpeningCurrent as isCurrent } from "./folderWriteResult";
++import type { FolderPermissionTicket, FolderWriteIntent } from "./permissionContract";
++import type { ProjectSourceBinding } from "./sourceBinding";
++import { executeFolderWrite, type FolderWriteCommand } from "./writeApi";
++
++type Opening = Extract<ProjectSourceBinding, { kind: "folder" }>;
++
++function commandFor(intent: FolderWriteIntent): FolderWriteCommand {
++  switch (intent.kind) {
++    case "model": return "program";
++    case "commands": return "commands";
++    case "history": return intent.direction;
++  }
++}
++
++export async function runFolderWrite(
++  captured: Opening,
++  intent: FolderWriteIntent,
++  detail: string,
++  confirm: () => Promise<boolean>,
++) {
++  const stale = { status: "stale" } as const;
++  if (!isCurrent(captured)) return stale;
++  const command = commandFor(intent);
++  const ticket = await requestNativePermission(captured.projectId, "modify_project", detail, {
++    source: captured.source,
++    intent,
++  });
++  if (ticket.requiresConfirmation) {
++    if (!isCurrent(captured)) {
++      await discard(ticket);
++      return stale;
++    }
++    let allow: boolean;
++    try {
++      allow = await confirm();
++    } catch (error) {
++      await discard(ticket);
++      throw error;
++    }
++    if (!isCurrent(captured)) {
++      await discard(ticket);
++      return stale;
++    }
++    await resolveNativePermission(ticket.id, allow, ticket);
++    if (!allow) return isCurrent(captured) ? { status: "denied" } as const : stale;
++  }
++  if (!isCurrent(captured)) return stale;
++  return handleFolderWriteResult(captured, await executeFolderWrite(ticket, command));
++}
++
++async function discard(ticket: Readonly<FolderPermissionTicket>) {
++  // A close may already have revoked the ticket. Never mask the original outcome.
++  await resolveNativePermission(ticket.id, false, ticket).catch(() => {});
++}
+diff --git a/apps/desktop/src/features/project-sources/useFolderWriteAction.ts b/apps/desktop/src/features/project-sources/useFolderWriteAction.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/useFolderWriteAction.ts
+@@ -0,0 +1,83 @@
++import { useRef, useState } from "react";
++import { errorText } from "../../i18n";
++import type { FolderWriteIntent } from "./permissionContract";
++import { checkUncertainFolderWrite, isFolderWriteOpeningCurrent } from "./folderWriteResult";
++import { runFolderWrite } from "./runFolderWrite";
++import type { ProjectSourceBinding } from "./sourceBinding";
++import type { FolderWriteResult } from "./writeApi";
++
++export type FolderWriteOpening = Extract<ProjectSourceBinding, { kind: "folder" }>;
++type Uncertain = {
++  opening: FolderWriteOpening;
++  result: Extract<FolderWriteResult, { status: "indeterminate" }>;
++  observation?: "historical" | "absent";
++};
++
++/** One writer and one unresolved publication for every editing control in the workspace. */
++export function useFolderWriteAction(
++  binding: ProjectSourceBinding | null,
++  onCommit: () => void,
++  reportError: (message: string) => void,
++) {
++  const lock = useRef(false);
++  const unresolved = useRef<Uncertain | null>(null);
++  const [busy, setBusy] = useState(false);
++  const [uncertain, setUncertain] = useState<Uncertain | null>(null);
++  const visible = binding?.kind === "folder"
++    && uncertain?.opening.openingId === binding.openingId
++    && uncertain.opening.source.commitId === binding.source.commitId
++    ? uncertain : null;
++
++  async function withLock(work: () => Promise<void>, opening: FolderWriteOpening) {
++    lock.current = true;
++    setBusy(true);
++    try {
++      await work();
++    } catch (error) {
++      if (isFolderWriteOpeningCurrent(opening)) reportError(errorText(error));
++    } finally {
++      lock.current = false;
++      setBusy(false);
++    }
++  }
++
++  async function write(
++    opening: FolderWriteOpening,
++    intent: FolderWriteIntent,
++    detail: string,
++    confirm: () => Promise<boolean>,
++  ) {
++    if (lock.current || !isFolderWriteOpeningCurrent(opening)
++      || (unresolved.current && isFolderWriteOpeningCurrent(unresolved.current.opening))) return;
++
++    await withLock(async () => {
++      const result = await runFolderWrite(opening, intent, detail, confirm);
++      if (result.status === "committed") onCommit();
++      else if (result.status === "rejectedBefore" && isFolderWriteOpeningCurrent(opening)) {
++        reportError(errorText(new Error(result.error)));
++      } else if (result.status === "indeterminate" && isFolderWriteOpeningCurrent(opening)) {
++        unresolved.current = { opening, result };
++        setUncertain(unresolved.current);
++      }
++    }, opening);
++  }
++
++  async function check() {
++    if (lock.current || !visible || !isFolderWriteOpeningCurrent(visible.opening)) return;
++    await withLock(async () => {
++      const status = await checkUncertainFolderWrite(visible.opening, visible.result);
++      if (status === "current") {
++        unresolved.current = null;
++        setUncertain(null);
++        onCommit();
++      } else if (status === "historical" || status === "absent") {
++        unresolved.current = { ...visible, observation: status };
++        setUncertain(unresolved.current);
++      }
++    }, visible.opening);
++  }
++
++  return { write, check, busy, uncertain: visible };
++}
++
++export type FolderWriteAction = ReturnType<typeof useFolderWriteAction>;
+diff --git a/apps/desktop/src/features/project-sources/useFolderWriteConfirmation.test.tsx b/apps/desktop/src/features/project-sources/useFolderWriteConfirmation.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/useFolderWriteConfirmation.test.tsx
+@@ -0,0 +1,43 @@
++import { act, renderHook } from "@testing-library/react";
++import { beforeEach, expect, it, vi } from "vitest";
++import { newProject, useWorkspace } from "../../stores/workspace";
++import type { ProjectSourceBinding } from "./sourceBinding";
++import { useFolderWriteConfirmation } from "./useFolderWriteConfirmation";
++
++vi.mock("./sourceApi", () => ({ closeFolderSource: vi.fn(async () => true) }));
++const source = { sourceId: "first", commitId: "head", taskScopeId: "tasks" };
++beforeEach(() => { useWorkspace.getState().setProject(null); });
++
++function fixture() {
++  const project = newProject("Folder", "blank", "mm", "codex");
++  useWorkspace.getState().openFolderProject(project, source);
++  const opening = useWorkspace.getState().sourceBinding;
++  if (opening?.kind !== "folder") throw new Error("Expected a folder opening");
++  const view = renderHook(({ binding }: { binding: ProjectSourceBinding | null }) =>
++    useFolderWriteConfirmation(binding),
++    { initialProps: { binding: opening as ProjectSourceBinding | null } },
++  );
++  return { project, opening, ...view };
++}
++
++const content = { title: "Model edit", description: "Review geometry", detail: "original" };
++
++it.each([true, false])("resolves the review dialog decision as %s", async (allow) => {
++  const f = fixture();
++  let decision!: Promise<boolean>;
++  act(() => { decision = f.result.current.confirm(f.opening, content); });
++  expect(f.result.current.pending?.detail).toBe("original");
++  act(() => f.result.current.decide(allow));
++  expect(await decision).toBe(allow);
++  expect(f.result.current.pending).toBeNull();
++});
++
++it("rejects the old review when the same project is reopened in another folder", async () => {
++  const f = fixture();
++  let decision!: Promise<boolean>;
++  act(() => { decision = f.result.current.confirm(f.opening, content); });
++  useWorkspace.getState().openFolderProject(f.project, { ...source, sourceId: "second" });
++  f.rerender({ binding: useWorkspace.getState().sourceBinding });
++  expect(await decision).toBe(false);
++  expect(f.result.current.pending).toBeNull();
++});
+diff --git a/apps/desktop/src/features/project-sources/useFolderWriteConfirmation.ts b/apps/desktop/src/features/project-sources/useFolderWriteConfirmation.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/useFolderWriteConfirmation.ts
+@@ -0,0 +1,47 @@
++import { useEffect, useRef, useState } from "react";
++import type { ActionReviewContent } from "../../app/dialogs/ActionReviewDialog";
++import { isFolderWriteOpeningCurrent } from "./folderWriteResult";
++import type { ProjectSourceBinding } from "./sourceBinding";
++import type { FolderWriteOpening } from "./useFolderWriteAction";
++
++export function useFolderWriteConfirmation(binding: ProjectSourceBinding | null) {
++  const decision = useRef<{ opening: FolderWriteOpening; resolve: (allow: boolean) => void } | null>(null);
++  const [pending, setPending] = useState<ActionReviewContent | null>(null);
++
++  useEffect(() => {
++    const active = decision.current;
++    if (active && !isFolderWriteOpeningCurrent(active.opening)) {
++      decision.current = null;
++      active.resolve(false);
++    }
++  }, [binding]);
++
++  useEffect(() => () => {
++    decision.current?.resolve(false);
++    decision.current = null;
++  }, []);
++
++  async function confirm(opening: FolderWriteOpening, content: ActionReviewContent) {
++    if (!isFolderWriteOpeningCurrent(opening) || decision.current) {
++      return false;
++    }
++    return new Promise<boolean>((resolve) => {
++      decision.current = { opening, resolve };
++      setPending(content);
++    });
++  }
++
++  function decide(allow: boolean) {
++    const active = decision.current;
++    decision.current = null;
++    setPending(null);
++    active?.resolve(allow && isFolderWriteOpeningCurrent(active.opening));
++  }
++
++  const active = decision.current;
++  return {
++    confirm,
++    decide,
++    pending: active && binding === active.opening ? pending : null,
++  };
++}
+diff --git a/apps/desktop/src/features/project-sources/writeApi.test.ts b/apps/desktop/src/features/project-sources/writeApi.test.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/writeApi.test.ts
+@@ -0,0 +1,83 @@
++import { afterEach, expect, it, vi } from "vitest";
++import { executeFolderWrite } from "./writeApi";
++
++const mocks = vi.hoisted(() => ({ invoke: vi.fn(), isTauri: vi.fn(() => true) }));
++vi.mock("@tauri-apps/api/core", () => mocks);
++afterEach(() => {
++  mocks.invoke.mockReset();
++  mocks.isTauri.mockReset().mockReturnValue(true);
++});
++
++const projectId = "9ef4f985-695a-4a73-b8de-b10468bfc450";
++const sourceId = "340f0083-c50f-4e15-b633-5cc4753ffb5c:1:8c45ccab-969f-4b94-a565-73db75eae0ef";
++const baseCommitId = "78b94346-f162-44e8-85c6-9cb64b8be739";
++const commitId = "7c6c3844-bdbe-4132-91ff-8e52a46a97ec";
++const approvalId = "0fdca3bb-60ac-4014-99e9-28b8306687c7";
++const envelope = { projectId, sourceId, baseCommitId };
++const project = {
++  schemaVersion: 1, id: projectId, name: "Original", currentRevision: null,
++  units: "mm", agent: "codex", pinned: false,
++  createdAt: "2026-11-20T00:00:00Z", updatedAt: "2026-11-20T00:00:00Z",
++  revisions: [], messages: [], files: [], exports: [],
++};
++const ticket = () => ({
++  id: approvalId,
++  requiresConfirmation: true,
++  projectId,
++  source: { sourceId, commitId: baseCommitId, taskScopeId: sourceId },
++});
++
++it.each([
++  ["program", "apply_program"],
++  ["commands", "apply_ir_commands"],
++  ["undo", "undo_model"],
++  ["redo", "redo_model"],
++] as const)("executes %s with the retained approval and no new payload", async (command, ipc) => {
++  mocks.invoke.mockResolvedValue({ ...envelope, status: "committed", commitId, project });
++  expect(await executeFolderWrite(ticket(), command)).toEqual({
++    ...envelope, status: "committed", commitId, project,
++  });
++  expect(mocks.invoke).toHaveBeenCalledExactlyOnceWith(ipc, {
++    projectId, folderWrite: { sourceId, expectedCommitId: baseCommitId, approvalId },
++  });
++});
++
++it.each([
++  { ...envelope, status: "noOp", project },
++  { ...envelope, status: "rejectedBefore", error: "PROJECT_SNAPSHOT_CHANGED" },
++  { ...envelope, status: "indeterminate", commitId, error: "PROJECT_SNAPSHOT_CHANGED" },
++])("preserves the host's $status result without retrying", async (response) => {
++  mocks.invoke.mockResolvedValue(response);
++  expect(await executeFolderWrite(ticket(), "program")).toEqual(response);
++  expect(mocks.invoke).toHaveBeenCalledTimes(1);
++});
++
++it.each([
++  project,
++  { ...envelope, sourceId: commitId, status: "noOp", project },
++  { ...envelope, baseCommitId: commitId, status: "noOp", project },
++  { ...envelope, status: "committed", commitId: baseCommitId, project },
++  { ...envelope, status: "committed", commitId, project: { ...project, id: commitId } },
++  { ...envelope, status: "indeterminate", error: "uncertain" },
++])("rejects a malformed or foreign reply", async (response) => {
++  mocks.invoke.mockResolvedValue(response);
++  await expect(executeFolderWrite(ticket(), "program")).rejects.toThrow("PROJECT_SNAPSHOT_CHANGED");
++  expect(mocks.invoke).toHaveBeenCalledTimes(1);
++});
++
++it("matches the result against the original ticket across the IPC await", async () => {
++  let finish!: (value: unknown) => void;
++  mocks.invoke.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
++  const selected = ticket();
++  const pending = executeFolderWrite(selected, "program");
++  selected.source.commitId = commitId;
++  finish({ ...envelope, status: "noOp", project });
++  expect(await pending).toMatchObject({ baseCommitId, status: "noOp" });
++});
++
++it("rejects unsupported clients and malformed tickets before invoking the host", async () => {
++  mocks.isTauri.mockReturnValueOnce(false);
++  await expect(executeFolderWrite(ticket(), "undo")).rejects.toThrow("PROJECT_FOLDER_UNSUPPORTED");
++  await expect(executeFolderWrite({ ...ticket(), id: "invalid" }, "undo")).rejects.toThrow("PROJECT_SNAPSHOT_CHANGED");
++  expect(mocks.invoke).not.toHaveBeenCalled();
++});
+diff --git a/apps/desktop/src/features/project-sources/writeApi.ts b/apps/desktop/src/features/project-sources/writeApi.ts
+new file mode 100644
+--- /dev/null
++++ b/apps/desktop/src/features/project-sources/writeApi.ts
+@@ -0,0 +1,82 @@
++import { invoke, isTauri } from "@tauri-apps/api/core";
++import { z } from "zod";
++import type { Project } from "../../types";
++import {
++  capturePermissionContext,
++  type FolderPermissionTicket,
++} from "./permissionContract";
++
++const commands = {
++  program: "apply_program",
++  commands: "apply_ir_commands",
++  undo: "undo_model",
++  redo: "redo_model",
++} as const;
++
++export type FolderWriteCommand = keyof typeof commands;
++
++const id = z.string().uuid();
++const sourceKey = z.string().min(1).max(128);
++const envelope = { sourceId: sourceKey, projectId: id, baseCommitId: id };
++// The host validates persisted Project data. Check the outer shape and identity
++// here without parsing or copying the full history and attachment payload.
++const list = z.custom<unknown[]>(Array.isArray);
++const projectShape = z.object({
++  schemaVersion: z.literal(1),
++  id,
++  name: z.string(),
++  units: z.enum(["mm", "cm", "inch"]),
++  agent: z.enum(["codex", "claude", "custom"]),
++  pinned: z.boolean(),
++  createdAt: z.string(),
++  updatedAt: z.string(),
++  currentRevision: z.string().nullable(),
++  revisions: list,
++  messages: list,
++  files: list,
++  exports: list,
++});
++const project = z.custom<Project>((value) => projectShape.safeParse(value).success);
++const reply = z.discriminatedUnion("status", [
++  z.strictObject({ ...envelope, status: z.literal("noOp"), project }),
++  z.strictObject({ ...envelope, status: z.literal("committed"), commitId: id, project }),
++  z.strictObject({ ...envelope, status: z.literal("rejectedBefore"), error: z.string() }),
++  z.strictObject({ ...envelope, status: z.literal("indeterminate"), commitId: id, error: z.string() }),
++]);
++
++export type FolderWriteResult = z.infer<typeof reply>;
++
++export async function executeFolderWrite(
++  ticket: FolderPermissionTicket,
++  command: FolderWriteCommand,
++): Promise<FolderWriteResult> {
++  if (!isTauri()) throw new Error("PROJECT_FOLDER_UNSUPPORTED");
++  const { projectId, source } = capturePermissionContext(ticket);
++  const approvalId = ticket.id;
++  if (
++    !sourceKey.safeParse(source.sourceId).success
++    || ![projectId, source.commitId, approvalId].every((value) => id.safeParse(value).success)
++  ) {
++    throw new Error("PROJECT_SNAPSHOT_CHANGED");
++  }
++  const result = reply.safeParse(await invoke<unknown>(commands[command], {
++    projectId,
++    folderWrite: {
++      sourceId: source.sourceId,
++      expectedCommitId: source.commitId,
++      approvalId,
++    },
++  }));
++  if (!result.success) throw new Error("PROJECT_SNAPSHOT_CHANGED");
++  const value = result.data;
++  if (
++    value.projectId !== projectId
++    || value.sourceId !== source.sourceId
++    || value.baseCommitId !== source.commitId
++    || ("project" in value && value.project.id !== projectId)
++    || ("commitId" in value && value.commitId === source.commitId)
++  ) {
++    throw new Error("PROJECT_SNAPSHOT_CHANGED");
++  }
++  return value;
++}
+diff --git a/apps/desktop/src/i18n/en.json b/apps/desktop/src/i18n/en.json
+--- a/apps/desktop/src/i18n/en.json
++++ b/apps/desktop/src/i18n/en.json
+@@ -930,6 +930,10 @@
+   "Undo model (Ctrl+Z)": "Undo model (Ctrl+Z)",
+   "Redo model (Ctrl+Y)": "Redo model (Ctrl+Y)",
+   "Model history is unavailable": "Model history is unavailable",
++  "The result of the last model history action could not be confirmed.": "The result of the last model history action could not be confirmed.",
++  "The commit is saved in history. Reopen the folder to load its current model.": "The commit is saved in history. Reopen the folder to load its current model.",
++  "The commit was not found. Reopen the folder before making further changes.": "The commit was not found. Reopen the folder before making further changes.",
++  "Check saved commit": "Check saved commit",
+   "Undo model change": "Undo model change",
+   "Redo model change": "Redo model change",
+   "This changes the current model as one history step. Saved revisions stay available.": "This changes the current model as one history step. Saved revisions stay available.",
+@@ -968,6 +972,10 @@
+   "Rotation angle in degrees": "Rotation angle in degrees",
+   "INVALID_TRANSFORM": "Check the transform matrix, scale, axis, plane and angle.",
+   "Import project folder": "Import project folder",
++  "Open project in folder": "Open project in folder",
++  "Create in folder": "Create in folder",
++  "The project was saved. Open the selected folder to continue.": "The project was saved. Open the selected folder to continue.",
++  "The save result is uncertain. Open the selected folder to check it.": "The save result is uncertain. Open the selected folder to check it.",
+   "Review this project before importing it into your local workspace.": "Review this project before importing it into your local workspace.",
+   "Saved revisions: {{value0}}": "Saved revisions: {{value0}}",
+   "Source folder": "Source folder",
+diff --git a/apps/desktop/src/i18n/ru.json b/apps/desktop/src/i18n/ru.json
+--- a/apps/desktop/src/i18n/ru.json
++++ b/apps/desktop/src/i18n/ru.json
+@@ -930,6 +930,10 @@
+   "Undo model (Ctrl+Z)": "Отменить изменение модели (Ctrl+Z)",
+   "Redo model (Ctrl+Y)": "Повторить изменение модели (Ctrl+Y)",
+   "Model history is unavailable": "История отмены модели недоступна",
++  "The result of the last model history action could not be confirmed.": "Не удалось подтвердить результат последней операции с историей модели.",
++  "The commit is saved in history. Reopen the folder to load its current model.": "Коммит сохранён в истории. Заново откройте папку, чтобы загрузить текущую модель.",
++  "The commit was not found. Reopen the folder before making further changes.": "Коммит не найден. Заново откройте папку перед следующими изменениями.",
++  "Check saved commit": "Проверить сохранённый коммит",
+   "Undo model change": "Отменить изменение модели",
+   "Redo model change": "Повторить изменение модели",
+   "This changes the current model as one history step. Saved revisions stay available.": "Модель изменится на один шаг истории. Сохранённые ревизии останутся доступны.",
+@@ -968,6 +972,10 @@
+   "Rotation angle in degrees": "Угол вращения, градусы",
+   "INVALID_TRANSFORM": "Проверьте матрицу, масштаб, ось, плоскость и угол преобразования.",
+   "Import project folder": "Импортировать папку проекта",
++  "Open project in folder": "Открыть проект в папке",
++  "Create in folder": "Создать в папке",
++  "The project was saved. Open the selected folder to continue.": "Проект сохранён. Откройте выбранную папку, чтобы продолжить.",
++  "The save result is uncertain. Open the selected folder to check it.": "Результат сохранения неизвестен. Откройте выбранную папку, чтобы проверить его.",
+   "Review this project before importing it into your local workspace.": "Проверьте проект перед импортом в локальное рабочее пространство.",
+   "Saved revisions: {{value0}}": "Сохранённых ревизий: {{value0}}",
+   "Source folder": "Исходная папка",
+diff --git a/apps/desktop/src/main.tsx b/apps/desktop/src/main.tsx
+--- a/apps/desktop/src/main.tsx
++++ b/apps/desktop/src/main.tsx
+@@ -31,6 +31,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
+           <Routes>
+             <Route path="/" element={<App />} />
+             <Route path="/project/:projectId" element={<App />} />
++            <Route path="/folder/:folderProjectId" element={<App />} />
+           </Routes>
+         </HashRouter>
+       </Tooltip.Provider>
+diff --git a/docs/en/storage-folder-host-api.md b/docs/en/storage-folder-host-api.md
+--- a/docs/en/storage-folder-host-api.md
++++ b/docs/en/storage-folder-host-api.md
+@@ -18,6 +18,39 @@ is connected below, while product UI and app index remain incomplete.
+ Selecting the folder never imports it into AppData. LegacyManaged
+ and the V2 reader remain separate.
+
++## Folder selection in the workspace
++
++For a blank project, choose **Create in folder** in the New Project dialog,
++then select an empty directory. The native host creates the project and opens
++its first commit. Cancel the picker to return to the form. If the save
++completed but the folder could not open, or if the publication result is
++uncertain, open that folder from the dashboard before trying any further writes.
++
++The stage 4 integration adds **Open project in folder** to the dashboard.
++Choose an existing FCP1 directory in the desktop picker to open it in place.
++Use **Import project folder** for managed import. Cancelling the picker leaves
++the workspace as it was.
++
++The native host opens the directory in the invoking window and returns its
++project, commit and source reference. The renderer keeps the source reference
++in memory and releases a late selection if another navigation wins. The folder
++route stores only the project ID. Reloading it returns to the dashboard, where
++the folder can be selected again. A matching managed ID does not restore the
++folder. The FCP1 picker supports Windows and Linux on the architectures listed
++by the host.
++
++Renderer tests exercise picker cancel, late source release, duplicate clicks,
++matching managed and folder IDs, and reload without a live opening. They mock
++the picker transport. The native storage tests cover the actual opening and
++directory lifetime.
++
++In the source editor, **Build** sends the draft program and expected revision
++to the folder permission command. The host decides whether to display a
++confirmation. Build and Undo/Redo use the same workspace write lock. Approval
++applies only to the captured opening and commit. If the result of publication
++is uncertain, use **Check saved commit** before further edits. The check reads
++the attempted commit without replaying the write.
++
+ ## Reading
+
+ ### Metadata refresh through the original source
+diff --git a/docs/ru/storage-folder-host-api.md b/docs/ru/storage-folder-host-api.md
+--- a/docs/ru/storage-folder-host-api.md
++++ b/docs/ru/storage-folder-host-api.md
+@@ -17,6 +17,39 @@ Windows и Linux x86_64/aarch64. Текущая ревизия ещё требу
+ а продуктовый UI и app index ещё не завершены. Выбранная
+ папка не копируется в AppData; LegacyManaged и V2 reader продолжают работать отдельно.
+
++## Выбор папки в рабочей области
++
++Чтобы начать с пустого проекта, нажмите **Создать в папке** в диалоге нового
++проекта и выберите пустой каталог. Приложение создаст проект и откроет его
++первый коммит. Отмена выбора вернёт к форме. Если сохранённый проект
++не открылся или результат записи неизвестен, откройте выбранную папку с
++главного экрана перед следующей записью.
++
++Интеграция этапа 4 добавляет на главный экран действие **Открыть проект в
++папке**. Выберите существующую папку FCP1, чтобы работать в ней. Для импорта в
++управляемое хранилище используйте **Импортировать папку проекта**. Отмена
++выбора сохраняет текущее состояние рабочей области.
++
++Приложение открывает каталог в контексте вызвавшего окна и возвращает проект,
++коммит и ссылку на открытие. Интерфейс держит ссылку в памяти и освобождает
++источник, если ответ выбора пришёл после смены навигации. Маршрут папки
++содержит только ID проекта. При перезагрузке открывается главный экран, где
++папку можно выбрать снова. Совпадающий ID управляемого проекта не восстанавливает
++открытие папки. Диалог выбора FCP1 доступен на Windows и Linux в пределах
++архитектур, поддерживаемых приложением.
++
++Тесты интерфейса подменяют транспорт диалога и проверяют отмену, освобождение
++позднего источника, повторный клик, совпадающие ID и перезагрузку без активного
++открытия. Нативные тесты хранилища проверяют реальное открытие и срок жизни
++дескрипторов каталога.
++
++В редакторе исходного кода действие **Построить** передаёт черновик и ожидаемую
++ревизию в запросе разрешения на запись в папку. Приложение решает, нужен
++ли диалог. Построение, отмена и повтор используют общую блокировку записи.
++Разрешение относится к исходному открытию и коммиту. Если результат
++публикации неизвестен, нажмите **Проверить сохранённый коммит** перед новой
++правкой. Проверка читает состояние попытки и не повторяет запись.
++
+ ## Чтение
+
+ ### Обновление metadata через исходный источник

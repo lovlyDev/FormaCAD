@@ -1,3 +1,4 @@
+import {sameSceneSource} from "./committedScene";
 import type { SceneIdentity, SceneSnapshot } from "./committedScene";
 
 interface DisplayedObject { uuid: string; userData: { formaNativeCadPreview?: unknown } }
@@ -5,7 +6,7 @@ interface DisplayedObject { uuid: string; userData: { formaNativeCadPreview?: un
 export function committedSelectionScene<T extends DisplayedObject>(snapshot: SceneSnapshot<T>, current: SceneIdentity | null) {
   const displayed = snapshot.displayed;
   const object = snapshot.object;
-  const aligned = !!current && !!displayed && current.projectId === displayed.projectId &&
+  const aligned = !!current && !!displayed && sameSceneSource(current,displayed) &&
     current.revisionId === displayed.revisionId && current.sourceSeal === displayed.sourceSeal;
   const interactive = aligned && snapshot.phase === "ready" && !!object?.userData.formaNativeCadPreview;
   return { token: interactive ? object!.uuid : "", interactive };
