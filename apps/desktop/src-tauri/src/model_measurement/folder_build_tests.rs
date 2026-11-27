@@ -32,6 +32,7 @@ async fn imported_folder(
         .clone()
         .unwrap();
     let document = Document {
+        groups: Vec::new(),
         schema_version: 2,
         revision_id: revision.clone(),
         parameters: vec![],
