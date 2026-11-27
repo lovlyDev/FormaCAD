@@ -11,11 +11,12 @@ Host-метод `FolderSources::create_blank` создаёт пустой про
 
 [Документация](index.md) · [English](../en/storage-folder-host-api.md) · [Формат](storage-formats.md)
 
-`project_repository::sqlite_folder::api` подключает backend к обычной Rust-сборке
-Windows и Linux x86_64/aarch64. Текущая ревизия ещё требует компиляции и runtime
-проверок. Это доверенный host API: IPC выбора и чтения окна подключён ниже,
-а продуктовый UI и app index ещё не завершены. Выбранная
-папка не копируется в AppData; LegacyManaged и V2 reader продолжают работать отдельно.
+`project_repository::sqlite_folder::api` предоставляет backend для сборок Windows
+и Linux x86_64/aarch64. Интерфейс вызывает его через команды окна, чтобы
+открывать, изменять, копировать и восстанавливать проект в папке.
+Индекс приложения хранит только недавние расположения и настройки списка.
+Данные FCP1 остаются в выбранном каталоге. LegacyManaged и V2 reader
+доступны по своим маршрутам.
 
 ## Выбор папки в рабочей области
 

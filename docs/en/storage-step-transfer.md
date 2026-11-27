@@ -2,14 +2,12 @@
 
 [Documentation](index.md) · [Русский](../ru/storage-step-transfer.md) · [Folder format](storage-formats.md)
 
-This stage-4 Rust host API is available to supported Windows/Linux builds with
-the native worker client. Current-revision compile/runtime verification is pending.
-No UI button or IPC is connected. It takes an explicitly selected last STEP and
-creates an independent FCP1 project with real validated geometry. It neither
-discovers nor parses/migrates an old database. Old credentials, settings, history
-and parametric features are not imported or represented as recovered. No genuine
-1.1 project fixture has been provided; a synthetic directory containing real STEP
-does not prove full 1.1 compatibility.
+In a Windows or Linux build with an available CAD worker, choose **Transfer STEP
+to folder** on the dashboard. Select a saved STEP or STP file and a separate
+empty folder. FormaCAD creates an independent FCP1 project from the selected file's
+geometry. Older application data, including history and parametric operations,
+stays in the original project. See the [folder API](storage-folder-host-api.md#open-a-transferred-step-in-the-original-window)
+for details about the desktop flow.
 
 ## Host flow
 
@@ -63,8 +61,8 @@ fresh process and checks source file purity. Invalid STEP must fail before targe
 SQL/CAS creation. The workflow requires one executed passing test; zero matching
 tests are not a pass.
 
-Current-head CI is still required. USB/NAS, a genuine 1.1 fixture and production
-UI are not established by this API. Storage workflows run on pushes to the owned
-`codex/storage-week` branch so conflicting PRs during parallel main development
-cannot suppress backend checks. They verify that exact task SHA; clean current-main
-integration and Quality remain separate mandatory handoff gates.
+The same workflow compiles a project generator from the FormaCAD 1.1.0 sources
+and supplies it through `FORMA_LEGACY_1_1_GENERATOR`. It checks for
+`FORMA_LEGACY_1_1_SOURCE_UNCHANGED` after comparing the original file tree.
+This covers selected STEP transfer from 1.1.0. USB/NAS support and testing an
+installed build require separate runs.

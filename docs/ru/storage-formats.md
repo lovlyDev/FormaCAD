@@ -2,8 +2,9 @@
 
 [Документация](index.md) · [English](../en/storage-formats.md) · [Программа](storage-program.md)
 
-Целевой формат выбран в [решении](storage-format-decision.md); production backend ещё не подключён. Сравниваются существующие
-manifest/generations v2 и экспериментальная SQLite внутри папки проекта.
+Данные выбора FCP1 приведены в [решении о формате](storage-format-decision.md).
+Ниже описаны исходные сравнения manifest/generations v2 и экспериментальной
+SQLite внутри папки. Подключённые операции FCP1 описаны в [API папки](storage-folder-host-api.md).
 SQL-кандидат теперь использует минимальные project/history таблицы и типизированную историю; общая база
 приложения не участвует в его синтетических данных. Это benchmark, а не доступный
 пользователю open/save маршрут. Первый сохранённый baseline использовал app schema;

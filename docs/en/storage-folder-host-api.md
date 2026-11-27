@@ -11,12 +11,11 @@ registry and preserving nonempty destinations and invalid inputs.
 
 [Documentation](index.md) · [Русский](../ru/storage-folder-host-api.md) · [Format](storage-formats.md)
 
-`project_repository::sqlite_folder::api` exposes the backend to ordinary Windows
-and Linux x86_64/aarch64 Rust builds. This revision still requires compilation
-and runtime verification. It is a trusted host API; window selection/reading IPC
-is connected below, while product UI and app index remain incomplete.
-Selecting the folder never imports it into AppData. LegacyManaged
-and the V2 reader remain separate.
+`project_repository::sqlite_folder::api` exposes the backend to Windows and
+Linux x86_64/aarch64 builds. The UI calls it through window commands to open,
+edit, copy and recover a folder project. The application index stores recent
+locations and list preferences. FCP1 data stays in the selected directory.
+LegacyManaged and the V2 reader have their own routes.
 
 ## Folder selection in the workspace
 

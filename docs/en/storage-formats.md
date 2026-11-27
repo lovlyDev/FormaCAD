@@ -2,9 +2,11 @@
 
 [Documentation](index.md) · [Русский](../ru/storage-formats.md) · [Program](storage-program.md)
 
-The target format is selected in the [decision](storage-format-decision.md); the production backend is not connected yet. Compared candidates are the
-existing v2 manifest/generations representation and experimental project-local
-SQLite. The SQL candidate now uses minimal project/history tables and typed history; the global app
+The [format decision](storage-format-decision.md) records the evidence for choosing FCP1.
+This page describes the original comparison between the v2 manifest/generations
+representation and experimental project-local SQLite. See the [folder API](storage-folder-host-api.md)
+for the connected FCP1 operations. The SQL candidate uses minimal project/history
+tables and typed history; the global app
 database does not supply its synthetic data. This is a benchmark, not a user-facing
 open/save route. The saved first baseline used the app schema; it remains separate
 and does not establish the corrected pure opener's behavior.
